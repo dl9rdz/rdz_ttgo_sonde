@@ -1,0 +1,6 @@
+GPL License Exceptions:
+
+- The SX1278FSK library is based on
+   https://github.com/pdelmo/lora_shield_arduino.git
+  and licensed under 
+   GNU Lesser General Public License, version 2.1 (SPDX short identifier: LGPL-2.1)

@@ -1,0 +1,30 @@
+TTGOSonde is a Free Software code collection for decoding radiosondes with
+the SX1278/ESP32-based TTGO board. The code is copyrighted by Hansi Reiser
+(dl9rdz) and several other authors who have provided a valuable base and
+additonal contributions. 
+
+You can redistribute TTGOSonde and/or modify it under the terms of version 2
+of the GNU General Public License as published by the Free Software Foundation,
+or, at your option, under any later version of the GNU General Public License.
+See individual files and the file 'Licenses/Exceptions' for exceptions.
+
+Also note that the GPL and the other licenses are copyrighted by the Free 
+Software Foundation and other organizations.
+
+To avoid bloating individual code files with large license headers, the license
+headers in the source files have been replaced with a single line reference to
+a Unique License Identifier as defined by the Linux Foundation's SPDX project.
+For example, in a source file the full "GPL v2.0 or later" header text will be
+replaced by a single line:
+
+	SPDX-License-Identifier:	GPL-2.0+
+
+The SPDX Unique License Identifiers are available at http://spdx.org/licenses/
+
+We use the following License Identifiers in this project:
+
+Full name					SPDX Identifier	OSI Approved	File name		URI
+=======================================================================================================================================
+GNU General Public License v2.0 only		GPL-2.0		Y		gpl-2.0.txt		https://www.gnu.org/licenses/gpl-2.0.txt
+GNU General Public License v2.0 or later	GPL-2.0+	Y		gpl-2.0.txt		https://www.gnu.org/licenses/gpl-2.0.txt
+GNU Lesser General Public License v2.1		LGPL-2.1+	Y		lgpl-2.txt		https://www.gnu.org/licenses/lgpl-2.1.txt
