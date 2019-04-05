@@ -36,6 +36,10 @@ static const uint8_t font[10][5]={
   0x36, 0x49, 0x49, 0x49, 0x36,   // 8
   0x06, 0x49, 0x39, 0x29, 0x1E }; // 9;  .=0x40
 
+static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
+static uint8_t empty_tile[8]={0x80, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00, 0x00};
+
+
 void Sonde::setIP(const char *ip) {
   int tp = 0;
   int len = strlen(ip);
@@ -152,8 +156,11 @@ void Sonde::updateDisplayID() {
 void Sonde::updateDisplayRSSI() {
 	char buf[16];
 	u8x8.setFont(u8x8_font_7x14_1x2_r);
-	snprintf(buf, 16, "%ddB ", sonde.si()->rssi);
+	snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
+	int len=strlen(buf)-3;
+	buf[5]=0;
 	u8x8.drawString(0,6,buf);
+	u8x8.drawTile(len,6,1,(sonde.si()->rssi&1)?halfdb_tile:empty_tile);
 }
 
 void Sonde::updateStat() {

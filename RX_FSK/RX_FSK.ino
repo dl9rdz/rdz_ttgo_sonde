@@ -101,6 +101,37 @@ void setupWifiList() {
   for(int j=0; j<i; j++) { Serial.print(networks[j].id); Serial.print(": "); Serial.println(networks[j].pw); }
 }
 
+void setupChannelList() {
+  File file = SPIFFS.open("/qrg.txt", "r");
+  if(!file) {
+    Serial.println("There was an error opening the file '/qrg.txt' for reading");
+    return;
+  }
+  int i=0;
+  sonde.clearSonde();
+  while(file.available()) {
+    String line = file.readStringUntil('\n');
+    if(!file.available()) break;
+    if(line[0] == '#') continue;
+    char *space = strchr(line.c_str(), ' ');
+    if(!space) continue;
+    *space = 0;
+    float freq = atof(line.c_str());
+    SondeType type;
+    if(space[1]=='4') { type=STYPE_RS41; }
+    else if (space[1]=='9') { type=STYPE_DFM09; }
+    else if (space[1]=='6') { type=STYPE_DFM06; }
+    else continue;
+    Serial.printf("Adding %f with type %d\b",freq,type);
+    sonde.addSonde(freq, type);
+    i++;
+  }
+  nNetworks = i;
+  Serial.print(i); Serial.println(" networks in networks.txt\n");
+  for(int j=0; j<i; j++) { Serial.print(networks[j].id); Serial.print(": "); Serial.println(networks[j].pw); }
+
+}
+
 const char *fetchWifiPw(const char *id) {
   for(int i=0; i<nNetworks; i++) {
     Serial.print("Comparing '");
@@ -206,10 +237,13 @@ void setup()
   // Handle button press
   attachInterrupt(0, buttonISR, CHANGE);
 
+  setupChannelList();
+ #if 0
   sonde.clearSonde();
   sonde.addSonde(402.300, STYPE_RS41);
   sonde.addSonde(402.700, STYPE_RS41);
   sonde.addSonde(403.450, STYPE_DFM09);
+ #endif
   /// not here, done by sonde.setup(): rs41.setup();
   sonde.setup();
 }
@@ -267,7 +301,7 @@ void loopScanner() {
       enterMode(ST_DECODER);
       return;
   }
-  if(++tries>=SCAN_MAXTRIES) {
+  if(++tries>=SCAN_MAXTRIES && !hasKeyPress()) {
     sonde.nextConfig();
     tries = 0;
   }
@@ -334,7 +368,7 @@ void loopWifiScan() {
     pw=fetchWifiPw(id);
     if(pw) break;
   }
-  if(!pw) { id="test"; pw="test"; }
+  if(1||!pw) { id="test"; pw="test"; }
   Serial.print("Connecting to: "); Serial.println(id);
   u8x8.drawString(0,6, "Conn:");
   u8x8.drawString(6,6, id);
@@ -344,6 +378,24 @@ void loopWifiScan() {
         Serial.print(".");
         u8x8.drawString(15,7,_scan[cnt&1]);
         cnt++;
+        if(cnt==4) {
+            WiFi.disconnect();  // retry, for my buggy FritzBox
+            WiFi.begin(id, pw);
+        }
+        if(cnt==10) {
+            WiFi.disconnect();
+            delay(1000);
+            WiFi.softAP("sonde","sondesonde");
+            IPAddress myIP = WiFi.softAPIP();
+            Serial.print("AP IP address: ");
+            Serial.println(myIP);
+            sonde.setIP(myIP.toString().c_str());
+            sonde.updateDisplayIP();
+            SetupAsyncServer();
+            delay(5000);
+            enterMode(ST_DECODER);
+            return;
+        }
   }
 
   Serial.println("");
@@ -354,7 +406,7 @@ void loopWifiScan() {
   sonde.updateDisplayIP();
   SetupAsyncServer();
   delay(5000);
-  mainState=ST_SPECTRUM;
+  enterMode(ST_DECODER);
 }
 
 

@@ -23,7 +23,8 @@ typedef struct st_sondeinfo {
         float hei;
         float vs;
         float hs;
-        bool validPos;
+	float dir; // 0..360
+        uint8_t validPos;   // bit pattern for validity of above 6 fields
         // RSSI from receiver
         int rssi;
 	uint8_t rxStat[20];
