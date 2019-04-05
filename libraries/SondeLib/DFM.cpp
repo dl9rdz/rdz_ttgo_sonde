@@ -71,6 +71,8 @@ int DFM::setup(int inverse)
 }
 
 int DFM::setFrequency(float frequency) {
+        Serial.print("DFM: setting RX frequency to ");
+        Serial.println(frequency);
 	return sx1278.setFrequency(frequency);
 }
 
