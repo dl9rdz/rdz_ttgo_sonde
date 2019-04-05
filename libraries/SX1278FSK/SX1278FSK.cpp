@@ -649,6 +649,9 @@ uint8_t SX1278FSK::receive()
 	return state;
 }
 
+// ugly. shouldn't be here in a nice software design
+extern int hasKeyPress();
+
 /*
 Function: Configures the module to receive a packet
 Returns: Integer that determines if there has been any error
@@ -683,7 +686,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	value = readRegister(REG_IRQ_FLAGS2);
 	byte ready=0;
 	// while not yet done or FIFO not yet empty
-	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) )
+	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) &&(!hasKeyPress()) )
 	{
 		if( bitRead(value,2)==1 ) ready=1;
 		if( bitRead(value, 6) == 0 ) { // FIFO not empty
@@ -691,7 +694,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 			if(di==1) {
 				int rssi=getRSSI();
 				Serial.print("Test: RSSI="); Serial.println(rssi);
-				si.rssi = rssi;
+				sonde.si()->rssi = rssi;
 			}
 			if(di>520) {
 				// TODO
@@ -707,7 +710,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 		Serial.println(F("** The timeout has expired **"));
 		Serial.println();
 #endif
-		si.rssi = getRSSI();
+		sonde.si()->rssi = getRSSI();
 		writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);	// Setting standby FSK mode
 		return 1;  // TIMEOUT
 	}
