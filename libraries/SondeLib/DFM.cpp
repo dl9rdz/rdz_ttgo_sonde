@@ -2,6 +2,7 @@
 /* DFM decoder functions */
 #include "DFM.h"
 #include "SX1278FSK.h"
+#include "Sonde.h"
 
 #define DFM_DEBUG 1
 
@@ -71,6 +72,8 @@ int DFM::setup(int inverse)
 }
 
 int DFM::setFrequency(float frequency) {
+        Serial.print("DFM: setting RX frequency to ");
+        Serial.println(frequency);
 	return sx1278.setFrequency(frequency);
 }
 
@@ -165,6 +168,8 @@ int DFM::decodeCFG(uint8_t *cfg)
 	if((cfg[0]>>4)==0x06 && type==0) {   // DFM-6 ID
 		lowid = ((cfg[0]&0x0F)<<20) | (cfg[1]<<12) | (cfg[2]<<4) | (cfg[3]&0x0f);
 		Serial.print("DFM-06 ID: "); Serial.print(lowid, HEX);
+		snprintf(sonde.si()->id, 10, "%x", lowid);
+		sonde.si()->validID = true;
 	}
 	if((cfg[0]>>4)==0x0A) {  // DMF-9 ID
 		type=9;
@@ -178,6 +183,8 @@ int DFM::decodeCFG(uint8_t *cfg)
 		if(idgood==3) {
 			uint32_t dfmid = (highid<<16) | lowid;
 			Serial.print("DFM-09 ID: "); Serial.print(dfmid); 
+			snprintf(sonde.si()->id, 10, "%d", dfmid);
+			sonde.si()->validID = true;
 		}
 	}
 }
@@ -202,6 +209,9 @@ int DFM::decodeDAT(uint8_t *dat)
 		vh = (dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
+		sonde.si()->lat = lat*0.0000001;
+		sonde.si()->hs = vh*0.01;
+		sonde.si()->validPos |= 0x11; 
 		}
 		break;
 	case 3:
@@ -211,6 +221,9 @@ int DFM::decodeDAT(uint8_t *dat)
 		dir = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lon: "); Serial.print(lon*0.0000001);
 		Serial.print(", dir: "); Serial.print(dir*0.01);
+		sonde.si()->lon = lon*0.0000001;
+		sonde.si()->dir = dir*0.01;
+		sonde.si()->validPos |= 0x42;
 		}
 		break;
 	case 4:
@@ -220,6 +233,9 @@ int DFM::decodeDAT(uint8_t *dat)
 		vv = (int16_t)( (dat[4]<<8) | dat[5] );
 		Serial.print("GPS-height: "); Serial.print(hei*0.01);
 		Serial.print(", vv: "); Serial.print(vv*0.01);
+		sonde.si()->hei = hei*0.01;
+		sonde.si()->vs = vv*0.01;
+		sonde.si()->validPos |= 0x0C;
 		}
 		break;
 	case 8:
@@ -256,7 +272,7 @@ int DFM::receiveFrame() {
 
 	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	int e = sx1278.receivePacketTimeout(1000, data);
-	if(e) { return 1; } //if timeout... return 1
+	if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
@@ -277,6 +293,7 @@ int DFM::receiveFrame() {
 	decodeCFG(byte_conf);
 	decodeDAT(byte_dat1);
 	decodeDAT(byte_dat2);
+	return RX_OK;
 }
 
 DFM dfm = DFM();

@@ -133,6 +133,8 @@ int RS41::setup()
 }
 
 int RS41::setFrequency(float frequency) {
+	Serial.print("RS41: setting RX frequency to ");
+	Serial.println(frequency);
 	return sx1278.setFrequency(frequency);
 }
 
@@ -311,11 +313,11 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    z = (double)getint32(b, b_len, p+8UL)*0.01;
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
-   si.lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
-   Serial.print(si.lat);
+   sonde.si()->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
+   Serial.print(sonde.si()->lat);
    Serial.print(" ");
-   si.lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
-   Serial.print(si.lon);
+   sonde.si()->lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
+   Serial.print(sonde.si()->lon);
    if (heig<1.E+5 && heig>(-1.E+5)) {
       Serial.print(" ");
       Serial.print((uint32_t)heig);
@@ -338,18 +340,18 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
    if (dir<0.0) dir = 360.0+dir;
    Serial.print(" ");
-   si.hs = sqrt((float)(vn*vn+ve*ve))*3.6f;
-   Serial.print(si.hs);
+   sonde.si()->hs = sqrt((float)(vn*vn+ve*ve))*3.6f;
+   Serial.print(sonde.si()->hs);
    Serial.print("km/h ");
    Serial.print(dir);
    Serial.print("deg ");
    Serial.print((float)vu);
-   si.vs = vu;
+   sonde.si()->vs = vu;
    Serial.print("m/s ");
    Serial.print(getcard16(b, b_len, p+18UL)&255UL);
    Serial.print("Sats");
-   si.hei = heig;
-   si.validPos = true;
+   sonde.si()->hei = heig;
+   sonde.si()->validPos = true;
 } /* end posrs41() */
 
 
@@ -400,10 +402,10 @@ void RS41::decode41(byte *data, int MAXLEN)
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
-			strcpy(si.type, "RS41");
-			strncpy(si.id, (const char *)(data+p+2), 8);
-			si.id[8]=0;
-			si.validID=true;
+			sonde.si()->type=STYPE_RS41;
+			strncpy(sonde.si()->id, (const char *)(data+p+2), 8);
+			sonde.si()->id[8]=0;
+			sonde.si()->validID=true;
 			}
 			// TODO: some more data
 			break;
@@ -463,14 +465,15 @@ int RS41::receiveFrame() {
 	sx1278.setPayloadLength(MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
 
 	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-	int e = sx1278.receivePacketTimeout(3000, data+8);
-	if(e) { Serial.println("TIMEOUT"); return 1; } //if timeout... return 1
+	int e = sx1278.receivePacketTimeout(1000, data+8);
+	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } //if timeout... return 1
 
 	for(int i=0; i<MAXLEN; i++) { data[i] = reverse(data[i]); }
 	//printRaw(data, MAXLEN);
 	for(int i=0; i<MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
 	//printRaw(data, MAXLEN);
 	decode41(data, MAXLEN);
+	return RX_OK;
 }
 
 RS41 rs41 = RS41();

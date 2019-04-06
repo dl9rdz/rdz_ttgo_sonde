@@ -11,6 +11,7 @@
 
 #include "SX1278FSK.h"
 #include "SPI.h"
+#include <Sonde.h>
 
 SX1278FSK::SX1278FSK()
 {
@@ -98,7 +99,7 @@ byte SX1278FSK::readRegister(byte address)
 
 	digitalWrite(SX1278_SS,LOW);
 
-	delay(1);
+	//delay(1);
 	bitClear(address, 7);		// Bit 7 cleared to write in registers
 	SPI.transfer(address);
 	value = SPI.transfer(0x00);
@@ -129,7 +130,7 @@ void SX1278FSK::writeRegister(byte address, byte data)
 {
 	digitalWrite(SX1278_SS,LOW);
 
-	delay(1);
+	//delay(1);
 	bitSet(address, 7);			// Bit 7 set to read from registers
 	SPI.transfer(address);
 	SPI.transfer(data);
@@ -648,6 +649,9 @@ uint8_t SX1278FSK::receive()
 	return state;
 }
 
+// ugly. shouldn't be here in a nice software design
+extern int hasKeyPress();
+
 /*
 Function: Configures the module to receive a packet
 Returns: Integer that determines if there has been any error
@@ -682,7 +686,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	value = readRegister(REG_IRQ_FLAGS2);
 	byte ready=0;
 	// while not yet done or FIFO not yet empty
-	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) )
+	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) &&(!hasKeyPress()) )
 	{
 		if( bitRead(value,2)==1 ) ready=1;
 		if( bitRead(value, 6) == 0 ) { // FIFO not empty
@@ -690,6 +694,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 			if(di==1) {
 				int rssi=getRSSI();
 				Serial.print("Test: RSSI="); Serial.println(rssi);
+				sonde.si()->rssi = rssi;
 			}
 			if(di>520) {
 				// TODO
@@ -705,6 +710,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 		Serial.println(F("** The timeout has expired **"));
 		Serial.println();
 #endif
+		sonde.si()->rssi = getRSSI();
 		writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);	// Setting standby FSK mode
 		return 1;  // TIMEOUT
 	}
