@@ -216,7 +216,8 @@ void setup()
   Serial.println(f);
 #endif
 
-  sx1278.setLNAGain(0); //-48);
+  //sx1278.setLNAGain(-48);
+  sx1278.setLNAGain(0);
   int gain = sx1278.getLNAGain();
   Serial.print("RX LNA Gain is ");
   Serial.println(gain);
@@ -418,11 +419,9 @@ void loop() {
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
   }
-#if 0
   //wifiloop(NULL);
   //e = dfm.receiveFrame();
-  //e = rs41.receiveFrame();
-  delay(1000);
+#if 1                  
   int rssi = sx1278.getRSSI();
   Serial.print("  RSSI: ");
   Serial.print(rssi);
@@ -430,6 +429,5 @@ void loop() {
   int gain = sx1278.getLNAGain();
   Serial.print(" LNA Gain: "),
   Serial.println(gain);
-  #endif
-  
+#endif
 }
