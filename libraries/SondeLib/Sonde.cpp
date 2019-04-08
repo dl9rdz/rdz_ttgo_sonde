@@ -22,7 +22,7 @@ static unsigned char stattiles[4][4] =  {
    0x1F, 0x15, 0x15, 0x00 ,
    0x00, 0x1F, 0x00, 0x00  };
 
-byte myIP_tiles[8*10];
+byte myIP_tiles[8*11];
 
 static const uint8_t font[10][5]={
   0x3E, 0x51, 0x49, 0x45, 0x3E,   // 0
@@ -37,12 +37,23 @@ static const uint8_t font[10][5]={
   0x06, 0x49, 0x39, 0x29, 0x1E }; // 9;  .=0x40
 
 static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
+
+static uint8_t halfdb_tile1[8]={0x00, 0x38, 0x28, 0x28, 0x28, 0xC8, 0x00, 0x00};
+static uint8_t halfdb_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
+
 static uint8_t empty_tile[8]={0x80, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00, 0x00};
 
+static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
+static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
+static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
-void Sonde::setIP(const char *ip) {
-  int tp = 0;
+
+void Sonde::setIP(const char *ip, bool AP) {
+  memset(myIP_tiles, 0, 11*8);
   int len = strlen(ip);
+  int pix = (len-3)*6+6;
+  int tp = 80-pix+8;
+  if(AP) memcpy(myIP_tiles+(tp<16?0:8), ap_tile, 8);
   for(int i=0; i<len; i++) {
     if(ip[i]=='.') { myIP_tiles[tp++]=0x40; myIP_tiles[tp++]=0x00; }
     else {
@@ -58,18 +69,26 @@ void Sonde::setIP(const char *ip) {
 void Sonde::clearSonde() {
 	nSonde = 0;
 }
-void Sonde::addSonde(float frequency, SondeType type)  {
+void Sonde::addSonde(float frequency, SondeType type, int active)  {
 	if(nSonde>=MAXSONDE) {
 		Serial.println("Cannot add another sonde, MAXSONDE reached");
 		return;
 	}
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].freq = frequency;
+	sondeList[nSonde].active = active;
 	memcpy(sondeList[nSonde].rxStat, "\x00\x01\x2\x3\x2\x1\x1\x2\x0\x3\x0\x0\x1\x2\x3\x1\x0", 18);
 	nSonde++;
 }
 void Sonde::nextConfig() {
 	currentSonde++;
+	// Skip non-active entries (but don't loop forever if there are no active ones
+	for(int i=0; i<MAXSONDE; i++) {
+		if(!sondeList[currentSonde].active) {
+			currentSonde++;
+			if(currentSonde>=nSonde) currentSonde=0;
+		}
+	}
 	if(currentSonde>=nSonde) {
 		currentSonde=0;
 	}
@@ -160,7 +179,8 @@ void Sonde::updateDisplayRSSI() {
 	int len=strlen(buf)-3;
 	buf[5]=0;
 	u8x8.drawString(0,6,buf);
-	u8x8.drawTile(len,6,1,(sonde.si()->rssi&1)?halfdb_tile:empty_tile);
+	u8x8.drawTile(len,6,1,(sonde.si()->rssi&1)?halfdb_tile1:empty_tile1);
+	u8x8.drawTile(len,7,1,(sonde.si()->rssi&1)?halfdb_tile2:empty_tile2);
 }
 
 void Sonde::updateStat() {
@@ -183,7 +203,7 @@ void Sonde::updateDisplayRXConfig() {
 }
 
 void Sonde::updateDisplayIP() {
-        u8x8.drawTile(6, 7, 10, myIP_tiles);
+        u8x8.drawTile(5, 7, 11, myIP_tiles);
 }
 
 // Probing RS41

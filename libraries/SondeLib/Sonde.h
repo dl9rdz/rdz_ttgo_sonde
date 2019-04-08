@@ -12,6 +12,7 @@ extern const char *sondeTypeStr[5];
 
 typedef struct st_sondeinfo {
         // receiver configuration
+	bool active;
         SondeType type;
         float freq;
         // decoded ID
@@ -37,12 +38,13 @@ typedef struct st_sondeinfo {
 class Sonde
 {
 private:
-	int nSonde;
 	int currentSonde = 0;
-	SondeInfo sondeList[MAXSONDE+1];
 public:
+	int nSonde;
+	SondeInfo sondeList[MAXSONDE+1];
+
 	void clearSonde();
-	void addSonde(float frequency, SondeType type);
+	void addSonde(float frequency, SondeType type, int active);
 	void nextConfig();
 	void setup();
 
@@ -59,7 +61,7 @@ public:
 	void updateDisplay();
 	void updateDisplayScanner();
 	void clearDisplay();
-	void setIP(const char *ip);
+	void setIP(const char *ip, bool isAP);
 };
 
 extern Sonde sonde;

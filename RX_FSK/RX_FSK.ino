@@ -48,58 +48,29 @@ String processor(const String& var){
   return String();
 }
 
-void SetupAsyncServer() {
-// Route for root / web page
- server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/plain", "Hello, world");
-    });
-    
-  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/style.css", "text/css");
-  });
+#define MAX_QRG 10
 
-  // Route to set GPIO to HIGH
-  server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, HIGH);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to set GPIO to LOW
-  server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, LOW);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
-  // Start server
-  server.begin();
+const String sondeTypeSelect(int activeType) {
+  String sts = "";
+  for(int i=0; i<3; i++) {
+     sts += "<option value=\"";
+     sts += sondeTypeStr[i];
+     sts += "\"";
+     if(activeType==i) { sts += " selected"; }
+     sts += ">";
+     sts += sondeTypeStr[i];
+     sts += "</option>";
+  }
+  return sts;
 }
 
-int nNetworks;
-struct { String id; String pw; } networks[20];
 
-void setupWifiList() {
-  File file = SPIFFS.open("/networks.txt", "r");
-  if(!file){
-    Serial.println("There was an error opening the file '/networks.txt' for reading");
-    return;
-  }
-  int i=0;
-  while(file.available()) {
-    String line = file.readStringUntil('\n');
-    if(!file.available()) break;
-     networks[i].id = line;
-     networks[i].pw = file.readStringUntil('\n');
-     i++;
-  }
-  nNetworks = i;
-  Serial.print(i); Serial.println(" networks in networks.txt\n");
-  for(int j=0; j<i; j++) { Serial.print(networks[j].id); Serial.print(": "); Serial.println(networks[j].pw); }
-}
+//trying to work around
+//"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
+// which happens if request->send is called in createQRGForm!?!??
+char message[10240];
+
+///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
 
 void setupChannelList() {
   File file = SPIFFS.open("/qrg.txt", "r");
@@ -122,15 +93,210 @@ void setupChannelList() {
     else if (space[1]=='9') { type=STYPE_DFM09; }
     else if (space[1]=='6') { type=STYPE_DFM06; }
     else continue;
-    Serial.printf("Adding %f with type %d\b",freq,type);
-    sonde.addSonde(freq, type);
+    int active = space[3]=='+'?1:0;
+    Serial.printf("Adding %f with type %d (active: %d)\n",freq,type,active);
+    sonde.addSonde(freq, type, active);
     i++;
+  }
+}
+
+const char *createQRGForm() {
+  char *ptr = message;
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Mode</th></tr>");
+   for(int i=0; i<10; i++) {
+    String s = sondeTypeSelect(i>=sonde.nSonde?2:sonde.sondeList[i].type);
+     sprintf(ptr+strlen(ptr), "<tr><td>%d</td><td><input name=\"A%d\" type=\"checkbox\" %s/></td>"
+        "<td><input name=\"F%d\" type=\"text\" value=\"%3.3f\"></td>"       
+        "<td><select name=\"T%d\">%s</select></td>",
+        i+1,
+        i+1, (i<sonde.nSonde&&sonde.sondeList[i].active)?"checked":"",
+        i+1, i>=sonde.nSonde?400.000:sonde.sondeList[i].freq,
+        i+1, s.c_str());
+   }
+   strcat(ptr,"</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
+   return message;
+}
+
+const char *handleQRGPost(AsyncWebServerRequest *request) {
+  char label[10];
+  // parameters: a_i, f_1, t_i  (active/frequency/type)
+#if 1
+  File f = SPIFFS.open("/qrg.txt", "w");
+  if(!f) {
+    Serial.println("Error while opening '/qrg.txt' for writing");
+    return "Error while opening '/qrg.txt' for writing";
+  }
+#endif
+  Serial.println("Handling post request");
+#if 0
+  int params = request->params();
+  for(int i=0; i<params; i++) {
+    Serial.println(request->getParam(i)->name().c_str());
+  }
+#endif
+  for(int i=1; i<=MAX_QRG; i++) {  
+    snprintf(label, 10, "A%d", i);
+    AsyncWebParameter *active = request->getParam(label, true);
+    snprintf(label, 10, "F%d", i);
+    AsyncWebParameter *freq = request->getParam(label, true);
+    if(!freq) continue;
+    snprintf(label, 10, "T%d", i);
+    AsyncWebParameter *type = request->getParam(label, true);
+    if(!type) continue;
+    const char *fstr = freq->value().c_str();
+    const char *tstr = type->value().c_str();
+    Serial.printf("Processing a=%s, f=%s, t=%s\n", active?"YES":"NO", fstr, tstr);
+    char typech = (tstr[2]=='4'?'4':tstr[3]);  // Ugly TODO 
+    f.printf("%3.3f %c %c\n", atof(fstr), typech, active?'+':'-');
+  }
+  f.close();
+  setupChannelList();
+}
+
+
+/////////////////// Functions for reading/writing Wifi networks from networks.txt
+
+#define MAX_WIFI 10
+int nNetworks;
+struct { String id; String pw; } networks[MAX_WIFI];
+
+// FIXME: For now, we don't uspport wifi networks that contain newline or null characters
+// ... would require a more sophisicated file format (currently one line SSID; one line Password
+void setupWifiList() {
+  File file = SPIFFS.open("/networks.txt", "r");
+  if(!file){
+    Serial.println("There was an error opening the file '/networks.txt' for reading");
+    return;
+  }
+  int i=0;
+  
+  while(file.available()) {
+    String line = file.readStringUntil('\n');
+    if(!file.available()) break;
+     networks[i].id = line;
+     networks[i].pw = file.readStringUntil('\n');
+     i++;
   }
   nNetworks = i;
   Serial.print(i); Serial.println(" networks in networks.txt\n");
   for(int j=0; j<i; j++) { Serial.print(networks[j].id); Serial.print(": "); Serial.println(networks[j].pw); }
-
 }
+
+
+const char *createWIFIForm() {
+  char *ptr = message;
+  char tmp[4];
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"wifi.html\" method=\"post\"><table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
+  for(int i=0; i<MAX_WIFI; i++) {
+     sprintf(tmp,"%d",i);
+     sprintf(ptr+strlen(ptr), "<tr><td>%s</td><td><input name=\"S%d\" type=\"text\" value=\"%s\"/></td>"
+        "<td><input name=\"P%d\" type=\"text\" value=\"%s\"/></td>",   
+        i==0?"<b>AP</b>":tmp,
+        i+1, i<nNetworks?networks[i].id.c_str():"",
+        i+1, i<nNetworks?networks[i].pw.c_str():"");
+   }
+   strcat(ptr,"</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+   return message;
+}
+
+const char *handleWIFIPost(AsyncWebServerRequest *request) {
+  char label[10];
+  // parameters: a_i, f_1, t_i  (active/frequency/type)
+#if 1
+  File f = SPIFFS.open("/networks.txt", "w");
+  if(!f) {
+    Serial.println("Error while opening '/networks.txt' for writing");
+    return "Error while opening '/networks.txt' for writing";
+  }
+#endif
+  Serial.println("Handling post request");
+#if 0
+  int params = request->params();
+  for(int i=0; i<params; i++) {
+    Serial.println(request->getParam(i)->name().c_str());
+  }
+#endif
+  for(int i=1; i<=MAX_WIFI; i++) {  
+    snprintf(label, 10, "S%d", i);
+    AsyncWebParameter *ssid = request->getParam(label, true);
+    if(!ssid) continue;
+    snprintf(label, 10, "P%d", i);
+    AsyncWebParameter *pw = request->getParam(label, true);
+    if(!pw) continue;
+    const char *sstr = ssid->value().c_str();
+    const char *pstr = pw->value().c_str();
+    if(strlen(sstr)==0) continue;
+    Serial.printf("Processing S=%s, P=%s\n", sstr, pstr);
+    f.printf("%s\n%s\n", sstr, pstr);
+  }
+  f.close();
+  setupWifiList();
+}
+
+const char* PARAM_MESSAGE = "message";
+void SetupAsyncServer() {
+// Route for root / web page
+ server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+        request->send(200, "text/plain", "Hello, world");
+    });
+    
+  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+  server.on("/test.html", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/test.html", String(), false, processor);
+  });
+
+  server.on("/qrg.html", HTTP_GET,  [](AsyncWebServerRequest *request){
+     request->send(200, "text/html", createQRGForm());
+  });
+  server.on("/qrg.html", HTTP_POST, [](AsyncWebServerRequest *request){
+    handleQRGPost(request);
+    request->send(200, "text/html", createQRGForm());
+  });
+
+  server.on("/wifi.html", HTTP_GET,  [](AsyncWebServerRequest *request){
+     request->send(200, "text/html", createWIFIForm());
+  });
+  server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest *request){
+    handleWIFIPost(request);
+    request->send(200, "text/html", createWIFIForm());
+  });
+  
+  // Route to load style.css file
+  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/style.css", "text/css");
+  });
+
+  // Route to set GPIO to HIGH
+  server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
+    digitalWrite(ledPin, HIGH);    
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+   // Route to set GPIO to HIGH
+  server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest *request){
+    //digitalWrite(ledPin, HIGH);    
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+  
+  // Route to set GPIO to LOW
+  server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
+    digitalWrite(ledPin, LOW);    
+    request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+  // Send a POST request to <IP>/post with a form field message set to <message>
+  server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
+    handleQRGPost(request);
+    request->send(200, "text/plain", "Hello, POST done");
+  });
+
+  // Start server
+  server.begin();
+}
+
 
 const char *fetchWifiPw(const char *id) {
   for(int i=0; i<nNetworks; i++) {
@@ -369,7 +535,7 @@ void loopWifiScan() {
     pw=fetchWifiPw(id);
     if(pw) break;
   }
-  if(1||!pw) { id="test"; pw="test"; }
+  if(!pw) { id="test"; pw="test"; }
   Serial.print("Connecting to: "); Serial.println(id);
   u8x8.drawString(0,6, "Conn:");
   u8x8.drawString(6,6, id);
@@ -386,11 +552,13 @@ void loopWifiScan() {
         if(cnt==10) {
             WiFi.disconnect();
             delay(1000);
-            WiFi.softAP("sonde","sondesonde");
+            WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
             IPAddress myIP = WiFi.softAPIP();
             Serial.print("AP IP address: ");
             Serial.println(myIP);
-            sonde.setIP(myIP.toString().c_str());
+            u8x8.drawString(0,6, "AP:             ");
+            u8x8.drawString(6,6, networks[0].id.c_str());
+            sonde.setIP(myIP.toString().c_str(), true);
             sonde.updateDisplayIP();
             SetupAsyncServer();
             delay(5000);
@@ -403,7 +571,7 @@ void loopWifiScan() {
   Serial.println("WiFi connected");
   Serial.println("IP address: ");
   Serial.println(WiFi.localIP());
-  sonde.setIP(WiFi.localIP().toString().c_str());
+  sonde.setIP(WiFi.localIP().toString().c_str(), false);
   sonde.updateDisplayIP();
   SetupAsyncServer();
   delay(5000);
