@@ -38,8 +38,8 @@ typedef struct st_sondeinfo {
 class Sonde
 {
 private:
-	int currentSonde = 0;
 public:
+	int currentSonde = 0;
 	int nSonde;
 	SondeInfo sondeList[MAXSONDE+1];
 
