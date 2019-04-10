@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 #include <U8x8lib.h>
@@ -7,6 +8,7 @@
 #include <SX1278FSK.h>
 #include <Sonde.h>
 #include <Scanner.h>
+#include <aprs.h>
 //#include <RS41.h>
 //#include <DFM.h>
 
@@ -25,6 +27,13 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA
 int e;
 
 AsyncWebServer server(80);
+
+const char * udpAddress = "192.168.179.21";
+const int udpPort = 9002;
+
+boolean connected = false;
+WiFiUDP udp;
+
 
 // Set LED GPIO
 const int ledPin = 2;
@@ -360,6 +369,7 @@ void setup()
   Serial.begin(115200);
   
   u8x8.begin();
+  aprs_gencrctab();
 
   pinMode(LORA_LED, OUTPUT);
 
@@ -440,7 +450,23 @@ void loopDecoder() {
       return;
   }
   // sonde knows the current type and frequency, and delegates to the right decoder
-  sonde.receiveFrame();
+  int res = sonde.receiveFrame();
+
+  if(res==0 && connected){
+    //Send a packet with position information
+    // first check if ID and position lat+lonis ok
+    if(sonde.si()->validID && (sonde.si()->validPos&0x03==0x03)) {
+      Serial.println("Sending position via UDP");
+      SondeInfo *s = sonde.si();
+      char raw[201];
+      const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
+      int rawlen = aprsstr_mon2raw(str, raw, MAXLEN);
+      Serial.print("Sending: "); Serial.println(raw);
+      udp.beginPacket(udpAddress,udpPort);
+      udp.write((const uint8_t *)raw,rawlen);
+      udp.endPacket();
+    }
+  }  
   sonde.updateDisplay();
 }
 
@@ -508,6 +534,25 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
+//wifi event handler
+void WiFiEvent(WiFiEvent_t event){
+    switch(event) {
+      case SYSTEM_EVENT_STA_GOT_IP:
+          //When connected set 
+          Serial.print("WiFi connected! IP address: ");
+          Serial.println(WiFi.localIP());  
+          //initializes the UDP state
+          //This initializes the transfer buffer
+          udp.begin(WiFi.localIP(),udpPort);
+          connected = true;
+          break;
+      case SYSTEM_EVENT_STA_DISCONNECTED:
+          Serial.println("WiFi lost connection");
+          connected = false;
+          break;
+    }
+}
+
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
   u8x8.setFont(u8x8_font_chroma48medium8_r);
@@ -515,6 +560,7 @@ void loopWifiScan() {
   int line=0;
   int cnt=0;
 
+  WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
   const char *id, *pw;
   int n = WiFi.scanNetworks();
@@ -539,6 +585,9 @@ void loopWifiScan() {
   Serial.print("Connecting to: "); Serial.println(id);
   u8x8.drawString(0,6, "Conn:");
   u8x8.drawString(6,6, id);
+  //register event handler
+  WiFi.onEvent(WiFiEvent);
+  
   WiFi.begin(id, pw);
   while(WiFi.status() != WL_CONNECTED)  {
         delay(500);
@@ -546,11 +595,12 @@ void loopWifiScan() {
         u8x8.drawString(15,7,_scan[cnt&1]);
         cnt++;
         if(cnt==4) {
-            WiFi.disconnect();  // retry, for my buggy FritzBox
+            WiFi.disconnect(true);  // retry, for my buggy FritzBox
+            WiFi.onEvent(WiFiEvent);
             WiFi.begin(id, pw);
         }
         if(cnt==10) {
-            WiFi.disconnect();
+            WiFi.disconnect(true);
             delay(1000);
             WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
             IPAddress myIP = WiFi.softAPIP();
