@@ -242,6 +242,32 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
   setupWifiList();
 }
 
+// Show current status
+void addSondeStatus(char *ptr, int i)
+{
+  SondeInfo *s = &sonde.sondeList[i];
+  strcat(ptr, "<table>");
+  sprintf(ptr+strlen(ptr),"<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n",
+    s->freq, sondeTypeStr[s->type],
+    s->validID?s->id:"<??>",
+    s->lat, s->lon, s->hei);
+  sprintf(ptr+strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">Geo-Ref</a> -", s->lat, s->lon);
+  sprintf(ptr+strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google map</a> - ", s->lat, s->lon);
+  sprintf(ptr+strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a></td></tr>", s->lat, s->lon);
+  strcat(ptr, "</table><p/>\n");
+}
+
+const char *createStatusForm() {
+  char *ptr = message;
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"><meta http-equiv=\"refresh\" content=\"5\"></head><body>");
+  
+  for(int i=0; i<sonde.nSonde; i++) {
+    addSondeStatus(ptr, (i+sonde.currentSonde)%sonde.nSonde);
+  }
+  strcat(ptr,"</body></html>");
+  return message;
+}
+
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
 // Route for root / web page
@@ -271,6 +297,10 @@ void SetupAsyncServer() {
   server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest *request){
     handleWIFIPost(request);
     request->send(200, "text/html", createWIFIForm());
+  });
+
+  server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest *request){
+     request->send(200, "text/html", createStatusForm());
   });
   
   // Route to load style.css file
