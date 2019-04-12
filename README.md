@@ -43,3 +43,20 @@ A SHORT press will switch to the next channel in channels.txt
 
 A medium press will active scan the whole band (400..406 MHz) and display a
 spectrum diagram (each line == 50 kHz)
+
+## Setup
+
+Download https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip
+and move to your Arduino IDE's libraries directory
+Rename to (name without "-master")
+
+Download https://github.com/me-no-dev/AsyncTCP/archive/master.zip
+and move to your Arduino IDE's libraries directory
+Rename to (name without "-master")
+
+Install Arduino ESP32 file system uploader
+https://randomnerdtutorials.com/install-esp32-filesystem-uploader-arduino-ide/
+Download https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
+Move to your Arduino IDE's tools directory
+
+

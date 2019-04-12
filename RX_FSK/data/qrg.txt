@@ -1,8 +1,8 @@
 # Frequency in Mhz (format nnn.nnn)
 # Type (4=RS41, 6=DFM normal, DFM-06, 9=DFM inverted, DFM-09)
 #
-402.700 4
-402.300 4
-403.450 9
-405.100 4
+402.700 4 +
+402.300 4 +
+403.450 9 +
+405.100 4 -
 # end
