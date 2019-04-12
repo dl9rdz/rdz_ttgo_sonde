@@ -383,6 +383,7 @@ void IRAM_ATTR buttonISR() {
     button1.press_ts = millis();
   }
 }
+<<<<<<< HEAD
 
 int getKeyPress() {
   KeyPress p = button1.pressed;
@@ -409,6 +410,34 @@ void setup()
     return;
   }
   
+=======
+
+int getKeyPress() {
+  KeyPress p = button1.pressed;
+  button1.pressed = KP_NONE;
+  return p;
+}
+int hasKeyPress() {
+  return button1.pressed;
+}
+
+void setup()
+{
+  // Open serial communications and wait for port to open:
+  Serial.begin(115200);
+  
+  u8x8.begin();
+  aprs_gencrctab();
+
+  pinMode(LORA_LED, OUTPUT);
+
+    // Initialize SPIFFS
+  if(!SPIFFS.begin(true)){
+    Serial.println("An Error has occurred while mounting SPIFFS");
+    return;
+  }
+  
+>>>>>>> master
   setupWifiList();
 
 #if 0 
@@ -422,8 +451,12 @@ void setup()
   Serial.println(f);
 #endif
 
+<<<<<<< HEAD
   //sx1278.setLNAGain(-48);
   sx1278.setLNAGain(0);
+=======
+  sx1278.setLNAGain(0); //-48);
+>>>>>>> master
   int gain = sx1278.getLNAGain();
   Serial.print("RX LNA Gain is ");
   Serial.println(gain);
@@ -454,9 +487,15 @@ void setup()
   /// not here, done by sonde.setup(): rs41.setup();
   sonde.setup();
 }
+<<<<<<< HEAD
 
 enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
 
+=======
+
+enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
+
+>>>>>>> master
 static MainState mainState = ST_DECODER;
 
 void enterMode(int mode) {
@@ -499,6 +538,7 @@ void loopDecoder() {
   }  
   sonde.updateDisplay();
 }
+<<<<<<< HEAD
 
 #define SCAN_MAXTRIES 1
 void loopScanner() {
@@ -583,6 +623,92 @@ void WiFiEvent(WiFiEvent_t event){
     }
 }
 
+=======
+
+#define SCAN_MAXTRIES 1
+void loopScanner() {
+  sonde.updateDisplayScanner();
+  static int tries=0;
+  switch(getKeyPress()) {
+    case KP_SHORT:
+       enterMode(ST_DECODER);
+       return;
+    case KP_DOUBLE: break; /* ignored */
+    case KP_MID:
+       enterMode(ST_SPECTRUM);
+       return;
+     case KP_LONG:
+       enterMode(ST_WIFISCAN);
+       return;
+  }
+  // receiveFrame returns 0 on success, 1 on timeout
+  int res = sonde.receiveFrame();   // Maybe instead of receiveFrame, just detect if right type is present? TODO
+  Serial.print("Scanner: receiveFrame returned");
+  Serial.println(res);
+  if(res==0) {
+      enterMode(ST_DECODER);
+      return;
+  }
+  if(++tries>=SCAN_MAXTRIES && !hasKeyPress()) {
+    sonde.nextConfig();
+    tries = 0;
+  }
+}
+
+void loopSpectrum() {
+  switch(getKeyPress()) {
+    case KP_SHORT: /* move selection of peak, TODO */ 
+      sonde.nextConfig(); // TODO: Should be set specific frequency
+      enterMode(ST_DECODER);
+      return;
+    case KP_MID: /* restart, TODO */ break;
+    case KP_LONG:
+      enterMode(ST_WIFISCAN);
+      return;
+    case KP_DOUBLE: /* ignore */ break;
+    default: break;
+  }
+  scanner.scan();
+  scanner.plotResult();
+}
+
+String translateEncryptionType(wifi_auth_mode_t encryptionType) {
+  switch (encryptionType) {
+    case (WIFI_AUTH_OPEN):
+      return "Open";
+    case (WIFI_AUTH_WEP):
+      return "WEP";
+    case (WIFI_AUTH_WPA_PSK):
+      return "WPA_PSK";
+    case (WIFI_AUTH_WPA2_PSK):
+      return "WPA2_PSK";
+    case (WIFI_AUTH_WPA_WPA2_PSK):
+      return "WPA_WPA2_PSK";
+    case (WIFI_AUTH_WPA2_ENTERPRISE):
+      return "WPA2_ENTERPRISE";
+  }
+}
+
+//wifi event handler
+void WiFiEvent(WiFiEvent_t event){
+    switch(event) {
+      case SYSTEM_EVENT_STA_GOT_IP:
+          //When connected set 
+          Serial.print("WiFi connected! IP address: ");
+          Serial.println(WiFi.localIP());  
+          //initializes the UDP state
+          //This initializes the transfer buffer
+          udp.begin(WiFi.localIP(),udpPort);
+          connected = true;
+          break;
+      case SYSTEM_EVENT_STA_DISCONNECTED:
+          Serial.println("WiFi lost connection");
+          connected = false;
+          break;
+    }
+}
+
+>>>>>>> master
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
   u8x8.setFont(u8x8_font_chroma48medium8_r);
@@ -667,8 +793,6 @@ void loop() {
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
   }
-  //wifiloop(NULL);
-  //e = dfm.receiveFrame();
 #if 1                  
   int rssi = sx1278.getRSSI();
   Serial.print("  RSSI: ");
