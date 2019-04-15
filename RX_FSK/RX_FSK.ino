@@ -9,8 +9,6 @@
 #include <Sonde.h>
 #include <Scanner.h>
 #include <aprs.h>
-//#include <RS41.h>
-//#include <DFM.h>
 
 #define LORA_LED  9
 
@@ -28,7 +26,7 @@ int e;
 
 AsyncWebServer server(80);
 
-const char * udpAddress = "192.168.179.21";
+const char * udpAddress = "192.168.42.20";
 const int udpPort = 9002;
 
 boolean connected = false;
@@ -268,11 +266,85 @@ const char *createStatusForm() {
   return message;
 }
 
+///////////////////// Config form
+
+struct st_configitems {
+  const char *label;
+  int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
+  void *data;
+}; 
+#define N_CONFIG 16
+struct st_configitems config_list[N_CONFIG] = {
+  {"Call", 8, sonde.config.call},
+  {"Passcode", 8, sonde.config.passcode},
+  {"---", -1, NULL},
+  {"AXUDP active", -3, sonde.config.udpfeed.active},
+  {"AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"Rate limit", 0, &sonde.config.udpfeed.highrate},
+  {"---", -1, NULL},
+  {"APRS TCP active", -3, sonde.config.tcpfeed.active},
+  {"ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"---", -1, NULL},
+  {"Spectrum noise floor", 0, &sonde.config.noisefloor}
+};
+
+void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
+   sprintf(ptr+strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
+      label, idx, field);
+}
+void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
+   sprintf(ptr+strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%d\"/></td></tr>\n",
+      label, idx, *value);
+}
+void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
+  // TODO
+}
+void addConfigOnOffEntry(char *ptr, int idx, const char *label, int *value) {
+  // TODO
+}
+void addConfigSeparatorEntry(char *ptr) {
+   strcat(ptr, "<tr><td colspan=\"2\" class=\"divider\"><hr /></td></tr>\n");
+}
+
+const char *createConfigForm() {
+  char *ptr = message;
+  char tmp[4];
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
+  for(int i=0; i<N_CONFIG; i++) {
+    switch(config_list[i].type) {
+      case -3: // in/offt
+        addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      case -2: // DFM format
+        addConfigTypeEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      case -1:
+        addConfigSeparatorEntry(ptr);
+        break;
+      case 0:
+        addConfigNumEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      default:
+        addConfigStringEntry(ptr, i, config_list[i].label, config_list[i].type, (char *)config_list[i].data);
+        break;
+    }
+  }
+  strcat(ptr,"</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  return message;
+}
+
+
+
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
 // Route for root / web page
  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/plain", "Hello, world");
+    request->send(SPIFFS, "/index.html", String(), false, processor);
     });
     
   server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -299,6 +371,10 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createWIFIForm());
   });
 
+  server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest *request){
+     request->send(200, "text/html", createConfigForm());
+  });  
+
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest *request){
      request->send(200, "text/html", createStatusForm());
   });
@@ -308,28 +384,10 @@ void SetupAsyncServer() {
     request->send(SPIFFS, "/style.css", "text/css");
   });
 
-  // Route to set GPIO to HIGH
-  server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, HIGH);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
    // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest *request){
     //digitalWrite(ledPin, HIGH);    
     request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to set GPIO to LOW
-  server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, LOW);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
-  // Send a POST request to <IP>/post with a form field message set to <message>
-  server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
-    handleQRGPost(request);
-    request->send(200, "text/plain", "Hello, POST done");
   });
 
   // Start server
@@ -383,7 +441,6 @@ void IRAM_ATTR buttonISR() {
     button1.press_ts = millis();
   }
 }
-<<<<<<< HEAD
 
 int getKeyPress() {
   KeyPress p = button1.pressed;
@@ -410,34 +467,6 @@ void setup()
     return;
   }
   
-=======
-
-int getKeyPress() {
-  KeyPress p = button1.pressed;
-  button1.pressed = KP_NONE;
-  return p;
-}
-int hasKeyPress() {
-  return button1.pressed;
-}
-
-void setup()
-{
-  // Open serial communications and wait for port to open:
-  Serial.begin(115200);
-  
-  u8x8.begin();
-  aprs_gencrctab();
-
-  pinMode(LORA_LED, OUTPUT);
-
-    // Initialize SPIFFS
-  if(!SPIFFS.begin(true)){
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    return;
-  }
-  
->>>>>>> master
   setupWifiList();
 
 #if 0 
@@ -451,12 +480,9 @@ void setup()
   Serial.println(f);
 #endif
 
-<<<<<<< HEAD
   //sx1278.setLNAGain(-48);
   sx1278.setLNAGain(0);
-=======
-  sx1278.setLNAGain(0); //-48);
->>>>>>> master
+
   int gain = sx1278.getLNAGain();
   Serial.print("RX LNA Gain is ");
   Serial.println(gain);
@@ -487,15 +513,9 @@ void setup()
   /// not here, done by sonde.setup(): rs41.setup();
   sonde.setup();
 }
-<<<<<<< HEAD
 
 enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
 
-=======
-
-enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
-
->>>>>>> master
 static MainState mainState = ST_DECODER;
 
 void enterMode(int mode) {
@@ -529,7 +549,7 @@ void loopDecoder() {
       SondeInfo *s = sonde.si();
       char raw[201];
       const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
-      int rawlen = aprsstr_mon2raw(str, raw, MAXLEN);
+      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
       Serial.print("Sending: "); Serial.println(raw);
       udp.beginPacket(udpAddress,udpPort);
       udp.write((const uint8_t *)raw,rawlen);
@@ -538,7 +558,6 @@ void loopDecoder() {
   }  
   sonde.updateDisplay();
 }
-<<<<<<< HEAD
 
 #define SCAN_MAXTRIES 1
 void loopScanner() {
@@ -623,92 +642,7 @@ void WiFiEvent(WiFiEvent_t event){
     }
 }
 
-=======
 
-#define SCAN_MAXTRIES 1
-void loopScanner() {
-  sonde.updateDisplayScanner();
-  static int tries=0;
-  switch(getKeyPress()) {
-    case KP_SHORT:
-       enterMode(ST_DECODER);
-       return;
-    case KP_DOUBLE: break; /* ignored */
-    case KP_MID:
-       enterMode(ST_SPECTRUM);
-       return;
-     case KP_LONG:
-       enterMode(ST_WIFISCAN);
-       return;
-  }
-  // receiveFrame returns 0 on success, 1 on timeout
-  int res = sonde.receiveFrame();   // Maybe instead of receiveFrame, just detect if right type is present? TODO
-  Serial.print("Scanner: receiveFrame returned");
-  Serial.println(res);
-  if(res==0) {
-      enterMode(ST_DECODER);
-      return;
-  }
-  if(++tries>=SCAN_MAXTRIES && !hasKeyPress()) {
-    sonde.nextConfig();
-    tries = 0;
-  }
-}
-
-void loopSpectrum() {
-  switch(getKeyPress()) {
-    case KP_SHORT: /* move selection of peak, TODO */ 
-      sonde.nextConfig(); // TODO: Should be set specific frequency
-      enterMode(ST_DECODER);
-      return;
-    case KP_MID: /* restart, TODO */ break;
-    case KP_LONG:
-      enterMode(ST_WIFISCAN);
-      return;
-    case KP_DOUBLE: /* ignore */ break;
-    default: break;
-  }
-  scanner.scan();
-  scanner.plotResult();
-}
-
-String translateEncryptionType(wifi_auth_mode_t encryptionType) {
-  switch (encryptionType) {
-    case (WIFI_AUTH_OPEN):
-      return "Open";
-    case (WIFI_AUTH_WEP):
-      return "WEP";
-    case (WIFI_AUTH_WPA_PSK):
-      return "WPA_PSK";
-    case (WIFI_AUTH_WPA2_PSK):
-      return "WPA2_PSK";
-    case (WIFI_AUTH_WPA_WPA2_PSK):
-      return "WPA_WPA2_PSK";
-    case (WIFI_AUTH_WPA2_ENTERPRISE):
-      return "WPA2_ENTERPRISE";
-  }
-}
-
-//wifi event handler
-void WiFiEvent(WiFiEvent_t event){
-    switch(event) {
-      case SYSTEM_EVENT_STA_GOT_IP:
-          //When connected set 
-          Serial.print("WiFi connected! IP address: ");
-          Serial.println(WiFi.localIP());  
-          //initializes the UDP state
-          //This initializes the transfer buffer
-          udp.begin(WiFi.localIP(),udpPort);
-          connected = true;
-          break;
-      case SYSTEM_EVENT_STA_DISCONNECTED:
-          Serial.println("WiFi lost connection");
-          connected = false;
-          break;
-    }
-}
-
->>>>>>> master
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
   u8x8.setFont(u8x8_font_chroma48medium8_r);

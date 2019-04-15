@@ -153,11 +153,11 @@ void Sonde::updateDisplayPos2() {
 		u8x8.drawString(10,4,"      ");
 		return;
 	}
-	snprintf(buf, 16, si()->hei>999?"%5.0fm":"%3.1fm", si()->hei);
+	snprintf(buf, 16, si()->hei>999?" %5.0fm":" %3.1fm", si()->hei);
 	u8x8.drawString((10+6-strlen(buf)),2,buf);
-	snprintf(buf, 16, si()->hs>99?"%3.0f":"%2.1f", si()->hs);
+	snprintf(buf, 16, si()->hs>99?" %3.0f":" %2.1f", si()->hs);
 	u8x8.drawString((10+4-strlen(buf)),3,buf);
-	snprintf(buf, 16, "%+2.1f", si()->vs);
+	snprintf(buf, 16, " %+2.1f", si()->vs);
 	u8x8.drawString((10+4-strlen(buf)),4,buf);
 	u8x8.drawTile(14,3,2,kmh_tiles);
 	u8x8.drawTile(14,4,2,ms_tiles);
