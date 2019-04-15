@@ -9,8 +9,6 @@
 #include <Sonde.h>
 #include <Scanner.h>
 #include <aprs.h>
-//#include <RS41.h>
-//#include <DFM.h>
 
 #define LORA_LED  9
 
@@ -28,8 +26,11 @@ int e;
 
 AsyncWebServer server(80);
 
-const char * udpAddress = "192.168.179.21";
-const int udpPort = 9002;
+#define LOCALUDPPORT 9002
+
+// moved to sonde.config
+//const char * udpAddress = "192.168.42.20";
+//const int udpPort = 9002;
 
 boolean connected = false;
 WiFiUDP udp;
@@ -268,11 +269,85 @@ const char *createStatusForm() {
   return message;
 }
 
+///////////////////// Config form
+
+struct st_configitems {
+  const char *label;
+  int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
+  void *data;
+}; 
+#define N_CONFIG 16
+struct st_configitems config_list[N_CONFIG] = {
+  {"Call", 8, sonde.config.call},
+  {"Passcode", 8, sonde.config.passcode},
+  {"---", -1, NULL},
+  {"AXUDP active", -3, &sonde.config.udpfeed.active},
+  {"AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"Rate limit", 0, &sonde.config.udpfeed.highrate},
+  {"---", -1, NULL},
+  {"APRS TCP active", -3, &sonde.config.tcpfeed.active},
+  {"ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"---", -1, NULL},
+  {"Spectrum noise floor", 0, &sonde.config.noisefloor}
+};
+
+void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
+   sprintf(ptr+strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
+      label, idx, field);
+}
+void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
+   sprintf(ptr+strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%d\"/></td></tr>\n",
+      label, idx, *value);
+}
+void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
+  // TODO
+}
+void addConfigOnOffEntry(char *ptr, int idx, const char *label, int *value) {
+  // TODO
+}
+void addConfigSeparatorEntry(char *ptr) {
+   strcat(ptr, "<tr><td colspan=\"2\" class=\"divider\"><hr /></td></tr>\n");
+}
+
+const char *createConfigForm() {
+  char *ptr = message;
+  char tmp[4];
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
+  for(int i=0; i<N_CONFIG; i++) {
+    switch(config_list[i].type) {
+      case -3: // in/offt
+        addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      case -2: // DFM format
+        addConfigTypeEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      case -1:
+        addConfigSeparatorEntry(ptr);
+        break;
+      case 0:
+        addConfigNumEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      default:
+        addConfigStringEntry(ptr, i, config_list[i].label, config_list[i].type, (char *)config_list[i].data);
+        break;
+    }
+  }
+  strcat(ptr,"</table><input type=\"submit\" value=\"Update not yet implemented\"></input></form></body></html>");
+  return message;
+}
+
+
+
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
 // Route for root / web page
  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-        request->send(200, "text/plain", "Hello, world");
+    request->send(SPIFFS, "/index.html", String(), false, processor);
     });
     
   server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request){
@@ -299,6 +374,10 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createWIFIForm());
   });
 
+  server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest *request){
+     request->send(200, "text/html", createConfigForm());
+  });  
+
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest *request){
      request->send(200, "text/html", createStatusForm());
   });
@@ -308,28 +387,10 @@ void SetupAsyncServer() {
     request->send(SPIFFS, "/style.css", "text/css");
   });
 
-  // Route to set GPIO to HIGH
-  server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, HIGH);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
    // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest *request){
     //digitalWrite(ledPin, HIGH);    
     request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to set GPIO to LOW
-  server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, LOW);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-
-  // Send a POST request to <IP>/post with a form field message set to <message>
-  server.on("/post", HTTP_POST, [](AsyncWebServerRequest *request){
-    handleQRGPost(request);
-    request->send(200, "text/plain", "Hello, POST done");
   });
 
   // Start server
@@ -422,7 +483,9 @@ void setup()
   Serial.println(f);
 #endif
 
-  sx1278.setLNAGain(0); //-48);
+  //sx1278.setLNAGain(-48);
+  sx1278.setLNAGain(0);
+
   int gain = sx1278.getLNAGain();
   Serial.print("RX LNA Gain is ");
   Serial.println(gain);
@@ -489,9 +552,9 @@ void loopDecoder() {
       SondeInfo *s = sonde.si();
       char raw[201];
       const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
-      int rawlen = aprsstr_mon2raw(str, raw, MAXLEN);
+      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
       Serial.print("Sending: "); Serial.println(raw);
-      udp.beginPacket(udpAddress,udpPort);
+      udp.beginPacket(sonde.config.udpfeed.host,sonde.config.udpfeed.port);
       udp.write((const uint8_t *)raw,rawlen);
       udp.endPacket();
     }
@@ -572,7 +635,7 @@ void WiFiEvent(WiFiEvent_t event){
           Serial.println(WiFi.localIP());  
           //initializes the UDP state
           //This initializes the transfer buffer
-          udp.begin(WiFi.localIP(),udpPort);
+          udp.begin(WiFi.localIP(),LOCALUDPPORT);
           connected = true;
           break;
       case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -581,6 +644,7 @@ void WiFiEvent(WiFiEvent_t event){
           break;
     }
 }
+
 
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
@@ -623,12 +687,14 @@ void loopWifiScan() {
         Serial.print(".");
         u8x8.drawString(15,7,_scan[cnt&1]);
         cnt++;
+        #if 0
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
             WiFi.begin(id, pw);
         }
-        if(cnt==10) {
+        #endif
+        if(cnt==15) {
             WiFi.disconnect(true);
             delay(1000);
             WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
@@ -666,11 +732,7 @@ void loop() {
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
   }
-#if 0
-  //wifiloop(NULL);
-  //e = dfm.receiveFrame();
-  //e = rs41.receiveFrame();
-  delay(1000);
+#if 1                  
   int rssi = sx1278.getRSSI();
   Serial.print("  RSSI: ");
   Serial.print(rssi);
@@ -678,6 +740,5 @@ void loop() {
   int gain = sx1278.getLNAGain();
   Serial.print(" LNA Gain: "),
   Serial.println(gain);
-  #endif
-  
+#endif
 }

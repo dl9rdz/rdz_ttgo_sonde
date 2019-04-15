@@ -47,6 +47,23 @@ static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
 static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
+Sonde::Sonde() {
+	config.noisefloor = -130;
+	strcpy(config.call,"NOCALL");
+	strcpy(config.passcode, "---");
+	config.udpfeed.active = 1;
+	config.udpfeed.type = 0;
+	strcpy(config.udpfeed.host, "192.168.42.20");
+	config.udpfeed.port = 9002;
+	config.udpfeed.highrate = 1;
+	config.udpfeed.idformat = ID_DFMGRAW;
+	config.tcpfeed.active = 0;
+	config.tcpfeed.type = 1;
+	strcpy(config.tcpfeed.host, "radiosondy.info");
+	config.tcpfeed.port = 12345;
+	config.tcpfeed.highrate = 10;
+	config.tcpfeed.idformat = ID_DFMDXL;
+}
 
 void Sonde::setIP(const char *ip, bool AP) {
   memset(myIP_tiles, 0, 11*8);
@@ -153,11 +170,11 @@ void Sonde::updateDisplayPos2() {
 		u8x8.drawString(10,4,"      ");
 		return;
 	}
-	snprintf(buf, 16, si()->hei>999?"%5.0fm":"%3.1fm", si()->hei);
+	snprintf(buf, 16, si()->hei>999?" %5.0fm":" %3.1fm", si()->hei);
 	u8x8.drawString((10+6-strlen(buf)),2,buf);
-	snprintf(buf, 16, si()->hs>99?"%3.0f":"%2.1f", si()->hs);
+	snprintf(buf, 16, si()->hs>99?" %3.0f":" %2.1f", si()->hs);
 	u8x8.drawString((10+4-strlen(buf)),3,buf);
-	snprintf(buf, 16, "%+2.1f", si()->vs);
+	snprintf(buf, 16, " %+2.1f", si()->vs);
 	u8x8.drawString((10+4-strlen(buf)),4,buf);
 	u8x8.drawTile(14,3,2,kmh_tiles);
 	u8x8.drawTile(14,4,2,ms_tiles);

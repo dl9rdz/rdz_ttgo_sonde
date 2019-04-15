@@ -45,7 +45,7 @@ void aprsstr_append(char *b, const char *data)
 {
 	int blen=strlen(b);
 	int len=strlen(data);
-	if(blen+len>MAXLEN) len=MAXLEN-blen;
+	if(blen+len>APRS_MAXLEN) len=APRS_MAXLEN-blen;
 	strncat(b, data, len);
 }
 
@@ -233,26 +233,26 @@ char * aprs_senddata(float lat, float lon, float hei, float speed, float dir, fl
 	int i = strlen(b);
 	int lati = abs((int)lat);
 	int latm = (fabs(lat)-lati)*6000;
-	snprintf(b+i, MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, lat<0?'S':'N', sym[0]);
+	snprintf(b+i, APRS_MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, lat<0?'S':'N', sym[0]);
 	i = strlen(b);
 	int loni = abs((int)lon);
 	int lonm = (fabs(lon)-loni)*6000;
-	snprintf(b+i, MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, lon<0?'W':'E', sym[1]);
+	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, lon<0?'W':'E', sym[1]);
 #if 1
 	if(speed>0.5) {
 		i=strlen(b);
-		snprintf(b+i, MAXLEN-i, "%03d/%03d", realcard(dir+1.5), realcard(speed*1.0/KNOTS+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(dir+1.5), realcard(speed*1.0/KNOTS+0.5));
 	}
 #endif
 	if(hei>0.5) {
 		i=strlen(b);
-		snprintf(b+i, MAXLEN-i, "/A=%06d", realcard(hei*FEET+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(hei*FEET+0.5));
 	}
 #if 0
 	int dao=1;
 	if(dao) {
 		i=strlen(b);
-		snprintf(b+i, MAXLEN-i, "!w%c%c!", 33+dao91(lat), 33+dao91(lon));
+		snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(lat), 33+dao91(lon));
 	}
 #endif
 	const char *comm="&test";
@@ -273,11 +273,11 @@ int main(int argc, char *argv[])
 	float lat=48, lon=10;
 	while(1) {
 	const char *str = aprs_senddata(lat, lon, 543, 5, 180, 1.5, "RS41", "TE0ST", "TE1ST", "EO");
-	int rawlen = aprsstr_mon2raw(str, raw, MAXLEN);
+	int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
 	sendudp(fd, raw, rawlen);
 
 	str = "OE3XKC>APMI06,qAR,OE3XLR:;ER-341109*111111z4803.61NE01532.39E0145.650MHz R15k OE3XPA";
-	rawlen = aprsstr_mon2raw(str, raw, MAXLEN);
+	rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
 	sendudp(fd, &si, raw, rawlen);
 	lat += 0.002; lon += 0.01;
 	sleep(5);

@@ -2,6 +2,8 @@
 #ifndef Sonde_h
 #define Sonde_H
 
+#include "aprs.h"
+
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
@@ -9,6 +11,15 @@ enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR };
 
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
+
+typedef struct st_rdzconfig {
+	int noisefloor;			// for spectrum display
+	char call[9];
+	char passcode[9];
+	// for now, one feed for each type is enough, but might get extended to more?
+	struct st_feedinfo udpfeed;	// target for AXUDP messages
+	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
+} RDZConfig;
 
 typedef struct st_sondeinfo {
         // receiver configuration
@@ -39,9 +50,12 @@ class Sonde
 {
 private:
 public:
+	RDZConfig config;
 	int currentSonde = 0;
 	int nSonde;
 	SondeInfo sondeList[MAXSONDE+1];
+
+	Sonde();
 
 	void clearSonde();
 	void addSonde(float frequency, SondeType type, int active);

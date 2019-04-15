@@ -357,7 +357,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
 
 
 
-void RS41::decode41(byte *data, int MAXLEN)
+void RS41::decode41(byte *data, int maxlen)
 {
 	char buf[128];
 
@@ -369,10 +369,10 @@ void RS41::decode41(byte *data, int MAXLEN)
 	Serial.print(corr);
 	Serial.println();
 	int p = 57; // 8 byte header, 48 byte RS 
-	while(p<MAXLEN) {  /* why 555? */
+	while(p<maxlen) {  /* why 555? */
 		uint8_t typ = data[p++];
 		uint32_t len = data[p++]+2UL;
-		if(p+len>MAXLEN) break;
+		if(p+len>maxlen) break;
 
 #if 1
 		// DEBUG OUTPUT
@@ -459,20 +459,20 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 
 static byte data[800];
 
-#define MAXLEN (320)
+#define RS41MAXLEN (320)
 int RS41::receiveFrame() {
 	//sx1278.setPayloadLength(518-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-	sx1278.setPayloadLength(MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
+	sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
 
 	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	int e = sx1278.receivePacketTimeout(1000, data+8);
 	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } //if timeout... return 1
 
-	for(int i=0; i<MAXLEN; i++) { data[i] = reverse(data[i]); }
+	for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
 	//printRaw(data, MAXLEN);
-	for(int i=0; i<MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
+	for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
 	//printRaw(data, MAXLEN);
-	decode41(data, MAXLEN);
+	decode41(data, RS41MAXLEN);
 	return RX_OK;
 }
 
