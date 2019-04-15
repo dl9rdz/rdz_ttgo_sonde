@@ -47,6 +47,23 @@ static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
 static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
+Sonde::Sonde() {
+	config.noisefloor = -130;
+	strcpy(config.call,"NOCALL");
+	strcpy(config.passcode, "---");
+	config.udpfeed.active = 1;
+	config.udpfeed.type = 0;
+	strcpy(config.udpfeed.host, "192.168.42.20");
+	config.udpfeed.port = 9002;
+	config.udpfeed.highrate = 1;
+	config.udpfeed.idformat = ID_DFMGRAW;
+	config.tcpfeed.active = 0;
+	config.tcpfeed.type = 1;
+	strcpy(config.tcpfeed.host, "radiosondy.info");
+	config.tcpfeed.port = 12345;
+	config.tcpfeed.highrate = 10;
+	config.tcpfeed.idformat = ID_DFMDXL;
+}
 
 void Sonde::setIP(const char *ip, bool AP) {
   memset(myIP_tiles, 0, 11*8);

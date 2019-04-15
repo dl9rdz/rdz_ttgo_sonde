@@ -55,6 +55,8 @@ public:
 	int nSonde;
 	SondeInfo sondeList[MAXSONDE+1];
 
+	Sonde();
+
 	void clearSonde();
 	void addSonde(float frequency, SondeType type, int active);
 	void nextConfig();

@@ -26,8 +26,11 @@ int e;
 
 AsyncWebServer server(80);
 
-const char * udpAddress = "192.168.42.20";
-const int udpPort = 9002;
+#define LOCALUDPPORT 9002
+
+// moved to sonde.config
+//const char * udpAddress = "192.168.42.20";
+//const int udpPort = 9002;
 
 boolean connected = false;
 WiFiUDP udp;
@@ -278,13 +281,13 @@ struct st_configitems config_list[N_CONFIG] = {
   {"Call", 8, sonde.config.call},
   {"Passcode", 8, sonde.config.passcode},
   {"---", -1, NULL},
-  {"AXUDP active", -3, sonde.config.udpfeed.active},
+  {"AXUDP active", -3, &sonde.config.udpfeed.active},
   {"AXUDP Host", 63, sonde.config.udpfeed.host},
   {"AXUDP Port", 0, &sonde.config.udpfeed.port},
   {"DFM ID Format", -2, &sonde.config.udpfeed.idformat},
   {"Rate limit", 0, &sonde.config.udpfeed.highrate},
   {"---", -1, NULL},
-  {"APRS TCP active", -3, sonde.config.tcpfeed.active},
+  {"APRS TCP active", -3, &sonde.config.tcpfeed.active},
   {"ARPS TCP Host", 63, sonde.config.tcpfeed.host},
   {"APRS TCP Port", 0, &sonde.config.tcpfeed.port},
   {"DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
@@ -314,7 +317,7 @@ void addConfigSeparatorEntry(char *ptr) {
 const char *createConfigForm() {
   char *ptr = message;
   char tmp[4];
-  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
+  strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
   for(int i=0; i<N_CONFIG; i++) {
     switch(config_list[i].type) {
       case -3: // in/offt
@@ -334,7 +337,7 @@ const char *createConfigForm() {
         break;
     }
   }
-  strcat(ptr,"</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  strcat(ptr,"</table><input type=\"submit\" value=\"Update not yet implemented\"></input></form></body></html>");
   return message;
 }
 
@@ -551,7 +554,7 @@ void loopDecoder() {
       const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
       int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
       Serial.print("Sending: "); Serial.println(raw);
-      udp.beginPacket(udpAddress,udpPort);
+      udp.beginPacket(sonde.config.udpfeed.host,sonde.config.udpfeed.port);
       udp.write((const uint8_t *)raw,rawlen);
       udp.endPacket();
     }
@@ -632,7 +635,7 @@ void WiFiEvent(WiFiEvent_t event){
           Serial.println(WiFi.localIP());  
           //initializes the UDP state
           //This initializes the transfer buffer
-          udp.begin(WiFi.localIP(),udpPort);
+          udp.begin(WiFi.localIP(),LOCALUDPPORT);
           connected = true;
           break;
       case SYSTEM_EVENT_STA_DISCONNECTED:
@@ -684,12 +687,14 @@ void loopWifiScan() {
         Serial.print(".");
         u8x8.drawString(15,7,_scan[cnt&1]);
         cnt++;
+        #if 0
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
             WiFi.begin(id, pw);
         }
-        if(cnt==10) {
+        #endif
+        if(cnt==15) {
             WiFi.disconnect(true);
             delay(1000);
             WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
