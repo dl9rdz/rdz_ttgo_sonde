@@ -339,6 +339,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
                 long0)+vz*(double)sin((float)lat);
    dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
    if (dir<0.0) dir = 360.0+dir;
+   sonde.si()->dir = dir;
    Serial.print(" ");
    sonde.si()->hs = sqrt((float)(vn*vn+ve*ve))*3.6f;
    Serial.print(sonde.si()->hs);

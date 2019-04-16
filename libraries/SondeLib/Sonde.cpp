@@ -54,12 +54,14 @@ Sonde::Sonde() {
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
+	strcpy(config.udpfeed.symbol, "/O");
 	config.udpfeed.port = 9002;
 	config.udpfeed.highrate = 1;
 	config.udpfeed.idformat = ID_DFMGRAW;
 	config.tcpfeed.active = 0;
 	config.tcpfeed.type = 1;
 	strcpy(config.tcpfeed.host, "radiosondy.info");
+	strcpy(config.tcpfeed.symbol, "/O");
 	config.tcpfeed.port = 12345;
 	config.tcpfeed.highrate = 10;
 	config.tcpfeed.idformat = ID_DFMDXL;

@@ -9,6 +9,7 @@ typedef struct st_feedinfo {
 	int type;	// 0:UDP(axudp), 1:TCP(aprs.fi)
 	char host[64];
 	int port;
+	char symbol[3];
 	int lowrate;
 	int highrate;
 	int lowlimit;
