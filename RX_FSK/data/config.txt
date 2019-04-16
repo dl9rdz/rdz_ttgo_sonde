@@ -1,0 +1,25 @@
+# oled: SDA, SCL, RST  (4,15,16 für TTGO v1)
+oled_sda=4
+oled_scl=15
+oled_rst=16
+noisefloor=-130
+call=NOCALL
+passcode=12345
+# axudp for sending to aprsmap
+# local use only, do not feed to public services
+# data not sanities / quality checked, outliers not filtered out
+axudp.active=1
+axudp.host=192.168.42.20
+axudp.port=9002
+axudp.symbol=/O
+axudp.highrate=1
+axudp.idformat=0
+# maybe some time in the future
+# currently simply not implemented, no need to put anything here anyway
+tcp.active=0
+tcp.host=radiosondy.info
+tcp.port=14590
+tcp.symbol=/O
+tcp.highrate=20
+tcp.idformat=0
+

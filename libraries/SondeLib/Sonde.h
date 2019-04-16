@@ -13,6 +13,9 @@ enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
 typedef struct st_rdzconfig {
+	int oled_sda;
+	int oled_scl;
+	int oled_rst;
 	int noisefloor;			// for spectrum display
 	char call[9];
 	char passcode[9];
@@ -56,6 +59,7 @@ public:
 	SondeInfo sondeList[MAXSONDE+1];
 
 	Sonde();
+	void setConfig(const char *str);
 
 	void clearSonde();
 	void addSonde(float frequency, SondeType type, int active);

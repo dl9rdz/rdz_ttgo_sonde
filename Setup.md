@@ -53,6 +53,9 @@ ln -s <whereyouclonedthegit>/rdz_ttgo_sonde/libraries/SX1278FSK/ .
 
 Restart the Arduino IDE
 
+(symbolic links are the preferred way, otherwise you have to copy the the libraries again after
+each update)
+
 ## Final steps
 
 In the IDE Tools -> Board: ->

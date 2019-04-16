@@ -2,7 +2,7 @@
 #include <SX1278FSK.h>
 #include <U8x8lib.h>
 
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8;
+extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
 #define CHANBW 10
 #define PIXSAMPL (50/CHANBW)
@@ -44,7 +44,7 @@ void Scanner::plotResult()
 		        if( ((i+j)%TICK2)==0) { row[j] |= 0x01; }
 		}
 		for(int y=0; y<8; y++) {
-			u8x8.drawTile(i/8, y, 1, row+8*y);
+			u8x8->drawTile(i/8, y, 1, row+8*y);
 		}
 	}
 }

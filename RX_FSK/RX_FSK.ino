@@ -18,7 +18,8 @@
 #define OLED_RST 16
 
 // UNCOMMENT one of the constructor lines below
-U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
+U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8=NULL;  // initialize later after reading config file
+//U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
 //U8G2_SSD1306_128X64_NONAME_1_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Page buffer, SW I2C
 //U8G2_SSD1306_128X64_NONAME_F_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Full framebuffer, SW I2C
 
@@ -271,6 +272,20 @@ const char *createStatusForm() {
 
 ///////////////////// Config form
 
+
+void setupConfigData() {
+  File file = SPIFFS.open("/config.txt", "r");
+  if(!file) {
+    Serial.println("There was an error opening the file '/config.txt' for reading");
+    return;
+  }
+  while(file.available()) {
+    String line = file.readStringUntil('\n');
+    sonde.setConfig(line.c_str());
+  }
+}
+
+
 struct st_configitems {
   const char *label;
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
@@ -459,7 +474,6 @@ void setup()
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
   
-  u8x8.begin();
   aprs_gencrctab();
 
   pinMode(LORA_LED, OUTPUT);
@@ -471,6 +485,11 @@ void setup()
   }
   
   setupWifiList();
+  setupConfigData();
+
+  u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
+  u8x8->begin();
+
 
 #if 0 
   if(rs41.setFrequency(402700000)==0) {
@@ -551,7 +570,8 @@ void loopDecoder() {
       Serial.println("Sending position via UDP");
       SondeInfo *s = sonde.si();
       char raw[201];
-      const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
+      const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", 
+        sonde.config.udpfeed.symbol);
       int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
       Serial.print("Sending: "); Serial.println(raw);
       udp.beginPacket(sonde.config.udpfeed.host,sonde.config.udpfeed.port);
@@ -648,19 +668,20 @@ void WiFiEvent(WiFiEvent_t event){
 
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
-  u8x8.setFont(u8x8_font_chroma48medium8_r);
-  u8x8.drawString(0,0,"WiFi Scan...");
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0,0,"WiFi Scan...");
   int line=0;
   int cnt=0;
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
   const char *id, *pw;
+  char idstr[64]="test";
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; i++) {
     Serial.print("Network name: ");
     Serial.println(WiFi.SSID(i));
-    u8x8.drawString(0,1+line,WiFi.SSID(i).c_str());
+    u8x8->drawString(0,1+line,WiFi.SSID(i).c_str());
     line = (line+1)%5;
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
@@ -672,26 +693,26 @@ void loopWifiScan() {
     Serial.println("-----------------------");
     id=WiFi.SSID(i).c_str();
     pw=fetchWifiPw(id);
-    if(pw) break;
+    if(pw) { strncpy(idstr, id, 63); }
   }
-  if(!pw) { id="test"; pw="test"; }
-  Serial.print("Connecting to: "); Serial.println(id);
-  u8x8.drawString(0,6, "Conn:");
-  u8x8.drawString(6,6, id);
+  if(!pw) { pw="test"; }
+  Serial.print("Connecting to: "); Serial.println(idstr);
+  u8x8->drawString(0,6, "Conn:");
+  u8x8->drawString(6,6, idstr);
   //register event handler
   WiFi.onEvent(WiFiEvent);
   
-  WiFi.begin(id, pw);
+  WiFi.begin(idstr, pw);
   while(WiFi.status() != WL_CONNECTED)  {
         delay(500);
         Serial.print(".");
-        u8x8.drawString(15,7,_scan[cnt&1]);
+        u8x8->drawString(15,7,_scan[cnt&1]);
         cnt++;
         #if 0
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
-            WiFi.begin(id, pw);
+            WiFi.begin(idstr, pw);
         }
         #endif
         if(cnt==15) {
@@ -701,12 +722,12 @@ void loopWifiScan() {
             IPAddress myIP = WiFi.softAPIP();
             Serial.print("AP IP address: ");
             Serial.println(myIP);
-            u8x8.drawString(0,6, "AP:             ");
-            u8x8.drawString(6,6, networks[0].id.c_str());
+            u8x8->drawString(0,6, "AP:             ");
+            u8x8->drawString(6,6, networks[0].id.c_str());
             sonde.setIP(myIP.toString().c_str(), true);
             sonde.updateDisplayIP();
             SetupAsyncServer();
-            delay(5000);
+            delay(3000);
             enterMode(ST_DECODER);
             return;
         }
@@ -719,7 +740,7 @@ void loopWifiScan() {
   sonde.setIP(WiFi.localIP().toString().c_str(), false);
   sonde.updateDisplayIP();
   SetupAsyncServer();
-  delay(5000);
+  delay(2000);
   enterMode(ST_DECODER);
 }
 
