@@ -7,12 +7,13 @@
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
-enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR };
+enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN };
 
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
 typedef struct st_rdzconfig {
+	int button_pin;
 	int oled_sda;
 	int oled_scl;
 	int oled_rst;

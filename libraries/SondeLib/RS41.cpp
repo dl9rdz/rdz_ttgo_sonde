@@ -357,10 +357,11 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
 
 
 
-
-void RS41::decode41(byte *data, int maxlen)
+// returns: 0: ok, -1: rs or crc error
+int RS41::decode41(byte *data, int maxlen)
 {
-	char buf[128];
+	char buf[128];	
+	int crcok = 0;
 
 	int32_t corr = reedsolomon41(data, 560, 131);  // try short frame first
 	if(corr<0) {
@@ -393,7 +394,8 @@ void RS41::decode41(byte *data, int maxlen)
 		// check CRC
 		if(!crcrs(data, 560, p, p+len)) {
 			Serial.println("###CRC ERROR###");
-		} else {
+		} else {	
+		crcok = 1;
 		switch(typ) {
 		case 'y': // name
 			{
@@ -421,6 +423,7 @@ void RS41::decode41(byte *data, int maxlen)
 		p += len;
 		Serial.println();
 	}
+	return crcok ? 0 : -1;
 }
 void RS41::printRaw(uint8_t *data, int len)
 {
@@ -473,8 +476,8 @@ int RS41::receiveFrame() {
 	//printRaw(data, MAXLEN);
 	for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
 	//printRaw(data, MAXLEN);
-	decode41(data, RS41MAXLEN);
-	return RX_OK;
+	int res = decode41(data, RS41MAXLEN);
+	return res==0 ? RX_OK : RX_ERROR;
 }
 
 RS41 rs41 = RS41();

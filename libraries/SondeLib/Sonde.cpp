@@ -17,10 +17,10 @@ static unsigned char ms_tiles[] U8X8_PROGMEM = {
    0x1F, 0x02, 0x04, 0x02, 0x1F, 0x40, 0x20, 0x10, 0x08, 0x04, 0x12, 0xA4, 0xA4, 0xA4, 0x40, 0x00
    };
 static unsigned char stattiles[4][4] =  {
-   0x00, 0x00, 0x00, 0x00 ,
-   0x00, 0x10, 0x10, 0x00 ,
-   0x1F, 0x15, 0x15, 0x00 ,
-   0x00, 0x1F, 0x00, 0x00  };
+   0x00, 0x1F, 0x00, 0x00 ,   // | == ok
+   0x00, 0x10, 0x10, 0x00 ,   // . == no header found
+   0x1F, 0x15, 0x15, 0x00 ,   // E == decode error
+   0x00, 0x00, 0x00, 0x00 };  // ' ' == unknown/unassigned
 
 byte myIP_tiles[8*11];
 
@@ -48,6 +48,11 @@ static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
 Sonde::Sonde() {
+	config.button_pin = 0;
+	config.oled_sda = 4;
+	config.oled_scl = 15;
+	config.oled_rst = 16;
+
 	config.noisefloor = -130;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
@@ -83,6 +88,8 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.call, val, 9);
 	} else if(strcmp(cfg,"passcode")==0) {
 		strncpy(config.passcode, val, 9);
+	} else if(strcmp(cfg,"button_pin")==0) {
+		config.button_pin = atoi(val);
 	} else if(strcmp(cfg,"oled_sda")==0) {
 		config.oled_sda = atoi(val);
 	} else if(strcmp(cfg,"oled_scl")==0) {
@@ -147,7 +154,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active)  {
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
-	memcpy(sondeList[nSonde].rxStat, "\x00\x01\x2\x3\x2\x1\x1\x2\x0\x3\x0\x0\x1\x2\x3\x1\x0", 18);
+	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
 void Sonde::nextConfig() {
@@ -196,8 +203,8 @@ int Sonde::receiveFrame() {
 		ret = dfm.receiveFrame();
 	}
 	memmove(sonde.si()->rxStat+1, sonde.si()->rxStat, 17);
-	sonde.si()->rxStat[0] = ret==0 ? 3 : 1;    // OK or Timeout; TODO: add error (2)
-	return ret;  // 0: OK, 1: Timeuot, 2: Other error (TODO)
+	sonde.si()->rxStat[0] = ret;
+	return ret;  // 0: OK, 1: Timeuot, 2: Other error, 3: unknown
 }
 
 void Sonde::updateDisplayPos() {

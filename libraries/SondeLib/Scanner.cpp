@@ -6,7 +6,7 @@ extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
 #define CHANBW 10
 #define PIXSAMPL (50/CHANBW)
-#define SMOOTH 4
+#define SMOOTH 3
 #define STARTF 400000000
 #define NCHAN ((int)(6000/CHANBW))
 
@@ -16,7 +16,7 @@ int scandisp[NCHAN/PIXSAMPL];
 #define PLOT_N 120
 #define TICK1 (120/6)
 #define TICK2 (TICK1/4)
-#define PLOT_MIN -220
+#define PLOT_MIN -250
 #define PLOT_SCALE(x) (x<PLOT_MIN?0:(x-PLOT_MIN)/2)
 
 const byte tilepatterns[9]={0,0x80,0xC0,0xE0,0xF0,0xF8,0xFC,0xFE,0xFF};
@@ -82,7 +82,7 @@ void Scanner::scan()
 		lastfrf = frf;
 		// Wait TS_HOP (20us) + TS_RSSI ( 2^(SMOOTH+1) / 4 / CHANBW us)
 		int wait = 20 + 1000*(1<<(SMOOTH+1))/4/CHANBW;
-		delayMicroseconds(wait);
+		delayMicroseconds(wait+5);
 		int rssi = -(int)sx1278.readRegister(REG_RSSI_VALUE_FSK);
 		if(iter==0) { scanresult[i] = rssi; } else {
 			if(rssi>scanresult[i]) scanresult[i]=rssi;
