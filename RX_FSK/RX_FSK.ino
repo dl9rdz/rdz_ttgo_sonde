@@ -13,9 +13,9 @@
 #define LORA_LED  9
 
 // I2C OLED Display works with SSD1306 driver
-#define OLED_SDA 4
-#define OLED_SCL 15
-#define OLED_RST 16
+//#define OLED_SDA 4
+//#define OLED_SCL 15
+//#define OLED_RST 16
 
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8=NULL;  // initialize later after reading config file
@@ -429,7 +429,7 @@ const char *fetchWifiPw(const char *id) {
 enum KeyPress { KP_NONE=0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 struct Button {
-  const uint8_t PIN;
+  uint8_t pin;
   uint32_t numberKeyPresses;
   KeyPress pressed;
   unsigned long press_ts;
@@ -438,7 +438,7 @@ struct Button {
 Button button1 = {0, 0, KP_NONE, 0, false};
 
 void IRAM_ATTR buttonISR() {
-  if(digitalRead(0)==0) { // Button down
+  if(digitalRead(button1.pin)==0) { // Button down
     if(millis()-button1.press_ts<500) {
       // Double press
       button1.doublepress = true;
@@ -486,8 +486,9 @@ void setup()
   
   setupWifiList();
   setupConfigData();
+  button1.pin = sonde.config.button_pin;
 
-  u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
+  u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
   u8x8->begin();
 
 
@@ -523,7 +524,7 @@ void setup()
   //   xTaskCreate(mainloop, "MainServer", 10240, NULL, 10, NULL);
 
   // Handle button press
-  attachInterrupt(0, buttonISR, CHANGE);
+  attachInterrupt(button1.pin, buttonISR, CHANGE);
 
   setupChannelList();
  #if 0

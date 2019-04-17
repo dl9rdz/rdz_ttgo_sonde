@@ -1,7 +1,10 @@
+# Input button
+button_pin=0
 # oled: SDA, SCL, RST  (4,15,16 für TTGO v1)
 oled_sda=4
 oled_scl=15
 oled_rst=16
+
 noisefloor=-130
 call=NOCALL
 passcode=12345
