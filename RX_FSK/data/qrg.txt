@@ -1,8 +1,17 @@
 # Frequency in Mhz (format nnn.nnn)
 # Type (4=RS41, 6=DFM normal, DFM-06, 9=DFM inverted, DFM-09)
 #
-402.700 4 +
-402.300 4 +
-403.450 9 +
-405.100 4 -
+404.500 4 - Meppen
+405.700 4 + Bergen
+405.900 4 + Bergen
+405.100 4 - Meppen
+405.300 4 - Essen
+402.700 4 + HH-Sasel
+403.330 9 - TrUebPl
+403.450 9 - TrUebPl
+403.470 9 - TrUebPl
+403.850 9 - TrUebPl
+403.870 9 - TrUebPl
+403.890 9 - TrUebPl
+439.275 4 - DB0CEL
 # end

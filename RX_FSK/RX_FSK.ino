@@ -3,6 +3,7 @@
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 #include <U8x8lib.h>
+#include <U8g2lib.h>
 #include <SPI.h>
 
 #include <SX1278FSK.h>
@@ -12,13 +13,9 @@
 
 #define LORA_LED  9
 
-// I2C OLED Display works with SSD1306 driver
-#define OLED_SDA 4
-#define OLED_SCL 15
-#define OLED_RST 16
-
 // UNCOMMENT one of the constructor lines below
-U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
+U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8=NULL;  // initialize later after reading config file
+//U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
 //U8G2_SSD1306_128X64_NONAME_1_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Page buffer, SW I2C
 //U8G2_SSD1306_128X64_NONAME_F_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Full framebuffer, SW I2C
 
@@ -28,19 +25,13 @@ AsyncWebServer server(80);
 
 #define LOCALUDPPORT 9002
 
-// moved to sonde.config
-//const char * udpAddress = "192.168.42.20";
-//const int udpPort = 9002;
-
 boolean connected = false;
 WiFiUDP udp;
 
-
 // Set LED GPIO
-const int ledPin = 2;
+int ledPin = 1;
 // Stores LED state
 String ledState;
-
 
 // Replaces placeholder with LED state value
 String processor(const String& var){
@@ -90,6 +81,7 @@ void setupChannelList() {
   }
   int i=0;
   sonde.clearSonde();
+  Serial.println("Reading channel config:");  
   while(file.available()) {
     String line = file.readStringUntil('\n');
     if(!file.available()) break;
@@ -104,8 +96,9 @@ void setupChannelList() {
     else if (space[1]=='6') { type=STYPE_DFM06; }
     else continue;
     int active = space[3]=='+'?1:0;
-    Serial.printf("Adding %f with type %d (active: %d)\n",freq,type,active);
-    sonde.addSonde(freq, type, active);
+    char *launchsite = strchr(line.c_str(), ' ');
+    Serial.printf("Add %f - type %d (on/off: %d)- Site: \n",freq,type,active,launchsite);
+    sonde.addSonde(freq, type, active, launchsite);
     i++;
   }
 }
@@ -160,6 +153,9 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     f.printf("%3.3f %c %c\n", atof(fstr), typech, active?'+':'-');
   }
   f.close();
+  Serial.println("Channel setup finished");
+  Serial.println();
+  
   setupChannelList();
 }
 
@@ -251,9 +247,9 @@ void addSondeStatus(char *ptr, int i)
   sprintf(ptr+strlen(ptr),"<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n",
     s->freq, sondeTypeStr[s->type],
     s->validID?s->id:"<??>",
-    s->lat, s->lon, s->hei);
-  sprintf(ptr+strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">Geo-Ref</a> -", s->lat, s->lon);
-  sprintf(ptr+strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google map</a> - ", s->lat, s->lon);
+    s->lat, s->lon, s->alt);
+  sprintf(ptr+strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
+  sprintf(ptr+strlen(ptr), "<a target=\"_empty\" href=\"https://wx.dl2mf.de/?%s\">WX.DL2MF.de</a> - ", s->id);
   sprintf(ptr+strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a></td></tr>", s->lat, s->lon);
   strcat(ptr, "</table><p/>\n");
 }
@@ -270,6 +266,20 @@ const char *createStatusForm() {
 }
 
 ///////////////////// Config form
+
+
+void setupConfigData() {
+  File file = SPIFFS.open("/config.txt", "r");
+  if(!file) {
+    Serial.println("There was an error opening the file '/config.txt' for reading");
+    return;
+  }
+  while(file.available()) {
+    String line = file.readStringUntil('\n');
+    sonde.setConfig(line.c_str());
+  }
+}
+
 
 struct st_configitems {
   const char *label;
@@ -400,11 +410,11 @@ void SetupAsyncServer() {
 
 const char *fetchWifiPw(const char *id) {
   for(int i=0; i<nNetworks; i++) {
-    Serial.print("Comparing '");
-    Serial.print(id);
-    Serial.print("' and '");
-    Serial.print(networks[i].id.c_str());
-    Serial.println("'");
+    //Serial.print("Comparing '");
+    //Serial.print(id);
+    //Serial.print("' and '");
+    //Serial.print(networks[i].id.c_str());
+    //Serial.println("'");
     if(strcmp(id,networks[i].id.c_str())==0) return networks[i].pw.c_str();
   }
   return NULL;
@@ -414,7 +424,7 @@ const char *fetchWifiPw(const char *id) {
 enum KeyPress { KP_NONE=0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 struct Button {
-  const uint8_t PIN;
+  uint8_t pin;
   uint32_t numberKeyPresses;
   KeyPress pressed;
   unsigned long press_ts;
@@ -423,7 +433,7 @@ struct Button {
 Button button1 = {0, 0, KP_NONE, 0, false};
 
 void IRAM_ATTR buttonISR() {
-  if(digitalRead(0)==0) { // Button down
+  if(digitalRead(button1.pin)==0) { // Button down
     if(millis()-button1.press_ts<500) {
       // Double press
       button1.doublepress = true;
@@ -456,23 +466,81 @@ int hasKeyPress() {
 
 void setup()
 {
+  char buf[12];  
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
+  pinMode(LORA_LED, OUTPUT);
   
-  u8x8.begin();
   aprs_gencrctab();
 
-  pinMode(LORA_LED, OUTPUT);
-
-    // Initialize SPIFFS
+  // Initialize SPIFFS
   if(!SPIFFS.begin(true)){
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
   
+  setupConfigData();    // configuration must be read first due to OLED ports!!!  
+
+  u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
+  u8x8->begin();
+  delay(100);
+
+  u8x8->clear();
+
+  u8x8->setFont(u8x8_font_7x14_1x2_r);
+  u8x8->drawString(1, 1, "RDZ_TTGO_SONDE"); 
+  u8x8->drawString(2, 3, "    V0.1e");   
+  u8x8->drawString(1, 5, "Mods by DL2MF");     
+  delay(4000);
+ 
+  sonde.clearDisplay();
+  
   setupWifiList();
+  button1.pin = sonde.config.button_pin;
+
+  // == show initial values from config.txt ========================= //
+  if (sonde.config.debug == 1) {
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0, 0, "Config:");
+
+  delay(500);
+  itoa(sonde.config.oled_sda, buf, 10);
+  u8x8->drawString(0, 1, " SDA:");
+  u8x8->drawString(6, 1, buf);                        
+
+  delay(500);
+  itoa(sonde.config.oled_scl, buf, 10);
+  u8x8->drawString(0, 2, " SCL:");            
+  u8x8->drawString(6, 2, buf);                        
+
+  delay(500);
+  itoa(sonde.config.oled_rst, buf, 10);
+  u8x8->drawString(0, 3, " RST:");
+  u8x8->drawString(6, 3, buf);  
+
+  delay(1000);
+  itoa(sonde.config.led_pin, buf, 10);
+  u8x8->drawString(0, 4, " LED:");
+  u8x8->drawString(6, 4, buf);  
+
+  delay(500);
+  itoa(sonde.config.spectrum, buf, 10);
+  u8x8->drawString(0, 5, " SPEC:");
+  u8x8->drawString(6, 5, buf);                          
+
+  delay(500);
+  itoa(sonde.config.maxsonde, buf, 10);
+  u8x8->drawString(0, 6, " MAX:");
+  u8x8->drawString(6, 6, buf);   
+  
+  delay(5000);
+  sonde.clearDisplay(); 
+  } 
+  // == show initial values from config.txt ========================= //  
+  
 
 #if 0 
+  // == check the radio chip by setting default frequency =========== //
   if(rs41.setFrequency(402700000)==0) {
     Serial.println(F("Setting freq: SUCCESS "));
   } else {
@@ -481,6 +549,7 @@ void setup()
   float f = sx1278.getFrequency();
   Serial.print("Frequency set to ");
   Serial.println(f);
+  // == check the radio chip by setting default frequency =========== //  
 #endif
 
   //sx1278.setLNAGain(-48);
@@ -491,11 +560,10 @@ void setup()
   Serial.println(gain);
 
   // Print a success message
-  Serial.println(F("sx1278 configured finished"));
-  Serial.println();
-
+  Serial.println(F("SX1278 configuration finished"));
 
   Serial.println("Setup finished");
+  Serial.println();
   // int returnValue = pthread_create(&wifithread, NULL, wifiloop, (void *)0);
  
   //  if (returnValue) {
@@ -504,22 +572,28 @@ void setup()
   //   xTaskCreate(mainloop, "MainServer", 10240, NULL, 10, NULL);
 
   // Handle button press
-  attachInterrupt(0, buttonISR, CHANGE);
+  attachInterrupt(button1.pin, buttonISR, CHANGE);
 
+  // == setup default channel list if qrg.txt read fails =========== //
   setupChannelList();
  #if 0
   sonde.clearSonde();
-  sonde.addSonde(402.300, STYPE_RS41);
   sonde.addSonde(402.700, STYPE_RS41);
+  sonde.addSonde(405.700, STYPE_RS41);
+  sonde.addSonde(405.900, STYPE_RS41);  
   sonde.addSonde(403.450, STYPE_DFM09);
+  Serial.println("No channel config file, using defaults!");
+  Serial.println();  
  #endif
   /// not here, done by sonde.setup(): rs41.setup();
+  // == setup default channel list if qrg.txt read fails =========== //
+  
   sonde.setup();
 }
 
 enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
 
-static MainState mainState = ST_DECODER;
+static MainState mainState = ST_WIFISCAN;
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
@@ -551,7 +625,8 @@ void loopDecoder() {
       Serial.println("Sending position via UDP");
       SondeInfo *s = sonde.si();
       char raw[201];
-      const char *str = aprs_senddata(s->lat, s->lon, s->hei, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", "EO");
+      const char *str = aprs_senddata(s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST", 
+        sonde.config.udpfeed.symbol);
       int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
       Serial.print("Sending: "); Serial.println(raw);
       udp.beginPacket(sonde.config.udpfeed.host,sonde.config.udpfeed.port);
@@ -580,7 +655,7 @@ void loopScanner() {
   }
   // receiveFrame returns 0 on success, 1 on timeout
   int res = sonde.receiveFrame();   // Maybe instead of receiveFrame, just detect if right type is present? TODO
-  Serial.print("Scanner: receiveFrame returned");
+  Serial.print("Scanner: receiveFrame returned: ");
   Serial.println(res);
   if(res==0) {
       enterMode(ST_DECODER);
@@ -648,68 +723,111 @@ void WiFiEvent(WiFiEvent_t event){
 
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
-  u8x8.setFont(u8x8_font_chroma48medium8_r);
-  u8x8.drawString(0,0,"WiFi Scan...");
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  if (sonde.config.wifi != 0) {
+    u8x8->drawString(0,0,"WiFi Scan...");
+  }
+  else if (sonde.config.wifiap != 0) {
+    u8x8->drawString(0,0,"WiFi AP-Mode:");
+  }
+  
   int line=0;
   int cnt=0;
+  char buf[5];
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
   const char *id, *pw;
-  int n = WiFi.scanNetworks();
-  for (int i = 0; i < n; i++) {
-    Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    u8x8.drawString(0,1+line,WiFi.SSID(i).c_str());
-    line = (line+1)%5;
-    Serial.print("Signal strength: ");
-    Serial.println(WiFi.RSSI(i));
-    Serial.print("MAC address: ");
-    Serial.println(WiFi.BSSIDstr(i));
-    Serial.print("Encryption type: ");
-    String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
-    Serial.println(encryptionTypeDescription);
-    Serial.println("-----------------------");
-    id=WiFi.SSID(i).c_str();
-    pw=fetchWifiPw(id);
-    if(pw) break;
-  }
-  if(!pw) { id="test"; pw="test"; }
-  Serial.print("Connecting to: "); Serial.println(id);
-  u8x8.drawString(0,6, "Conn:");
-  u8x8.drawString(6,6, id);
-  //register event handler
-  WiFi.onEvent(WiFiEvent);
+  char idstr[64]="test";
+
+  if (sonde.config.wifi != 0) {
+    int n = WiFi.scanNetworks();
+     for (int i = 0; i < n; i++) {
+        Serial.print("Network name: ");
+        Serial.println(WiFi.SSID(i));
+        u8x8->drawString(0,1+line,WiFi.SSID(i).c_str());
+        line = (line+1)%5;
+        Serial.print("Signal strength: ");
+        Serial.println(WiFi.RSSI(i));
+        Serial.print("MAC address: ");
+        Serial.println(WiFi.BSSIDstr(i));
+        Serial.print("Encryption type: ");
+        String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
+        Serial.println(encryptionTypeDescription);
+        Serial.println("-----------------------");
+        id=WiFi.SSID(i).c_str();
+        pw=fetchWifiPw(id);
+       if(pw) { strncpy(idstr, id, 63); }
+      }
+      if(!pw) { pw="test"; }
+      Serial.print("Connecting to: "); Serial.println(idstr);
+      u8x8->drawString(0,6, "Conn:");
+      u8x8->drawString(6,6, idstr);
+      //register event handler
+      WiFi.onEvent(WiFiEvent);
   
-  WiFi.begin(id, pw);
+      WiFi.begin(idstr, pw);
+  }
+  
   while(WiFi.status() != WL_CONNECTED)  {
         delay(500);
         Serial.print(".");
-        u8x8.drawString(15,7,_scan[cnt&1]);
+        u8x8->drawString(15,7,_scan[cnt&1]);
         cnt++;
         #if 0
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
-            WiFi.begin(id, pw);
+            WiFi.begin(idstr, pw);
         }
         #endif
         if(cnt==15) {
             WiFi.disconnect(true);
-            delay(1000);
-            WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
-            IPAddress myIP = WiFi.softAPIP();
-            Serial.print("AP IP address: ");
-            Serial.println(myIP);
-            u8x8.drawString(0,6, "AP:             ");
-            u8x8.drawString(6,6, networks[0].id.c_str());
-            sonde.setIP(myIP.toString().c_str(), true);
-            sonde.updateDisplayIP();
-            SetupAsyncServer();
-            delay(5000);
-            enterMode(ST_DECODER);
+            
+            if (sonde.config.wifiap != 0) {         // enable WiFi AP mode in config.txt: wifi=1
+              delay(1000);
+              WiFi.softAP(networks[0].id.c_str(),networks[0].pw.c_str());
+              IPAddress myIP = WiFi.softAPIP();
+              Serial.print("AP IP address: ");
+              Serial.println(myIP);
+              u8x8->drawString(0,6, "AP:             ");
+              u8x8->drawString(6,6, networks[0].id.c_str());
+              sonde.setIP(myIP.toString().c_str(), true);
+              sonde.updateDisplayIP();
+              SetupAsyncServer();
+              delay(3000);
+            }
+
+            if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
+              sonde.clearDisplay();
+              u8x8->setFont(u8x8_font_chroma48medium8_r);
+              u8x8->drawString(0, 0, "Spectrum Scan...");
+              delay(500);
+            
+              enterMode(ST_SPECTRUM);
+             
+              for (int i = 0; i < sonde.config.spectrum; i++) {
+                //pinMode(i, OUTPUT);   
+                //delay(500);
+                //digitalWrite(i, HIGH);                          
+                scanner.scan();
+                scanner.plotResult();
+
+                if (sonde.config.timer != 0) {
+                  itoa((sonde.config.spectrum - i), buf, 10);
+                  u8x8->drawString(0, 1, buf);
+                  u8x8->drawString(2, 1, "Sec.");
+                }                
+                //digitalWrite(i, LOW);                          
+              }
+
+              delay(1000);
+            }           
+
+            enterMode(ST_SCANNER);
             return;
         }
+
   }
 
   Serial.println("");
@@ -719,8 +837,10 @@ void loopWifiScan() {
   sonde.setIP(WiFi.localIP().toString().c_str(), false);
   sonde.updateDisplayIP();
   SetupAsyncServer();
-  delay(5000);
-  enterMode(ST_DECODER);
+  delay(2000);
+
+  // enterMode(ST_DECODER);     ### 2019-04-20 - changed DL2MF
+  enterMode(ST_SCANNER);  
 }
 
 
