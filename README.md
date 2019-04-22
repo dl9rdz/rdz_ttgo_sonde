@@ -6,10 +6,9 @@ radiosonde RS41 and DFM06/09 on a TTGO LoRa ESP32 with OLED display board.
 
 There have been made some additions for TTGO LoRa ESP32 with only RST button.
 Please check also your OLED port settings, both versions use different ports.
-You can setup the depending ports in config.txt:
--# OLED Setup is depending on hardware of LoRa board
--# TTGO v1:  SDA=4  SCL=15, RST=16 
--# TTGO v2:  SDA=21 SCL=22, RST=16
+You can setup the depending ports in config.txt, OLED Setup is depending on hardware of LoRa board
+-  TTGO v1:  SDA=4  SCL=15, RST=16 
+-  TTGO v2:  SDA=21 SCL=22, RST=16
 
 ## Button commands
 You can use the button on the board (not the reset button, the second one) to
@@ -51,9 +50,9 @@ A SHORT press will switch to the next channel in channels.txt
 A medium press will active scan the whole band (400..406 MHz) and display a
 spectrum diagram (each line == 50 kHz)
 For TTGO boards without configurable button there are some new parameter in config.txt:
--spectrum=10       // 0=off / 1-99 number of seconds to show spectrum after restart
--timer=1           // 0=off / 1= show spectrum countdown timer in spectrum display
--marker=1          // 0=off / 1= show channel edge freq in spectrum display
+- spectrum=10       // 0=off / 1-99 number of seconds to show spectrum after restart
+- timer=1           // 0=off / 1= show spectrum countdown timer in spectrum display
+- marker=1          // 0=off / 1= show channel edge freq in spectrum display
 
 ## Setup
 
