@@ -59,8 +59,11 @@ Sonde::Sonde() {
 	config.debug=0;
 	config.wifi=1;
 	config.wifiap=1;
+	config.startfreq=400;
+	config.channelbw=10;
 	config.spectrum=10;
-	config.timer=0;	
+	config.timer=0;
+	config.marker=0;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -110,11 +113,17 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg,"wifi")==0) {
 		config.wifi = atoi(val);			
 	} else if(strcmp(cfg,"wifiap")==0) {
-		config.wifiap = atoi(val);		
+		config.wifiap = atoi(val);
+	} else if(strcmp(cfg,"startfreq")==0) {
+		config.startfreq = atoi(val);
+	} else if(strcmp(cfg,"channelbw")==0) {
+		config.channelbw = atoi(val);	
 	} else if(strcmp(cfg,"spectrum")==0) {
 		config.spectrum = atoi(val);
 	} else if(strcmp(cfg,"timer")==0) {
-		config.timer = atoi(val);				
+		config.timer = atoi(val);
+	} else if(strcmp(cfg,"marker")==0) {
+		config.marker = atoi(val);					
 	} else if(strcmp(cfg,"axudp.active")==0) {
 		config.udpfeed.active = atoi(val)>0;
 	} else if(strcmp(cfg,"axudp.host")==0) {

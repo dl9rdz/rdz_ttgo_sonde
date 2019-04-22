@@ -1,17 +1,23 @@
 # Frequency in Mhz (format nnn.nnn)
 # Type (4=RS41, 6=DFM normal, DFM-06, 9=DFM inverted, DFM-09)
 #
-404.500 4 - Meppen
-405.700 4 + Bergen
-405.900 4 + Bergen
-405.100 4 - Meppen
-405.300 4 - Essen
+402.300 4 - Greifswald
+402.500 4 - Schleswig
 402.700 4 + HH-Sasel
+403.000 4 - DeBilt
+404.100 4 + Norderney
+404.300 4 - Schleswig_2
+404.500 4 - Meppen
+404.700 4 - Greifswald_2
+405.100 4 - Lindenberg
+405.700 4 + Bergen
+405.900 4 + Bergen_2
+405.100 4 + Meppen_2
+405.300 4 - Essen
 403.330 9 - TrUebPl
 403.450 9 - TrUebPl
 403.470 9 - TrUebPl
 403.850 9 - TrUebPl
 403.870 9 - TrUebPl
 403.890 9 - TrUebPl
-439.275 4 - DB0CEL
 # end

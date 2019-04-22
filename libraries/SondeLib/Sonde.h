@@ -21,8 +21,11 @@ typedef struct st_rdzconfig {
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
+	int startfreq;			// spectrum display start freq (400, 401, ...)
+	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
 	int spectrum;			// show freq spectrum for n seconds 0=disable
 	int timer;				// show remaining time in spectrum  0=disable
+	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
 	int noisefloor;			// for spectrum display
 	char call[9];			// APRS callsign

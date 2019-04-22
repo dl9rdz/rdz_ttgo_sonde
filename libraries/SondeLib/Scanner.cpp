@@ -2,13 +2,20 @@
 #include <SX1278FSK.h>
 #include <U8x8lib.h>
 
+#include "Sonde.h"
+
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
 #define CHANBW 10
 #define PIXSAMPL (50/CHANBW)
 #define SMOOTH 3
-#define STARTF 401000000
+//#define STARTF 401000000
 #define NCHAN ((int)(6000/CHANBW))
+
+double STARTF = (sonde.config.startfreq * 1000000);
+//int CHANBW = (sonde.config.channelbw);
+//int NCHAN = ((int)(6000/CHANBW));
+//int PIXSAMPL = (50/CHANBW);
 
 int scanresult[NCHAN];
 int scandisp[NCHAN/PIXSAMPL];

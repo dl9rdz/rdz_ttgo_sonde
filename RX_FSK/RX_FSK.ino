@@ -106,7 +106,7 @@ void setupChannelList() {
 const char *createQRGForm() {
   char *ptr = message;
   strcpy(ptr,"<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Mode</th></tr>");
-   for(int i=0; i<10; i++) {
+   for(int i=0; i<sonde.config.maxsonde; i++) {
     String s = sondeTypeSelect(i>=sonde.nSonde?2:sonde.sondeList[i].type);
      sprintf(ptr+strlen(ptr), "<tr><td>%d</td><td><input name=\"A%d\" type=\"checkbox\" %s/></td>"
         "<td><input name=\"F%d\" type=\"text\" value=\"%3.3f\"></td>"       
@@ -286,8 +286,12 @@ struct st_configitems {
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 }; 
-#define N_CONFIG 16
+#define N_CONFIG 20
 struct st_configitems config_list[N_CONFIG] = {
+  {"ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"Startfreq (MHz)", 0, &sonde.config.startfreq},
+  {"Bandwidth (kHz)", 0, &sonde.config.channelbw},  
+  {"---", -1, NULL},
   {"Call", 8, sonde.config.call},
   {"Passcode", 8, sonde.config.passcode},
   {"---", -1, NULL},
@@ -491,7 +495,7 @@ void setup()
   u8x8->drawString(1, 1, "RDZ_TTGO_SONDE"); 
   u8x8->drawString(2, 3, "    V0.1e");   
   u8x8->drawString(1, 5, "Mods by DL2MF");     
-  delay(4000);
+  delay(3000);
  
   sonde.clearDisplay();
   
@@ -720,7 +724,6 @@ void WiFiEvent(WiFiEvent_t event){
     }
 }
 
-
 static char* _scan[2]={"/","\\"};
 void loopWifiScan() {
   u8x8->setFont(u8x8_font_chroma48medium8_r);
@@ -733,6 +736,7 @@ void loopWifiScan() {
   
   int line=0;
   int cnt=0;
+  int marker=0;
   char buf[5];
 
   WiFi.disconnect(true);
@@ -806,19 +810,26 @@ void loopWifiScan() {
             
               enterMode(ST_SPECTRUM);
              
-              for (int i = 0; i < sonde.config.spectrum; i++) {
-                //pinMode(i, OUTPUT);   
-                //delay(500);
-                //digitalWrite(i, HIGH);                          
+              for (int i = 0; i < sonde.config.spectrum; i++) {                         
                 scanner.scan();
                 scanner.plotResult();
 
+                if (sonde.config.marker != 0) {
+                  itoa((sonde.config.startfreq), buf, 10);
+                  u8x8->drawString(0, 1, buf);
+                  u8x8->drawString(7, 1, "MHz");                 
+                  itoa((sonde.config.startfreq + 6), buf, 10);                  
+                  u8x8->drawString(13, 1, buf);
+                }                
+
                 if (sonde.config.timer != 0) {
                   itoa((sonde.config.spectrum - i), buf, 10);
-                  u8x8->drawString(0, 1, buf);
-                  u8x8->drawString(2, 1, "Sec.");
-                }                
-                //digitalWrite(i, LOW);                          
+				  if (sonde.config.marker != 0) {
+				   marker = 1;
+				  }
+					u8x8->drawString(0, 1+marker, buf);
+					u8x8->drawString(2, 1+marker, "Sec.");
+                }                          
               }
 
               delay(1000);
@@ -842,7 +853,6 @@ void loopWifiScan() {
   // enterMode(ST_DECODER);     ### 2019-04-20 - changed DL2MF
   enterMode(ST_SCANNER);  
 }
-
 
 void loop() {
   Serial.println("Running main loop");
