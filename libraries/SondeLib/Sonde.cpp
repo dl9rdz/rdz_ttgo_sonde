@@ -307,7 +307,6 @@ void Sonde::updateDisplayRXConfig() {
 	u8x8->drawString(5,0, buf);
     //snprintf(buf, 8, "%s", si()->launchsite);
     //u8x8->drawString(0,5, buf);		
-	u8x8->drawTile(14,3,2,kmh_tiles);	
 }
 
 void Sonde::updateDisplayIP() {
