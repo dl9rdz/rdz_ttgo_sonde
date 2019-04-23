@@ -13,13 +13,23 @@ enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
 typedef struct st_rdzconfig {
-	int button_pin;
-	int oled_sda;
-	int oled_scl;
-	int oled_rst;
+	int button_pin;			// pin number of second button (for some boards)
+	int led_pin;			// pin number of LED
+	int oled_sda;			// OLED data pin
+	int oled_scl;			// OLED clock pin
+	int oled_rst;			// OLED reset pin
+	int debug;				// show port and config options after reboot
+	int wifi;				// connect to known WLAN 0=skip
+	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
+	int startfreq;			// spectrum display start freq (400, 401, ...)
+	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
+	int spectrum;			// show freq spectrum for n seconds 0=disable
+	int timer;				// show remaining time in spectrum  0=disable
+	int marker;				// show freq marker in spectrum  0=disable
+	int maxsonde;			// number of max sonde in scan (range=1-99)
 	int noisefloor;			// for spectrum display
-	char call[9];
-	char passcode[9];
+	char call[9];			// APRS callsign
+	char passcode[9];		// APRS passcode
 	// for now, one feed for each type is enough, but might get extended to more?
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
@@ -27,28 +37,29 @@ typedef struct st_rdzconfig {
 
 typedef struct st_sondeinfo {
         // receiver configuration
-	bool active;
+		bool active;
         SondeType type;
         float freq;
         // decoded ID
         char id[10];
         bool validID;
+		char *launchsite;		
         // decoded position
-        float lat;
-        float lon;
-        float hei;
-        float vs;
-        float hs;
-	float dir; // 0..360
+        float lat;			// latitude
+        float lon;			// longitude
+        float alt;			// altitude
+        float vs;			// vertical speed
+        float hs;			// horizontal speed
+		float dir; 			// 0..360
         uint8_t validPos;   // bit pattern for validity of above 6 fields
         // RSSI from receiver
-        int rssi;
+        int rssi;			// signal strength
 	uint8_t rxStat[20];
 } SondeInfo;
 // rxState: 0=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1]
 
 
-#define MAXSONDE 10
+#define MAXSONDE 99
 
 class Sonde
 {
@@ -63,7 +74,7 @@ public:
 	void setConfig(const char *str);
 
 	void clearSonde();
-	void addSonde(float frequency, SondeType type, int active);
+	void addSonde(float frequency, SondeType type, int active, char *launchsite);
 	void nextConfig();
 	void setup();
 

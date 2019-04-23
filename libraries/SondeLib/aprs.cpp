@@ -251,7 +251,7 @@ static uint32_t dao91(double x)
 char b[201];
 char raw[201];
 
-char * aprs_senddata(float lat, float lon, float hei, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym)
+char * aprs_senddata(float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym)
 {
 	*b=0;
 	aprsstr_append(b, usercall);
@@ -281,9 +281,9 @@ char * aprs_senddata(float lat, float lon, float hei, float speed, float dir, fl
 		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(dir+1.5), realcard(speed*1.0/KNOTS+0.5));
 	}
 #endif
-	if(hei>0.5) {
+	if(alt>0.5) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(hei*FEET+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(alt*FEET+0.5));
 	}
 #if 1
 	int dao=1;

@@ -351,7 +351,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print("m/s ");
    Serial.print(getcard16(b, b_len, p+18UL)&255UL);
    Serial.print("Sats");
-   sonde.si()->hei = heig;
+   sonde.si()->alt = heig;
    sonde.si()->validPos = true;
 } /* end posrs41() */
 
