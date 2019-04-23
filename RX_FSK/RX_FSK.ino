@@ -608,6 +608,8 @@ void loopDecoder() {
   switch(getKeyPress()) {
     case KP_SHORT:
       sonde.nextConfig();
+      sonde.updateDisplayRXConfig();
+      sonde.updateDisplay();
       break;
     case KP_DOUBLE:
       enterMode(ST_SCANNER);

@@ -7,8 +7,8 @@ led_pin=25
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
-oled_sda=21
-oled_scl=22
+oled_sda=4
+oled_scl=15
 oled_rst=16
 #-------------------------------#
 # General config settings
@@ -35,7 +35,7 @@ passcode=12345
 # axudp for sending to aprsmap
 #-------------------------------#
 # local use only, do not feed to public services
-# data not sanities / quality checked, outliers not filtered out
+# data not sanitized / quality checked, outliers not filtered out
 axudp.active=1
 axudp.host=192.168.42.20
 axudp.port=9002

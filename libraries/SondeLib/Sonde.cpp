@@ -188,7 +188,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 }
 void Sonde::nextConfig() {
 	currentSonde++;
-	// Skip non-active entries (but don't loop forever if there are no active ones
+	// Skip non-active entries (but don't loop forever if there are no active ones)
 	for(int i=0; i<config.maxsonde; i++) {
 		if(!sondeList[currentSonde].active) {
 			currentSonde++;
@@ -220,9 +220,6 @@ void Sonde::setup() {
 		dfm.setFrequency(sondeList[currentSonde].freq * 1000000);
 		break;
 	}
-	// Update display
-	//updateDisplayRXConfig();
-	//updateDisplay();
 }
 int Sonde::receiveFrame() {
 	int ret;
