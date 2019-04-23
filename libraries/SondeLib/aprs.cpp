@@ -211,10 +211,47 @@ extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
 #define FEET (1.0/0.3048)
 #define KNOTS (1.851984)
 
+#define X2C_max_longcard		0xFFFFFFFFUL
+static uint32_t X2C_TRUNCC(double x, uint32_t min0, uint32_t max0)
+{
+        uint32_t i;
+
+        if (x < (double)min0)
+                i = (uint32_t)min0;
+        if (x > (double)max0)
+                i = (uint32_t)max0;
+
+        i = (uint32_t)x;
+        if ((double)i > x)
+                --i;
+        return i;
+}
+
+
+static uint32_t truncc(double r)
+{
+   if (r<=0.0) return 0UL;
+   else if (r>=2.E+9) return 2000000000UL;
+   else return (uint32_t)X2C_TRUNCC(r,0UL,X2C_max_longcard);
+   return 0;
+} /* end truncc() */
+
+
+
+static uint32_t dao91(double x)
+/* radix91(xx/1.1) of dddmm.mmxx */
+{
+   double a;
+   a = fabs(x);
+   return ((truncc((a-(double)(float)truncc(a))*6.E+5)%100UL)
+                *20UL+11UL)/22UL;
+} /* end dao91() */
+
+
 char b[201];
 char raw[201];
 
-char * aprs_senddata(float lat, float lon, float hei, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym)
+char * aprs_senddata(float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym)
 {
 	*b=0;
 	aprsstr_append(b, usercall);
@@ -244,11 +281,11 @@ char * aprs_senddata(float lat, float lon, float hei, float speed, float dir, fl
 		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(dir+1.5), realcard(speed*1.0/KNOTS+0.5));
 	}
 #endif
-	if(hei>0.5) {
+	if(alt>0.5) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(hei*FEET+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(alt*FEET+0.5));
 	}
-#if 0
+#if 1
 	int dao=1;
 	if(dao) {
 		i=strlen(b);

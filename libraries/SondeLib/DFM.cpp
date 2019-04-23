@@ -228,12 +228,12 @@ int DFM::decodeDAT(uint8_t *dat)
 		break;
 	case 4:
 		{
-		float hei, vv;
-		hei = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
+		float alt, vv;
+		alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
 		vv = (int16_t)( (dat[4]<<8) | dat[5] );
-		Serial.print("GPS-height: "); Serial.print(hei*0.01);
+		Serial.print("GPS-height: "); Serial.print(alt*0.01);
 		Serial.print(", vv: "); Serial.print(vv*0.01);
-		sonde.si()->hei = hei*0.01;
+		sonde.si()->alt = alt*0.01;
 		sonde.si()->vs = vv*0.01;
 		sonde.si()->validPos |= 0x0C;
 		}

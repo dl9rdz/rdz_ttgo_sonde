@@ -2,5 +2,3 @@ RDZsonde
 RDZsonde
 DinoGast
 Schokolade
-AndroidDD
-dl9rdzhr
