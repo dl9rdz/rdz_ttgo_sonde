@@ -13,8 +13,8 @@ enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
 typedef struct st_rdzconfig {
-	int button_pin;			// pin number of second button (for some boards)
-	int led_pin;			// pin number of LED
+	int button_pin;			// PIN port number menu button (for some boards)
+	int led_pout;			// POUT port number of LED (used as serial monitor)
 	int oled_sda;			// OLED data pin
 	int oled_scl;			// OLED clock pin
 	int oled_rst;			// OLED reset pin

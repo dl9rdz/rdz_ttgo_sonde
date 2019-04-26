@@ -11,14 +11,13 @@
 #include <Scanner.h>
 #include <aprs.h>
 
-#define LORA_LED  9
-
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after reading config file
 //U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
 //U8G2_SSD1306_128X64_NONAME_1_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Page buffer, SW I2C
 //U8G2_SSD1306_128X64_NONAME_F_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Full framebuffer, SW I2C
 
+int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
 AsyncWebServer server(80);
@@ -48,8 +47,6 @@ String processor(const String& var) {
   }
   return String();
 }
-
-#define MAX_QRG 10
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
@@ -145,7 +142,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     Serial.println(request->getParam(i)->name().c_str());
   }
 #endif
-  for (int i = 1; i <= MAX_QRG; i++) {
+  for(int i=1; i<=sonde.config.maxsonde; i++) {  
     snprintf(label, 10, "A%d", i);
     AsyncWebParameter *active = request->getParam(label, true);
     snprintf(label, 10, "F%d", i);
@@ -515,8 +512,9 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-
-  setupConfigData();    // configuration must be read first due to OLED ports!!!
+  
+  setupConfigData();    // configuration must be read first due to OLED ports!!! 
+  LORA_LED = sonde.config.led_pout; 
 
   u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
   u8x8->begin();
@@ -537,46 +535,46 @@ void setup()
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
-    u8x8->setFont(u8x8_font_chroma48medium8_r);
-    u8x8->drawString(0, 0, "Config:");
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0, 0, "Config:");
 
-    delay(500);
-    itoa(sonde.config.oled_sda, buf, 10);
-    u8x8->drawString(0, 1, " SDA:");
-    u8x8->drawString(6, 1, buf);
+  delay(500);
+  itoa(sonde.config.oled_sda, buf, 10);
+  u8x8->drawString(0, 1, " SDA:");
+  u8x8->drawString(6, 1, buf);                        
 
-    delay(500);
-    itoa(sonde.config.oled_scl, buf, 10);
-    u8x8->drawString(0, 2, " SCL:");
-    u8x8->drawString(6, 2, buf);
+  delay(500);
+  itoa(sonde.config.oled_scl, buf, 10);
+  u8x8->drawString(0, 2, " SCL:");            
+  u8x8->drawString(6, 2, buf);                        
 
-    delay(500);
-    itoa(sonde.config.oled_rst, buf, 10);
-    u8x8->drawString(0, 3, " RST:");
-    u8x8->drawString(6, 3, buf);
+  delay(500);
+  itoa(sonde.config.oled_rst, buf, 10);
+  u8x8->drawString(0, 3, " RST:");
+  u8x8->drawString(6, 3, buf);  
 
-    delay(1000);
-    itoa(sonde.config.led_pin, buf, 10);
-    u8x8->drawString(0, 4, " LED:");
-    u8x8->drawString(6, 4, buf);
+  delay(1000);
+  itoa(sonde.config.led_pout, buf, 10);
+  u8x8->drawString(0, 4, " LED:");
+  u8x8->drawString(6, 4, buf);  
 
-    delay(500);
-    itoa(sonde.config.spectrum, buf, 10);
-    u8x8->drawString(0, 5, " SPEC:");
-    u8x8->drawString(6, 5, buf);
+  delay(500);
+  itoa(sonde.config.spectrum, buf, 10);
+  u8x8->drawString(0, 5, " SPEC:");
+  u8x8->drawString(6, 5, buf);                          
 
-    delay(500);
-    itoa(sonde.config.maxsonde, buf, 10);
-    u8x8->drawString(0, 6, " MAX:");
-    u8x8->drawString(6, 6, buf);
+  delay(500);
+  itoa(sonde.config.maxsonde, buf, 10);
+  u8x8->drawString(0, 6, " MAX:");
+  u8x8->drawString(6, 6, buf);   
+  
+  delay(5000);
+  sonde.clearDisplay(); 
+  } 
+  // == show initial values from config.txt ========================= //  
+  
 
-    delay(5000);
-    sonde.clearDisplay();
-  }
-  // == show initial values from config.txt ========================= //
-
-
-#if 0
+#if 0 
   // == check the radio chip by setting default frequency =========== //
   if (rs41.setFrequency(402700000) == 0) {
     Serial.println(F("Setting freq: SUCCESS "));

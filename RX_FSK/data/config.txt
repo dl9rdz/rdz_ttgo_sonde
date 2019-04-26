@@ -3,7 +3,7 @@
 #-------------------------------#
 button_pin=0
 # LED port
-led_pin=25
+led_pout=9
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
@@ -15,7 +15,7 @@ oled_rst=16
 #-------------------------------#
 maxsonde=20
 debug=0
-wifi=0
+wifi=1
 wifiap=1
 #-------------------------------#
 # Spectrum display settings
