@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>AutoRX Sonde Server</title>
+  <title>RDZSonde Server</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-  <h2>AutoRX Sonde Server</h2>
+  <h2>RDZSonde Server</h2>
 <!--
   <p>GPIO state: <strong> %STATE%</strong></p>
   <p><a href="/on"><button class="button">ON</button></a></p>
@@ -18,7 +18,7 @@
 	  <button class="tablinks" onclick="selTab(event,'QRG')" id="defaultTab">QRG</button>
 	  <button class="tablinks" onclick="selTab(event,'WLAN')">WLAN</button>
 	  <button class="tablinks" onclick="selTab(event,'Data')">Data</button>
-	  <button class="tablinks" onclick="selTab(event,'WebWX')">Webwx</button>	  
+	  <button class="tablinks" onclick="selTab(event,'SondeMap')">SondeMap</button>	  
 	  <button class="tablinks" onclick="selTab(event,'Config')">Config</button>
 	  <button class="tablinks" onclick="selTab(event,'About')">About</button>
 </div>
@@ -38,9 +38,8 @@
 	<iframe src="status.html" style="border:none;" width="100%%" height="100%%"></iframe>
 </div>
 
-<div id="Data" class="tabcontent">
-	<h3>wetterson.de</h3>
-	<iframe src="https://wetterson.de/karte/" style="border:none;" width="100%%" height="100%%"></iframe>
+<div id="SondeMap" class="tabcontent">
+	<iframe src="https://wx.dl2mf.de/#?" style="border:none;" width="98%%" height="98%%"></iframe>
 </div>
 
 <div id="Config" class="tabcontent">
@@ -50,12 +49,17 @@
 
 <div id="About" class="tabcontent">
 	<h3>About</h3>
-	RDZSonde - OpenSource<br>
-	Copyright &copy; 2019<br>
-    by Hans P. Reiser, DL9RDZ<br>
-	-------------------------------<br>
-	Version 0.1e - devel<br>
-	Mods by Meinhard Guenther, DL2MF<br>
+   RDZSonde<br>
+   Copyright &copy; 2019 by Hansi Reiser, DL9RDZ<br>
+   (master-version v0.4)<br>
+   with mods by <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a><br>
+   <br>
+    This program is free software; you can redistribute it and/or<br>
+    modify it under the terms of the GNU General Public License as<br>
+    published by the Free Software Foundation; either version 2 of<br>
+    the License, or (at your option) any later version.<br>
+    see <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
+    for details
 </div>
 
 <script>
