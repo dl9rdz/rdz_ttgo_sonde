@@ -526,7 +526,7 @@ void setup()
 
   u8x8->setFont(u8x8_font_7x14_1x2_r);
   u8x8->drawString(1, 1, "RDZ_TTGO_SONDE");
-  u8x8->drawString(2, 3, "    V0.1e");
+  u8x8->drawString(2, 3, "devel20190426");
   u8x8->drawString(1, 5, "Mods by DL2MF");
   delay(3000);
 
@@ -631,7 +631,7 @@ void setup()
 }
 
 enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
-static MainState mainState = ST_DECODER; // ST_WIFISCAN;
+static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
@@ -752,7 +752,7 @@ void enableNetwork(bool enable) {
 }
 
 
-enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED };
+enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
 
 static t_wifi_state wifi_state = WIFI_DISABLED;
 
@@ -935,23 +935,50 @@ void loopWifiBackground() {
   }
 }
 
+void startAP() {
+   Serial.println("Activating access point mode");
+   wifi_state = WIFI_APMODE;
+   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
+   IPAddress myIP = WiFi.softAPIP();
+   sonde.setIP(myIP.toString().c_str(), true);
+   sonde.updateDisplayIP();
+   SetupAsyncServer();
+}
 
-static char* _scan[2] = {"/", "\\"};
-void loopWifiScan() {
-  if (sonde.config.wifi == 1) { // station mode, setup in background
-    wifi_state = WIFI_DISABLED;  // will start scanning in wifiLoopBackgroiund
+void initialMode() {
+  if(sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
+     enterMode(ST_SPECTRUM);
+  } else {
     enterMode(ST_SCANNER);
   }
+}
+
+// Wifi modes
+// 0: disabled. directly start initial mode (spectrum or scanner)
+// 1: station mode in background. directly start initial mode (spectrum or scanner)
+// 2: access point mode in background. directly start initial mode (spectrum or scanner)
+// 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
+//    Mode 3 shows more debug information on serial port and display.
+static char* _scan[2] = {"/", "\\"};
+void loopWifiScan() {
+  if (sonde.config.wifi == 0) {   // no Wifi
+    wifi_state = WIFI_DISABLED;
+    initialMode();
+    return;
+  }  
+  if (sonde.config.wifi == 1) { // station mode, setup in background
+    wifi_state = WIFI_DISABLED;  // will start scanning in wifiLoopBackgroiund
+    initialMode();   
+    return;
+  }
   if (sonde.config.wifi == 2) { // AP mode, setup in background
-    // TODO
+    startAP();
+    initialMode();
+    return;
   }
+  // wifi==3 => original mode with non-async wifi setup
   u8x8->setFont(u8x8_font_chroma48medium8_r);
-  if (sonde.config.wifi != 0) {
-    u8x8->drawString(0, 0, "WiFi Scan...");
-  }
-  else if (sonde.config.wifiap != 0) {
-    u8x8->drawString(0, 0, "WiFi AP-Mode:");
-  }
+  u8x8->drawString(0, 0, "WiFi Scan...");
 
   int line = 0;
   int cnt = 0;
@@ -960,12 +987,9 @@ void loopWifiScan() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
-  const char *id, *pw;
-  char idstr[64] = "test";
-
-  if (sonde.config.wifi != 0) {
-    int n = WiFi.scanNetworks();
-    for (int i = 0; i < n; i++) {
+  int index=-1;
+  int n = WiFi.scanNetworks();
+  for (int i = 0; i < n; i++) {
       Serial.print("Network name: ");
       Serial.println(WiFi.SSID(i));
       u8x8->drawString(0, 1 + line, WiFi.SSID(i).c_str());
@@ -978,53 +1002,56 @@ void loopWifiScan() {
       String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
       Serial.println(encryptionTypeDescription);
       Serial.println("-----------------------");
-      id = WiFi.SSID(i).c_str();
-      pw = fetchWifiPw(id);
-      if (pw) {
-        strncpy(idstr, id, 63);
+      const char *id = WiFi.SSID(i).c_str();
+      int curidx = fetchWifiIndex(id);
+      if(curidx>=0 && index==-1) { index = curidx; }
+   }
+   if(index>=0) {  // some network was found
+      Serial.print("Connecting to: "); Serial.println(fetchWifiSSID(index));
+      u8x8->drawString(0, 6, "Conn:");
+      u8x8->drawString(6, 6, fetchWifiSSID(index));
+      WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+      while (WiFi.status() != WL_CONNECTED && cnt<20)  {
+         delay(500);
+         Serial.print(".");
+         if(cnt==5) {
+            // my FritzBox needs this for reconnecting
+            WiFi.disconnect(true);
+            delay(500);
+            WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+            delay(500);
+         }
+         u8x8->drawString(15, 7, _scan[cnt & 1]);
+         cnt++;
       }
-    }
-    if (!pw) {
-      pw = "test";
-    }
-    Serial.print("Connecting to: "); Serial.println(idstr);
-    u8x8->drawString(0, 6, "Conn:");
-    u8x8->drawString(6, 6, idstr);
-    //register event handler
-    WiFi.onEvent(WiFiEvent);
-
-    WiFi.begin(idstr, pw);
-  }
-
-  while (WiFi.status() != WL_CONNECTED)  {
-    delay(500);
-    Serial.print(".");
-    u8x8->drawString(15, 7, _scan[cnt & 1]);
-    cnt++;
+   }
+   if(index<0 || cnt>=15) {  // no network found, or connect not successful
+       WiFi.disconnect(true);
+       delay(1000);
+       startAP();
+       IPAddress myIP = WiFi.softAPIP();       
+       Serial.print("AP IP address: ");
+       Serial.println(myIP);
+       u8x8->drawString(0, 6, "AP:             ");
+       u8x8->drawString(6, 6, networks[0].id.c_str());
+       delay(3000);
+   } else {
+       Serial.println("");
+       Serial.println("WiFi connected");
+       Serial.println("IP address: ");
+       Serial.println(WiFi.localIP());
+       sonde.setIP(WiFi.localIP().toString().c_str(), false);
+       sonde.updateDisplayIP();
+       wifi_state = WIFI_CONNECTED;
+       delay(3000);
+   }
+   SetupAsyncServer();
+   initialMode();
 #if 0
-    if (cnt == 4) {
-      WiFi.disconnect(true);  // retry, for my buggy FritzBox
-      WiFi.onEvent(WiFiEvent);
-      WiFi.begin(idstr, pw);
-    }
-#endif
-    if (cnt == 15) {
-      WiFi.disconnect(true);
 
-      if (sonde.config.wifiap != 0) {         // enable WiFi AP mode in config.txt: wifi=1
-        delay(1000);
-        WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
-        IPAddress myIP = WiFi.softAPIP();
-        Serial.print("AP IP address: ");
-        Serial.println(myIP);
-        u8x8->drawString(0, 6, "AP:             ");
-        u8x8->drawString(6, 6, networks[0].id.c_str());
-        sonde.setIP(myIP.toString().c_str(), true);
-        sonde.updateDisplayIP();
-        SetupAsyncServer();
-        delay(3000);
-      }
-
+  // enterMode(ST_DECODER);     ### 2019-04-20 - changed DL2MF
+  enterMode(ST_SCANNER);
+// this should be done in spectrum loop
       if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
         sonde.clearDisplay();
         u8x8->setFont(u8x8_font_chroma48medium8_r);
@@ -1061,20 +1088,8 @@ void loopWifiScan() {
       enterMode(ST_SCANNER);
       return;
     }
-
-  }
-
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-  sonde.setIP(WiFi.localIP().toString().c_str(), false);
-  sonde.updateDisplayIP();
-  SetupAsyncServer();
-  delay(2000);
-
-  // enterMode(ST_DECODER);     ### 2019-04-20 - changed DL2MF
-  enterMode(ST_SCANNER);
+   }
+#endif
 }
 
 void loop() {
