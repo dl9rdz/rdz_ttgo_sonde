@@ -92,6 +92,7 @@ public:
 	void updateDisplayScanner();
 	void clearDisplay();
 	void setIP(const char *ip, bool isAP);
+	void clearIP();
 };
 
 extern Sonde sonde;

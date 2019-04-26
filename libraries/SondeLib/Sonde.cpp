@@ -153,6 +153,10 @@ void Sonde::setConfig(const char *cfg) {
 	}
 }
 
+void Sonde::clearIP() {
+  memset(myIP_tiles, 0, 11*8);
+}
+
 void Sonde::setIP(const char *ip, bool AP) {
   memset(myIP_tiles, 0, 11*8);
   int len = strlen(ip);
