@@ -743,7 +743,7 @@ void loopWifiScan() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
-  const char *id, *pw;
+  const char *id, *pw *wifipw;
   char idstr[64]="test";
 
   if (sonde.config.wifi != 0) {
@@ -763,16 +763,19 @@ void loopWifiScan() {
         Serial.println("-----------------------");
         id=WiFi.SSID(i).c_str();
         pw=fetchWifiPw(id);
-       if(pw) { strncpy(idstr, id, 63); }
+        if(pw) {
+		strncpy(idstr, id, 63);
+		wifipw = pw;
+	}
       }
-      if(!pw) { pw="test"; }
+      if(!wifipw) { wifipw="test"; }
       Serial.print("Connecting to: "); Serial.println(idstr);
       u8x8->drawString(0,6, "Conn:");
       u8x8->drawString(6,6, idstr);
       //register event handler
       WiFi.onEvent(WiFiEvent);
   
-      WiFi.begin(idstr, pw);
+      WiFi.begin(idstr, wifipw);
   }
   
   while(WiFi.status() != WL_CONNECTED)  {
@@ -784,7 +787,7 @@ void loopWifiScan() {
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
-            WiFi.begin(idstr, pw);
+            WiFi.begin(idstr, wifipw);
         }
         #endif
         if(cnt==15) {
