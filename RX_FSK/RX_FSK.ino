@@ -743,7 +743,7 @@ void loopWifiScan() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
-  const char *id, *pw *wifipw;
+  const char *id, *pw, *wifipw;
   char idstr[64]="test";
 
   if (sonde.config.wifi != 0) {
