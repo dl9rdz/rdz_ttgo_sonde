@@ -49,6 +49,7 @@ static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
 Sonde::Sonde() {
 	config.button_pin = 1;
+	config.led_pout = 9;	
 	//config.oled_sda = 0;
 	//config.oled_scl = 0;
 	//config.oled_rst = 0;
@@ -98,8 +99,8 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.passcode, val, 9);
 	} else if(strcmp(cfg,"button_pin")==0) {
 		config.button_pin = atoi(val);
-	} else if(strcmp(cfg,"led_pin")==0) {
-		config.led_pin = atoi(val);		
+	} else if(strcmp(cfg,"led_pout")==0) {
+		config.led_pout = atoi(val);		
 	} else if(strcmp(cfg,"oled_sda")==0) {
 		config.oled_sda = atoi(val);
 	} else if(strcmp(cfg,"oled_scl")==0) {

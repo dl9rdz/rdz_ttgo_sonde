@@ -11,14 +11,13 @@
 #include <Scanner.h>
 #include <aprs.h>
 
-#define LORA_LED  9
-
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8=NULL;  // initialize later after reading config file
 //U8X8_SSD1306_128X64_NONAME_SW_I2C u8x8(/* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Unbuffered, basic graphics, software I2C
 //U8G2_SSD1306_128X64_NONAME_1_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Page buffer, SW I2C
 //U8G2_SSD1306_128X64_NONAME_F_SW_I2C Display(U8G2_R0, /* clock=*/ OLED_SCL, /* data=*/ OLED_SDA, /* reset=*/ OLED_RST); // Full framebuffer, SW I2C
 
+int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
 AsyncWebServer server(80);
@@ -48,8 +47,6 @@ String processor(const String& var){
   }
   return String();
 }
-
-#define MAX_QRG 10
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
@@ -137,7 +134,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     Serial.println(request->getParam(i)->name().c_str());
   }
 #endif
-  for(int i=1; i<=MAX_QRG; i++) {  
+  for(int i=1; i<=sonde.config.maxsonde; i++) {  
     snprintf(label, 10, "A%d", i);
     AsyncWebParameter *active = request->getParam(label, true);
     snprintf(label, 10, "F%d", i);
@@ -483,7 +480,8 @@ void setup()
     return;
   }
   
-  setupConfigData();    // configuration must be read first due to OLED ports!!!  
+  setupConfigData();    // configuration must be read first due to OLED ports!!! 
+  LORA_LED = sonde.config.led_pout; 
 
   u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
   u8x8->begin();
@@ -523,7 +521,7 @@ void setup()
   u8x8->drawString(6, 3, buf);  
 
   delay(1000);
-  itoa(sonde.config.led_pin, buf, 10);
+  itoa(sonde.config.led_pout, buf, 10);
   u8x8->drawString(0, 4, " LED:");
   u8x8->drawString(6, 4, buf);  
 
@@ -608,6 +606,8 @@ void loopDecoder() {
   switch(getKeyPress()) {
     case KP_SHORT:
       sonde.nextConfig();
+      sonde.updateDisplayRXConfig();
+      sonde.updateDisplay();
       break;
     case KP_DOUBLE:
       enterMode(ST_SCANNER);
@@ -741,7 +741,7 @@ void loopWifiScan() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
-  const char *id, *pw;
+  const char *id, *pw, *wifipw;
   char idstr[64]="test";
 
   if (sonde.config.wifi != 0) {
@@ -761,16 +761,19 @@ void loopWifiScan() {
         Serial.println("-----------------------");
         id=WiFi.SSID(i).c_str();
         pw=fetchWifiPw(id);
-       if(pw) { strncpy(idstr, id, 63); }
+        if(pw) {
+          strncpy(idstr, id, 63);
+          wifipw = pw;
+        }
       }
-      if(!pw) { pw="test"; }
+      if(!wifipw) { wifipw="test"; }
       Serial.print("Connecting to: "); Serial.println(idstr);
       u8x8->drawString(0,6, "Conn:");
       u8x8->drawString(6,6, idstr);
       //register event handler
       WiFi.onEvent(WiFiEvent);
   
-      WiFi.begin(idstr, pw);
+      WiFi.begin(idstr, wifipw);
   }
   
   while(WiFi.status() != WL_CONNECTED)  {
@@ -782,7 +785,7 @@ void loopWifiScan() {
         if(cnt==4) {
             WiFi.disconnect(true);  // retry, for my buggy FritzBox
             WiFi.onEvent(WiFiEvent);
-            WiFi.begin(idstr, pw);
+            WiFi.begin(idstr, wifipw);
         }
         #endif
         if(cnt==15) {

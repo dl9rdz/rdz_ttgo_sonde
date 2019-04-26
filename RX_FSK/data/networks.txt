@@ -1,4 +1,4 @@
 AUTORX
 12345678
-SONDERX
+WXSONDE
 radiosonde
