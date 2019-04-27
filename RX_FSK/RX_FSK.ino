@@ -722,6 +722,41 @@ void loopSpectrum() {
   scanner.plotResult();
 }
 
+void startSpectrumDisplay() {
+  int marker=0;
+  char buf[5];
+
+  sonde.clearDisplay();
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0, 0, "Spectrum Scan...");
+  delay(500);
+
+  enterMode(ST_SPECTRUM);
+
+  for (int i = 0; i < sonde.config.spectrum; i++) {
+    scanner.scan();
+    scanner.plotResult();
+
+     if (sonde.config.marker != 0) {
+     itoa((sonde.config.startfreq), buf, 10);
+     u8x8->drawString(0, 1, buf);
+     u8x8->drawString(7, 1, "MHz");
+     itoa((sonde.config.startfreq + 6), buf, 10);
+     u8x8->drawString(13, 1, buf);
+     }
+
+    if (sonde.config.timer != 0) {
+     itoa((sonde.config.spectrum - i), buf, 10);
+     if (sonde.config.marker != 0) {
+       marker = 1;
+     }
+     u8x8->drawString(0, 1+marker, buf);
+     u8x8->drawString(2, 1+marker, "Sec.");
+    }
+   }
+   delay(1000);
+}
+
 String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   switch (encryptionType) {
     case (WIFI_AUTH_OPEN):
@@ -1045,49 +1080,11 @@ void loopWifiScan() {
    }
    SetupAsyncServer();
    initialMode();
-#if 0
 
-  // enterMode(ST_DECODER);     ### 2019-04-20 - changed DL2MF
-  enterMode(ST_SCANNER);
-// this should be done in spectrum loop
-      if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
-        sonde.clearDisplay();
-        u8x8->setFont(u8x8_font_chroma48medium8_r);
-        u8x8->drawString(0, 0, "Spectrum Scan...");
-        delay(500);
-
-        enterMode(ST_SPECTRUM);
-
-        for (int i = 0; i < sonde.config.spectrum; i++) {
-          scanner.scan();
-          scanner.plotResult();
-
-          if (sonde.config.marker != 0) {
-            itoa((sonde.config.startfreq), buf, 10);
-            u8x8->drawString(0, 1, buf);
-            u8x8->drawString(7, 1, "MHz");
-            itoa((sonde.config.startfreq + 6), buf, 10);
-            u8x8->drawString(13, 1, buf);
-          }
-
-          if (sonde.config.timer != 0) {
-            itoa((sonde.config.spectrum - i), buf, 10);
-            if (sonde.config.marker != 0) {
-              marker = 1;
-            }
-            u8x8->drawString(0, 1 + marker, buf);
-            u8x8->drawString(2, 1 + marker, "Sec.");
-          }
-        }
-
-        delay(1000);
-      }
-
-      enterMode(ST_SCANNER);
-      return;
-    }
-   }
-#endif
+  if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
+     startSpectrumDisplay();
+  }
+  enterMode(ST_SCANNER);  
 }
 
 void loop() {
