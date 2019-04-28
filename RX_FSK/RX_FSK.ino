@@ -1102,7 +1102,8 @@ void loopWifiScan() {
 }
 
 void loop() {
-  Serial.println("Running main loop");
+  Serial.print("Running main loop. free heap:");
+  Serial.println(ESP.getFreeHeap());
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
     case ST_SCANNER: loopScanner(); break;
