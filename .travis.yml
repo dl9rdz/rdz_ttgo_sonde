@@ -17,6 +17,7 @@ before_install:
   - wget https://github.com/me-no-dev/AsyncTCP/archive/master.zip
   - unzip master.zip
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
+  - wget https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
 
 install:
   - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
@@ -26,6 +27,7 @@ install:
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
+  - find /usr/local/share/arduino
 script:
   - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino --verbose | tail -3 | head -1 | awk '{print $NF}' > $PWD/code.bin
   - $PWD/scripts/makespiffs $ESP32TOOLS $PWD/RX_FSK/data $PWD/spiffs.bin
