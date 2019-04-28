@@ -21,14 +21,15 @@ generate_website_index() {
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 commit_website_files() {
-  BRANCH=`git status | head -1 | awk '{print $NF}'`
+  BRANCH=`git symbolic-ref --short -q HEAD`
   VERSION=`cat RX_FSK/version.h |  tail -1 |  egrep -o '".*"' | sed 's/"//g' | sed 's/ /_/g'`
+  PATH=$PWD
   echo "On branch $BRANCH"
   echo "Version $VERSION"
   cd /tmp
   git clone https://github.com/dl9rdz/rdz_ttgo_sonde.git -b gh-pages
   cd rdz_ttgo_sonde
-  cp ~/out.bin ${BRANCH}/${VERSION}-full.bin
+  cp ${PWD}/out.bin ${BRANCH}/${VERSION}-full.bin
   git add ${BRANCH}/${VERSION}-full.bin
   # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
