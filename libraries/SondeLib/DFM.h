@@ -27,7 +27,7 @@ private:
 	uint32_t bits2val(const uint8_t *bits, int len);
 	int check(uint8_t code[8]);
 	int hamming(uint8_t *ham, int L, uint8_t *sym);
-	void printRaw(char *prefix, int len, int ret, uint8_t* data);
+	void printRaw(const char *prefix, int len, int ret, const uint8_t* data);
 	int decodeCFG(uint8_t *cfg);
 	int decodeDAT(uint8_t *dat);
 	int bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
