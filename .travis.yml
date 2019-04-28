@@ -16,6 +16,7 @@ before_install:
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
 
 install:
+  - arduino --install-boards esp32:esp32
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
