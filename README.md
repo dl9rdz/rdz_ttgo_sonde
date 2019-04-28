@@ -1,6 +1,6 @@
 # rdz_ttgo_sonde
 
-See <download.html> for automated builds.
+See <https://dl9rdz.github.io/rdz_ttgo_sonde/download.html> for automated builds.
 
 For downloading these to the ESP32 board, use something like
 
