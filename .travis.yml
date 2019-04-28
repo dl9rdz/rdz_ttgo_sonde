@@ -17,7 +17,7 @@ before_install:
 
 install:
   - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
-  - arduino --install-boards esp32:esp32 --safe-prefs
+  - arduino --install-boards esp32:esp32 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
