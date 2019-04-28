@@ -12,9 +12,7 @@ install:
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
 script:
-  - arduino --verify --board arduino:avr:uno $PWD/examples/FONAtest/FONAtest.ino
-  - arduino --verify --board arduino:avr:uno $PWD/examples/IncomingCall/IncomingCall.ino
-  - arduino --verify --board arduino:avr:uno $PWD/examples/AdafruitIO_GPS/AdafruitIO_GPS.ino
+  - arduino --verify $PWD/RX_FSK/RX_FSK.ino
 notifications:
   email:
     on_success: change
