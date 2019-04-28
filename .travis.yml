@@ -7,6 +7,14 @@ before_install:
   - tar xf arduino-1.8.9-linux64.tar.xz
   - sudo mv arduino-1.8.9 /usr/local/share/arduino
   - sudo ln -s /usr/local/share/arduino/arduino /usr/local/bin/arduino
+  - wget https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip
+  - unzip master.zip
+  - sudo mv ESPAsyncWebServer-master /usr/local/share/arduino/libraries/ESPAsyncWebServer
+  - rm master.zip
+  - wget https://github.com/me-no-dev/AsyncTCP/archive/master.zip
+  - unzip master.zip
+  - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
+
 install:
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
