@@ -29,6 +29,8 @@ commit_website_files() {
   cd /tmp
   git clone https://github.com/dl9rdz/rdz_ttgo_sonde.git -b gh-pages
   cd rdz_ttgo_sonde
+  mkdir -p master
+  mkdir -p devel
   cp ${MYPATH}/out.bin ${BRANCH}/${VERSION}-full.bin
   git add ${BRANCH}/${VERSION}-full.bin
   # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
