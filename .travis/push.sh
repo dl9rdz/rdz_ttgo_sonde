@@ -38,9 +38,8 @@ commit_website_files() {
   # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
-  #git remote add origin-pages https://${GH_TOKEN}@github.com/MVSE-outreach/resources.git > /dev/null 2>&1
-  #git push --quiet --set-upstream origin-pages gh-pages 
-  git push --quiet
+  git remote add origin-pages https://${GITHUB_API_KEY}@github.com/dl9rdz/rdz_ttgo_sonde.git > /dev/null 2>&1
+  git push --quiet --set-upstream origin-pages gh-pages 
 }
 setup_git
 commit_website_files
