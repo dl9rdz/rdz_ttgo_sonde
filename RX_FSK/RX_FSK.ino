@@ -46,6 +46,12 @@ String processor(const String& var) {
     Serial.print(ledState);
     return ledState;
   }
+  if(var == "VERSION_NAME") {
+    return String(version_name);
+  }
+  if(var == "VERSION_ID") {
+    return String(version_id);
+  }
   return String();
 }
 
@@ -299,8 +305,8 @@ struct st_configitems {
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };
-#define N_CONFIG 20
-struct st_configitems config_list[N_CONFIG] = {
+
+struct st_configitems config_list[] = {
   {"ShowSpectrum (s)", 0, &sonde.config.spectrum},
   {"Startfreq (MHz)", 0, &sonde.config.startfreq},
   {"Bandwidth (kHz)", 0, &sonde.config.channelbw},
@@ -322,6 +328,7 @@ struct st_configitems config_list[N_CONFIG] = {
   {"---", -1, NULL},
   {"Spectrum noise floor", 0, &sonde.config.noisefloor}
 };
+const static int N_CONFIG=(sizeof(config_list)/sizeof(struct st_configitems));
 
 void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
@@ -708,11 +715,11 @@ void loopScanner() {
   }
 }
 
-static int specTimer = 0;
+static unsigned long specTimer;
 
 void loopSpectrum() {
   int marker = 0;
-  char buf[5];
+  char buf[10];
 
   switch (getKeyPress()) {
     case KP_SHORT: /* move selection of peak, TODO */
@@ -736,19 +743,18 @@ void loopSpectrum() {
     itoa((sonde.config.startfreq + 6), buf, 10);
     u8x8->drawString(13, 1, buf);
   }
-  if (specTimer > 0) {
-    itoa(specTimer, buf, 10);
+  if (sonde.config.timer) {
+    int remaining = sonde.config.spectrum - (millis() - specTimer)/1000;
+    itoa(remaining, buf, 10);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
     u8x8->drawString(0, 1 + marker, buf);
     u8x8->drawString(2, 1 + marker, "Sec.");
-    specTimer--;
-    if (specTimer <= 0) {
+    if (remaining <= 0) {
       enterMode(ST_SCANNER);
     }
   }
-  delay(1000);
 }
 
 void startSpectrumDisplay() {
@@ -756,7 +762,7 @@ void startSpectrumDisplay() {
   u8x8->setFont(u8x8_font_chroma48medium8_r);
   u8x8->drawString(0, 0, "Spectrum Scan...");
   delay(500);
-  specTimer = sonde.config.spectrum;
+  specTimer = millis();
   enterMode(ST_SPECTRUM);
 }
 
@@ -983,7 +989,8 @@ void startAP() {
 
 void initialMode() {
   if (sonde.config.spectrum != 0) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
-    enterMode(ST_SPECTRUM);
+    startSpectrumDisplay();
+    //done in startSpectrumScan(): enterMode(ST_SPECTRUM);
   } else {
     enterMode(ST_SCANNER);
   }
