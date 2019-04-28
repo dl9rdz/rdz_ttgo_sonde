@@ -27,7 +27,8 @@ install:
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
-  - find .
+  - find / -name mkspiffs
+  - find / -name boot_app0.bin
 script:
   - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino --verbose | tail -3 | head -1 | awk '{print $NF}' > $PWD/code.bin
   - $PWD/scripts/makespiffs $ESP32TOOLS $PWD/RX_FSK/data $PWD/spiffs.bin
