@@ -9,14 +9,15 @@ OFFSET_SPIFFS = 0x291000
 
 esp32tools = sys.argv[1]
 file_in = sys.argv[2]
-file_out = sys.argv[3]
+file_spiffs = sys.argv[3]
+file_out = sys.argv[4]
 
 files_in = [
     ('bootloader', OFFSET_BOOTLOADER, esp32tools+"/sdk/bin/bootloader_dio_80m.bin"),
     ('partitions', OFFSET_PARTITIONS, esp32tools+"/partitions/default.bin"),
     ('bootapp0', OFFSET_BOOTAPP0, esp32tools+"/partitions/boot_app0.bin"),
     ('application', OFFSET_APPLICATION, file_in),
-    ('spiffs', OFFSET_SPIFFS, "/dev/null"),
+    ('spiffs', OFFSET_SPIFFS, file_spiffs),
 ]
 
 cur_offset = OFFSET_BOOTLOADER

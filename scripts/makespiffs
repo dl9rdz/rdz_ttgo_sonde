@@ -1,0 +1,6 @@
+#!/bin/sh
+# first argument: esp32 tools directory
+# second argument: data directory
+# third argument: output filename
+$1/mkspiffs/0.2.3/mkspiffs -c $2 -b 4096 -p 256 -s 1503232 $3
+
