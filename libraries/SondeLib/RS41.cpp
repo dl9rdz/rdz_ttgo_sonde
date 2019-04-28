@@ -74,8 +74,11 @@ int RS41::setup()
 #if RS41_DEBUG
 	Serial.println("Setup sx1278 for RS41 sonde");
 #endif
-	Gencrctab();
-	initrsc();
+	if(!initialized) {
+		Gencrctab();
+		initrsc();
+		initialized = true;
+	}
 
 	if(sx1278.ON()!=0) {
 		RS41_DBG(Serial.println("Setting SX1278 power on FAILED"));

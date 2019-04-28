@@ -1002,7 +1002,7 @@ void initialMode() {
 // 2: access point mode in background. directly start initial mode (spectrum or scanner)
 // 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
 //    Mode 3 shows more debug information on serial port and display.
-static char* _scan[2] = {"/", "\\"};
+static const char* _scan[2] = {"/", "\\"};
 void loopWifiScan() {
   if (sonde.config.wifi == 0) {   // no Wifi
     wifi_state = WIFI_DISABLED;
@@ -1102,7 +1102,8 @@ void loopWifiScan() {
 }
 
 void loop() {
-  Serial.println("Running main loop");
+  Serial.print("Running main loop. free heap:");
+  Serial.println(ESP.getFreeHeap());
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
     case ST_SCANNER: loopScanner(); break;

@@ -42,6 +42,7 @@ private:
               { 1, 1, 1, 0, 0, 0, 0, 1}};
 	uint8_t He[8] = { 0x7, 0xB, 0xD, 0xE, 0x8, 0x4, 0x2, 0x1};  // Spalten von H:
                                                             // 1-bit-error-Syndrome
+	boolean initialized = false;
 
 public:
 	RS41();

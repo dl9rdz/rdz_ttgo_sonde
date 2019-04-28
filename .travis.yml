@@ -1,0 +1,30 @@
+language: c
+before_install:
+  - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"
+  - sleep 3
+  - export DISPLAY=:1.0
+  - wget https://downloads.arduino.cc/arduino-1.8.9-linux64.tar.xz
+  - tar xf arduino-1.8.9-linux64.tar.xz
+  - sudo mv arduino-1.8.9 /usr/local/share/arduino
+  - sudo ln -s /usr/local/share/arduino/arduino /usr/local/bin/arduino
+  - wget https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip
+  - unzip master.zip
+  - sudo mv ESPAsyncWebServer-master /usr/local/share/arduino/libraries/ESPAsyncWebServer
+  - rm master.zip
+  - wget https://github.com/me-no-dev/AsyncTCP/archive/master.zip
+  - unzip master.zip
+  - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
+
+install:
+  - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
+  - arduino --pref "custom_FlashFreq=ttgo-lora32-v1_80" --save-prefs
+  - arduino --install-boards esp32:esp32 --save-prefs
+  - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
+  - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
+  - arduino --install-library "U8g2"
+script:
+  - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino
+notifications:
+  email:
+    on_success: change
+    on_failure: change

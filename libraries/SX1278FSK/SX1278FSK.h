@@ -108,11 +108,11 @@
 #define        REG_MODEM_CONFIG3	 		 		0x26
 #define        REG_SYNC_CONFIG	  			0x27
 #define        REG_SYNC_VALUE1	 			0x28
-#define	       REG_FEI_MSB						0x28
+#define	       REG_LORA_FEI_MSB						0x28
 #define        REG_SYNC_VALUE2	  			0x29
-#define	       REG_FEI_MID						0x29
+#define	       REG_LORA_FEI_MID						0x29
 #define        REG_SYNC_VALUE3	  			0x2A
-#define	       REG_FEI_LSB						0x2A
+#define	       REG_LORA_FEI_LSB						0x2A
 #define        REG_SYNC_VALUE4	  			0x2B
 #define        REG_SYNC_VALUE5	  			0x2C
 #define	       REG_RSSI_WIDEBAND					0x2C
