@@ -24,6 +24,8 @@ commit_website_files() {
   git status
   git log
   BRANCH=`git symbolic-ref --short -q HEAD`
+  echo "Travis branch is ${TRAVIS_BRANCH}"
+  BRANCH=$TRAVIS_BRANCH
   VERSION=`cat RX_FSK/version.h |  tail -1 |  egrep -o '".*"' | sed 's/"//g' | sed 's/ /_/g'`
   MYPATH=$PWD
   echo "On branch $BRANCH"
