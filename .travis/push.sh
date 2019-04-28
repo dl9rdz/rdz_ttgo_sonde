@@ -21,21 +21,21 @@ generate_website_index() {
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 commit_website_files() {
-  BRANCH=`git status | head -1 | awk '{print $NF}'`
+  BRANCH=$TRAVIS_BRANCH
   VERSION=`cat RX_FSK/version.h |  tail -1 |  egrep -o '".*"' | sed 's/"//g' | sed 's/ /_/g'`
+  MYPATH=$PWD
   echo "On branch $BRANCH"
   echo "Version $VERSION"
   cd /tmp
   git clone https://github.com/dl9rdz/rdz_ttgo_sonde.git -b gh-pages
   cd rdz_ttgo_sonde
-  cp ~/out.bin ${BRANCH}/${VERSION}-full.bin
+  cp ${MYPATH}/out.bin ${BRANCH}/${VERSION}-full.bin
   git add ${BRANCH}/${VERSION}-full.bin
   # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
-  #git remote add origin-pages https://${GH_TOKEN}@github.com/MVSE-outreach/resources.git > /dev/null 2>&1
-  #git push --quiet --set-upstream origin-pages gh-pages 
-  git push --quiet
+  git remote add origin-pages https://${GITHUB_API_KEY}@github.com/dl9rdz/rdz_ttgo_sonde.git > /dev/null 2>&1
+  git push --quiet --set-upstream origin-pages gh-pages 
 }
 setup_git
 commit_website_files
