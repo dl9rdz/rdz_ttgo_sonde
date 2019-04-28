@@ -51,6 +51,10 @@ void Scanner::plotResult()
 		        if( ((i+j)%TICK2)==0) { row[j] |= 0x01; }
 		}
 		for(int y=0; y<8; y++) {
+			if(sonde.config.marker && y==1) {
+				// don't overwrite MHz marker text
+				if(i<3*8 || (i>=7*8&&i<10*8) || i>=13*8) continue;
+			}
 			u8x8->drawTile(i/8, y, 1, row+8*y);
 		}
 	}
