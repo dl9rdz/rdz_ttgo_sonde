@@ -10,6 +10,7 @@
 #include <Sonde.h>
 #include <Scanner.h>
 #include <aprs.h>
+#include "version.h"
 
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after reading config file
@@ -142,7 +143,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     Serial.println(request->getParam(i)->name().c_str());
   }
 #endif
-  for(int i=1; i<=sonde.config.maxsonde; i++) {  
+  for (int i = 1; i <= sonde.config.maxsonde; i++) {
     snprintf(label, 10, "A%d", i);
     AsyncWebParameter *active = request->getParam(label, true);
     snprintf(label, 10, "F%d", i);
@@ -512,9 +513,9 @@ void setup()
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
-  
-  setupConfigData();    // configuration must be read first due to OLED ports!!! 
-  LORA_LED = sonde.config.led_pout; 
+
+  setupConfigData();    // configuration must be read first due to OLED ports!!!
+  LORA_LED = sonde.config.led_pout;
 
   u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
   u8x8->begin();
@@ -523,9 +524,11 @@ void setup()
   u8x8->clear();
 
   u8x8->setFont(u8x8_font_7x14_1x2_r);
-  u8x8->drawString(1, 1, "RDZ_TTGO_SONDE");
-  u8x8->drawString(2, 3, "devel20190426");
-  u8x8->drawString(1, 5, "Mods by DL2MF");
+  u8x8->drawString(8 - strlen(version_name) / 2, 1, version_name);
+  u8x8->drawString(8 - strlen(version_id) / 2, 3, version_id);
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0, 5, "by Hansi, DL9RDZ");
+  u8x8->drawString(1, 6, "Mods by DL2MF");
   delay(3000);
 
   sonde.clearDisplay();
@@ -535,46 +538,46 @@ void setup()
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
-  u8x8->setFont(u8x8_font_chroma48medium8_r);
-  u8x8->drawString(0, 0, "Config:");
+    u8x8->setFont(u8x8_font_chroma48medium8_r);
+    u8x8->drawString(0, 0, "Config:");
 
-  delay(500);
-  itoa(sonde.config.oled_sda, buf, 10);
-  u8x8->drawString(0, 1, " SDA:");
-  u8x8->drawString(6, 1, buf);                        
+    delay(500);
+    itoa(sonde.config.oled_sda, buf, 10);
+    u8x8->drawString(0, 1, " SDA:");
+    u8x8->drawString(6, 1, buf);
 
-  delay(500);
-  itoa(sonde.config.oled_scl, buf, 10);
-  u8x8->drawString(0, 2, " SCL:");            
-  u8x8->drawString(6, 2, buf);                        
+    delay(500);
+    itoa(sonde.config.oled_scl, buf, 10);
+    u8x8->drawString(0, 2, " SCL:");
+    u8x8->drawString(6, 2, buf);
 
-  delay(500);
-  itoa(sonde.config.oled_rst, buf, 10);
-  u8x8->drawString(0, 3, " RST:");
-  u8x8->drawString(6, 3, buf);  
+    delay(500);
+    itoa(sonde.config.oled_rst, buf, 10);
+    u8x8->drawString(0, 3, " RST:");
+    u8x8->drawString(6, 3, buf);
 
-  delay(1000);
-  itoa(sonde.config.led_pout, buf, 10);
-  u8x8->drawString(0, 4, " LED:");
-  u8x8->drawString(6, 4, buf);  
+    delay(1000);
+    itoa(sonde.config.led_pout, buf, 10);
+    u8x8->drawString(0, 4, " LED:");
+    u8x8->drawString(6, 4, buf);
 
-  delay(500);
-  itoa(sonde.config.spectrum, buf, 10);
-  u8x8->drawString(0, 5, " SPEC:");
-  u8x8->drawString(6, 5, buf);                          
+    delay(500);
+    itoa(sonde.config.spectrum, buf, 10);
+    u8x8->drawString(0, 5, " SPEC:");
+    u8x8->drawString(6, 5, buf);
 
-  delay(500);
-  itoa(sonde.config.maxsonde, buf, 10);
-  u8x8->drawString(0, 6, " MAX:");
-  u8x8->drawString(6, 6, buf);   
-  
-  delay(5000);
-  sonde.clearDisplay(); 
-  } 
-  // == show initial values from config.txt ========================= //  
-  
+    delay(500);
+    itoa(sonde.config.maxsonde, buf, 10);
+    u8x8->drawString(0, 6, " MAX:");
+    u8x8->drawString(6, 6, buf);
 
-#if 0 
+    delay(5000);
+    sonde.clearDisplay();
+  }
+  // == show initial values from config.txt ========================= //
+
+
+#if 0
   // == check the radio chip by setting default frequency =========== //
   if (rs41.setFrequency(402700000) == 0) {
     Serial.println(F("Setting freq: SUCCESS "));
@@ -705,7 +708,12 @@ void loopScanner() {
   }
 }
 
+static int specTimer = 0;
+
 void loopSpectrum() {
+  int marker = 0;
+  char buf[5];
+
   switch (getKeyPress()) {
     case KP_SHORT: /* move selection of peak, TODO */
       sonde.nextConfig(); // TODO: Should be set specific frequency
@@ -718,43 +726,38 @@ void loopSpectrum() {
     case KP_DOUBLE: /* ignore */ break;
     default: break;
   }
+
   scanner.scan();
   scanner.plotResult();
+  if (sonde.config.marker != 0) {
+    itoa((sonde.config.startfreq), buf, 10);
+    u8x8->drawString(0, 1, buf);
+    u8x8->drawString(7, 1, "MHz");
+    itoa((sonde.config.startfreq + 6), buf, 10);
+    u8x8->drawString(13, 1, buf);
+  }
+  if (specTimer > 0) {
+    itoa(specTimer, buf, 10);
+    if (sonde.config.marker != 0) {
+      marker = 1;
+    }
+    u8x8->drawString(0, 1 + marker, buf);
+    u8x8->drawString(2, 1 + marker, "Sec.");
+    specTimer--;
+    if (specTimer <= 0) {
+      enterMode(ST_SCANNER);
+    }
+  }
+  delay(1000);
 }
 
 void startSpectrumDisplay() {
-  int marker=0;
-  char buf[5];
-
   sonde.clearDisplay();
   u8x8->setFont(u8x8_font_chroma48medium8_r);
   u8x8->drawString(0, 0, "Spectrum Scan...");
   delay(500);
-
+  specTimer = sonde.config.spectrum;
   enterMode(ST_SPECTRUM);
-
-  for (int i = 0; i < sonde.config.spectrum; i++) {
-    scanner.scan();
-    scanner.plotResult();
-
-     if (sonde.config.marker != 0) {
-     itoa((sonde.config.startfreq), buf, 10);
-     u8x8->drawString(0, 1, buf);
-     u8x8->drawString(7, 1, "MHz");
-     itoa((sonde.config.startfreq + 6), buf, 10);
-     u8x8->drawString(13, 1, buf);
-     }
-
-    if (sonde.config.timer != 0) {
-     itoa((sonde.config.spectrum - i), buf, 10);
-     if (sonde.config.marker != 0) {
-       marker = 1;
-     }
-     u8x8->drawString(0, 1+marker, buf);
-     u8x8->drawString(2, 1+marker, "Sec.");
-    }
-   }
-   delay(1000);
 }
 
 String translateEncryptionType(wifi_auth_mode_t encryptionType) {
@@ -775,12 +778,12 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
 }
 
 void enableNetwork(bool enable) {
-  if(enable) {
-     SetupAsyncServer();
-     udp.begin(WiFi.localIP(), LOCALUDPPORT);
-     connected = true;
+  if (enable) {
+    SetupAsyncServer();
+    udp.begin(WiFi.localIP(), LOCALUDPPORT);
+    connected = true;
   } else {
-     connected = false;
+    connected = false;
   }
 }
 
@@ -812,11 +815,11 @@ void WiFiEvent(WiFiEvent_t event)
       break;
     case SYSTEM_EVENT_STA_DISCONNECTED:
       Serial.println("Disconnected from WiFi access point");
-      if(wifi_state==WIFI_CONNECT){
-         // If we get a disconnect event while waiting for connection (as I do sometimes with my FritzBox),
-         // just start from scratch with WiFi scan
-         wifi_state = WIFI_DISABLED;
-         WiFi.disconnect(true);
+      if (wifi_state == WIFI_CONNECT) {
+        // If we get a disconnect event while waiting for connection (as I do sometimes with my FritzBox),
+        // just start from scratch with WiFi scan
+        wifi_state = WIFI_DISABLED;
+        WiFi.disconnect(true);
       }
       break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
@@ -969,18 +972,18 @@ void loopWifiBackground() {
 }
 
 void startAP() {
-   Serial.println("Activating access point mode");
-   wifi_state = WIFI_APMODE;
-   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
-   IPAddress myIP = WiFi.softAPIP();
-   sonde.setIP(myIP.toString().c_str(), true);
-   sonde.updateDisplayIP();
-   SetupAsyncServer();
+  Serial.println("Activating access point mode");
+  wifi_state = WIFI_APMODE;
+  WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
+  IPAddress myIP = WiFi.softAPIP();
+  sonde.setIP(myIP.toString().c_str(), true);
+  sonde.updateDisplayIP();
+  SetupAsyncServer();
 }
 
 void initialMode() {
-  if(sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
-     enterMode(ST_SPECTRUM);
+  if (sonde.config.spectrum != 0) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
+    enterMode(ST_SPECTRUM);
   } else {
     enterMode(ST_SCANNER);
   }
@@ -998,10 +1001,10 @@ void loopWifiScan() {
     wifi_state = WIFI_DISABLED;
     initialMode();
     return;
-  }  
+  }
   if (sonde.config.wifi == 1) { // station mode, setup in background
     wifi_state = WIFI_DISABLED;  // will start scanning in wifiLoopBackgroiund
-    initialMode();   
+    initialMode();
     return;
   }
   if (sonde.config.wifi == 2) { // AP mode, setup in background
@@ -1020,71 +1023,75 @@ void loopWifiScan() {
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);
-  int index=-1;
+  int index = -1;
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; i++) {
-      Serial.print("Network name: ");
-      Serial.println(WiFi.SSID(i));
-      u8x8->drawString(0, 1 + line, WiFi.SSID(i).c_str());
-      line = (line + 1) % 5;
-      Serial.print("Signal strength: ");
-      Serial.println(WiFi.RSSI(i));
-      Serial.print("MAC address: ");
-      Serial.println(WiFi.BSSIDstr(i));
-      Serial.print("Encryption type: ");
-      String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
-      Serial.println(encryptionTypeDescription);
-      Serial.println("-----------------------");
-      const char *id = WiFi.SSID(i).c_str();
-      int curidx = fetchWifiIndex(id);
-      if(curidx>=0 && index==-1) { index = curidx; }
-   }
-   if(index>=0) {  // some network was found
-      Serial.print("Connecting to: "); Serial.println(fetchWifiSSID(index));
-      u8x8->drawString(0, 6, "Conn:");
-      u8x8->drawString(6, 6, fetchWifiSSID(index));
-      WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-      while (WiFi.status() != WL_CONNECTED && cnt<20)  {
-         delay(500);
-         Serial.print(".");
-         if(cnt==5) {
-            // my FritzBox needs this for reconnecting
-            WiFi.disconnect(true);
-            delay(500);
-            WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-            delay(500);
-         }
-         u8x8->drawString(15, 7, _scan[cnt & 1]);
-         cnt++;
+    Serial.print("Network name: ");
+    Serial.println(WiFi.SSID(i));
+    u8x8->drawString(0, 1 + line, WiFi.SSID(i).c_str());
+    line = (line + 1) % 5;
+    Serial.print("Signal strength: ");
+    Serial.println(WiFi.RSSI(i));
+    Serial.print("MAC address: ");
+    Serial.println(WiFi.BSSIDstr(i));
+    Serial.print("Encryption type: ");
+    String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
+    Serial.println(encryptionTypeDescription);
+    Serial.println("-----------------------");
+    const char *id = WiFi.SSID(i).c_str();
+    int curidx = fetchWifiIndex(id);
+    if (curidx >= 0 && index == -1) {
+      index = curidx;
+    }
+  }
+  if (index >= 0) { // some network was found
+    Serial.print("Connecting to: "); Serial.println(fetchWifiSSID(index));
+    u8x8->drawString(0, 6, "Conn:");
+    u8x8->drawString(6, 6, fetchWifiSSID(index));
+    WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+    while (WiFi.status() != WL_CONNECTED && cnt < 20)  {
+      delay(500);
+      Serial.print(".");
+      if (cnt == 5) {
+        // my FritzBox needs this for reconnecting
+        WiFi.disconnect(true);
+        delay(500);
+        WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+        delay(500);
       }
-   }
-   if(index<0 || cnt>=15) {  // no network found, or connect not successful
-       WiFi.disconnect(true);
-       delay(1000);
-       startAP();
-       IPAddress myIP = WiFi.softAPIP();       
-       Serial.print("AP IP address: ");
-       Serial.println(myIP);
-       u8x8->drawString(0, 6, "AP:             ");
-       u8x8->drawString(6, 6, networks[0].id.c_str());
-       delay(3000);
-   } else {
-       Serial.println("");
-       Serial.println("WiFi connected");
-       Serial.println("IP address: ");
-       Serial.println(WiFi.localIP());
-       sonde.setIP(WiFi.localIP().toString().c_str(), false);
-       sonde.updateDisplayIP();
-       wifi_state = WIFI_CONNECTED;
-       delay(3000);
-   }
-   SetupAsyncServer();
-   initialMode();
+      u8x8->drawString(15, 7, _scan[cnt & 1]);
+      cnt++;
+    }
+  }
+  if (index < 0 || cnt >= 15) { // no network found, or connect not successful
+    WiFi.disconnect(true);
+    delay(1000);
+    startAP();
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+    u8x8->drawString(0, 6, "AP:             ");
+    u8x8->drawString(6, 6, networks[0].id.c_str());
+    delay(3000);
+  } else {
+    Serial.println("");
+    Serial.println("WiFi connected");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+    sonde.setIP(WiFi.localIP().toString().c_str(), false);
+    sonde.updateDisplayIP();
+    wifi_state = WIFI_CONNECTED;
+    delay(3000);
+  }
+  SetupAsyncServer();
+  initialMode();
 
   if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
-     startSpectrumDisplay();
+    //startSpectrumDisplay();
+    enterMode(ST_SPECTRUM);
+  } else {
+    enterMode(ST_SCANNER);
   }
-  enterMode(ST_SCANNER);  
 }
 
 void loop() {
