@@ -4,7 +4,7 @@
 
 enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
 
-typedef struct st_feedinfo {
+struct st_feedinfo {
 	bool active;
 	int type;	// 0:UDP(axudp), 1:TCP(aprs.fi)
 	char host[64];

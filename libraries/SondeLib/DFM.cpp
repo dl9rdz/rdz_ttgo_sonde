@@ -147,7 +147,7 @@ int DFM::hamming(uint8_t *ham, int L, uint8_t *sym) {
 DFM::DFM() {
 }
 
-void DFM::printRaw(char *label, int len, int ret, uint8_t *data)
+void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 {
 	Serial.print(label); Serial.print("(");
 	Serial.print(ret);
