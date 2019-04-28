@@ -439,6 +439,13 @@ int fetchWifiIndex(const char *id) {
       return i;
     }
     Serial.printf("No match: '%s' vs '%s'\n", id, networks[i].id.c_str());
+    const char *cfgid = networks[i].id.c_str();
+    int len=strlen(cfgid);
+    if(strlen(id)>len) len=strlen(id);
+    Serial.print("SSID: ");
+    for(int i = 0; i < len; i++) { Serial.printf("%02x ", id[i]); } Serial.println("");
+    Serial.print("Conf: ");
+    for(int i = 0; i < len; i++) { Serial.printf("%02x ", cfgid[i]); } Serial.println("");   
   }
   return -1;
 }
