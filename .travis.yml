@@ -1,4 +1,8 @@
 language: c
+env:
+ global: 
+   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.2/tools
+   - MKSPIFFS=/home/travis/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs
 before_install:
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"
   - sleep 3
@@ -14,16 +18,22 @@ before_install:
   - wget https://github.com/me-no-dev/AsyncTCP/archive/master.zip
   - unzip master.zip
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
+  - wget https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
 
 install:
   - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
+  - arduino --pref "build.verbose=true" --save-prefs
   - arduino --pref "custom_FlashFreq=ttgo-lora32-v1_80" --save-prefs
   - arduino --install-boards esp32:esp32 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
 script:
-  - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino
+  - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino --verbose | tail -3 | head -1 | awk '{print $NF}' > $PWD/code.bin
+  - $MKSPIFFS -c $PWD/RX_FSK/data -b 4096 -p 256 -s 1503232 $PWD/spiffs.bin
+  - $PWD/scripts/makeimage.py $ESP32TOOLS $PWD/code.bin $PWD/spiffs.bin $PWD/out.bin
+after_success:
+  - .travis/push.sh  
 notifications:
   email:
     on_success: change
