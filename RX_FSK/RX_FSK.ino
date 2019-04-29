@@ -147,7 +147,8 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
 #if 0
   int params = request->params();
   for (int i = 0; i < params; i++) {
-    Serial.println(request->getParam(i)->name().c_str());
+    String pname = request->getParam(i)->name();
+    Serial.println(pname.c_str());
   }
 #endif
   for (int i = 1; i <= sonde.config.maxsonde; i++) {
@@ -159,8 +160,10 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     snprintf(label, 10, "T%d", i);
     AsyncWebParameter *type = request->getParam(label, true);
     if (!type) continue;
-    const char *fstr = freq->value().c_str();
-    const char *tstr = type->value().c_str();
+    String fstring = freq->value();
+    String tstring = type->value();
+    const char *fstr = fstring.c_str();
+    const char *tstr = tstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s\n", active ? "YES" : "NO", fstr, tstr);
     char typech = (tstr[2] == '4' ? '4' : tstr[3]); // Ugly TODO
     f.printf("%3.3f %c %c\n", atof(fstr), typech, active ? '+' : '-');
@@ -239,7 +242,8 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
 #if 0
   int params = request->params();
   for (int i = 0; i < params; i++) {
-    Serial.println(request->getParam(i)->name().c_str());
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
   }
 #endif
   for (int i = 1; i <= MAX_WIFI; i++) {
@@ -249,8 +253,10 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
     snprintf(label, 10, "P%d", i);
     AsyncWebParameter *pw = request->getParam(label, true);
     if (!pw) continue;
-    const char *sstr = ssid->value().c_str();
-    const char *pstr = pw->value().c_str();
+    String sstring = ssid->value();
+    String pstring = pw->value();
+    const char *sstr = sstring.c_str();
+    const char *pstr = pstring.c_str();
     if (strlen(sstr) == 0) continue;
     Serial.printf("Processing S=%s, P=%s\n", sstr, pstr);
     f.printf("%s\n%s\n", sstr, pstr);
@@ -408,19 +414,22 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
 #if 1
   int params = request->params();
   for (int i = 0; i < params; i++) {
-    Serial.println(request->getParam(i)->name().c_str());
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
   }
 #endif
   for (int i = 0; i < params; i++) {
-    const char *label = request->getParam(i)->name().c_str();
+    String strlabel = request->getParam(i)->name();
+    const char *label = strlabel.c_str();
     if(strncmp(label, "CFG", 3)!=0) continue;
     int idx = atoi(label+3);
     Serial.printf("idx is %d\n", idx);
     if(config_list[idx].type == -1) continue;  // skip separator entries, should not happen
     AsyncWebParameter *value = request->getParam(label, true);
     if(!value) continue;
-    Serial.printf("Processing  %s=%s\n", config_list[idx].name, value->value().c_str());
-    f.printf("%s=%s\n", config_list[idx].name, value->value().c_str());
+    String strvalue = value->value();
+    Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
+    f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
   }
   f.close();
   setupConfigData();
@@ -1027,7 +1036,8 @@ void loopWifiBackground() {
     if (WiFi.isConnected()) {
       wifi_state = WIFI_CONNECTED;
       // update IP in display
-      sonde.setIP(WiFi.localIP().toString().c_str(), false);
+      String localIPstr = WiFi.localIP().toString();
+      sonde.setIP(localIPstr.c_str(), false);
       sonde.updateDisplayIP();
       enableNetwork(true);
     }
@@ -1051,7 +1061,8 @@ void startAP() {
   wifi_state = WIFI_APMODE;
   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
   IPAddress myIP = WiFi.softAPIP();
-  sonde.setIP(myIP.toString().c_str(), true);
+  String myIPstr = myIP.toString();
+  sonde.setIP(myIPstr.c_str(), true);
   sonde.updateDisplayIP();
   SetupAsyncServer();
 }
@@ -1071,6 +1082,7 @@ void initialMode() {
 // 2: access point mode in background. directly start initial mode (spectrum or scanner)
 // 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
 //    Mode 3 shows more debug information on serial port and display.
+#define MAXWIFIDELAY 20
 static const char* _scan[2] = {"/", "\\"};
 void loopWifiScan() {
   if (sonde.config.wifi == 0) {   // no Wifi
@@ -1103,8 +1115,9 @@ void loopWifiScan() {
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; i++) {
     Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    u8x8->drawString(0, 1 + line, WiFi.SSID(i).c_str());
+    String ssid = WiFi.SSID(i);
+    Serial.println(ssid);
+    u8x8->drawString(0, 1 + line, ssid.c_str());
     line = (line + 1) % 5;
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
@@ -1114,19 +1127,20 @@ void loopWifiScan() {
     String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
     Serial.println(encryptionTypeDescription);
     Serial.println("-----------------------");
-    const char *id = WiFi.SSID(i).c_str();
-    int curidx = fetchWifiIndex(id);
+    int curidx = fetchWifiIndex(ssid.c_str());
     if (curidx >= 0 && index == -1) {
       index = curidx;
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
     } 
   }
   if (index >= 0) { // some network was found
-    Serial.print("Connecting to: "); Serial.println(fetchWifiSSID(index));
+    Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
+    Serial.print(" with password "); Serial.println(fetchWifiPw(index));
+    
     u8x8->drawString(0, 6, "Conn:");
     u8x8->drawString(6, 6, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-    while (WiFi.status() != WL_CONNECTED && cnt < 20)  {
+    while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
       Serial.print(".");
       if (cnt == 5) {
@@ -1134,13 +1148,15 @@ void loopWifiScan() {
         WiFi.disconnect(true);
         delay(500);
         WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+        Serial.print("Reconnecting to: "); Serial.print(fetchWifiSSID(index));
+        Serial.print(" with password "); Serial.println(fetchWifiPw(index));
         delay(500);
       }
       u8x8->drawString(15, 7, _scan[cnt & 1]);
       cnt++;
     }
   }
-  if (index < 0 || cnt >= 15) { // no network found, or connect not successful
+  if (index < 0 || cnt >= MAXWIFIDELAY) { // no network found, or connect not successful
     WiFi.disconnect(true);
     delay(1000);
     startAP();
@@ -1154,8 +1170,9 @@ void loopWifiScan() {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-    sonde.setIP(WiFi.localIP().toString().c_str(), false);
+    String localIPstr = WiFi.localIP().toString();
+    Serial.println(localIPstr);
+    sonde.setIP(localIPstr.c_str(), false);
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
     delay(3000);
