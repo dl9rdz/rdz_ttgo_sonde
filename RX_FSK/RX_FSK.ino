@@ -33,6 +33,9 @@ int ledPin = 1;
 // Stores LED state
 String ledState;
 
+// timestamp when spectrum display was activated
+static unsigned long specTimer;
+
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
@@ -721,6 +724,11 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
+  if(mainState == ST_SPECTRUM) {
+    sonde.clearDisplay();
+    u8x8->setFont(u8x8_font_chroma48medium8_r);
+    specTimer = millis(); 
+  }
   sonde.clearDisplay();
 }
 
@@ -793,7 +801,6 @@ void loopScanner() {
   }
 }
 
-static unsigned long specTimer;
 
 void loopSpectrum() {
   int marker = 0;
@@ -824,6 +831,7 @@ void loopSpectrum() {
   if (sonde.config.timer) {
     int remaining = sonde.config.spectrum - (millis() - specTimer)/1000;
     itoa(remaining, buf, 10);
+    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n",sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
@@ -840,7 +848,6 @@ void startSpectrumDisplay() {
   u8x8->setFont(u8x8_font_chroma48medium8_r);
   u8x8->drawString(0, 0, "Spectrum Scan...");
   delay(500);
-  specTimer = millis();
   enterMode(ST_SPECTRUM);
 }
 
