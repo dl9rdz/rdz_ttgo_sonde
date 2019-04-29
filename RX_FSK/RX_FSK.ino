@@ -75,7 +75,8 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240];
+char message[10240*4];  //needs to be large enough for all forms (not checked in code)
+// QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
 
@@ -301,32 +302,49 @@ void setupConfigData() {
 
 
 struct st_configitems {
+  const char *name;
   const char *label;
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };
 
 struct st_configitems config_list[] = {
-  {"ShowSpectrum (s)", 0, &sonde.config.spectrum},
-  {"Startfreq (MHz)", 0, &sonde.config.startfreq},
-  {"Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"---", -1, NULL},
-  {"Call", 8, sonde.config.call},
-  {"Passcode", 8, sonde.config.passcode},
-  {"---", -1, NULL},
-  {"AXUDP active", -3, &sonde.config.udpfeed.active},
-  {"AXUDP Host", 63, sonde.config.udpfeed.host},
-  {"AXUDP Port", 0, &sonde.config.udpfeed.port},
-  {"DFM ID Format", -2, &sonde.config.udpfeed.idformat},
-  {"Rate limit", 0, &sonde.config.udpfeed.highrate},
-  {"---", -1, NULL},
-  {"APRS TCP active", -3, &sonde.config.tcpfeed.active},
-  {"ARPS TCP Host", 63, sonde.config.tcpfeed.host},
-  {"APRS TCP Port", 0, &sonde.config.tcpfeed.port},
-  {"DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
-  {"Rate limit", 0, &sonde.config.tcpfeed.highrate},
-  {"---", -1, NULL},
-  {"Spectrum noise floor", 0, &sonde.config.noisefloor}
+  /* General config settings */
+  {"wifi","Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
+  {"debug","Debug mode (0/1)", 0, &sonde.config.debug},
+  {"maxsonde","Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
+  /* Spectrum display settings */
+  {"spectrum","ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"startfreq","Startfreq (MHz)", 0, &sonde.config.startfreq},
+  {"channelbw","Bandwidth (kHz)", 0, &sonde.config.channelbw},
+  {"timer","Spectrum Timer", 0, &sonde.config.timer},
+  {"marker","Spectrum MHz marker", 0, &sonde.config.marker},
+  {"noisefloor","Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  {"---", "---", -1, NULL},
+  /* APRS settings */
+  {"call","Call", 8, sonde.config.call},
+  {"passcode","Passcode", 8, sonde.config.passcode},
+  {"---", "---", -1, NULL},
+  /* AXUDP settings */
+  {"axudp.active","AXUDP active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host","AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"axudp.port","AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat","DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate","Rate limit", 0, &sonde.config.udpfeed.highrate},
+  {"---", "---", -1, NULL},
+  /* APRS TCP settings, current not used */
+  {"tcp.active","APRS TCP active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host","ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port","APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat","DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate","Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"---", "---", -1, NULL},
+  /* Hardware dependeing settings */
+  {"oled_sda","OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
+  {"oled_scl","OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
+  {"oled_rst","OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
+  {"button_pin","Button input port (needs reboot)", 0, &sonde.config.button_pin},
+  {"led_pout","LED output port (needs reboot)", 0, &sonde.config.led_pout},
 };
 const static int N_CONFIG=(sizeof(config_list)/sizeof(struct st_configitems));
 
@@ -371,10 +389,42 @@ const char *createConfigForm() {
         break;
     }
   }
-  strcat(ptr, "</table><input type=\"submit\" value=\"Update not yet implemented\"></input></form></body></html>");
+  strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
   return message;
 }
 
+
+const char *handleConfigPost(AsyncWebServerRequest *request) {
+  char label[10];
+  // parameters: a_i, f_1, t_i  (active/frequency/type)
+#if 1
+  File f = SPIFFS.open("/config.txt", "w");
+  if (!f) {
+    Serial.println("Error while opening '/config.txt' for writing");
+    return "Error while opening '/config.txt' for writing";
+  }
+#endif
+  Serial.println("Handling post request");
+#if 1
+  int params = request->params();
+  for (int i = 0; i < params; i++) {
+    Serial.println(request->getParam(i)->name().c_str());
+  }
+#endif
+  for (int i = 0; i < params; i++) {
+    const char *label = request->getParam(i)->name().c_str();
+    if(strncmp(label, "CFG", 3)!=0) continue;
+    int idx = atoi(label+3);
+    Serial.printf("idx is %d\n", idx);
+    if(config_list[idx].type == -1) continue;  // skip separator entries, should not happen
+    AsyncWebParameter *value = request->getParam(label, true);
+    if(!value) continue;
+    Serial.printf("Processing  %s=%s\n", config_list[idx].name, value->value().c_str());
+    f.printf("%s=%s\n", config_list[idx].name, value->value().c_str());
+  }
+  f.close();
+  setupConfigData();
+}
 
 
 const char* PARAM_MESSAGE = "message";
@@ -412,7 +462,10 @@ void SetupAsyncServer() {
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createConfigForm());
   });
-
+  server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleConfigPost(request);
+    request->send(200, "text/html", createConfigForm());
+  });
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createStatusForm());
   });
@@ -522,6 +575,11 @@ void setup()
   char buf[12];
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
+  for(int i=0; i<39; i++) {
+    int v = gpio_get_level((gpio_num_t)i);
+    Serial.printf("%d:%d ",i,v);
+  }
+  Serial.println("");
   pinMode(LORA_LED, OUTPUT);
 
   aprs_gencrctab();

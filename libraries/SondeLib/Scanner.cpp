@@ -23,7 +23,8 @@ int scandisp[NCHAN/PIXSAMPL];
 #define PLOT_N 128
 #define TICK1 (128/6)
 #define TICK2 (TICK1/4)
-#define PLOT_MIN -250
+//#define PLOT_MIN -250
+#define PLOT_MIN (sonde.config.noisefloor*2)
 #define PLOT_SCALE(x) (x<PLOT_MIN?0:(x-PLOT_MIN)/2)
 
 const byte tilepatterns[9]={0,0x80,0xC0,0xE0,0xF0,0xF8,0xFC,0xFE,0xFF};
