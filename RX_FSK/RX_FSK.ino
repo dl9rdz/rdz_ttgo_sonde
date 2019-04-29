@@ -33,6 +33,9 @@ int ledPin = 1;
 // Stores LED state
 String ledState;
 
+// timestamp when spectrum display was activated
+static unsigned long specTimer;
+
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
@@ -75,7 +78,8 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240];
+char message[10240*4];  //needs to be large enough for all forms (not checked in code)
+// QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
 
@@ -146,7 +150,8 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
 #if 0
   int params = request->params();
   for (int i = 0; i < params; i++) {
-    Serial.println(request->getParam(i)->name().c_str());
+    String pname = request->getParam(i)->name();
+    Serial.println(pname.c_str());
   }
 #endif
   for (int i = 1; i <= sonde.config.maxsonde; i++) {
@@ -158,8 +163,10 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     snprintf(label, 10, "T%d", i);
     AsyncWebParameter *type = request->getParam(label, true);
     if (!type) continue;
-    const char *fstr = freq->value().c_str();
-    const char *tstr = type->value().c_str();
+    String fstring = freq->value();
+    String tstring = type->value();
+    const char *fstr = fstring.c_str();
+    const char *tstr = tstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s\n", active ? "YES" : "NO", fstr, tstr);
     char typech = (tstr[2] == '4' ? '4' : tstr[3]); // Ugly TODO
     f.printf("%3.3f %c %c\n", atof(fstr), typech, active ? '+' : '-');
@@ -238,7 +245,8 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
 #if 0
   int params = request->params();
   for (int i = 0; i < params; i++) {
-    Serial.println(request->getParam(i)->name().c_str());
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
   }
 #endif
   for (int i = 1; i <= MAX_WIFI; i++) {
@@ -248,8 +256,10 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
     snprintf(label, 10, "P%d", i);
     AsyncWebParameter *pw = request->getParam(label, true);
     if (!pw) continue;
-    const char *sstr = ssid->value().c_str();
-    const char *pstr = pw->value().c_str();
+    String sstring = ssid->value();
+    String pstring = pw->value();
+    const char *sstr = sstring.c_str();
+    const char *pstr = pstring.c_str();
     if (strlen(sstr) == 0) continue;
     Serial.printf("Processing S=%s, P=%s\n", sstr, pstr);
     f.printf("%s\n%s\n", sstr, pstr);
@@ -301,32 +311,49 @@ void setupConfigData() {
 
 
 struct st_configitems {
+  const char *name;
   const char *label;
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };
 
 struct st_configitems config_list[] = {
-  {"ShowSpectrum (s)", 0, &sonde.config.spectrum},
-  {"Startfreq (MHz)", 0, &sonde.config.startfreq},
-  {"Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"---", -1, NULL},
-  {"Call", 8, sonde.config.call},
-  {"Passcode", 8, sonde.config.passcode},
-  {"---", -1, NULL},
-  {"AXUDP active", -3, &sonde.config.udpfeed.active},
-  {"AXUDP Host", 63, sonde.config.udpfeed.host},
-  {"AXUDP Port", 0, &sonde.config.udpfeed.port},
-  {"DFM ID Format", -2, &sonde.config.udpfeed.idformat},
-  {"Rate limit", 0, &sonde.config.udpfeed.highrate},
-  {"---", -1, NULL},
-  {"APRS TCP active", -3, &sonde.config.tcpfeed.active},
-  {"ARPS TCP Host", 63, sonde.config.tcpfeed.host},
-  {"APRS TCP Port", 0, &sonde.config.tcpfeed.port},
-  {"DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
-  {"Rate limit", 0, &sonde.config.tcpfeed.highrate},
-  {"---", -1, NULL},
-  {"Spectrum noise floor", 0, &sonde.config.noisefloor}
+  /* General config settings */
+  {"wifi","Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
+  {"debug","Debug mode (0/1)", 0, &sonde.config.debug},
+  {"maxsonde","Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
+  /* Spectrum display settings */
+  {"spectrum","ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"startfreq","Startfreq (MHz)", 0, &sonde.config.startfreq},
+  {"channelbw","Bandwidth (kHz)", 0, &sonde.config.channelbw},
+  {"timer","Spectrum Timer", 0, &sonde.config.timer},
+  {"marker","Spectrum MHz marker", 0, &sonde.config.marker},
+  {"noisefloor","Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  {"---", "---", -1, NULL},
+  /* APRS settings */
+  {"call","Call", 8, sonde.config.call},
+  {"passcode","Passcode", 8, sonde.config.passcode},
+  {"---", "---", -1, NULL},
+  /* AXUDP settings */
+  {"axudp.active","AXUDP active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host","AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"axudp.port","AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat","DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate","Rate limit", 0, &sonde.config.udpfeed.highrate},
+  {"---", "---", -1, NULL},
+  /* APRS TCP settings, current not used */
+  {"tcp.active","APRS TCP active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host","ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port","APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat","DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate","Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"---", "---", -1, NULL},
+  /* Hardware dependeing settings */
+  {"oled_sda","OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
+  {"oled_scl","OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
+  {"oled_rst","OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
+  {"button_pin","Button input port (needs reboot)", 0, &sonde.config.button_pin},
+  {"led_pout","LED output port (needs reboot)", 0, &sonde.config.led_pout},
 };
 const static int N_CONFIG=(sizeof(config_list)/sizeof(struct st_configitems));
 
@@ -371,10 +398,45 @@ const char *createConfigForm() {
         break;
     }
   }
-  strcat(ptr, "</table><input type=\"submit\" value=\"Update not yet implemented\"></input></form></body></html>");
+  strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
   return message;
 }
 
+
+const char *handleConfigPost(AsyncWebServerRequest *request) {
+  char label[10];
+  // parameters: a_i, f_1, t_i  (active/frequency/type)
+#if 1
+  File f = SPIFFS.open("/config.txt", "w");
+  if (!f) {
+    Serial.println("Error while opening '/config.txt' for writing");
+    return "Error while opening '/config.txt' for writing";
+  }
+#endif
+  Serial.println("Handling post request");
+#if 1
+  int params = request->params();
+  for (int i = 0; i < params; i++) {
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
+  }
+#endif
+  for (int i = 0; i < params; i++) {
+    String strlabel = request->getParam(i)->name();
+    const char *label = strlabel.c_str();
+    if(strncmp(label, "CFG", 3)!=0) continue;
+    int idx = atoi(label+3);
+    Serial.printf("idx is %d\n", idx);
+    if(config_list[idx].type == -1) continue;  // skip separator entries, should not happen
+    AsyncWebParameter *value = request->getParam(label, true);
+    if(!value) continue;
+    String strvalue = value->value();
+    Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
+    f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+  }
+  f.close();
+  setupConfigData();
+}
 
 
 const char* PARAM_MESSAGE = "message";
@@ -412,7 +474,10 @@ void SetupAsyncServer() {
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createConfigForm());
   });
-
+  server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleConfigPost(request);
+    request->send(200, "text/html", createConfigForm());
+  });
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createStatusForm());
   });
@@ -522,6 +587,11 @@ void setup()
   char buf[12];
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
+  for(int i=0; i<39; i++) {
+    int v = gpio_get_level((gpio_num_t)i);
+    Serial.printf("%d:%d ",i,v);
+  }
+  Serial.println("");
   pinMode(LORA_LED, OUTPUT);
 
   aprs_gencrctab();
@@ -654,6 +724,11 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
+  if(mainState == ST_SPECTRUM) {
+    sonde.clearDisplay();
+    u8x8->setFont(u8x8_font_chroma48medium8_r);
+    specTimer = millis(); 
+  }
   sonde.clearDisplay();
 }
 
@@ -726,7 +801,6 @@ void loopScanner() {
   }
 }
 
-static unsigned long specTimer;
 
 void loopSpectrum() {
   int marker = 0;
@@ -757,6 +831,7 @@ void loopSpectrum() {
   if (sonde.config.timer) {
     int remaining = sonde.config.spectrum - (millis() - specTimer)/1000;
     itoa(remaining, buf, 10);
+    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n",sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
@@ -773,7 +848,6 @@ void startSpectrumDisplay() {
   u8x8->setFont(u8x8_font_chroma48medium8_r);
   u8x8->drawString(0, 0, "Spectrum Scan...");
   delay(500);
-  specTimer = millis();
   enterMode(ST_SPECTRUM);
 }
 
@@ -969,7 +1043,8 @@ void loopWifiBackground() {
     if (WiFi.isConnected()) {
       wifi_state = WIFI_CONNECTED;
       // update IP in display
-      sonde.setIP(WiFi.localIP().toString().c_str(), false);
+      String localIPstr = WiFi.localIP().toString();
+      sonde.setIP(localIPstr.c_str(), false);
       sonde.updateDisplayIP();
       enableNetwork(true);
     }
@@ -993,7 +1068,8 @@ void startAP() {
   wifi_state = WIFI_APMODE;
   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
   IPAddress myIP = WiFi.softAPIP();
-  sonde.setIP(myIP.toString().c_str(), true);
+  String myIPstr = myIP.toString();
+  sonde.setIP(myIPstr.c_str(), true);
   sonde.updateDisplayIP();
   SetupAsyncServer();
 }
@@ -1013,6 +1089,7 @@ void initialMode() {
 // 2: access point mode in background. directly start initial mode (spectrum or scanner)
 // 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
 //    Mode 3 shows more debug information on serial port and display.
+#define MAXWIFIDELAY 20
 static const char* _scan[2] = {"/", "\\"};
 void loopWifiScan() {
   if (sonde.config.wifi == 0) {   // no Wifi
@@ -1045,8 +1122,9 @@ void loopWifiScan() {
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; i++) {
     Serial.print("Network name: ");
-    Serial.println(WiFi.SSID(i));
-    u8x8->drawString(0, 1 + line, WiFi.SSID(i).c_str());
+    String ssid = WiFi.SSID(i);
+    Serial.println(ssid);
+    u8x8->drawString(0, 1 + line, ssid.c_str());
     line = (line + 1) % 5;
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
@@ -1056,19 +1134,20 @@ void loopWifiScan() {
     String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
     Serial.println(encryptionTypeDescription);
     Serial.println("-----------------------");
-    const char *id = WiFi.SSID(i).c_str();
-    int curidx = fetchWifiIndex(id);
+    int curidx = fetchWifiIndex(ssid.c_str());
     if (curidx >= 0 && index == -1) {
       index = curidx;
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
     } 
   }
   if (index >= 0) { // some network was found
-    Serial.print("Connecting to: "); Serial.println(fetchWifiSSID(index));
+    Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
+    Serial.print(" with password "); Serial.println(fetchWifiPw(index));
+    
     u8x8->drawString(0, 6, "Conn:");
     u8x8->drawString(6, 6, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-    while (WiFi.status() != WL_CONNECTED && cnt < 20)  {
+    while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
       Serial.print(".");
       if (cnt == 5) {
@@ -1076,13 +1155,15 @@ void loopWifiScan() {
         WiFi.disconnect(true);
         delay(500);
         WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+        Serial.print("Reconnecting to: "); Serial.print(fetchWifiSSID(index));
+        Serial.print(" with password "); Serial.println(fetchWifiPw(index));
         delay(500);
       }
       u8x8->drawString(15, 7, _scan[cnt & 1]);
       cnt++;
     }
   }
-  if (index < 0 || cnt >= 15) { // no network found, or connect not successful
+  if (index < 0 || cnt >= MAXWIFIDELAY) { // no network found, or connect not successful
     WiFi.disconnect(true);
     delay(1000);
     startAP();
@@ -1096,8 +1177,9 @@ void loopWifiScan() {
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-    sonde.setIP(WiFi.localIP().toString().c_str(), false);
+    String localIPstr = WiFi.localIP().toString();
+    Serial.println(localIPstr);
+    sonde.setIP(localIPstr.c_str(), false);
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
     delay(3000);

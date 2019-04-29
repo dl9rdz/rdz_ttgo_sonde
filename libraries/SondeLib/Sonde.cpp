@@ -50,10 +50,19 @@ static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 Sonde::Sonde() {
 	config.button_pin = 0;
 	config.led_pout = 9;	
-	config.oled_sda = 4;
-	config.oled_scl = 15;
+	// Try autodetecting board type
+  	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
+   	int autodetect = gpio_get_level((gpio_num_t)4); 
+	if(autodetect==1) {
+		config.oled_sda = 4;
+		config.oled_scl = 15;
+	} else {
+		config.oled_sda = 21;
+		config.oled_scl = 22;
+	}
+	//
 	config.oled_rst = 16;
-	config.noisefloor = -130;
+	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
 	config.maxsonde=15;
@@ -109,6 +118,7 @@ void Sonde::setConfig(const char *cfg) {
 		config.oled_rst = atoi(val);
 	} else if(strcmp(cfg,"maxsonde")==0) {
 		config.maxsonde = atoi(val);
+		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
 	} else if(strcmp(cfg,"debug")==0) {
 		config.debug = atoi(val);
 	} else if(strcmp(cfg,"wifi")==0) {
