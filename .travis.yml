@@ -24,12 +24,15 @@ install:
   - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
   - arduino --pref "build.verbose=true" --save-prefs
   - arduino --pref "custom_FlashFreq=ttgo-lora32-v1_80" --save-prefs
+  - mkdir -p $PWD/build
+  - arduino --pref "build.path=$PWD/build" --save-prefs
   - arduino --install-boards esp32:esp32 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
 script:
   - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino --verbose | tail -3 | head -1 | awk '{print $NF}' > $PWD/code.bin
+  - find build
   - $MKSPIFFS -c $PWD/RX_FSK/data -b 4096 -p 256 -s 1503232 $PWD/spiffs.bin
   - $PWD/scripts/makeimage.py $ESP32TOOLS `cat $PWD/code.bin` $PWD/spiffs.bin $PWD/out.bin
 after_success:
