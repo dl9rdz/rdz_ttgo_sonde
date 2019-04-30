@@ -5,6 +5,7 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPI.h>
+#include <Update.h>
 
 #include <SX1278FSK.h>
 #include <Sonde.h>
@@ -21,12 +22,22 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after readin
 int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
+enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
+static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
+
 AsyncWebServer server(80);
+
+String updateHost = "rdzsonde.my.to";
+int updatePort = 80;
+String updateBinM = "/master/update.ino.bin";
+String updateBinD = "/devel/update.ino.bin";
+String *updateBin = &updateBinM;
 
 #define LOCALUDPPORT 9002
 
 boolean connected = false;
 WiFiUDP udp;
+WiFiClient client;
 
 // Set LED GPIO
 int ledPin = 1;
@@ -438,6 +449,38 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   setupConfigData();
 }
 
+const char *createUpdateForm(boolean run) {
+  char *ptr = message;
+  char tmp[4];
+  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
+  if(run) {
+    strcat(ptr, "<p>Doing update, wait until reboot</p>");
+  } else {
+    strcat(ptr, "<input type=\"submit\" name=\"master\" value=\"Master-Update\"></input><br><input type=\"submit\" name=\"devel\" value=\"Devel-Update\">");
+  }
+  strcat(ptr, "</form></body></html>");
+  return message;
+}
+
+const char *handleUpdatePost(AsyncWebServerRequest *request) {
+  Serial.println("Handling post request");
+  int params = request->params();
+  for (int i = 0; i < params; i++) {
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
+    if(param.equals("devel")) {
+      Serial.println("equals devel");
+      updateBin = &updateBinD;
+    }
+    else if(param.equals("master")) {
+      Serial.println("equals master");
+      updateBin = &updateBinM;  
+    }
+  }
+  Serial.println("Updating: "+*updateBin);
+  enterMode(ST_UPDATE);
+}
+
 
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
@@ -478,8 +521,16 @@ void SetupAsyncServer() {
     handleConfigPost(request);
     request->send(200, "text/html", createConfigForm());
   });
+  
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createStatusForm());
+  });
+  server.on("/update.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", createUpdateForm(0));
+  });
+  server.on("/update.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleUpdatePost(request);
+    request->send(200, "text/html", createUpdateForm(1));
   });
 
   // Route to load style.css file
@@ -718,9 +769,6 @@ void setup()
 
   WiFi.onEvent(WiFiEvent);
 }
-
-enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN };
-static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
@@ -1195,6 +1243,176 @@ void loopWifiScan() {
   }
 }
 
+
+/// Testing OTA Updates
+/// somewhat based on Arduino's AWS_S3_OTA_Update
+// Utility to extract header value from headers
+String getHeaderValue(String header, String headerName) {
+  return header.substring(strlen(headerName.c_str()));
+}
+
+// OTA Logic 
+void execOTA() {
+  int contentLength = 0;
+  bool isValidContentType = false;
+  sonde.clearDisplay();
+  u8x8->setFont(u8x8_font_chroma48medium8_r);
+  u8x8->drawString(0, 0, "C:");
+  String dispHost = updateHost.substring(0,14);
+  u8x8->drawString(2, 0, dispHost.c_str());
+  
+  Serial.println("Connecting to: " + updateHost);
+  // Connect to Update host
+  if (client.connect(updateHost.c_str(), updatePort)) {
+    // Connection succeeded, fecthing the bin
+    Serial.println("Fetching bin: " + String(*updateBin));
+    u8x8->drawString(0, 1, "Fetching update");
+
+    // Get the contents of the bin file
+    client.print(String("GET ") + *updateBin + " HTTP/1.1\r\n" +
+                 "Host: " + updateHost + "\r\n" +
+                 "Cache-Control: no-cache\r\n" +
+                 "Connection: close\r\n\r\n");
+
+    // Check what is being sent
+    //    Serial.print(String("GET ") + bin + " HTTP/1.1\r\n" +
+    //                 "Host: " + host + "\r\n" +
+    //                 "Cache-Control: no-cache\r\n" +
+    //                 "Connection: close\r\n\r\n");
+
+    unsigned long timeout = millis();
+    while (client.available() == 0) {
+      if (millis() - timeout > 5000) {
+        Serial.println("Client Timeout !");
+        client.stop();
+        return;
+      }
+    }
+    // Once the response is available,
+    // check stuff
+
+    /*
+       Response Structure
+        HTTP/1.1 200 OK
+        x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
+        x-amz-request-id: 2D56B47560B764EC
+        Date: Wed, 14 Jun 2017 03:33:59 GMT
+        Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
+        ETag: "d2afebbaaebc38cd669ce36727152af9"
+        Accept-Ranges: bytes
+        Content-Type: application/octet-stream
+        Content-Length: 357280
+        Server: AmazonS3
+                                   
+        {{BIN FILE CONTENTS}}
+
+    */
+    while (client.available()) {
+      // read line till /n
+      String line = client.readStringUntil('\n');
+      // remove space, to check if the line is end of headers
+      line.trim();
+
+      // if the the line is empty,
+      // this is end of headers
+      // break the while and feed the
+      // remaining `client` to the
+      // Update.writeStream();
+      if (!line.length()) {
+        //headers ended
+        break; // and get the OTA started
+      }
+
+      // Check if the HTTP Response is 200
+      // else break and Exit Update
+      if (line.startsWith("HTTP/1.1")) {
+        if (line.indexOf("200") < 0) {
+          Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+          break;
+        }
+      }
+
+      // extract headers here
+      // Start with content length
+      if (line.startsWith("Content-Length: ")) {
+        contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
+        Serial.println("Got " + String(contentLength) + " bytes from server");
+      }
+
+      // Next, the content type
+      if (line.startsWith("Content-Type: ")) {
+        String contentType = getHeaderValue(line, "Content-Type: ");
+        Serial.println("Got " + contentType + " payload.");
+        if (contentType == "application/octet-stream") {
+          isValidContentType = true;
+        }
+      }
+    }
+  } else {
+    // Connect to updateHost failed
+    // May be try?
+    // Probably a choppy network?
+    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
+    // retry??
+    // execOTA();
+  }
+
+  // Check what is the contentLength and if content type is `application/octet-stream`
+  Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
+  u8x8->drawString(0, 2, "Len: ");
+  String cls = String(contentLength);
+  u8x8->drawString(5, 2, cls.c_str());
+
+  // check contentLength and content type
+  if (contentLength && isValidContentType) {
+    // Check if there is enough to OTA Update
+    bool canBegin = Update.begin(contentLength);
+    u8x8->drawString(0, 4, "Starting update");
+
+    // If yes, begin
+    if (canBegin) {
+      Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
+      // No activity would appear on the Serial monitor
+      // So be patient. This may take 2 - 5mins to complete
+      u8x8->drawString(0, 5, "Please wait!");
+      size_t written = Update.writeStream(client);
+
+      if (written == contentLength) {
+        Serial.println("Written : " + String(written) + " successfully");
+      } else {
+        Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?" );
+        // retry??
+        // execOTA();
+      }
+
+      if (Update.end()) {
+        Serial.println("OTA done!");
+        if (Update.isFinished()) {
+          Serial.println("Update successfully completed. Rebooting.");
+          u8x8->drawString(0, 7, "Rebooting....");
+          delay(1000);
+          ESP.restart();
+        } else {
+          Serial.println("Update not finished? Something went wrong!");
+        }
+      } else {
+        Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+      }
+    } else {
+      // not enough space to begin OTA
+      // Understand the partitions and
+      // space availability
+      Serial.println("Not enough space to begin OTA");
+      client.flush();
+    }
+  } else {
+    Serial.println("There was no content in the response");
+    client.flush();
+  }
+  // Back to some normal state
+  enterMode(ST_DECODER);
+}
+
 void loop() {
   Serial.print("Running main loop. free heap:");
   Serial.println(ESP.getFreeHeap());
@@ -1203,6 +1421,7 @@ void loop() {
     case ST_SCANNER: loopScanner(); break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
+    case ST_UPDATE: execOTA(); break;
   }
 #if 1
   int rssi = sx1278.getRSSI();

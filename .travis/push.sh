@@ -40,6 +40,8 @@ commit_website_files() {
   mkdir -p devel
   cp ${MYPATH}/out.bin ${BRANCH}/${VERSION}-full.bin
   git add ${BRANCH}/${VERSION}-full.bin
+  cp ${MYPATH}/build/RX_FSK.ino.bin ${BRANCH}/update.ino.bin
+  git add ${BRANCH}/update.ino.bin
   # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
