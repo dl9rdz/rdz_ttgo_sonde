@@ -674,6 +674,7 @@ void setup()
 
   setupWifiList();
   button1.pin = sonde.config.button_pin;
+  pinMode(button1.pin, INPUT);
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
