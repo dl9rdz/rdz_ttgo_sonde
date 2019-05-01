@@ -7,20 +7,23 @@ generate_website_index() {
   echo "<html><head>" > download.html
   echo "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" >> download.html
   echo "<title>rdz_ttgo_sonde</title>" >> download.html
-  echo '<link rel="stylesheet" href="/rdz_ttgo_sonde/assets/css/style.css?v=a43710928bb200926b87aed147b540673ccb0378">' >> download.html
+  echo '<link rel="stylesheet" href="/assets/css/style.css?v=a43710928bb200926b87aed147b540673ccb0378">' >> download.html
   echo "</head><body>" >> download.html
   echo '<div class="wrapper"><header><h1><a href="https://dl9rdz.github.io/rdz_ttgo_sonde/">rdz_ttgo_sonde</a></h1><p></p>' >> download.html
   echo '<p class="view"><a href="https://github.com/dl9rdz/rdz_ttgo_sonde">View the Project on GitHub <small>dl9rdz/rdz_ttgo_sonde</small></a></p>' >> download.html
   echo '</header><section><h1 id="rdz_ttgo_sonde">rdz_ttgo_sonde</h1>' >> download.html
   echo "<h2>Master repository</h2><ul>" >> download.html
   for i in `ls master`; do
+    if [ "$i" = "master.ino.bin" ]; then continue; fi
     TS=`git log master/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul><h2>Development repository</h2><ul>" >> download.html
   for i in `ls devel`; do
+    if [ "$i" = "devel.ino.bin" ]; then continue; fi
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
+    if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"devel/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul></section></body></html>" >> download.html
