@@ -1262,7 +1262,7 @@ void loopWifiScan() {
     wifi_state = WIFI_CONNECTED;
     delay(3000);
   }
-  SetupAsyncServer();
+  enableNetwork(true);
   initialMode();
 
   if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
