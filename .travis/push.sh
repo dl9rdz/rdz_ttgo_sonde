@@ -14,14 +14,14 @@ generate_website_index() {
   echo '</header><section><h1 id="rdz_ttgo_sonde">rdz_ttgo_sonde</h1>' >> download.html
   echo "<h2>Master repository</h2><ul>" >> download.html
   for i in `ls master`; do
-    if [ "$i" = "master.ino.bin" ]; then continue; fi
+    if [ "$i" = "update.ino.bin" ]; then continue; fi
     TS=`git log master/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul><h2>Development repository</h2><ul>" >> download.html
   for i in `ls devel`; do
-    if [ "$i" = "devel.ino.bin" ]; then continue; fi
+    if [ "$i" = "update.ino.bin" ]; then continue; fi
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"devel/$i\">$i</a> ($TS)</li>\n" >> download.html;
