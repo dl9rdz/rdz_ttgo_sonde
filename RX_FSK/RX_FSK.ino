@@ -61,10 +61,10 @@ String processor(const String& var) {
     Serial.print(ledState);
     return ledState;
   }
-  if(var == "VERSION_NAME") {
+  if (var == "VERSION_NAME") {
     return String(version_name);
   }
-  if(var == "VERSION_ID") {
+  if (var == "VERSION_ID") {
     return String(version_id);
   }
   return String();
@@ -90,7 +90,7 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240*4];  //needs to be large enough for all forms (not checked in code)
+char message[10240 * 4]; //needs to be large enough for all forms (not checked in code)
 // QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
@@ -102,10 +102,12 @@ void setupChannelList() {
     return;
   }
   int i = 0;
+  char launchsite[17];
   sonde.clearSonde();
   Serial.println("Reading channel config:");
   while (file.available()) {
     String line = file.readStringUntil('\n');
+    String sitename;
     if (!file.available()) break;
     if (line[0] == '#') continue;
     char *space = strchr(line.c_str(), ' ');
@@ -124,24 +126,37 @@ void setupChannelList() {
     }
     else continue;
     int active = space[3] == '+' ? 1 : 0;
-    char *launchsite = strchr(line.c_str(), ' ');
-    Serial.printf("Add %f - type %d (on/off: %d)- Site: \n", freq, type, active, launchsite);
+    if (space[4] == ' ') {
+      sitename = line.substring(12) + "                ";   // Don't change start of substr(12) !!!!
+      int str_len = sitename.length() + 1;
+      sitename.toCharArray(launchsite, 17);
+
+      if (sonde.config.debug == 1) {
+        Serial.printf("Add %f - sondetype: %d (on/off: %d) - site #%d - name: %s\n ", freq, type, active, i, launchsite);
+        //Serial.println(sitename);
+      }
+    }
+
     sonde.addSonde(freq, type, active, launchsite);
     i++;
   }
+  file.close();
 }
 
 const char *createQRGForm() {
   char *ptr = message;
-  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Mode</th></tr>");
+  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
+    String site = sonde.sondeList[i].launchsite;
     sprintf(ptr + strlen(ptr), "<tr><td>%d</td><td><input name=\"A%d\" type=\"checkbox\" %s/></td>"
             "<td><input name=\"F%d\" type=\"text\" value=\"%3.3f\"></td>"
+            "<td><input name=\"S%d\" type=\"text\" value=\"%s\"></td>"
             "<td><select name=\"T%d\">%s</select></td>",
             i + 1,
             i + 1, (i < sonde.nSonde && sonde.sondeList[i].active) ? "checked" : "",
             i + 1, i >= sonde.nSonde ? 400.000 : sonde.sondeList[i].freq,
+            i + 1, i >= sonde.nSonde ? "                " : sonde.sondeList[i].launchsite,
             i + 1, s.c_str());
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
@@ -152,8 +167,8 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
 #if 1
-  File f = SPIFFS.open("/qrg.txt", "w");
-  if (!f) {
+  File file = SPIFFS.open("/qrg.txt", "w");
+  if (!file) {
     Serial.println("Error while opening '/qrg.txt' for writing");
     return "Error while opening '/qrg.txt' for writing";
   }
@@ -171,22 +186,27 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     AsyncWebParameter *active = request->getParam(label, true);
     snprintf(label, 10, "F%d", i);
     AsyncWebParameter *freq = request->getParam(label, true);
+    snprintf(label, 10, "S%d", i);
+    AsyncWebParameter *launchsite = request->getParam(label, true);
     if (!freq) continue;
     snprintf(label, 10, "T%d", i);
     AsyncWebParameter *type = request->getParam(label, true);
     if (!type) continue;
     String fstring = freq->value();
     String tstring = type->value();
+    String sstring = launchsite->value();
     const char *fstr = fstring.c_str();
     const char *tstr = tstring.c_str();
-    Serial.printf("Processing a=%s, f=%s, t=%s\n", active ? "YES" : "NO", fstr, tstr);
+    const char *sstr = sstring.c_str();
+    Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
     char typech = (tstr[2] == '4' ? '4' : tstr[3]); // Ugly TODO
-    f.printf("%3.3f %c %c\n", atof(fstr), typech, active ? '+' : '-');
+    file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
-  f.close();
+  file.close();
+
   Serial.println("Channel setup finished");
   Serial.println();
-
+  delay(500);
   setupChannelList();
 }
 
@@ -333,43 +353,43 @@ struct st_configitems {
 
 struct st_configitems config_list[] = {
   /* General config settings */
-  {"wifi","Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
-  {"debug","Debug mode (0/1)", 0, &sonde.config.debug},
-  {"maxsonde","Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
+  {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
+  {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
+  {"maxsonde", "Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
   /* Spectrum display settings */
-  {"spectrum","ShowSpectrum (s)", 0, &sonde.config.spectrum},
-  {"startfreq","Startfreq (MHz)", 0, &sonde.config.startfreq},
-  {"channelbw","Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"timer","Spectrum Timer", 0, &sonde.config.timer},
-  {"marker","Spectrum MHz marker", 0, &sonde.config.marker},
-  {"noisefloor","Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  {"spectrum", "ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
+  {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
+  {"timer", "Spectrum Timer", 0, &sonde.config.timer},
+  {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
+  {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
   {"---", "---", -1, NULL},
   /* APRS settings */
-  {"call","Call", 8, sonde.config.call},
-  {"passcode","Passcode", 8, sonde.config.passcode},
+  {"call", "Call", 8, sonde.config.call},
+  {"passcode", "Passcode", 8, sonde.config.passcode},
   {"---", "---", -1, NULL},
   /* AXUDP settings */
-  {"axudp.active","AXUDP active", -3, &sonde.config.udpfeed.active},
-  {"axudp.host","AXUDP Host", 63, sonde.config.udpfeed.host},
-  {"axudp.port","AXUDP Port", 0, &sonde.config.udpfeed.port},
-  {"axudp.idformat","DFM ID Format", -2, &sonde.config.udpfeed.idformat},
-  {"axudp.highrate","Rate limit", 0, &sonde.config.udpfeed.highrate},
+  {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"axudp.port", "AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat", "DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate", "Rate limit", 0, &sonde.config.udpfeed.highrate},
   {"---", "---", -1, NULL},
   /* APRS TCP settings, current not used */
-  {"tcp.active","APRS TCP active", -3, &sonde.config.tcpfeed.active},
-  {"tcp.host","ARPS TCP Host", 63, sonde.config.tcpfeed.host},
-  {"tcp.port","APRS TCP Port", 0, &sonde.config.tcpfeed.port},
-  {"tcp.idformat","DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
-  {"tcp.highrate","Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"tcp.active", "APRS TCP active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host", "ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
   {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
-  {"oled_sda","OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
-  {"oled_scl","OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
-  {"oled_rst","OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
-  {"button_pin","Button input port (needs reboot)", 0, &sonde.config.button_pin},
-  {"led_pout","LED output port (needs reboot)", 0, &sonde.config.led_pout},
+  {"oled_sda", "OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
+  {"oled_scl", "OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
+  {"oled_rst", "OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
+  {"button_pin", "Button input port (needs reboot)", 0, &sonde.config.button_pin},
+  {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
 };
-const static int N_CONFIG=(sizeof(config_list)/sizeof(struct st_configitems));
+const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
 void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
@@ -438,12 +458,12 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   for (int i = 0; i < params; i++) {
     String strlabel = request->getParam(i)->name();
     const char *label = strlabel.c_str();
-    if(strncmp(label, "CFG", 3)!=0) continue;
-    int idx = atoi(label+3);
+    if (strncmp(label, "CFG", 3) != 0) continue;
+    int idx = atoi(label + 3);
     Serial.printf("idx is %d\n", idx);
-    if(config_list[idx].type == -1) continue;  // skip separator entries, should not happen
+    if (config_list[idx].type == -1) continue; // skip separator entries, should not happen
     AsyncWebParameter *value = request->getParam(label, true);
-    if(!value) continue;
+    if (!value) continue;
     String strvalue = value->value();
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
     f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
@@ -559,12 +579,16 @@ int fetchWifiIndex(const char *id) {
     }
     Serial.printf("No match: '%s' vs '%s'\n", id, networks[i].id.c_str());
     const char *cfgid = networks[i].id.c_str();
-    int len=strlen(cfgid);
-    if(strlen(id)>len) len=strlen(id);
+    int len = strlen(cfgid);
+    if (strlen(id) > len) len = strlen(id);
     Serial.print("SSID: ");
-    for(int i = 0; i < len; i++) { Serial.printf("%02x ", id[i]); } Serial.println("");
+    for (int i = 0; i < len; i++) {
+      Serial.printf("%02x ", id[i]);
+    } Serial.println("");
     Serial.print("Conf: ");
-    for(int i = 0; i < len; i++) { Serial.printf("%02x ", cfgid[i]); } Serial.println("");   
+    for (int i = 0; i < len; i++) {
+      Serial.printf("%02x ", cfgid[i]);
+    } Serial.println("");
   }
   return -1;
 }
@@ -641,9 +665,9 @@ void setup()
   char buf[12];
   // Open serial communications and wait for port to open:
   Serial.begin(115200);
-  for(int i=0; i<39; i++) {
+  for (int i = 0; i < 39; i++) {
     int v = gpio_get_level((gpio_num_t)i);
-    Serial.printf("%d:%d ",i,v);
+    Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
   pinMode(LORA_LED, OUTPUT);
@@ -718,7 +742,6 @@ void setup()
     sonde.clearDisplay();
   }
   // == show initial values from config.txt ========================= //
-
 
 #if 0
   // == check the radio chip by setting default frequency =========== //
@@ -881,9 +904,9 @@ void loopSpectrum() {
     u8x8->drawString(13, 1, buf);
   }
   if (sonde.config.timer) {
-    int remaining = sonde.config.spectrum - (millis() - specTimer)/1000;
+    int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
     itoa(remaining, buf, 10);
-    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n",sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
+    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
@@ -1193,12 +1216,12 @@ void loopWifiScan() {
     if (curidx >= 0 && index == -1) {
       index = curidx;
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
-    } 
+    }
   }
   if (index >= 0) { // some network was found
     Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
     Serial.print(" with password "); Serial.println(fetchWifiPw(index));
-    
+
     u8x8->drawString(0, 6, "Conn:");
     u8x8->drawString(6, 6, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
@@ -1419,6 +1442,7 @@ void execOTA() {
   // Back to some normal state
   enterMode(ST_DECODER);
 }
+
 
 void loop() {
   Serial.print("Running main loop. free heap:");

@@ -197,7 +197,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
-	sondeList[nSonde].launchsite = launchsite;	
+	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
 	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
@@ -334,8 +334,8 @@ void Sonde::updateDisplayScanner() {
 	u8x8->drawString(8, 0,  sondeTypeStr[si()->type]);
     snprintf(buf, 16, "%3.3f MHz", si()->freq);
     u8x8->drawString(0,3, buf);
-    //snprintf(buf, 8, "%s", si()->launchsite);
-    //u8x8->drawString(0,5, buf);	
+    snprintf(buf, 16, "%s", si()->launchsite);
+    u8x8->drawString(0,5, buf);	
 	updateDisplayIP();
 }
 
