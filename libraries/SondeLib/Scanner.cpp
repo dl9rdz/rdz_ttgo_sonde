@@ -23,7 +23,8 @@ int scandisp[NCHAN/PIXSAMPL];
 #define PLOT_N 128
 #define TICK1 (128/6)
 #define TICK2 (TICK1/4)
-#define PLOT_MIN -250
+//#define PLOT_MIN -250
+#define PLOT_MIN (sonde.config.noisefloor*2)
 #define PLOT_SCALE(x) (x<PLOT_MIN?0:(x-PLOT_MIN)/2)
 
 const byte tilepatterns[9]={0,0x80,0xC0,0xE0,0xF0,0xF8,0xFC,0xFE,0xFF};
@@ -51,6 +52,10 @@ void Scanner::plotResult()
 		        if( ((i+j)%TICK2)==0) { row[j] |= 0x01; }
 		}
 		for(int y=0; y<8; y++) {
+			if(sonde.config.marker && y==1) {
+				// don't overwrite MHz marker text
+				if(i<3*8 || (i>=7*8&&i<10*8) || i>=13*8) continue;
+			}
 			u8x8->drawTile(i/8, y, 1, row+8*y);
 		}
 	}

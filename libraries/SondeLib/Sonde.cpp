@@ -48,12 +48,21 @@ static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
 Sonde::Sonde() {
-	config.button_pin = 1;
+	config.button_pin = 0;
 	config.led_pout = 9;	
-	//config.oled_sda = 0;
-	//config.oled_scl = 0;
-	//config.oled_rst = 0;
-	config.noisefloor = -130;
+	// Try autodetecting board type
+  	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
+   	int autodetect = gpio_get_level((gpio_num_t)4); 
+	if(autodetect==1) {
+		config.oled_sda = 4;
+		config.oled_scl = 15;
+	} else {
+		config.oled_sda = 21;
+		config.oled_scl = 22;
+	}
+	//
+	config.oled_rst = 16;
+	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
 	config.maxsonde=15;
@@ -109,6 +118,7 @@ void Sonde::setConfig(const char *cfg) {
 		config.oled_rst = atoi(val);
 	} else if(strcmp(cfg,"maxsonde")==0) {
 		config.maxsonde = atoi(val);
+		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
 	} else if(strcmp(cfg,"debug")==0) {
 		config.debug = atoi(val);
 	} else if(strcmp(cfg,"wifi")==0) {
@@ -154,6 +164,10 @@ void Sonde::setConfig(const char *cfg) {
 	}
 }
 
+void Sonde::clearIP() {
+  memset(myIP_tiles, 0, 11*8);
+}
+
 void Sonde::setIP(const char *ip, bool AP) {
   memset(myIP_tiles, 0, 11*8);
   int len = strlen(ip);
@@ -183,13 +197,13 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
-	sondeList[nSonde].launchsite = launchsite;	
+	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
 	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
 void Sonde::nextConfig() {
 	currentSonde++;
-	// Skip non-active entries (but don't loop forever if there are no active ones
+	// Skip non-active entries (but don't loop forever if there are no active ones)
 	for(int i=0; i<config.maxsonde; i++) {
 		if(!sondeList[currentSonde].active) {
 			currentSonde++;
@@ -221,9 +235,6 @@ void Sonde::setup() {
 		dfm.setFrequency(sondeList[currentSonde].freq * 1000000);
 		break;
 	}
-	// Update display
-	//updateDisplayRXConfig();
-	//updateDisplay();
 }
 int Sonde::receiveFrame() {
 	int ret;
@@ -305,11 +316,9 @@ void Sonde::updateDisplayRXConfig() {
 	u8x8->setFont(u8x8_font_chroma48medium8_r);
 	u8x8->drawString(0,0, sondeTypeStr[si()->type]);
 	snprintf(buf, 16, "%3.3f MHz", si()->freq);
-	u8x8->drawString(5,0, buf);
-    //snprintf(buf, 8, "%s", si()->launchsite);
-    //u8x8->drawString(0,5, buf);		
-	u8x8->drawTile(14,3,2,kmh_tiles);	
-
+	u8x8->drawString(7,0, buf);
+    //snprintf(buf, 6, "%s", si()->launchsite);
+    //u8x8->drawString(9,1, buf);		
 }
 
 void Sonde::updateDisplayIP() {
@@ -325,9 +334,8 @@ void Sonde::updateDisplayScanner() {
 	u8x8->drawString(8, 0,  sondeTypeStr[si()->type]);
     snprintf(buf, 16, "%3.3f MHz", si()->freq);
     u8x8->drawString(0,3, buf);
-    //snprintf(buf, 8, "%s", si()->launchsite);
-    //u8x8->drawString(0,5, buf);	
-
+    snprintf(buf, 16, "%s", si()->launchsite);
+    u8x8->drawString(0,5, buf);	
 	updateDisplayIP();
 }
 

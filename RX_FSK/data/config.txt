@@ -7,16 +7,17 @@ led_pout=9
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
-oled_sda=21
-oled_scl=22
+# No specification in config file: try autodetection (gpio4 pin level at startup)
+#oled_sda=21
+#oled_scl=22
 oled_rst=16
 #-------------------------------#
 # General config settings
 #-------------------------------#
 maxsonde=20
-debug=0
-wifi=1
-wifiap=1
+debug=1
+# wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
+wifi=3
 #-------------------------------#
 # Spectrum display settings
 #-------------------------------#

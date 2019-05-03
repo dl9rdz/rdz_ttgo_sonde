@@ -43,7 +43,7 @@ typedef struct st_sondeinfo {
         // decoded ID
         char id[10];
         bool validID;
-		char *launchsite;		
+		char launchsite[18];		
         // decoded position
         float lat;			// latitude
         float lon;			// longitude
@@ -92,6 +92,7 @@ public:
 	void updateDisplayScanner();
 	void clearDisplay();
 	void setIP(const char *ip, bool isAP);
+	void clearIP();
 };
 
 extern Sonde sonde;
