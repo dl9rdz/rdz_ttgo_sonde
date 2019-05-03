@@ -15,7 +15,7 @@ oled_rst=16
 # General config settings
 #-------------------------------#
 maxsonde=20
-debug=0
+debug=1
 # wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
 wifi=3
 #-------------------------------#
