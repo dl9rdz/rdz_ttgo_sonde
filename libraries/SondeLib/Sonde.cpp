@@ -316,7 +316,7 @@ void Sonde::updateDisplayRXConfig() {
 	u8x8->setFont(u8x8_font_chroma48medium8_r);
 	u8x8->drawString(0,0, sondeTypeStr[si()->type]);
 	snprintf(buf, 16, "%3.3f MHz", si()->freq);
-	u8x8->drawString(7,0, buf);
+	u8x8->drawString(5,0, buf);
     //snprintf(buf, 6, "%s", si()->launchsite);
     //u8x8->drawString(9,1, buf);		
 }
