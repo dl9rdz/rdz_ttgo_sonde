@@ -6,6 +6,7 @@
 #include <U8g2lib.h>
 #include <SPI.h>
 #include <Update.h>
+#include <ESPmDNS.h>
 
 #include <SX1278FSK.h>
 #include <Sonde.h>
@@ -919,10 +920,13 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
 
 void enableNetwork(bool enable) {
   if (enable) {
+    MDNS.begin("rdzsonde");
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
+    MDNS.addService("http", "tcp", 80);
     connected = true;
   } else {
+    MDNS.end();
     connected = false;
   }
 }
