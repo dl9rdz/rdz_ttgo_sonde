@@ -206,6 +206,8 @@ void setupWifiList() {
   File file = SPIFFS.open("/networks.txt", "r");
   if (!file) {
     Serial.println("There was an error opening the file '/networks.txt' for reading");
+    networks[0].id = "RDZsonde";
+    networks[0].pw = "RDZsonde";
     return;
   }
   int i = 0;
