@@ -98,11 +98,11 @@ int RS41::setup()
 	Serial.println(br);
 #endif
 
-	if(sx1278.setAFCBandwidth(25000)!=0) {
+	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
 		RS41_DBG(Serial.println("Setting AFC bandwidth 25 kHz FAILED"));
 		return 1;
 	}
-	if(sx1278.setRxBandwidth(12000)!=0) {
+	if(sx1278.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
 		RS41_DBG(Serial.println("Setting RX bandwidth 12kHz FAILED"));
 		return 1;
 	}

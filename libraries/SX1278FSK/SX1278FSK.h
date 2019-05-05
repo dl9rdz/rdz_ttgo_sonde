@@ -31,6 +31,7 @@
  *****************************************************************************/
 
 #define SX127X_CRYSTAL_FREQ 32000000
+#define SX127X_FSTEP (SX127X_CRYSTAL_FREQ*1.0/(1<<19))
 
 #define SX1278FSK_debug_mode 0
 
@@ -233,6 +234,12 @@ public:
 
 	// Get current RSSI value
 	int16_t getRSSI();
+
+	// Get current FEI (frequency error indication) value
+	int32_t getFEI();
+
+	// Get current AFC value
+	int32_t getAFC();
 
 	// Get the maximum current supply by the module.
 	int getMaxCurrent();

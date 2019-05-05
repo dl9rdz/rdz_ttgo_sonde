@@ -74,6 +74,9 @@ Sonde::Sonde() {
 	config.spectrum=10;
 	config.timer=0;
 	config.marker=0;
+	config.norx_timeout=0;
+	config.rs41.agcbw=25;
+	config.rs41.rxbw=12;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -135,6 +138,14 @@ void Sonde::setConfig(const char *cfg) {
 		config.timer = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
+	} else if(strcmp(cfg,"norx_timeout")==0) {
+		config.norx_timeout = atoi(val);					
+	} else if(strcmp(cfg,"showafc")==0) {
+		config.showafc = atoi(val);					
+	} else if(strcmp(cfg,"rs41.agcbw")==0) {
+		config.rs41.agcbw = atoi(val);
+	} else if(strcmp(cfg,"rs41.rxbw")==0) {
+		config.rs41.rxbw = atoi(val);
 	} else if(strcmp(cfg,"axudp.active")==0) {
 		config.udpfeed.active = atoi(val)>0;
 	} else if(strcmp(cfg,"axudp.host")==0) {
@@ -317,6 +328,10 @@ void Sonde::updateDisplayRXConfig() {
 	u8x8->drawString(0,0, sondeTypeStr[si()->type]);
 	snprintf(buf, 16, "%3.3f MHz", si()->freq);
 	u8x8->drawString(5,0, buf);
+	if(config.showafc) {
+		snprintf(buf, 15, "     %+3.2fk", si()->afc*0.001);
+		u8x8->drawString(8,1,buf+strlen(buf)-8);
+	}
     //snprintf(buf, 8, "%s", si()->launchsite);
     //u8x8->drawString(0,5, buf);		
 }

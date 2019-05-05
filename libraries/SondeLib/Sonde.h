@@ -12,6 +12,11 @@ enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN };
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
+struct st_rs41config {
+	int agcbw;
+	int rxbw;
+};
+
 typedef struct st_rdzconfig {
 	int button_pin;			// PIN port number menu button (for some boards)
 	int led_pout;			// POUT port number of LED (used as serial monitor)
@@ -27,9 +32,12 @@ typedef struct st_rdzconfig {
 	int timer;				// show remaining time in spectrum  0=disable
 	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
+	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
 	int noisefloor;			// for spectrum display
+	int showafc;			// show afc value in rx screen
 	char call[9];			// APRS callsign
 	char passcode[9];		// APRS passcode
+	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	// for now, one feed for each type is enough, but might get extended to more?
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
@@ -54,6 +62,7 @@ typedef struct st_sondeinfo {
         uint8_t validPos;   // bit pattern for validity of above 6 fields
         // RSSI from receiver
         int rssi;			// signal strength
+	int32_t afc;			// afc correction value
 	uint8_t rxStat[20];
 } SondeInfo;
 // rxState: 0=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1]

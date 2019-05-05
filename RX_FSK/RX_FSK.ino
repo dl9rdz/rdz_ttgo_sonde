@@ -363,6 +363,7 @@ struct st_configitems config_list[] = {
   {"timer", "Spectrum Timer", 0, &sonde.config.timer},
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
   {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  {"showafc", "Show AFC value", 0, &sonde.config.showafc},
   {"---", "---", -1, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -381,6 +382,10 @@ struct st_configitems config_list[] = {
   {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  {"---", "---", -1, NULL},
+  /* RS41 decoder settings */
+  {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
+  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw}, 
   {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
   {"oled_sda", "OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},

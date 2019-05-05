@@ -533,6 +533,30 @@ int16_t SX1278FSK::getRSSI()
 	return RSSI;
 }
 
+/*
+Function: Gets the current value of FEI (frequency error indication)
+Returns: FEI value in Hz
+*/
+int32_t SX1278FSK::getFEI()
+{
+	int32_t FEI;
+	int16_t regval = (readRegister(REG_FEI_MSB)<<8) | readRegister(REG_FEI_LSB);
+	Serial.printf("feireg: %04x\n", regval);
+	FEI = (int32_t)(regval * SX127X_FSTEP);
+	return FEI;
+}
+/*
+Function: Gets the current value of AFC (automated frequency correction)
+Returns: AFC value in Hz
+*/
+int32_t SX1278FSK::getAFC()
+{
+	int32_t AFC;
+	int16_t regval = (readRegister(REG_AFC_MSB)<<8) | readRegister(REG_AFC_LSB);
+	Serial.printf("afcreg: %04x\n", regval);
+	AFC = (int32_t)(regval * SX127X_FSTEP);
+	return AFC;
+}
 
 /*
 Function: Gets the current supply limit of the power amplifier, protecting battery chemistries.
@@ -693,8 +717,13 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 			data[di++] = readRegister(REG_FIFO);
 			if(di==1) {
 				int rssi=getRSSI();
+				int fei=getFEI();
+				int afc=getAFC();
 				Serial.print("Test: RSSI="); Serial.println(rssi);
+				Serial.print("Test: FEI="); Serial.println(fei);
+				Serial.print("Test: AFC="); Serial.println(afc);
 				sonde.si()->rssi = rssi;
+				sonde.si()->afc = afc;
 			}
 			if(di>520) {
 				// TODO
