@@ -330,6 +330,7 @@ uint8_t SX1278FSK::setFrequency(float freq) {
 
 	// set mode to FSK STANDBY 
 	writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);
+	freq += sonde.config.freqofs;  // manual frequency correction
 
 	uint32_t frf = freq * 1.0 * (1<<19) / SX127X_CRYSTAL_FREQ;
 	writeRegister(REG_FRF_MSB, (frf&0xff0000)>>16);

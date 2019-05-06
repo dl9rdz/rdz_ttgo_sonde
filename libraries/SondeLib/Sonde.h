@@ -35,6 +35,7 @@ typedef struct st_rdzconfig {
 	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
 	int noisefloor;			// for spectrum display
 	int showafc;			// show afc value in rx screen
+	int freqofs;			// frequency offset (tuner config = rx frequency + freqofs) in Hz
 	char call[9];			// APRS callsign
 	char passcode[9];		// APRS passcode
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver

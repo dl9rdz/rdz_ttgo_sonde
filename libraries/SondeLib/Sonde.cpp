@@ -4,8 +4,10 @@
 #include "Sonde.h"
 #include "RS41.h"
 #include "DFM.h"
+#include "SX1278FSK.h"
 
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
+extern SX1278FSK sx1278;
 
 //SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41" };
@@ -75,6 +77,8 @@ Sonde::Sonde() {
 	config.timer=0;
 	config.marker=0;
 	config.norx_timeout=0;
+	config.showafc=0;
+	config.freqofs=0;
 	config.rs41.agcbw=25;
 	config.rs41.rxbw=12;
 	config.udpfeed.active = 1;
@@ -141,7 +145,9 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg,"norx_timeout")==0) {
 		config.norx_timeout = atoi(val);					
 	} else if(strcmp(cfg,"showafc")==0) {
-		config.showafc = atoi(val);					
+		config.showafc = atoi(val);
+	} else if(strcmp(cfg,"freqofs")==0) {
+		config.freqofs = atoi(val);
 	} else if(strcmp(cfg,"rs41.agcbw")==0) {
 		config.rs41.agcbw = atoi(val);
 	} else if(strcmp(cfg,"rs41.rxbw")==0) {
@@ -246,6 +252,11 @@ void Sonde::setup() {
 		dfm.setFrequency(sondeList[currentSonde].freq * 1000000);
 		break;
 	}
+	// debug
+	float afcbw = sx1278.getAFCBandwidth();
+	float rxbw = sx1278.getRxBandwidth();
+	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
+
 }
 int Sonde::receiveFrame() {
 	int ret;
