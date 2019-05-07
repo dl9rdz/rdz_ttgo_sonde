@@ -1,2 +1,2 @@
 const char *version_name = "RDZ_TTGO_SONDE";
-const char *version_id = "devel20190506";
+const char *version_id = "devel20190507";

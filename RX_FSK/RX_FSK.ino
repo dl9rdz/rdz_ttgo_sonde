@@ -40,6 +40,7 @@ boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
 
+
 // Set LED GPIO
 int ledPin = 1;
 // Stores LED state
@@ -364,6 +365,7 @@ struct st_configitems config_list[] = {
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
   {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
   {"showafc", "Show AFC value", 0, &sonde.config.showafc},
+  {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
   {"---", "---", -1, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -477,6 +479,49 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   setupConfigData();
 }
 
+const char *ctrlid[]={"rx","scan","spec","wifi"};
+const char *ctrllabel[]={"Receiver (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)"};
+const char *createControlForm() {
+  char *ptr = message;
+  char tmp[4];
+  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"control.html\" method=\"post\">");
+  for(int i=0; i<4; i++) {
+    strcat(ptr, "<input type=\"submit\" name=\"");
+    strcat(ptr, ctrlid[i]);
+    strcat(ptr, "\" value=\"");
+    strcat(ptr, ctrllabel[i]);
+    strcat(ptr, "\"></input><br>");
+  }
+  strcat(ptr, "</form></body></html>");
+  return message;
+}
+
+
+const char *handleControlPost(AsyncWebServerRequest *request) {
+  Serial.println("Handling post request");
+  int params = request->params();
+  for (int i = 0; i < params; i++) {
+    String param = request->getParam(i)->name();
+    Serial.println(param.c_str());
+    if(param.equals("rx")) {
+      Serial.println("equals rx");
+      //button1.pressed = KP_SHORT;
+    }
+    else if(param.equals("scan")) {
+      Serial.println("equals scan");
+      //button1.pressed = KP_DOUBLE;
+    }
+    else if(param.equals("spec")) {
+      Serial.println("equals spec");
+      //button1.pressed = KP_MID;
+    }
+    else if(param.equals("wifi")) {
+      Serial.println("equals wifi");
+      //button1.pressed = KP_LONG;
+    }
+  }
+}
+
 const char *createUpdateForm(boolean run) {
   char *ptr = message;
   char tmp[4];
@@ -561,6 +606,14 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createUpdateForm(1));
   });
 
+  server.on("/control.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", createControlForm());
+  });
+  server.on("/control.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleControlPost(request);
+    request->send(200, "text/html", createControlForm());
+  });
+  
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/style.css", "text/css");
@@ -616,7 +669,6 @@ const char *fetchWifiPw(const char *id) {
   }
   return NULL;
 }
-
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
@@ -895,7 +947,9 @@ void loopSpectrum() {
     case KP_LONG:
       enterMode(ST_WIFISCAN);
       return;
-    case KP_DOUBLE: /* ignore */ break;
+    case KP_DOUBLE:
+      enterMode(ST_SCANNER);
+      break;
     default: break;
   }
 
