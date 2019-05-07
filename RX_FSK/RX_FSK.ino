@@ -41,6 +41,18 @@ WiFiUDP udp;
 WiFiClient client;
 
 
+enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
+
+struct Button {
+  uint8_t pin;
+  uint32_t numberKeyPresses;
+  KeyPress pressed;
+  unsigned long press_ts;
+  boolean doublepress;
+};
+Button button1 = {0, 0, KP_NONE, 0, false};
+
+
 // Set LED GPIO
 int ledPin = 1;
 // Stores LED state
@@ -505,19 +517,19 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
     Serial.println(param.c_str());
     if(param.equals("rx")) {
       Serial.println("equals rx");
-      //button1.pressed = KP_SHORT;
+      button1.pressed = KP_SHORT;
     }
     else if(param.equals("scan")) {
       Serial.println("equals scan");
-      //button1.pressed = KP_DOUBLE;
+      button1.pressed = KP_DOUBLE;
     }
     else if(param.equals("spec")) {
       Serial.println("equals spec");
-      //button1.pressed = KP_MID;
+      button1.pressed = KP_MID;
     }
     else if(param.equals("wifi")) {
       Serial.println("equals wifi");
-      //button1.pressed = KP_LONG;
+      button1.pressed = KP_LONG;
     }
   }
 }
@@ -670,16 +682,6 @@ const char *fetchWifiPw(const char *id) {
   return NULL;
 }
 
-enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
-
-struct Button {
-  uint8_t pin;
-  uint32_t numberKeyPresses;
-  KeyPress pressed;
-  unsigned long press_ts;
-  boolean doublepress;
-};
-Button button1 = {0, 0, KP_NONE, 0, false};
 
 void IRAM_ATTR buttonISR() {
   if (digitalRead(button1.pin) == 0) { // Button down
