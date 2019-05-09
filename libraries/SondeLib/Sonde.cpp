@@ -4,8 +4,10 @@
 #include "Sonde.h"
 #include "RS41.h"
 #include "DFM.h"
+#include "SX1278FSK.h"
 
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
+extern SX1278FSK sx1278;
 
 //SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41" };
@@ -74,6 +76,11 @@ Sonde::Sonde() {
 	config.spectrum=10;
 	config.timer=0;
 	config.marker=0;
+	config.norx_timeout=0;
+	config.showafc=0;
+	config.freqofs=0;
+	config.rs41.agcbw=25;
+	config.rs41.rxbw=12;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -135,6 +142,16 @@ void Sonde::setConfig(const char *cfg) {
 		config.timer = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
+	} else if(strcmp(cfg,"norx_timeout")==0) {
+		config.norx_timeout = atoi(val);					
+	} else if(strcmp(cfg,"showafc")==0) {
+		config.showafc = atoi(val);
+	} else if(strcmp(cfg,"freqofs")==0) {
+		config.freqofs = atoi(val);
+	} else if(strcmp(cfg,"rs41.agcbw")==0) {
+		config.rs41.agcbw = atoi(val);
+	} else if(strcmp(cfg,"rs41.rxbw")==0) {
+		config.rs41.rxbw = atoi(val);
 	} else if(strcmp(cfg,"axudp.active")==0) {
 		config.udpfeed.active = atoi(val)>0;
 	} else if(strcmp(cfg,"axudp.host")==0) {
@@ -235,6 +252,11 @@ void Sonde::setup() {
 		dfm.setFrequency(sondeList[currentSonde].freq * 1000000);
 		break;
 	}
+	// debug
+	float afcbw = sx1278.getAFCBandwidth();
+	float rxbw = sx1278.getRxBandwidth();
+	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
+
 }
 int Sonde::receiveFrame() {
 	int ret;
@@ -317,6 +339,10 @@ void Sonde::updateDisplayRXConfig() {
 	u8x8->drawString(0,0, sondeTypeStr[si()->type]);
 	snprintf(buf, 16, "%3.3f MHz", si()->freq);
 	u8x8->drawString(5,0, buf);
+	if(config.showafc) {
+		snprintf(buf, 15, "     %+3.2fk", si()->afc*0.001);
+		u8x8->drawString(8,1,buf+strlen(buf)-8);
+	}
     //snprintf(buf, 8, "%s", si()->launchsite);
     //u8x8->drawString(0,5, buf);		
 }
