@@ -79,8 +79,8 @@ Sonde::Sonde() {
 	config.norx_timeout=0;
 	config.showafc=0;
 	config.freqofs=0;
-	config.rs41.agcbw=25;
-	config.rs41.rxbw=12;
+	config.rs41.agcbw=25000;
+	config.rs41.rxbw=12000;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
