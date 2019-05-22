@@ -18,6 +18,8 @@ maxsonde=20
 debug=1
 # wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
 wifi=3
+# display mode: 1=standard 2=fieldmode 3=field w/sondetype
+display=1
 #-------------------------------#
 # Spectrum display settings
 #-------------------------------#

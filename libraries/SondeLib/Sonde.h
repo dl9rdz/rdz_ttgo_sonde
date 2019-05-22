@@ -1,6 +1,6 @@
 
 #ifndef Sonde_h
-#define Sonde_H
+#define Sonde_h
 
 #include "aprs.h"
 
@@ -26,6 +26,7 @@ typedef struct st_rdzconfig {
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
+	int display;			// select display mode (0=default, 1=default, 2=fieldmode)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
 	int spectrum;			// show freq spectrum for n seconds 0=disable

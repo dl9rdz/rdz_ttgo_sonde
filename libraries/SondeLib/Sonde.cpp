@@ -5,6 +5,7 @@
 #include "RS41.h"
 #include "DFM.h"
 #include "SX1278FSK.h"
+#include "Display.h"
 
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
@@ -12,19 +13,8 @@ extern SX1278FSK sx1278;
 //SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41" };
 
-static unsigned char kmh_tiles[] U8X8_PROGMEM = {
-   0x1F, 0x04, 0x0A, 0x11, 0x00, 0x1F, 0x02, 0x04, 0x42, 0x3F, 0x10, 0x08, 0xFC, 0x22, 0x20, 0xF8
-   };
-static unsigned char ms_tiles[] U8X8_PROGMEM = {
-   0x1F, 0x02, 0x04, 0x02, 0x1F, 0x40, 0x20, 0x10, 0x08, 0x04, 0x12, 0xA4, 0xA4, 0xA4, 0x40, 0x00
-   };
-static unsigned char stattiles[4][4] =  {
-   0x00, 0x1F, 0x00, 0x00 ,   // | == ok
-   0x00, 0x10, 0x10, 0x00 ,   // . == no header found
-   0x1F, 0x15, 0x15, 0x00 ,   // E == decode error
-   0x00, 0x00, 0x00, 0x00 };  // ' ' == unknown/unassigned
-
 byte myIP_tiles[8*11];
+static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
 static const uint8_t font[10][5]={
   0x3E, 0x51, 0x49, 0x45, 0x3E,   // 0
@@ -37,17 +27,6 @@ static const uint8_t font[10][5]={
   0x01, 0x01, 0x79, 0x05, 0x03,   // 7
   0x36, 0x49, 0x49, 0x49, 0x36,   // 8
   0x06, 0x49, 0x39, 0x29, 0x1E }; // 9;  .=0x40
-
-static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
-
-static uint8_t halfdb_tile1[8]={0x00, 0x38, 0x28, 0x28, 0x28, 0xC8, 0x00, 0x00};
-static uint8_t halfdb_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
-
-static uint8_t empty_tile[8]={0x80, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00, 0x00};
-
-static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
-static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
-static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
 Sonde::Sonde() {
 	config.button_pin = 0;
@@ -71,6 +50,7 @@ Sonde::Sonde() {
 	config.debug=0;
 	config.wifi=1;
 	config.wifiap=1;
+	config.display=1;
 	config.startfreq=400;
 	config.channelbw=10;
 	config.spectrum=10;
@@ -132,6 +112,9 @@ void Sonde::setConfig(const char *cfg) {
 		config.wifi = atoi(val);			
 	} else if(strcmp(cfg,"wifiap")==0) {
 		config.wifiap = atoi(val);
+	} else if(strcmp(cfg,"display")==0) {
+		config.display = atoi(val);
+		disp.setLayout(config.display);
 	} else if(strcmp(cfg,"startfreq")==0) {
 		config.startfreq = atoi(val);
 	} else if(strcmp(cfg,"channelbw")==0) {
@@ -192,13 +175,13 @@ void Sonde::setIP(const char *ip, bool AP) {
   int tp = 80-pix+8;
   if(AP) memcpy(myIP_tiles+(tp<16?0:8), ap_tile, 8);
   for(int i=0; i<len; i++) {
-    if(ip[i]=='.') { myIP_tiles[tp++]=0x40; myIP_tiles[tp++]=0x00; }
-    else {
-      int idx = ip[i]-'0';
-      memcpy(myIP_tiles+tp, &font[idx], 5);
-      myIP_tiles[tp+5] = 0;
-      tp+=6;
-    }
+	if(ip[i]=='.') { myIP_tiles[tp++]=0x40; myIP_tiles[tp++]=0x00; }
+	else {
+	  int idx = ip[i]-'0';
+	  memcpy(myIP_tiles+tp, &font[idx], 5);
+	  myIP_tiles[tp+5] = 0;
+	  tp+=6;
+	}
   }
   while(tp<8*10) { myIP_tiles[tp++]=0; }
 }
@@ -271,110 +254,55 @@ int Sonde::receiveFrame() {
 }
 
 void Sonde::updateDisplayPos() {
-	char buf[16];
-	u8x8->setFont(u8x8_font_7x14_1x2_r);
-	if(si()->validPos) {
-		snprintf(buf, 16, "%2.5f", si()->lat);
-		u8x8->drawString(0,2,buf);
-		snprintf(buf, 16, "%2.5f", si()->lon);
-		u8x8->drawString(0,4,buf);
-	} else {
-		u8x8->drawString(0,2,"<??>     ");
-		u8x8->drawString(0,4,"<??>     ");
-	}
+	disp.updateDisplayPos();
 }
 
 void Sonde::updateDisplayPos2() {
-	char buf[16];
-	u8x8->setFont(u8x8_font_chroma48medium8_r);
-	if(!si()->validPos) {
-		u8x8->drawString(10,2,"      ");
-		u8x8->drawString(10,3,"      ");
-		u8x8->drawString(10,4,"      ");
-		return;
-	}
-	snprintf(buf, 16, si()->alt>999?" %5.0fm":" %3.1fm", si()->alt);
-	u8x8->drawString((10+6-strlen(buf)),2,buf);
-	snprintf(buf, 16, si()->hs>99?" %3.0f":" %2.1f", si()->hs);
-	u8x8->drawString((10+4-strlen(buf)),3,buf);
-	snprintf(buf, 16, " %+2.1f", si()->vs);
-	u8x8->drawString((10+4-strlen(buf)),4,buf);
-	u8x8->drawTile(14,3,2,kmh_tiles);
-	u8x8->drawTile(14,4,2,ms_tiles);
+	disp.updateDisplayPos2();
 }
 
 void Sonde::updateDisplayID() {
-        u8x8->setFont(u8x8_font_chroma48medium8_r);
-	if(si()->validID) {
-        	u8x8->drawString(0,1, si()->id);
-	} else {
-		u8x8->drawString(0,1, "nnnnnnnn        ");
-	}
+	disp.updateDisplayID();
 }
 	
 void Sonde::updateDisplayRSSI() {
-	char buf[16];
-	u8x8->setFont(u8x8_font_7x14_1x2_r);
-	snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
-	int len=strlen(buf)-3;
-	buf[5]=0;
-	u8x8->drawString(0,6,buf);
-	u8x8->drawTile(len,6,1,(sonde.si()->rssi&1)?halfdb_tile1:empty_tile1);
-	u8x8->drawTile(len,7,1,(sonde.si()->rssi&1)?halfdb_tile2:empty_tile2);
+	disp.updateDisplayRSSI();
 }
 
 void Sonde::updateStat() {
-	uint8_t *stat = si()->rxStat;
-	for(int i=0; i<18; i+=2) {
-		uint8_t tile[8];
-		*(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
-		*(uint32_t *)(&tile[4]) = *(uint32_t *)(&(stattiles[stat[i+1]]));
-		u8x8->drawTile(7+i/2, 6, 1, tile);
-	}
+	disp.updateStat();
 }
 
 void Sonde::updateDisplayRXConfig() {
-	char buf[16];
-	u8x8->setFont(u8x8_font_chroma48medium8_r);
-	u8x8->drawString(0,0, sondeTypeStr[si()->type]);
-	snprintf(buf, 16, "%3.3f MHz", si()->freq);
-	u8x8->drawString(5,0, buf);
-	if(config.showafc) {
-		snprintf(buf, 15, "     %+3.2fk", si()->afc*0.001);
-		u8x8->drawString(8,1,buf+strlen(buf)-8);
-	}
-    //snprintf(buf, 8, "%s", si()->launchsite);
-    //u8x8->drawString(0,5, buf);		
+	disp.updateDisplayRXConfig();
 }
 
 void Sonde::updateDisplayIP() {
-        u8x8->drawTile(5, 7, 11, myIP_tiles);
+	u8x8->drawTile(5, 7, 11, myIP_tiles);
 }
 
 // Probing RS41
 // 40x.xxx MHz
 void Sonde::updateDisplayScanner() {
+	disp.setLayout(0);
+	disp.updateDisplay();
+	disp.setLayout(2);
+#if 0
 	char buf[16];
-    u8x8->setFont(u8x8_font_7x14_1x2_r);
+	u8x8->setFont(u8x8_font_7x14_1x2_r);
 	u8x8->drawString(0, 0, "Scan:");
 	u8x8->drawString(8, 0,  sondeTypeStr[si()->type]);
-    snprintf(buf, 16, "%3.3f MHz", si()->freq);
-    u8x8->drawString(0,3, buf);
-    snprintf(buf, 16, "%s", si()->launchsite);
-    u8x8->drawString(0,5, buf);	
+	snprintf(buf, 16, "%3.3f MHz", si()->freq);
+	u8x8->drawString(0,3, buf);
+	snprintf(buf, 16, "%s", si()->launchsite);
+	u8x8->drawString(0,5, buf);	
 	updateDisplayIP();
+#endif
 }
 
 void Sonde::updateDisplay()
 {
-	char buf[16];
-	updateDisplayRXConfig();
-	updateDisplayID();
-	updateDisplayPos();
-	updateDisplayPos2();
-	updateDisplayRSSI();
-	updateStat();
-    updateDisplayIP();
+	disp.updateDisplay();
 }
 
 void Sonde::clearDisplay() {

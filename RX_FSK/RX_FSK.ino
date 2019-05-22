@@ -10,6 +10,7 @@
 
 #include <SX1278FSK.h>
 #include <Sonde.h>
+#include <Display.h>
 #include <Scanner.h>
 #include <aprs.h>
 #include "version.h"
@@ -51,6 +52,7 @@ struct Button {
   boolean doublepress;
 };
 Button button1 = {0, 0, KP_NONE, 0, false};
+
 
 
 // Set LED GPIO
@@ -369,6 +371,8 @@ struct st_configitems config_list[] = {
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
+  {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
+  {"---", "---", -1, NULL}, 
   /* Spectrum display settings */
   {"spectrum", "ShowSpectrum (s)", 0, &sonde.config.spectrum},
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
@@ -682,6 +686,42 @@ const char *fetchWifiPw(const char *id) {
   return NULL;
 }
 
+static bool isTouched = false;
+long touchTime = 0;
+hw_timer_t * timer = NULL;
+
+void checkTouchStatus();
+void touchISR();
+
+void initTouch() {
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, checkTouchStatus, true);
+  timerAlarmWrite(timer, 300000, true);
+  timerAlarmEnable(timer);
+  touchAttachInterrupt(T3, touchISR, 20);
+}
+
+void IRAM_ATTR touchISR() {
+  if(!isTouched) {
+    touchTime = millis();
+    isTouched = true;
+  }
+}
+
+void IRAM_ATTR checkTouchStatus() {
+  if(isTouched) {
+    if(touchRead(T3) > 60) {
+      isTouched = false;
+      // simulate key press
+      button1.pressed = KP_SHORT;
+    } else {
+      if(millis()-touchTime > 3000) {
+        // long touch
+        // ginore for now
+      }
+    }
+  }
+}
 
 void IRAM_ATTR buttonISR() {
   if (digitalRead(button1.pin) == 0) { // Button down
@@ -730,6 +770,7 @@ void setup()
   }
   Serial.println("");
   pinMode(LORA_LED, OUTPUT);
+  initTouch();
 
   aprs_gencrctab();
 
@@ -1505,9 +1546,13 @@ void execOTA() {
 }
 
 
+static int lastDisplay=1;
+
 void loop() {
   Serial.print("Running main loop. free heap:");
   Serial.println(ESP.getFreeHeap());
+  Serial.println(touchRead(13));
+  Serial.println(touchRead(4));
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
     case ST_SCANNER: loopScanner(); break;
@@ -1525,4 +1570,9 @@ void loop() {
                Serial.println(gain);
 #endif
   loopWifiBackground();
+  if(sonde.config.display != lastDisplay && (mainState==ST_DECODER)) {
+    sonde.clearDisplay();
+    sonde.updateDisplay();
+    lastDisplay = sonde.config.display;
+  }
 }
