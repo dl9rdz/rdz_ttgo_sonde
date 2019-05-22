@@ -117,7 +117,7 @@ void setupChannelList() {
     return;
   }
   int i = 0;
-  char launchsite[17];
+  char launchsite[17]="                ";
   sonde.clearSonde();
   Serial.println("Reading channel config:");
   while (file.available()) {
@@ -142,16 +142,13 @@ void setupChannelList() {
     else continue;
     int active = space[3] == '+' ? 1 : 0;
     if (space[4] == ' ') {
-      sitename = line.substring(12) + "                ";   // Don't change start of substr(12) !!!!
-      int str_len = sitename.length() + 1;
-      sitename.toCharArray(launchsite, 17);
-
+      memset(launchsite, ' ', 16);
+      int str_len = strlen(space+5);
+      strncpy(launchsite, space+5, str_len>16?16:str_len);
       if (sonde.config.debug == 1) {
         Serial.printf("Add %f - sondetype: %d (on/off: %d) - site #%d - name: %s\n ", freq, type, active, i, launchsite);
-        //Serial.println(sitename);
       }
     }
-
     sonde.addSonde(freq, type, active, launchsite);
     i++;
   }
@@ -950,13 +947,15 @@ void setup()
 }
 
 void enterMode(int mode) {
+  Serial.printf("enterMode(%d)\n", mode);
   mainState = (MainState)mode;
   if (mainState == ST_SPECTRUM) {
     sonde.clearDisplay();
     u8x8->setFont(u8x8_font_chroma48medium8_r);
     specTimer = millis();
+  } else {
+    sonde.clearDisplay();
   }
-  sonde.clearDisplay();
 }
 
 void loopDecoder() {
@@ -1044,7 +1043,7 @@ void loopSpectrum() {
       return;
     case KP_DOUBLE:
       enterMode(ST_SCANNER);
-      break;
+      return;
     default: break;
   }
 
