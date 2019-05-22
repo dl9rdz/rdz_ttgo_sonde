@@ -7,11 +7,11 @@
 
 
 struct DispEntry {
-	uint8_t y;
-	uint8_t x;
-	uint16_t fmt;
+	int8_t y;
+	int8_t x;
+	int16_t fmt;
 	void (*func)(DispEntry *de);
-	char *extra;
+	const char *extra;
 };
 
 
