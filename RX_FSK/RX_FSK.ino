@@ -372,7 +372,7 @@ struct st_configitems config_list[] = {
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
   {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
-  {"---", "---", -1, NULL}, 
+  {"---", "---", -1, NULL},
   /* Spectrum display settings */
   {"spectrum", "ShowSpectrum (s)", 0, &sonde.config.spectrum},
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
@@ -403,7 +403,7 @@ struct st_configitems config_list[] = {
   {"---", "---", -1, NULL},
   /* RS41 decoder settings */
   {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
-  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw}, 
+  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
   {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
   {"oled_sda", "OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
@@ -495,13 +495,13 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   setupConfigData();
 }
 
-const char *ctrlid[]={"rx","scan","spec","wifi"};
-const char *ctrllabel[]={"Receiver (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)"};
+const char *ctrlid[] = {"rx", "scan", "spec", "wifi"};
+const char *ctrllabel[] = {"Receiver (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)"};
 const char *createControlForm() {
   char *ptr = message;
   char tmp[4];
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"control.html\" method=\"post\">");
-  for(int i=0; i<4; i++) {
+  for (int i = 0; i < 4; i++) {
     strcat(ptr, "<input type=\"submit\" name=\"");
     strcat(ptr, ctrlid[i]);
     strcat(ptr, "\" value=\"");
@@ -519,30 +519,72 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
   for (int i = 0; i < params; i++) {
     String param = request->getParam(i)->name();
     Serial.println(param.c_str());
-    if(param.equals("rx")) {
+    if (param.equals("rx")) {
       Serial.println("equals rx");
       button1.pressed = KP_SHORT;
     }
-    else if(param.equals("scan")) {
+    else if (param.equals("scan")) {
       Serial.println("equals scan");
       button1.pressed = KP_DOUBLE;
     }
-    else if(param.equals("spec")) {
+    else if (param.equals("spec")) {
       Serial.println("equals spec");
       button1.pressed = KP_MID;
     }
-    else if(param.equals("wifi")) {
+    else if (param.equals("wifi")) {
       Serial.println("equals wifi");
       button1.pressed = KP_LONG;
     }
   }
 }
 
+// bad idea. prone to buffer overflow. use at your own risk...
+const char *createEditForm(String filename) {
+  char *ptr = message;
+  File file = SPIFFS.open("/" + filename, "r");
+  if (!file) {
+    Serial.println("There was an error opening the file '/config.txt' for reading");
+    return "<html><head><title>File not found</title></head><body>File not found</body></html>";
+  }
+
+  strcpy(ptr, "<html><head><title>Editor ");
+  strcat(ptr, filename.c_str());
+  strcat(ptr, "</title></head><body><form action=\"edit.html?file=");
+  strcat(ptr, filename.c_str());
+  strcat(ptr, "\" method=\"post\">");
+  strcat(ptr, "<textarea name=\"text\" cols=\"80\" rows=\"40\">");
+  while (file.available()) {
+    String line = file.readStringUntil('\n');
+    strcat(ptr, line.c_str()); strcat(ptr, "\n");
+  }
+  strcat(ptr, "</textarea><input type=\"submit\">Save</input></form></body></html>");
+  return message;
+}
+
+
+const char *handleEditPost(AsyncWebServerRequest *request) {
+  Serial.println("Handling post request");
+  AsyncWebParameter *filep = request->getParam("file");
+  if(!filep) return NULL;
+  String filename = filep->value();
+  AsyncWebParameter *textp = request->getParam("text", true);
+  if(!textp) return NULL;
+  String content = textp->value();
+  File file = SPIFFS.open("/" + filename, "w");
+  if (!file) {
+    Serial.println("There was an error opening the file '/" + filename + "'for writing");
+    return "";
+  }
+  file.print(content);
+  file.close();
+  return "";
+}
+
 const char *createUpdateForm(boolean run) {
   char *ptr = message;
   char tmp[4];
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
-  if(run) {
+  if (run) {
     strcat(ptr, "<p>Doing update, wait until reboot</p>");
   } else {
     strcat(ptr, "<input type=\"submit\" name=\"master\" value=\"Master-Update\"></input><br><input type=\"submit\" name=\"devel\" value=\"Devel-Update\">");
@@ -557,16 +599,16 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
   for (int i = 0; i < params; i++) {
     String param = request->getParam(i)->name();
     Serial.println(param.c_str());
-    if(param.equals("devel")) {
+    if (param.equals("devel")) {
       Serial.println("equals devel");
       updateBin = &updateBinD;
     }
-    else if(param.equals("master")) {
+    else if (param.equals("master")) {
       Serial.println("equals master");
-      updateBin = &updateBinM;  
+      updateBin = &updateBinM;
     }
   }
-  Serial.println("Updating: "+*updateBin);
+  Serial.println("Updating: " + *updateBin);
   enterMode(ST_UPDATE);
 }
 
@@ -610,7 +652,7 @@ void SetupAsyncServer() {
     handleConfigPost(request);
     request->send(200, "text/html", createConfigForm());
   });
-  
+
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createStatusForm());
   });
@@ -629,7 +671,15 @@ void SetupAsyncServer() {
     handleControlPost(request);
     request->send(200, "text/html", createControlForm());
   });
-  
+
+  server.on("/edit.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+  });
+  server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleEditPost(request);
+    request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+  });
+
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/style.css", "text/css");
@@ -694,28 +744,30 @@ void checkTouchStatus();
 void touchISR();
 
 void initTouch() {
+#if 1
   timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, checkTouchStatus, true);
   timerAlarmWrite(timer, 300000, true);
   timerAlarmEnable(timer);
-  touchAttachInterrupt(T3, touchISR, 20);
+  touchAttachInterrupt(T4, touchISR, 20);
+#endif
 }
 
 void IRAM_ATTR touchISR() {
-  if(!isTouched) {
+  if (!isTouched) {
     touchTime = millis();
     isTouched = true;
   }
 }
 
 void IRAM_ATTR checkTouchStatus() {
-  if(isTouched) {
-    if(touchRead(T3) > 60) {
+  if (isTouched) {
+    if (touchRead(T4) > 60) {
       isTouched = false;
       // simulate key press
       button1.pressed = KP_SHORT;
     } else {
-      if(millis()-touchTime > 3000) {
+      if (millis() - touchTime > 3000) {
         // long touch
         // ginore for now
       }
@@ -899,10 +951,10 @@ void setup()
 
 void enterMode(int mode) {
   mainState = (MainState)mode;
-  if(mainState == ST_SPECTRUM) {
+  if (mainState == ST_SPECTRUM) {
     sonde.clearDisplay();
     u8x8->setFont(u8x8_font_chroma48medium8_r);
-    specTimer = millis(); 
+    specTimer = millis();
   }
   sonde.clearDisplay();
 }
@@ -1383,16 +1435,16 @@ String getHeaderValue(String header, String headerName) {
   return header.substring(strlen(headerName.c_str()));
 }
 
-// OTA Logic 
+// OTA Logic
 void execOTA() {
   int contentLength = 0;
   bool isValidContentType = false;
   sonde.clearDisplay();
   u8x8->setFont(u8x8_font_chroma48medium8_r);
   u8x8->drawString(0, 0, "C:");
-  String dispHost = updateHost.substring(0,14);
+  String dispHost = updateHost.substring(0, 14);
   u8x8->drawString(2, 0, dispHost.c_str());
-  
+
   Serial.println("Connecting to: " + updateHost);
   // Connect to Update host
   if (client.connect(updateHost.c_str(), updatePort)) {
@@ -1435,7 +1487,7 @@ void execOTA() {
         Content-Type: application/octet-stream
         Content-Length: 357280
         Server: AmazonS3
-                                   
+
         {{BIN FILE CONTENTS}}
 
     */
@@ -1546,13 +1598,13 @@ void execOTA() {
 }
 
 
-static int lastDisplay=1;
+static int lastDisplay = 1;
 
 void loop() {
   Serial.print("Running main loop. free heap:");
   Serial.println(ESP.getFreeHeap());
-  Serial.println(touchRead(13));
-  Serial.println(touchRead(4));
+  //Serial.println(touchRead(13));
+  //Serial.println(touchRead(4));
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
     case ST_SCANNER: loopScanner(); break;
@@ -1570,7 +1622,7 @@ void loop() {
                Serial.println(gain);
 #endif
   loopWifiBackground();
-  if(sonde.config.display != lastDisplay && (mainState==ST_DECODER)) {
+  if (sonde.config.display != lastDisplay && (mainState == ST_DECODER)) {
     sonde.clearDisplay();
     sonde.updateDisplay();
     lastDisplay = sonde.config.display;
