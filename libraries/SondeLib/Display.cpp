@@ -164,7 +164,7 @@ void Display::drawVS(DispEntry *de) {
 void Display::drawID(DispEntry *de) {
 	SETFONT((de->fmt&0x01));
 	if(!sonde.si()->validID) {
-		u8x8->drawString(de->x, de->y, "nnnnnnnn        ");
+		u8x8->drawString(de->x, de->y, "nnnnnnnn ");
 		return;
 	}
 	u8x8->drawString(de->x, de->y, sonde.si()->id);
@@ -199,7 +199,8 @@ void Display::drawFreq(DispEntry *de) {
 void Display::drawAFC(DispEntry *de) {
  	if(!sonde.config.showafc) return;
 	SETFONT(de->fmt);
-        snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001);
+	if(sonde.si()->afc==0) { strcpy(buf, "        "); }
+	else { snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001); }
         u8x8->drawString(de->x, de->y, buf+strlen(buf)-8);
 }
 void Display::drawIP(DispEntry *de) {

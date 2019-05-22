@@ -256,7 +256,7 @@ void Sonde::updateDisplayIP() {
 void Sonde::updateDisplayScanner() {
 	disp.setLayout(0);
 	disp.updateDisplay();
-	disp.setLayout(2);
+	disp.setLayout(config.display);
 #if 0
 	char buf[16];
 	u8x8->setFont(u8x8_font_7x14_1x2_r);
