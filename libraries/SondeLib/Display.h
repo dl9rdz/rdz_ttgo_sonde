@@ -38,6 +38,8 @@ public:
 	static void drawTelemetry(DispEntry *de);
 	static void drawGPSdist(DispEntry *de);
 	static void drawText(DispEntry *de);
+	void clearIP();
+	void setIP(const char *ip, bool AP);
 	void updateDisplayPos();
 	void updateDisplayPos2();
 	void updateDisplayID();

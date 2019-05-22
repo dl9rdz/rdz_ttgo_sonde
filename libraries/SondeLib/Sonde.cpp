@@ -11,22 +11,6 @@ extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
 //SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
-const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41" };
-
-byte myIP_tiles[8*11];
-static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
-
-static const uint8_t font[10][5]={
-  0x3E, 0x51, 0x49, 0x45, 0x3E,   // 0
-  0x00, 0x42, 0x7F, 0x40, 0x00,   // 1
-  0x42, 0x61, 0x51, 0x49, 0x46,   // 2
-  0x21, 0x41, 0x45, 0x4B, 0x31,   // 3
-  0x18, 0x14, 0x12, 0x7F, 0x10,   // 4
-  0x27, 0x45, 0x45, 0x45, 0x39,   // 5
-  0x3C, 0x4A, 0x49, 0x49, 0x30,   // 6
-  0x01, 0x01, 0x79, 0x05, 0x03,   // 7
-  0x36, 0x49, 0x49, 0x49, 0x36,   // 8
-  0x06, 0x49, 0x39, 0x29, 0x1E }; // 9;  .=0x40
 
 Sonde::Sonde() {
 	config.button_pin = 0;
@@ -165,25 +149,11 @@ void Sonde::setConfig(const char *cfg) {
 }
 
 void Sonde::clearIP() {
-  memset(myIP_tiles, 0, 11*8);
+	disp.clearIP();
 }
 
 void Sonde::setIP(const char *ip, bool AP) {
-  memset(myIP_tiles, 0, 11*8);
-  int len = strlen(ip);
-  int pix = (len-3)*6+6;
-  int tp = 80-pix+8;
-  if(AP) memcpy(myIP_tiles+(tp<16?0:8), ap_tile, 8);
-  for(int i=0; i<len; i++) {
-	if(ip[i]=='.') { myIP_tiles[tp++]=0x40; myIP_tiles[tp++]=0x00; }
-	else {
-	  int idx = ip[i]-'0';
-	  memcpy(myIP_tiles+tp, &font[idx], 5);
-	  myIP_tiles[tp+5] = 0;
-	  tp+=6;
-	}
-  }
-  while(tp<8*10) { myIP_tiles[tp++]=0; }
+	disp.setIP(ip, AP);
 }
 
 void Sonde::clearSonde() {
@@ -278,7 +248,7 @@ void Sonde::updateDisplayRXConfig() {
 }
 
 void Sonde::updateDisplayIP() {
-	u8x8->drawTile(5, 7, 11, myIP_tiles);
+	disp.updateDisplayIP();
 }
 
 // Probing RS41
