@@ -23,6 +23,8 @@
 class DFM
 {
 private:
+	int inverse=0;
+
 	void deinterleave(uint8_t *str, int L, uint8_t *block);
 	uint32_t bits2val(const uint8_t *bits, int len);
 	int check(uint8_t code[8]);

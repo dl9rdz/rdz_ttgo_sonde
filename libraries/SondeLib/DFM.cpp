@@ -12,8 +12,9 @@
 #define DFM_DBG(x)
 #endif
 
-int DFM::setup(int inverse) 
+int DFM::setup(int inv) 
 {
+	inverse = inv;
 #if DFM_DEBUG
 	Serial.println("Setup sx1278 for DFM sonde");
 #endif
@@ -206,7 +207,7 @@ int DFM::decodeDAT(uint8_t *dat)
 		{
 		float lat, vh;
 		lat = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
-		vh = (dat[4]<<8) + dat[5];
+		vh = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
 		sonde.si()->lat = lat*0.0000001;
@@ -230,7 +231,7 @@ int DFM::decodeDAT(uint8_t *dat)
 		{
 		float alt, vv;
 		alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
-		vv = (int16_t)( (dat[4]<<8) | dat[5] );
+		vv = (int16_t)( ((int16_t)dat[4]<<8) | dat[5] );
 		Serial.print("GPS-height: "); Serial.print(alt*0.01);
 		Serial.print(", vv: "); Serial.print(vv*0.01);
 		sonde.si()->alt = alt*0.01;
@@ -274,6 +275,7 @@ int DFM::receiveFrame() {
 	int e = sx1278.receivePacketTimeout(1000, data);
 	if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
+	if(inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
 	deinterleave(data+20, 13, hamming_dat2);
