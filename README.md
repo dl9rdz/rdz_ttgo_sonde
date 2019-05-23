@@ -18,4 +18,4 @@ If you prefer a GUI instead of a command line flash tool, you can get the Flash 
 
 Here are the correct settings for flashing one of the images:
 
-![Flash Tool Screenshot](http://rdzsonde.my.to/flashtool.png "Configuration for Windows Flash Tool")
+![Flash Tool Screenshot](http://rdzsonde.mooo.com/flashtool.png "Configuration for Windows Flash Tool")
