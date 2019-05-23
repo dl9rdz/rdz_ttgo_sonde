@@ -26,7 +26,7 @@ generate_website_index() {
   done
   echo "</ul></section></body></html>" >> download.html
   git add download.html
-  git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
+  git commit --amend --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 commit_website_files() {
   BRANCH=$TRAVIS_BRANCH
@@ -43,7 +43,7 @@ commit_website_files() {
   git add ${BRANCH}/${VERSION}-full.bin
   cp ${MYPATH}/build/RX_FSK.ino.bin ${BRANCH}/update.ino.bin
   git add ${BRANCH}/update.ino.bin
-  # git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
+  git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
   git remote add origin-pages https://${GITHUB_API_KEY}@github.com/dl9rdz/rdz_ttgo_sonde.git > /dev/null 2>&1
