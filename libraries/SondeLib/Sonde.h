@@ -9,6 +9,38 @@
 // RX_OK: header and data ok
 enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN };
 
+// Events that change what is displayed (mode, sondenr)
+// Keys:
+// 1  Button (short)  or Touch (short)
+// 2  Button (double) or Touch (double)
+// 3  Button (mid)    or Touch (mid)
+// 4  Button (long)   or Touch (long)
+// 5  Touch1/2 (short)
+// 6  Touch1/2 (double)
+// 7  Touch1/2 (mid)
+// 8  Touch1/2 (long)
+
+/* Keypress => Sonde++ / Sonde-- / Display:=N*/
+enum Events { EVT_NONE, EVT_KEY1SHORT, EVT_KEY1DOUBLE, EVT_KEY1MID, EVT_KEY1LONG,
+                        EVT_KEY2SHORT, EVT_KEY2DOUBLE, EVT_KEY2MID, EVT_KEY2LONG,
+                        EVT_VIEWTO, EVT_RXTO, EVT_NORXTO,
+              EVT_MAX };
+extern const char *evstring[];
+#define EVENTNAME(s) evstring[s]
+
+//int8_t actions[EVT_MAX];
+#define ACT_NONE -1
+#define ACT_DISPLAY(n) (n)
+#define ACT_DISPLAY_DEFAULT 15
+#define ACT_DISPLAY_SPECTRUM 14
+#define ACT_DISPLAY_WIFI 13
+#define ACT_NEXTSONDE 65
+#define ACT_PREVSONDE 64
+
+// 0000nnnn => goto display nnnn
+// 01000000 => goto sonde -1
+// 01000001 => goto sonde +1
+
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
 extern const char *sondeTypeStr[5];
 
@@ -18,7 +50,8 @@ struct st_rs41config {
 };
 
 typedef struct st_rdzconfig {
-	int button_pin;			// PIN port number menu button (for some boards)
+	int button_pin;			// PIN port number menu button (+128 for touch mode)
+	int button2_pin;		// PIN port number menu button (+128 for touch mode)
 	int led_pout;			// POUT port number of LED (used as serial monitor)
 	int oled_sda;			// OLED data pin
 	int oled_scl;			// OLED clock pin
@@ -65,9 +98,14 @@ typedef struct st_sondeinfo {
         // RSSI from receiver
         int rssi;			// signal strength
 	int32_t afc;			// afc correction value
+	// statistics
 	uint8_t rxStat[20];
+	uint32_t rxStart;    		// millis() timestamp of continuous rx start
+	uint32_t norxStart;		// millis() timestamp of continuous no rx start
+	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
+	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
 } SondeInfo;
-// rxState: 0=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1]
+// rxStat: 0=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1]
 
 
 #define MAXSONDE 99
@@ -91,6 +129,9 @@ public:
 
 	int  receiveFrame();
 	SondeInfo *si();
+
+	uint8_t timeoutEvent();
+	int updateState(int8_t event);
 
 	void updateDisplayPos();
 	void updateDisplayPos2();

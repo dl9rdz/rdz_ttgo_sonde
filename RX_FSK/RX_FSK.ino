@@ -46,14 +46,21 @@ enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 struct Button {
   uint8_t pin;
+
   uint32_t numberKeyPresses;
   KeyPress pressed;
   unsigned long press_ts;
   boolean doublepress;
+
+  bool isTouched;
+  long touchTime;
 };
-Button button1 = {0, 0, KP_NONE, 0, false};
+Button button1 = {0, 0, KP_NONE, 0, false, false, 0};
+Button button2 = {0, 0, KP_NONE, 0, false, false, 0};
 
 
+static int lastDisplay = 1;
+static int currentDisplay = 1;
 
 // Set LED GPIO
 int ledPin = 1;
@@ -117,7 +124,7 @@ void setupChannelList() {
     return;
   }
   int i = 0;
-  char launchsite[17]="                ";
+  char launchsite[17] = "                ";
   sonde.clearSonde();
   Serial.println("Reading channel config:");
   while (file.available()) {
@@ -143,8 +150,8 @@ void setupChannelList() {
     int active = space[3] == '+' ? 1 : 0;
     if (space[4] == ' ') {
       memset(launchsite, ' ', 16);
-      int str_len = strlen(space+5);
-      strncpy(launchsite, space+5, str_len>16?16:str_len);
+      int str_len = strlen(space + 5);
+      strncpy(launchsite, space + 5, str_len > 16 ? 16 : str_len);
       if (sonde.config.debug == 1) {
         Serial.printf("Add %f - sondetype: %d (on/off: %d) - site #%d - name: %s\n ", freq, type, active, i, launchsite);
       }
@@ -367,7 +374,7 @@ struct st_configitems config_list[] = {
   /* General config settings */
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
-  {"maxsonde", "Maxsonde (requires reboot?)", 0, &sonde.config.maxsonde},
+  {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
   {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
   {"---", "---", -1, NULL},
   /* Spectrum display settings */
@@ -407,6 +414,7 @@ struct st_configitems config_list[] = {
   {"oled_scl", "OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
   {"oled_rst", "OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
   {"button_pin", "Button input port (needs reboot)", 0, &sonde.config.button_pin},
+  {"button2_pin", "Button 2 input port (needs reboot)", 0, &sonde.config.button2_pin},
   {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -489,16 +497,20 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
     f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
   }
   f.close();
+  currentDisplay = sonde.config.display;
   setupConfigData();
 }
 
-const char *ctrlid[] = {"rx", "scan", "spec", "wifi"};
-const char *ctrllabel[] = {"Receiver (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)"};
+const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2"};
+
+const char *ctrllabel[] = {"Receiver (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)",
+                           "Button 2 (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)"
+                          };
+
 const char *createControlForm() {
   char *ptr = message;
-  char tmp[4];
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"control.html\" method=\"post\">");
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 8; i++) {
     strcat(ptr, "<input type=\"submit\" name=\"");
     strcat(ptr, ctrlid[i]);
     strcat(ptr, "\" value=\"");
@@ -532,6 +544,22 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
       Serial.println("equals wifi");
       button1.pressed = KP_LONG;
     }
+    else if (param.equals("rx2")) {
+      Serial.println("equals rx2");
+      button2.pressed = KP_SHORT;
+    }
+    else if (param.equals("scan2")) {
+      Serial.println("equals scan2");
+      button2.pressed = KP_DOUBLE;
+    }
+    else if (param.equals("spec2")) {
+      Serial.println("equals spec2");
+      button2.pressed = KP_MID;
+    }
+    else if (param.equals("wifi2")) {
+      Serial.println("equals wifi2");
+      button2.pressed = KP_LONG;
+    }
   }
 }
 
@@ -562,10 +590,10 @@ const char *createEditForm(String filename) {
 const char *handleEditPost(AsyncWebServerRequest *request) {
   Serial.println("Handling post request");
   AsyncWebParameter *filep = request->getParam("file");
-  if(!filep) return NULL;
+  if (!filep) return NULL;
   String filename = filep->value();
   AsyncWebParameter *textp = request->getParam("text", true);
-  if(!textp) return NULL;
+  if (!textp) return NULL;
   String content = textp->value();
   File file = SPIFFS.open("/" + filename, "w");
   if (!file) {
@@ -733,56 +761,106 @@ const char *fetchWifiPw(const char *id) {
   return NULL;
 }
 
-static bool isTouched = false;
-long touchTime = 0;
-hw_timer_t * timer = NULL;
+// It is not safe to call millis() in ISR!!!
+// millis() does a division int16_t by 1000 for which gcc creates a library call
+// on a 32bit system, and the called function has no IRAM_ATTR
+// so doing it manually...
+// Code adapted for 64 bits from https://www.hackersdelight.org/divcMore.pdf
+int64_t IRAM_ATTR divs10(int64_t n) {
+  int64_t q, r;
+  n = n + (n >> 63 & 9);
+  q = (n >> 1) + (n >> 2);
+  q = q + (q >> 4);
+  q = q + (q >> 8);
+  q = q + (q >> 16);
+  q = q + (q >> 32);
+  q = q >> 3;
+  r = n - q * 10;
+  return q + ((r + 6) >> 4);
+  // return q + (r > 9);
+}
+
+int64_t IRAM_ATTR divs1000(int64_t n) {
+  return divs10(divs10(divs10(n)));
+}
+
+unsigned long IRAM_ATTR my_millis()
+{
+  return divs1000(esp_timer_get_time());
+}
 
 void checkTouchStatus();
 void touchISR();
+void touchISR2();
 
+#define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
-#if 1
-  timer = timerBegin(0, 80, true);
+  if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttongs configured
+
+  hw_timer_t *timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, checkTouchStatus, true);
   timerAlarmWrite(timer, 300000, true);
   timerAlarmEnable(timer);
-  touchAttachInterrupt(T4, touchISR, 20);
-#endif
-}
-
-void IRAM_ATTR touchISR() {
-  if (!isTouched) {
-    touchTime = millis();
-    isTouched = true;
+  if ( IS_TOUCH(sonde.config.button_pin) ) {
+    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 20);
+    Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
+  }
+  if ( IS_TOUCH(sonde.config.button2_pin) ) {
+    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, 20);
+    Serial.printf("Initializing touch 2 on pin %d\n", sonde.config.button2_pin & 0x7f);
   }
 }
 
-void IRAM_ATTR checkTouchStatus() {
-  if (isTouched) {
-    if (touchRead(T4) > 60) {
-      isTouched = false;
+void IRAM_ATTR touchISR() {
+  if (!button1.isTouched) {
+    button1.touchTime = my_millis();
+    button1.isTouched = true;
+  }
+}
+
+void IRAM_ATTR touchISR2() {
+  if (!button2.isTouched) {
+    button2.touchTime = my_millis();
+    button2.isTouched = true;
+  }
+}
+
+inline void IRAM_ATTR checkTouchButton(Button &button) {
+  if (button.isTouched) {
+    int tmp = touchRead(button.pin & 0x7f);
+    // bad idea within ISR: Serial.printf("touchRead on pin %d is %d\n", button.pin, tmp);
+    if (tmp > 60) {
+      button.isTouched = false;
       // simulate key press
-      button1.pressed = KP_SHORT;
+      button.pressed = KP_SHORT;
     } else {
-      if (millis() - touchTime > 3000) {
+      if (my_millis() - button.touchTime > 3000) {
         // long touch
-        // ginore for now
+        // ignore for now
       }
     }
   }
 }
 
+void IRAM_ATTR checkTouchStatus() {
+  checkTouchButton(button1);
+  checkTouchButton(button2);
+}
+
+
+
 void IRAM_ATTR buttonISR() {
+  unsigned long now = my_millis();
   if (digitalRead(button1.pin) == 0) { // Button down
-    if (millis() - button1.press_ts < 500) {
+    if (now - button1.press_ts < 500) {
       // Double press
       button1.doublepress = true;
     } else {
       button1.doublepress = false;
     }
-    button1.press_ts = millis();
+    button1.press_ts = now;
   } else { //Button up
-    unsigned int elapsed = millis() - button1.press_ts;
+    unsigned int elapsed = now - button1.press_ts;
     if (elapsed > 1500) {
       if (elapsed < 4000) {
         button1.pressed = KP_MID;
@@ -795,17 +873,36 @@ void IRAM_ATTR buttonISR() {
       else button1.pressed = KP_SHORT;
     }
     button1.numberKeyPresses += 1;
-    button1.press_ts = millis();
+    button1.press_ts = now;
   }
 }
 
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
+  Serial.printf("button1 press: %d at %ld (%d)\n", p, button1.press_ts, button1.numberKeyPresses);
+  return p;
+}
+
+int getKey2Press() {
+  KeyPress p = button2.pressed;
+  button2.pressed = KP_NONE;
+  Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.press_ts, button2.numberKeyPresses);
   return p;
 }
 int hasKeyPress() {
-  return button1.pressed;
+  return button1.pressed || button2.pressed;
+}
+int getKeyPressEvent() {
+  int p = getKeyPress();
+  if (p == KP_NONE) {
+    p = getKey2Press();
+    if (p == KP_NONE) 
+      return EVT_NONE;
+    return p+4;
+  }
+  return p;  /* map KP_x to EVT_KEY1_x */
+  /* TODO: map touch event and second button */
 }
 
 void setup()
@@ -819,7 +916,6 @@ void setup()
   }
   Serial.println("");
   pinMode(LORA_LED, OUTPUT);
-  initTouch();
 
   aprs_gencrctab();
 
@@ -831,6 +927,7 @@ void setup()
 
   setupConfigData();    // configuration must be read first due to OLED ports!!!
   LORA_LED = sonde.config.led_pout;
+  initTouch();
 
   u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
   u8x8->begin();
@@ -850,7 +947,11 @@ void setup()
 
   setupWifiList();
   button1.pin = sonde.config.button_pin;
-  pinMode(button1.pin, INPUT);
+  button2.pin = sonde.config.button2_pin;
+  if (button1.pin != 0xff)
+    pinMode(button1.pin, INPUT);  // configure as input if not disabled
+  if (button2.pin != 0xff)
+    pinMode(button2.pin, INPUT);  // configure as input if not disabled
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
@@ -925,7 +1026,10 @@ void setup()
   //   xTaskCreate(mainloop, "MainServer", 10240, NULL, 10, NULL);
 
   // Handle button press
-  attachInterrupt(button1.pin, buttonISR, CHANGE);
+  if ( (button1.pin & 0x80) == 0) {
+    attachInterrupt( button1.pin, buttonISR, CHANGE);
+    Serial.printf("button1.pin is %d, attaching interrupt\n", button1.pin);
+  }
 
   // == setup default channel list if qrg.txt read fails =========== //
   setupChannelList();
@@ -948,6 +1052,10 @@ void setup()
 
 void enterMode(int mode) {
   Serial.printf("enterMode(%d)\n", mode);
+  if (mode == ST_SCANNER) {
+    mode = ST_DECODER;
+    currentDisplay = 0;
+  }
   mainState = (MainState)mode;
   if (mainState == ST_SPECTRUM) {
     sonde.clearDisplay();
@@ -959,6 +1067,7 @@ void enterMode(int mode) {
 }
 
 void loopDecoder() {
+#if 0
   switch (getKeyPress()) {
     case KP_SHORT:
       sonde.nextConfig();
@@ -966,7 +1075,8 @@ void loopDecoder() {
       sonde.updateDisplay();
       break;
     case KP_DOUBLE:
-      enterMode(ST_SCANNER);
+      //enterMode(ST_SCANNER);
+      currentDisplay = 0;
       return;
     case KP_MID:
       enterMode(ST_SPECTRUM);
@@ -975,10 +1085,25 @@ void loopDecoder() {
       enterMode(ST_WIFISCAN);
       return;
   }
+#endif
+  // Handle events that change display or sonde
+  uint8_t event = getKeyPressEvent();
+  if (!event) event = sonde.timeoutEvent();
+  // Check if there is an action for this event
+  int action = disp.layout->actions[event];
+  Serial.printf("Loop: action is %d for event %s(%d)\n", action, EVENTNAME(event), event);
+  action = sonde.updateState(action);
+  Serial.printf("action is %d after updateState\n", action);
+  if (action >= 0) {
+    if (action == ACT_DISPLAY_SPECTRUM) enterMode(ST_SPECTRUM);
+    else if (action == ACT_DISPLAY_WIFI) enterMode(ST_WIFISCAN);
+    return;
+  }
+
   // sonde knows the current type and frequency, and delegates to the right decoder
   int res = sonde.receiveFrame();
 
-  if (res == 0 && connected) {
+  if (0 && res == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     if (sonde.si()->validID && (sonde.si()->validPos & 0x03 == 0x03)) {
@@ -994,9 +1119,12 @@ void loopDecoder() {
       udp.endPacket();
     }
   }
+  // Handle events (keypress and timeouts)
   sonde.updateDisplay();
 }
 
+#if 0
+// now handled by loopDecoder in display mode 0
 #define SCAN_MAXTRIES 1
 void loopScanner() {
   sonde.updateDisplayScanner();
@@ -1026,7 +1154,7 @@ void loopScanner() {
     tries = 0;
   }
 }
-
+#endif
 
 void loopSpectrum() {
   int marker = 0;
@@ -1302,7 +1430,7 @@ void startAP() {
   String myIPstr = myIP.toString();
   sonde.setIP(myIPstr.c_str(), true);
   sonde.updateDisplayIP();
-  SetupAsyncServer();
+  enableNetwork(true);
 }
 
 void initialMode() {
@@ -1597,21 +1725,17 @@ void execOTA() {
 }
 
 
-static int lastDisplay = 1;
 
 void loop() {
-  Serial.print("Running main loop. free heap:");
-  Serial.println(ESP.getFreeHeap());
-  //Serial.println(touchRead(13));
-  //Serial.println(touchRead(4));
+  Serial.printf("Running main loop in state %d. free heap: %d;\n ", mainState, ESP.getFreeHeap());
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
-    case ST_SCANNER: loopScanner(); break;
+    // handled by decoder now ...... case ST_SCANNER: loopScanner(); break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
   }
-#if 1
+#if 0
   int rssi = sx1278.getRSSI();
   Serial.print("  RSSI: ");
   Serial.print(rssi);
@@ -1621,9 +1745,10 @@ void loop() {
                Serial.println(gain);
 #endif
   loopWifiBackground();
-  if (sonde.config.display != lastDisplay && (mainState == ST_DECODER)) {
+  if (currentDisplay != lastDisplay && (mainState == ST_DECODER)) {
+    disp.setLayout(currentDisplay);
     sonde.clearDisplay();
     sonde.updateDisplay();
-    lastDisplay = sonde.config.display;
+    lastDisplay = currentDisplay;
   }
 }

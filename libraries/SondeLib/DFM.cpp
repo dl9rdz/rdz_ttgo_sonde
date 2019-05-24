@@ -16,7 +16,7 @@ int DFM::setup(int inv)
 {
 	inverse = inv;
 #if DFM_DEBUG
-	Serial.println("Setup sx1278 for DFM sonde");
+	Serial.printf("Setup sx1278 for DFM sonde (inv=%d)\n",inv);
 #endif
 	if(sx1278.ON()!=0) {
 		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
@@ -275,7 +275,8 @@ int DFM::receiveFrame() {
 	int e = sx1278.receivePacketTimeout(1000, data);
 	if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
-	if(inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
+	Serial.printf("inverse is %d\b", inverse);
+	if(!inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
 	deinterleave(data+20, 13, hamming_dat2);

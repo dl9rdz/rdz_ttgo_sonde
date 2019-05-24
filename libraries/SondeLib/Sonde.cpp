@@ -11,9 +11,12 @@ extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
 //SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
+const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KEY2D", "KEY2M", "KEY2L",
+                               "VIEWTO", "RXTO", "NORXTO", "(max)"};
 
 Sonde::Sonde() {
 	config.button_pin = 0;
+	config.button2_pin = T4 + 128;     // T4 == GPIO13, should be ok for v1 and v2
 	config.led_pout = 9;	
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
@@ -40,7 +43,6 @@ Sonde::Sonde() {
 	config.spectrum=10;
 	config.timer=0;
 	config.marker=0;
-	config.norx_timeout=0;
 	config.showafc=0;
 	config.freqofs=0;
 	config.rs41.agcbw=25000;
@@ -79,6 +81,8 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.passcode, val, 9);
 	} else if(strcmp(cfg,"button_pin")==0) {
 		config.button_pin = atoi(val);
+	} else if(strcmp(cfg,"button2_pin")==0) {
+		config.button2_pin = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
 		config.led_pout = atoi(val);		
 	} else if(strcmp(cfg,"oled_sda")==0) {
@@ -109,8 +113,6 @@ void Sonde::setConfig(const char *cfg) {
 		config.timer = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
-	} else if(strcmp(cfg,"norx_timeout")==0) {
-		config.norx_timeout = atoi(val);					
 	} else if(strcmp(cfg,"showafc")==0) {
 		config.showafc = atoi(val);
 	} else if(strcmp(cfg,"freqofs")==0) {
@@ -191,6 +193,8 @@ SondeInfo *Sonde::si() {
 
 void Sonde::setup() {
 	// Test only: setIP("123.456.789.012");
+	sondeList[currentSonde].lastState = -1;
+	sondeList[currentSonde].viewStart = millis();
 	// update receiver config: TODO
 	Serial.print("Setting up receiver on channel ");
 	Serial.println(currentSonde);
@@ -220,7 +224,70 @@ int Sonde::receiveFrame() {
 	}
 	memmove(sonde.si()->rxStat+1, sonde.si()->rxStat, 17);
 	sonde.si()->rxStat[0] = ret;
+	if(ret==0) {
+		if(sonde.si()->lastState != 1) {
+			sonde.si()->rxStart = millis();
+			sonde.si()->lastState = 1;
+		}
+	} else {
+		if(sonde.si()->lastState != 0) {
+			sonde.si()->norxStart = millis();
+			sonde.si()->lastState = 0;
+		}
+	}
 	return ret;  // 0: OK, 1: Timeuot, 2: Other error, 3: unknown
+}
+
+uint8_t Sonde::timeoutEvent() {
+	uint32_t now = millis();
+	Serial.printf("Timeout check: %ld - %ld vs %ld; %ld - %ld vs %ld; %ld - %ld vs %ld\n",
+		now, sonde.si()->viewStart, disp.layout->timeouts[0],
+		now, sonde.si()->rxStart, disp.layout->timeouts[1],
+		now, sonde.si()->norxStart, disp.layout->timeouts[2]);
+	Serial.printf("lastState is %d\n", sonde.si()->lastState);
+	if(disp.layout->timeouts[0]>=0 && now - sonde.si()->viewStart >= disp.layout->timeouts[0]) {
+		Serial.println("View timeout");
+		return EVT_VIEWTO;
+	}
+	if(sonde.si()->lastState==1 && disp.layout->timeouts[1]>=0 && now - sonde.si()->rxStart >= disp.layout->timeouts[1]) {
+		Serial.println("RX timeout");
+		return EVT_RXTO;
+	}
+	if(sonde.si()->lastState==0 && disp.layout->timeouts[2]>=0 && now - sonde.si()->norxStart >= disp.layout->timeouts[2]) {
+		Serial.println("No RX timeout");
+		return EVT_NORXTO;
+	}
+	return 0;
+}
+
+int Sonde::updateState(int8_t event) {
+	Serial.printf("Sonde::updateState for event %d\n", event);
+	if(event==ACT_NONE) return -1;
+	if(event==ACT_NEXTSONDE) {
+		Serial.printf("advancing to next sonde\n");
+		sonde.nextConfig();
+		return -1;
+	}
+	if (event==ACT_PREVSONDE) {
+		// TODO
+		Serial.printf("previous not supported, advancing to next sonde\n");
+		sonde.nextConfig();
+		return -1;
+	}
+	if (event==ACT_DISPLAY_SPECTRUM || event==ACT_DISPLAY_WIFI) {
+		return event;
+	}
+	int n = event;
+	if(event==ACT_DISPLAY_DEFAULT) {
+		n = config.display;
+	}
+	if(n>=0&&n<4) {
+		disp.setLayout(n);
+		clearDisplay();
+		updateDisplay();
+	}		
+	// TODO: change display to n
+	return -1;
 }
 
 void Sonde::updateDisplayPos() {

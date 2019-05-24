@@ -14,12 +14,19 @@ struct DispEntry {
 	const char *extra;
 };
 
+struct DispInfo {
+        DispEntry *de;
+        int8_t *actions;
+        int16_t *timeouts;
+};
+
 
 class Display {
 private:
-	DispEntry *layout;
-	void setLayout(DispEntry *layout);
 public:
+	void setLayout(DispInfo *layout);
+	DispInfo *layout;
+
 	Display();
 	static char buf[17];
 	static void drawLat(DispEntry *de);

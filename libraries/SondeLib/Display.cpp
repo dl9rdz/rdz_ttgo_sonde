@@ -52,6 +52,12 @@ static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 
 #define SETFONT(large) u8x8->setFont((large)?u8x8_font_7x14_1x2_r:u8x8_font_chroma48medium8_r);
 
+/* Description of display layouts.
+ * for each display, the content is described by a DispEntry structure
+ * timeout values are in milliseconds, for view activ, rx signal present, no rx signal present
+ * for each displey, actions (switching to different sonde or different view) can be defined
+ * based on key presses or on expired timeouts
+ */
 DispEntry searchLayout[] = {
 	{0, 0, FONT_LARGE, disp.drawText, "Scan:"},
 	{0, 8, FONT_LARGE, disp.drawType},
@@ -60,6 +66,12 @@ DispEntry searchLayout[] = {
 	{7, 5, 0, disp.drawIP},	
 	{-1, -1, -1, NULL},
 };
+int16_t searchTimeouts[] = { -1, 0, 0 };
+int8_t searchActions[] = {
+	ACT_NONE,
+	ACT_DISPLAY_DEFAULT, ACT_NONE, ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
+	ACT_NONE, ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_NONE, ACT_DISPLAY_DEFAULT, ACT_NEXTSONDE};
 DispEntry legacyLayout[] = {
 	{0, 5, FONT_SMALL, disp.drawFreq, " MHz"},
 	{1, 8, FONT_SMALL, disp.drawAFC},
@@ -74,6 +86,12 @@ DispEntry legacyLayout[] = {
 	{6, 7, 0, disp.drawQS},
 	{-1, -1, -1, NULL},
 };
+int16_t legacyTimeouts[] = { -1, -1, 20000 };
+int8_t legacyActions[] = {
+	ACT_NONE,
+	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
+	ACT_DISPLAY(2), ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
 DispEntry fieldLayout[] = {
 	{2, 0, FONT_LARGE, disp.drawLat},
 	{4, 0, FONT_LARGE, disp.drawLon},
@@ -84,7 +102,12 @@ DispEntry fieldLayout[] = {
 	{6, 7, 0, disp.drawQS},
 	{-1, -1, -1, NULL},
 };
-DispEntry fieldLayout2[] = {
+int8_t fieldActions[] = {
+	ACT_NONE,
+	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
+	ACT_DISPLAY(3), ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
+DispEntry field2Layout[] = {
 	{2, 0, FONT_LARGE, disp.drawLat},
 	{4, 0, FONT_LARGE, disp.drawLon},
 	{1, 12, FONT_SMALL, disp.drawType},
@@ -96,21 +119,26 @@ DispEntry fieldLayout2[] = {
 	{6, 7, 0, disp.drawQS},
 	{-1, -1, -1, NULL},
 };
+int8_t field2Actions[] = {
+	ACT_NONE,
+	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
+	ACT_DISPLAY(1), ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
 
-DispEntry *layouts[]={searchLayout, legacyLayout, fieldLayout, fieldLayout2};
+DispInfo layouts[4] = {
+  { searchLayout, searchActions, searchTimeouts },
+  { legacyLayout, legacyActions, legacyTimeouts },
+  { fieldLayout, fieldActions, legacyTimeouts },
+  { field2Layout, field2Actions, legacyTimeouts } };
 
 char Display::buf[17];
 
 Display::Display() {
-	setLayout(legacyLayout);
-}
-
-void Display::setLayout(DispEntry *newLayout) {
-	layout = newLayout;
+	setLayout(1);
 }
 
 void Display::setLayout(int layoutIdx) {
-	layout = layouts[layoutIdx];
+	layout = &layouts[layoutIdx];
 }
 
 void Display::drawLat(DispEntry *de) {
@@ -245,44 +273,44 @@ void Display::setIP(const char *ip, bool AP) {
 
 
 void Display::updateDisplayPos() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawLat && di->func != disp.drawLon) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayPos2() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawAlt && di->func != disp.drawHS && di->func != disp.drawVS) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayID() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawID) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayRSSI() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawRSSI) continue;
 		di->func(di);
 	}
 }
 void Display::updateStat() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawQS) continue;
 		di->func(di);
 	}
 }
 
 void Display::updateDisplayRXConfig() {
-       for(DispEntry *di=layout; di->func != NULL; di++) {
+       for(DispEntry *di=layout->de; di->func != NULL; di++) {
                 if(di->func != disp.drawQS && di->func != disp.drawAFC) continue;
                 di->func(di);
         }
 }
 void Display::updateDisplayIP() {
-       for(DispEntry *di=layout; di->func != NULL; di++) {
+       for(DispEntry *di=layout->de; di->func != NULL; di++) {
                 if(di->func != disp.drawIP) continue;
 		Serial.printf("updateDisplayIP: %d %d\n",di->x, di->y);
                 di->func(di);
@@ -290,7 +318,7 @@ void Display::updateDisplayIP() {
 }
 
 void Display::updateDisplay() {
-	for(DispEntry *di=layout; di->func != NULL; di++) {
+	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		di->func(di);
 	}
 }
