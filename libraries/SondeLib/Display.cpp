@@ -84,6 +84,7 @@ DispEntry legacyLayout[] = {
 	{4, 9, FONT_SMALL, disp.drawVS},
 	{6, 0, FONT_LARGE, disp.drawRSSI},
 	{6, 7, 0, disp.drawQS},
+	{7, 5, 0, disp.drawIP},	
 	{-1, -1, -1, NULL},
 };
 int16_t legacyTimeouts[] = { -1, -1, 20000 };

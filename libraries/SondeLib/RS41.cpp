@@ -5,7 +5,7 @@
 #include "rsc.h"
 #include "Sonde.h"
 
-#define RS41_DEBUG 1
+#define RS41_DEBUG 0
 
 #if RS41_DEBUG
 #define RS41_DBG(x) x
@@ -131,7 +131,9 @@ int RS41::setup()
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
+#if RS41_DEBUG
 	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
+#endif
 	return 0;
 }
 

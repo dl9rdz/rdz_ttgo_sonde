@@ -52,6 +52,7 @@ struct st_rs41config {
 typedef struct st_rdzconfig {
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
+	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
 	int oled_sda;			// OLED data pin
 	int oled_scl;			// OLED clock pin

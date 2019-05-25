@@ -17,6 +17,7 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 Sonde::Sonde() {
 	config.button_pin = 0;
 	config.button2_pin = T4 + 128;     // T4 == GPIO13, should be ok for v1 and v2
+	config.touch_thresh = 60;
 	config.led_pout = 9;	
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
@@ -83,6 +84,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.button_pin = atoi(val);
 	} else if(strcmp(cfg,"button2_pin")==0) {
 		config.button2_pin = atoi(val);
+	} else if(strcmp(cfg,"touch_thresh")==0) {
+		config.touch_thresh = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
 		config.led_pout = atoi(val);		
 	} else if(strcmp(cfg,"oled_sda")==0) {
@@ -195,8 +198,8 @@ void Sonde::setup() {
 	// Test only: setIP("123.456.789.012");
 	sondeList[currentSonde].lastState = -1;
 	sondeList[currentSonde].viewStart = millis();
-	// update receiver config: TODO
-	Serial.print("Setting up receiver on channel ");
+	// update receiver config
+	Serial.print("\nSonde::setup() on sonde index ");
 	Serial.println(currentSonde);
 	switch(sondeList[currentSonde].type) {
 	case STYPE_RS41:
@@ -240,21 +243,23 @@ int Sonde::receiveFrame() {
 
 uint8_t Sonde::timeoutEvent() {
 	uint32_t now = millis();
+#if 0
 	Serial.printf("Timeout check: %ld - %ld vs %ld; %ld - %ld vs %ld; %ld - %ld vs %ld\n",
 		now, sonde.si()->viewStart, disp.layout->timeouts[0],
 		now, sonde.si()->rxStart, disp.layout->timeouts[1],
 		now, sonde.si()->norxStart, disp.layout->timeouts[2]);
+#endif
 	Serial.printf("lastState is %d\n", sonde.si()->lastState);
 	if(disp.layout->timeouts[0]>=0 && now - sonde.si()->viewStart >= disp.layout->timeouts[0]) {
-		Serial.println("View timeout");
+		Serial.println("View timer expired");
 		return EVT_VIEWTO;
 	}
 	if(sonde.si()->lastState==1 && disp.layout->timeouts[1]>=0 && now - sonde.si()->rxStart >= disp.layout->timeouts[1]) {
-		Serial.println("RX timeout");
+		Serial.println("RX timer expired");
 		return EVT_RXTO;
 	}
 	if(sonde.si()->lastState==0 && disp.layout->timeouts[2]>=0 && now - sonde.si()->norxStart >= disp.layout->timeouts[2]) {
-		Serial.println("No RX timeout");
+		Serial.println("NORX timer expired");
 		return EVT_NORXTO;
 	}
 	return 0;

@@ -46,17 +46,14 @@ enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 struct Button {
   uint8_t pin;
-
   uint32_t numberKeyPresses;
   KeyPress pressed;
-  unsigned long press_ts;
-  boolean doublepress;
-
+  unsigned long keydowTime;
+  bool doublepress;
   bool isTouched;
-  long touchTime;
 };
-Button button1 = {0, 0, KP_NONE, 0, false, false, 0};
-Button button2 = {0, 0, KP_NONE, 0, false, false, 0};
+Button button1 = {0, 0, KP_NONE, 0, false, false};
+Button button2 = {0, 0, KP_NONE, 0, false, false};
 
 
 static int lastDisplay = 1;
@@ -415,6 +412,7 @@ struct st_configitems config_list[] = {
   {"oled_rst", "OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
   {"button_pin", "Button input port (needs reboot)", 0, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port (needs reboot)", 0, &sonde.config.button2_pin},
+  {"touch_thresh", "Touch button threshold (needs reboot)", 0, &sonde.config.touch_thresh},
   {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -813,30 +811,41 @@ void initTouch() {
 
 void IRAM_ATTR touchISR() {
   if (!button1.isTouched) {
-    button1.touchTime = my_millis();
+    unsigned long now = my_millis();
+    if (now - button1.keydowTime < 500) button1.doublepress = true;
+    else button1.doublepress = false;
+    button1.keydowTime = now;
     button1.isTouched = true;
   }
 }
 
 void IRAM_ATTR touchISR2() {
   if (!button2.isTouched) {
-    button2.touchTime = my_millis();
+    unsigned long now = my_millis();
+    if (now - button2.keydowTime < 500) button2.doublepress = true;
+    else button2.doublepress = false;
+    button2.keydowTime = now;
     button2.isTouched = true;
   }
 }
 
-inline void IRAM_ATTR checkTouchButton(Button &button) {
+void IRAM_ATTR checkTouchButton(Button &button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
-    // bad idea within ISR: Serial.printf("touchRead on pin %d is %d\n", button.pin, tmp);
-    if (tmp > 60) {
+    if (tmp > sonde.config.touch_thresh) {
       button.isTouched = false;
-      // simulate key press
-      button.pressed = KP_SHORT;
-    } else {
-      if (my_millis() - button.touchTime > 3000) {
-        // long touch
-        // ignore for now
+      unsigned long elapsed = my_millis() - button.keydowTime;
+      if (elapsed > 1500) {
+        if (elapsed < 4000) {
+          button.pressed = KP_MID;
+        }
+        else {
+          button.pressed = KP_LONG;
+        }
+      } else if (button.doublepress) {
+        button.pressed = KP_DOUBLE;
+      } else {
+        button.pressed = KP_SHORT;
       }
     }
   }
@@ -848,19 +857,18 @@ void IRAM_ATTR checkTouchStatus() {
 }
 
 
-
 void IRAM_ATTR buttonISR() {
   unsigned long now = my_millis();
   if (digitalRead(button1.pin) == 0) { // Button down
-    if (now - button1.press_ts < 500) {
+    if (now - button1.keydowTime < 500) {
       // Double press
       button1.doublepress = true;
     } else {
       button1.doublepress = false;
     }
-    button1.press_ts = now;
+    button1.keydowTime = now;
   } else { //Button up
-    unsigned int elapsed = now - button1.press_ts;
+    unsigned int elapsed = now - button1.keydowTime;
     if (elapsed > 1500) {
       if (elapsed < 4000) {
         button1.pressed = KP_MID;
@@ -873,21 +881,21 @@ void IRAM_ATTR buttonISR() {
       else button1.pressed = KP_SHORT;
     }
     button1.numberKeyPresses += 1;
-    button1.press_ts = now;
+    button1.keydowTime = now;
   }
 }
 
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
-  Serial.printf("button1 press: %d at %ld (%d)\n", p, button1.press_ts, button1.numberKeyPresses);
+  //Serial.printf("button1 press: %d at %ld (%d)\n", p, button1.keydowTime, button1.numberKeyPresses);
   return p;
 }
 
 int getKey2Press() {
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
-  Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.press_ts, button2.numberKeyPresses);
+  //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydowTime, button2.numberKeyPresses);
   return p;
 }
 int hasKeyPress() {
@@ -897,12 +905,11 @@ int getKeyPressEvent() {
   int p = getKeyPress();
   if (p == KP_NONE) {
     p = getKey2Press();
-    if (p == KP_NONE) 
+    if (p == KP_NONE)
       return EVT_NONE;
-    return p+4;
+    return p + 4;
   }
-  return p;  /* map KP_x to EVT_KEY1_x */
-  /* TODO: map touch event and second button */
+  return p;  /* map KP_x to EVT_KEY1_x / EVT_KEY2_x*/
 }
 
 void setup()
@@ -1066,6 +1073,17 @@ void enterMode(int mode) {
   }
 }
 
+static char text[40];
+static const char *action2text(int action) {
+  if (action == ACT_DISPLAY_DEFAULT) return "Default Display";
+  if (action == ACT_DISPLAY_SPECTRUM) return "Spectrum Display";
+  if (action == ACT_DISPLAY_WIFI) return "Wifi Scan Display";
+  if (action == ACT_NEXTSONDE) return "Go to next sonde";
+  if (action == ACT_PREVSONDE) return "presonde (not implemented)";
+  if (action == ACT_NONE) return "none";
+  snprintf(text, 40, "Display=%d", action);
+  return text;
+}
 void loopDecoder() {
 #if 0
   switch (getKeyPress()) {
@@ -1091,13 +1109,14 @@ void loopDecoder() {
   if (!event) event = sonde.timeoutEvent();
   // Check if there is an action for this event
   int action = disp.layout->actions[event];
-  Serial.printf("Loop: action is %d for event %s(%d)\n", action, EVENTNAME(event), event);
-  action = sonde.updateState(action);
-  Serial.printf("action is %d after updateState\n", action);
   if (action >= 0) {
-    if (action == ACT_DISPLAY_SPECTRUM) enterMode(ST_SPECTRUM);
-    else if (action == ACT_DISPLAY_WIFI) enterMode(ST_WIFISCAN);
-    return;
+    Serial.printf("Loop: triggering action %s (%d) for event %s (%d)\n", action2text(action), action, EVENTNAME(event), event);
+    action = sonde.updateState(action);
+    if (action >= 0) {
+      if (action == ACT_DISPLAY_SPECTRUM) enterMode(ST_SPECTRUM);
+      else if (action == ACT_DISPLAY_WIFI) enterMode(ST_WIFISCAN);
+      return;
+    }
   }
 
   // sonde knows the current type and frequency, and delegates to the right decoder
@@ -1727,7 +1746,7 @@ void execOTA() {
 
 
 void loop() {
-  Serial.printf("Running main loop in state %d. free heap: %d;\n ", mainState, ESP.getFreeHeap());
+  Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
     // handled by decoder now ...... case ST_SCANNER: loopScanner(); break;
