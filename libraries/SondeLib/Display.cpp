@@ -8,7 +8,7 @@ extern Sonde sonde;
 
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
-const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41" };
+const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41", "RS92" };
 
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
@@ -103,11 +103,12 @@ DispEntry fieldLayout[] = {
 	{6, 7, 0, disp.drawQS},
 	{-1, -1, -1, NULL},
 };
+int16_t fieldTimeouts[] = { -1, -1, -1 };
 int8_t fieldActions[] = {
 	ACT_NONE,
 	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
 	ACT_DISPLAY(3), ACT_NONE, ACT_NONE, ACT_NONE,
-	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
+	ACT_NONE, ACT_NONE, ACT_NONE};
 DispEntry field2Layout[] = {
 	{2, 0, FONT_LARGE, disp.drawLat},
 	{4, 0, FONT_LARGE, disp.drawLon},
@@ -124,13 +125,13 @@ int8_t field2Actions[] = {
 	ACT_NONE,
 	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
 	ACT_DISPLAY(1), ACT_NONE, ACT_NONE, ACT_NONE,
-	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
+	ACT_NONE, ACT_NONE, ACT_NONE};
 
 DispInfo layouts[4] = {
   { searchLayout, searchActions, searchTimeouts },
   { legacyLayout, legacyActions, legacyTimeouts },
-  { fieldLayout, fieldActions, legacyTimeouts },
-  { field2Layout, field2Actions, legacyTimeouts } };
+  { fieldLayout, fieldActions, fieldTimeouts },
+  { field2Layout, field2Actions, fieldTimeouts } };
 
 char Display::buf[17];
 
