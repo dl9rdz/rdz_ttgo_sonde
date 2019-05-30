@@ -584,7 +584,7 @@ int RS92::receive() {
 int RS92::waitRXcomplete() {
 	int res=0;
         uint32_t t0 = millis();
-        while( rxtask.receiveResult < 0 && millis()-t0 < 2000) { delay(20); }
+        while( rxtask.receiveResult == 0xFFFF && millis()-t0 < 2000) { delay(20); }
 
         if( rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) {
                 res = RX_TIMEOUT;
@@ -593,7 +593,7 @@ int RS92::waitRXcomplete() {
         } else {
                 res = RX_ERROR;
         }
-        rxtask.receiveResult = -1;
+        rxtask.receiveResult = 0xFFFF;
         Serial.printf("RS92::waitRXcomplete returning %d (%s)\n", res, RXstr[res]);
         return res;
 }

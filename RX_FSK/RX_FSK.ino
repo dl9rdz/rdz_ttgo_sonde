@@ -226,6 +226,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
   Serial.println();
   delay(500);
   setupChannelList();
+  return "";
 }
 
 
@@ -318,6 +319,7 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
   }
   f.close();
   setupWifiList();
+  return "";
 }
 
 // Show current status
@@ -327,7 +329,7 @@ void addSondeStatus(char *ptr, int i)
   strcat(ptr, "<table>");
   sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n",
           s->freq, sondeTypeStr[s->type],
-          s->validID ? s->id : "<??>",
+          s->validID ? s->id : "<?""?>",
           s->lat, s->lon, s->alt);
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wx.dl2mf.de/?%s\">WX.DL2MF.de</a> - ", s->id);
@@ -439,7 +441,6 @@ void addConfigSeparatorEntry(char *ptr) {
 
 const char *createConfigForm() {
   char *ptr = message;
-  char tmp[4];
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     switch (config_list[i].type) {
@@ -466,7 +467,6 @@ const char *createConfigForm() {
 
 
 const char *handleConfigPost(AsyncWebServerRequest *request) {
-  char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
 #if 1
   File f = SPIFFS.open("/config.txt", "w");
@@ -499,6 +499,7 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   f.close();
   currentDisplay = sonde.config.display;
   setupConfigData();
+  return "";
 }
 
 const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2"};
@@ -561,6 +562,7 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
       button2.pressed = KP_LONG;
     }
   }
+  return "";
 }
 
 // bad idea. prone to buffer overflow. use at your own risk...
@@ -607,7 +609,6 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
 
 const char *createUpdateForm(boolean run) {
   char *ptr = message;
-  char tmp[4];
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
   if (run) {
     strcat(ptr, "<p>Doing update, wait until reboot</p>");
@@ -635,6 +636,7 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
   }
   Serial.println("Updating: " + *updateBin);
   enterMode(ST_UPDATE);
+  return "";
 }
 
 
@@ -1172,10 +1174,10 @@ void loopDecoder() {
 #endif
   // sonde knows the current type and frequency, and delegates to the right decoder
   int res = sonde.waitRXcomplete();
-  int action, event;
+  int action, event = 0;
   if ((res >> 8) == 0xFF) { // no implicit action returned from RXTask
     // Handle events that change display or sonde
-    uint8_t event = getKeyPressEvent();
+    event = getKeyPressEvent();
     if (!event) event = sonde.timeoutEvent();
     // Check if there is an action for this event
     Serial.printf("Event: %d\n", event);
@@ -1201,7 +1203,7 @@ void loopDecoder() {
   if (0 && res == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
-    if (sonde.si()->validID && (sonde.si()->validPos & 0x03 == 0x03)) {
+    if (sonde.si()->validID && ((sonde.si()->validPos & 0x03) == 0x03)) {
       Serial.println("Sending position via UDP");
       SondeInfo *s = sonde.si();
       char raw[201];
@@ -1309,7 +1311,7 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
     case (WIFI_AUTH_OPEN):
       return "Open";
     case (WIFI_AUTH_WEP):
-      return "WEP"; 
+      return "WEP";
     case (WIFI_AUTH_WPA_PSK):
       return "WPA_PSK";
     case (WIFI_AUTH_WPA2_PSK):
@@ -1318,6 +1320,8 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
       return "WPA_WPA2_PSK";
     case (WIFI_AUTH_WPA2_ENTERPRISE):
       return "WPA2_ENTERPRISE";
+    default:
+      return "";
   }
 }
 
@@ -1427,11 +1431,13 @@ void WiFiEvent(WiFiEvent_t event)
     case SYSTEM_EVENT_ETH_GOT_IP:
       Serial.println("Obtained IP address");
       break;
+    default:
+      break;
   }
 }
 
 
-int wifiConnect(int16_t res) {
+void wifiConnect(int16_t res) {
   Serial.printf("WLAN scan result: found %d networks\n", res);
 
   // pick best network
@@ -1570,8 +1576,6 @@ void loopWifiScan() {
 
   int line = 0;
   int cnt = 0;
-  int marker = 0;
-  char buf[5];
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_STA);

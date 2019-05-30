@@ -146,7 +146,7 @@ void Display::setLayout(int layoutIdx) {
 void Display::drawLat(DispEntry *de) {
 	SETFONT(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"<??>      ");
+	   u8x8->drawString(de->x,de->y,"<?""?>      ");
 	   return;
 	}
 	snprintf(buf, 16, "%2.5f", sonde.si()->lat);
@@ -155,7 +155,7 @@ void Display::drawLat(DispEntry *de) {
 void Display::drawLon(DispEntry *de) {
 	SETFONT(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"<??>      ");
+	   u8x8->drawString(de->x,de->y,"<?""?>      ");
 	   return;
 	}
 	snprintf(buf, 16, "%2.5f", sonde.si()->lon);

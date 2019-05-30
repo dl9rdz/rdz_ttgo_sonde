@@ -77,13 +77,13 @@ int DFM::setup(float frequency, int inv)
 }
 
 
-#define bit(value,bitpos) ((value>>(7-bitpos))&0x01)
+#define bitpick(value,bitpos) (((value)>>(7-(bitpos)))&0x01)
 // Input: str: packed data, MSB first
 void DFM::deinterleave(uint8_t *str, int L, uint8_t *block) {
 	int i, j;
 	for (j = 0; j < B; j++) {  // L = 7 (CFG), 13 (DAT1, DAT2)
 		for (i = 0; i < L; i++) {
-			block[B*i+j] = bit( str[(L*j+i)/8], (L*j+i)&7 )?0:1;
+			block[B*i+j] = bitpick( str[(L*j+i)/8], (L*j+i)&7 )?0:1;
 		}
 	}
 }

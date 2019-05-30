@@ -632,7 +632,7 @@ int get_Cal() {
 
 #include "nav_gps_vel.inc"
 
-EPHEM_t alm[33];
+//we only use ephs  EPHEM_t alm[33];
 //EPHEM_t eph[33][24];
 EPHEM_t *ephs = NULL;
 
@@ -713,6 +713,8 @@ void prn12(uint8_t *prn_le, uint8_t prns[12]) {
 
 
 int calc_satpos_alm(EPHEM_t alm[], double t, SAT_t *satp) {
+    return -1;
+#if 0
     double X, Y, Z, vX, vY, vZ;
     int j;
     int week;
@@ -754,6 +756,7 @@ int calc_satpos_alm(EPHEM_t alm[], double t, SAT_t *satp) {
     }
 
     return 0;
+#endif
 }
 
 int calc_satpos_rnx(EPHEM_t eph[][24], double t, SAT_t *satp) {
@@ -931,12 +934,12 @@ int get_pseudorange() {
 
 
     // GPS Sat Pos (& Vel)
-    if (almanac) calc_satpos_alm(  alm, gpstime/1000.0, sat);
+    //if (almanac) calc_satpos_alm(  alm, gpstime/1000.0, sat);
     if (ephem)   calc_satpos_rnx2(ephs, gpstime/1000.0, sat);
 
     // GPS Sat Pos t -= 1s
     if (option_vel == 1) {
-        if (almanac) calc_satpos_alm(  alm, gpstime/1000.0-1, sat1s);
+        //if (almanac) calc_satpos_alm(  alm, gpstime/1000.0-1, sat1s);
         if (ephem)   calc_satpos_rnx2(ephs, gpstime/1000.0-1, sat1s);
     }
 

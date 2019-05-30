@@ -8,7 +8,9 @@
 */
 #include <inttypes.h>
 
+#ifndef PI
 #define  PI  (3.1415926535897932384626433832795)
+#endif
 
 #define  RELATIVISTIC_CLOCK_CORRECTION   (-4.442807633e-10)  // combined constant defined in IS-GPS-200     [s]/[sqrt(m)]
 #define  GRAVITY_CONSTANT                (3.986005e14)       // gravity constant defined on IS-GPS-200      [m^3/s^2]
