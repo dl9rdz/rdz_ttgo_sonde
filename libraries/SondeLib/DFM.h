@@ -54,9 +54,10 @@ private:
 
 public:
 	DFM();
-	int setup(int inverse);
-	int setFrequency(float frequency);
-	int receiveFrame();
+	// main decoder API
+	int setup(float frequency, int inverse);
+	int receive();
+	int waitRXcomplete();
 
 	int use_ecc = 1;
 };

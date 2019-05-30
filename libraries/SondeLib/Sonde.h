@@ -26,6 +26,7 @@ enum Events { EVT_NONE, EVT_KEY1SHORT, EVT_KEY1DOUBLE, EVT_KEY1MID, EVT_KEY1LONG
                         EVT_VIEWTO, EVT_RXTO, EVT_NORXTO,
               EVT_MAX };
 extern const char *evstring[];
+extern const char *RXstr[];
 #define EVENTNAME(s) evstring[s]
 
 //int8_t actions[EVT_MAX];
@@ -41,8 +42,28 @@ extern const char *evstring[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41 };
+enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92 };
 extern const char *sondeTypeStr[5];
+
+// Used for interacting with the RX background task
+typedef struct st_RXTask {
+	// Variables set by Arduino main loop to value >=0 for requesting
+	// mode change in RXTask. Will be reset to -1 by RXTask
+	int activate;
+	int requestSonde;
+	// Variables set by RXTask, corresponding to activate
+	// and requestSonde
+	int mainState;
+	int currentSonde;
+	int lastSonde;
+	// Variable set by RXTask to communicate status to Arduino task
+	// via waitRXcomplete function
+	uint16_t receiveResult;
+	// status variabe set by decoder to indicate something is broken
+	int fifoOverflo;
+} RXTask;
+
+extern RXTask rxtask;
 
 struct st_rs41config {
 	int agcbw;
@@ -126,9 +147,18 @@ public:
 	void clearSonde();
 	void addSonde(float frequency, SondeType type, int active, char *launchsite);
 	void nextConfig();
-	void setup();
+	void nextRxSonde();
 
+	/* new interface */
+	void setup();
+	void receive();
+	uint16_t waitRXcomplete();
+	/* old and temp interface */
+#if 0
+	void processRXbyte(uint8_t data);
 	int  receiveFrame();
+#endif
+
 	SondeInfo *si();
 
 	uint8_t timeoutEvent();

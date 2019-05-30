@@ -46,9 +46,18 @@ private:
 
 public:
 	RS41();
-	int setup();
-	int setFrequency(float frequency);
-	int receiveFrame();
+	// New interface:
+	// setup() is called when channel is activated (sets mode and frequency and activates receiver)
+	int setup(float frequency);
+	// processRXbyte is called by background task for each received byte
+	// should be fast enough to not cause sx127x fifo buffer overflow
+    //    void processRXbyte(uint8_t data);
+	// is called approx. 1x per second, may do some post-processing of received data
+	// and update information in sonde data structure
+	// returns infomration about sucess/error (for timers and for quality bar in display)
+	int receive();
+	int waitRXcomplete();
+	//int receiveFrame();
 
 	int use_ecc = 1;
 };

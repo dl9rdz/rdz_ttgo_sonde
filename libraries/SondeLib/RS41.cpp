@@ -13,6 +13,10 @@
 #define RS41_DBG(x)
 #endif
 
+#define RS41MAXLEN (320)
+static byte data[800];
+static int dpos = 0;
+
 static uint16_t CRCTAB[256];
 
 #define X2C_DIVR(a, b) ((b) != 0.0f ? (a)/(b) : (a))
@@ -69,7 +73,7 @@ static void Gencrctab(void)
    } /* end for */
 } /* end Gencrctab() */
 
-int RS41::setup() 
+int RS41::setup(float frequency) 
 {
 #if RS41_DEBUG
 	Serial.println("Setup sx1278 for RS41 sonde");
@@ -131,16 +135,18 @@ int RS41::setup()
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
+	Serial.print("RS41: setting RX frequency to ");
+	Serial.println(frequency);
+	int retval = sx1278.setFrequency(frequency);
+	dpos = 0;
+
 #if RS41_DEBUG
 	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
 #endif
-	return 0;
-}
-
-int RS41::setFrequency(float frequency) {
-	Serial.print("RS41: setting RX frequency to ");
-	Serial.println(frequency);
-	return sx1278.setFrequency(frequency);
+	// go go go
+        sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
+        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+	return retval;
 }
 
 uint32_t RS41::bits2val(const uint8_t *bits, int len) {
@@ -454,7 +460,7 @@ static unsigned char lookup[16] = {
 0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
 0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf, };
 
-uint8_t reverse(uint8_t n) {
+static uint8_t reverse(uint8_t n) {
    return (lookup[n&0x0f] << 4) | lookup[n>>4];
 }
 
@@ -466,23 +472,33 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
                 180U,182U,6U,170U,244U,35U,120U,110U,59U,174U,191U,123U,76U,
 		193U};
 
-static byte data[800];
 
-#define RS41MAXLEN (320)
-int RS41::receiveFrame() {
-	//sx1278.setPayloadLength(518-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-	sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-
-	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+int RS41::receive() {
+	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
-	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } //if timeout... return 1
+	rxtask.lastSonde = rxtask.currentSonde;
+	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } 
 
-	for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
-	//printRaw(data, MAXLEN);
-	for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
-	//printRaw(data, MAXLEN);
-	int res = decode41(data, RS41MAXLEN);
-	return res==0 ? RX_OK : RX_ERROR;
+        for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
+        for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
+        return decode41(data, RS41MAXLEN);
+}
+
+int RS41::waitRXcomplete() {
+	int res;
+	uint32_t t0 = millis();
+	while(rxtask.receiveResult<0 && millis()-t0 < 3000) { delay(50); }
+
+	if(rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) { 
+		res = RX_TIMEOUT;
+	} else if (rxtask.receiveResult==0) {
+		res = RX_OK;
+	} else {
+		res = RX_ERROR;
+	}
+	rxtask.receiveResult = -1;
+	Serial.printf("waitRXcomplete returning %d\n", res);
+	return res;
 }
 
 RS41 rs41 = RS41();

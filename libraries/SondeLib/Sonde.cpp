@@ -3,6 +3,7 @@
 
 #include "Sonde.h"
 #include "RS41.h"
+#include "RS92.h"
 #include "DFM.h"
 #include "SX1278FSK.h"
 #include "Display.h"
@@ -10,9 +11,27 @@
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
-//SondeInfo si = { STYPE_RS41, 403.450, "P1234567", true, 48.1234, 14.9876, 543, 3.97, -0.5, true, 120 };
+RXTask rxtask = { -1, -1, -1, -1, 0 };
+
 const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KEY2D", "KEY2M", "KEY2L",
                                "VIEWTO", "RXTO", "NORXTO", "(max)"};
+
+const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
+
+/* Task model:
+ * There is a background task for all SX1278 interaction.
+ *  - On startup and on each mode/frequency change (requested by setting requestNextSonde
+ *    to an sonde index >=0) it calls Sonde::setup(), which will call the new decoder's
+ *    setup function.  Setup will update the value currentSonde.
+ *  - Periodically it calls Sonde::receive(), which calls the current decoder's receive()
+ *    function. It should return control to the SX1278 main loop at least once per second.
+ *    It will also set the internal variable receiveResult.  The decoder's receive function
+ *    must make sure that there are no FIFI overflows in the SX1278.
+ *  - the Arduino main loop will call the waitRXcomplete function, which should return as
+ *    soon as there is some new data to display, or no later than after 1s, returning the
+ *    value of receiveResult (or timeout, if receiveResult was not set within 1s). It
+ *    should also return immediately if there is some keyboard input.
+ */   
 
 Sonde::Sonde() {
 	config.button_pin = 0;
@@ -169,6 +188,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 		Serial.println("Cannot add another sonde, MAXSONDE reached");
 		return;
 	}
+	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
@@ -176,8 +196,13 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
+
+// called by updateState (only)
 void Sonde::nextConfig() {
 	currentSonde++;
+	if(currentSonde>=nSonde) {
+		currentSonde=0;
+	}
 	// Skip non-active entries (but don't loop forever if there are no active ones)
 	for(int i=0; i<config.maxsonde; i++) {
 		if(!sondeList[currentSonde].active) {
@@ -185,65 +210,138 @@ void Sonde::nextConfig() {
 			if(currentSonde>=nSonde) currentSonde=0;
 		}
 	}
-	if(currentSonde>=nSonde) {
-		currentSonde=0;
+}
+void Sonde::nextRxSonde() {
+	rxtask.currentSonde++;
+	if(rxtask.currentSonde>=nSonde) {
+		rxtask.currentSonde=0;
 	}
-	setup();
+	for(int i=0; i<config.maxsonde; i++) {
+		if(!sondeList[rxtask.currentSonde].active) {
+			rxtask.currentSonde++;
+			if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+		}
+	}
+	Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
 }
 SondeInfo *Sonde::si() {
 	return &sondeList[currentSonde];
 }
 
 void Sonde::setup() {
-	// Test only: setIP("123.456.789.012");
-	sondeList[currentSonde].lastState = -1;
-	sondeList[currentSonde].viewStart = millis();
+	if(rxtask.currentSonde<0 || rxtask.currentSonde>=config.maxsonde) {
+		Serial.print("Invalid rxtask.currentSonde: ");
+		Serial.println(rxtask.currentSonde);
+		rxtask.currentSonde = 0;
+	}
+	// TODO: maybe better done in arduino task, not in rx task
+	sondeList[rxtask.currentSonde].lastState = -1;
+	sondeList[rxtask.currentSonde].viewStart = millis();
+
 	// update receiver config
 	Serial.print("\nSonde::setup() on sonde index ");
-	Serial.println(currentSonde);
-	switch(sondeList[currentSonde].type) {
+	Serial.println(rxtask.currentSonde);
+	switch(sondeList[rxtask.currentSonde].type) {
 	case STYPE_RS41:
-		rs41.setup();
-		rs41.setFrequency(sondeList[currentSonde].freq * 1000000);
+		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_DFM06:
 	case STYPE_DFM09:
-		dfm.setup( sondeList[currentSonde].type==STYPE_DFM06?0:1 );
-		dfm.setFrequency(sondeList[currentSonde].freq * 1000000);
+		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type==STYPE_DFM06?0:1 );
 		break;
+	case STYPE_RS92:
+		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 	}
 	// debug
 	float afcbw = sx1278.getAFCBandwidth();
 	float rxbw = sx1278.getRxBandwidth();
 	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
-
 }
-int Sonde::receiveFrame() {
-	int ret;
-	if(sondeList[currentSonde].type == STYPE_RS41) {
-		ret = rs41.receiveFrame();
-	} else {
-		ret = dfm.receiveFrame();
+
+void Sonde::receive() {
+	uint16_t res;
+	SondeInfo *si = &sondeList[rxtask.currentSonde];
+	switch(si->type) {
+	case STYPE_RS41:
+		res = rs41.receive();
+		break;
+	case STYPE_RS92:
+		res = rs92.receive();
+		break;
+	case STYPE_DFM06:
+	case STYPE_DFM09:
+		res = dfm.receive();
+		break;
 	}
+
+	// state information for RX_TIMER / NORX_TIMER events
+        if(res==0) {  // RX OK
+                if(si->lastState != 1) {
+                        si->rxStart = millis();
+                        si->lastState = 1;
+                }
+        } else { // RX not ok
+                if(si->lastState != 0) {
+                        si->norxStart = millis();
+                        si->lastState = 0;
+                }
+        }
+
+
+	// we should handle timer events here, because after returning from receive,
+	// we'll directly enter setup
+	int event = timeoutEvent();
+	int action = disp.layout->actions[event];
+	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE) {
+		// handled here...
+		nextRxSonde();
+		rxtask.requestSonde = rxtask.currentSonde;
+		res = 0xFF00 | res;
+	} else {
+		res = (action<<8) | res;
+	}
+	// let waitRXcomplete resume...
+	rxtask.receiveResult = res;
+}
+
+// return (action<<8) | (rxresult)
+uint16_t Sonde::waitRXcomplete() {
+	uint16_t res=0;
+        uint32_t t0 = millis();
+        while( rxtask.receiveResult==0xFFFF && millis()-t0 < 2000) { delay(50); }
+
+	if( rxtask.receiveResult==0xFFFF) {
+		res = RX_TIMEOUT;
+	} else {
+		res = rxtask.receiveResult;
+	}
+        rxtask.receiveResult = 0xFFFF;
+        Serial.printf("waitRXcomplete returning %04x (%s)\n", res, RXstr[res&0xff]);
+#if 0
+//currently not used...
+{
+	int res;
+	switch(sondeList[rxtask.currentSonde].type) {
+	case STYPE_RS41:
+		res = rs41.waitRXcomplete();
+		break;
+	case STYPE_RS92:
+		res = rs92.waitRXcomplete();
+		break;
+	case STYPE_DFM06:
+	case STYPE_DFM09:
+		res = dfm.waitRXcomplete();
+		break;
+	}
+#endif
 	memmove(sonde.si()->rxStat+1, sonde.si()->rxStat, 17);
-	sonde.si()->rxStat[0] = ret;
-	if(ret==0) {
-		if(sonde.si()->lastState != 1) {
-			sonde.si()->rxStart = millis();
-			sonde.si()->lastState = 1;
-		}
-	} else {
-		if(sonde.si()->lastState != 0) {
-			sonde.si()->norxStart = millis();
-			sonde.si()->lastState = 0;
-		}
-	}
-	return ret;  // 0: OK, 1: Timeuot, 2: Other error, 3: unknown
+        sonde.si()->rxStat[0] = res;
+	return res;
 }
 
 uint8_t Sonde::timeoutEvent() {
 	uint32_t now = millis();
-#if 0
+#if 1
 	Serial.printf("Timeout check: %ld - %ld vs %ld; %ld - %ld vs %ld; %ld - %ld vs %ld\n",
 		now, sonde.si()->viewStart, disp.layout->timeouts[0],
 		now, sonde.si()->rxStart, disp.layout->timeouts[1],
@@ -269,15 +367,15 @@ int Sonde::updateState(int8_t event) {
 	Serial.printf("Sonde::updateState for event %d\n", event);
 	if(event==ACT_NONE) return -1;
 	if(event==ACT_NEXTSONDE) {
-		Serial.printf("advancing to next sonde\n");
 		sonde.nextConfig();
-		return -1;
+		Serial.printf("advancing to next sonde %d\n", sonde.currentSonde);
+		return event;
 	}
 	if (event==ACT_PREVSONDE) {
 		// TODO
 		Serial.printf("previous not supported, advancing to next sonde\n");
 		sonde.nextConfig();
-		return -1;
+		return ACT_NEXTSONDE;
 	}
 	if (event==ACT_DISPLAY_SPECTRUM || event==ACT_DISPLAY_WIFI) {
 		return event;
@@ -290,8 +388,8 @@ int Sonde::updateState(int8_t event) {
 		disp.setLayout(n);
 		clearDisplay();
 		updateDisplay();
+		return ACT_NEXTSONDE;
 	}		
-	// TODO: change display to n
 	return -1;
 }
 

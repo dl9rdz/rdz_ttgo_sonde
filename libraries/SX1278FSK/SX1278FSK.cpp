@@ -711,7 +711,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	value = readRegister(REG_IRQ_FLAGS2);
 	byte ready=0;
 	// while not yet done or FIFO not yet empty
-	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) &&(!hasKeyPress()) )
+	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) )
 	{
 		if( bitRead(value,2)==1 ) ready=1;
 		if( bitRead(value, 6) == 0 ) { // FIFO not empty
@@ -732,6 +732,8 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 				break;
 			}
 			previous = millis(); // reset timeout after receiving data
+		} else {
+			delay(10);
 		}
 		value = readRegister(REG_IRQ_FLAGS2);
 	}

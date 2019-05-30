@@ -24,7 +24,7 @@ U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after readin
 int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
-enum MainState { ST_DECODER, ST_SCANNER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
+enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
@@ -91,7 +91,7 @@ String processor(const String& var) {
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 4; i++) {
     sts += "<option value=\"";
     sts += sondeTypeStr[i];
     sts += "\"";
@@ -136,6 +136,8 @@ void setupChannelList() {
     SondeType type;
     if (space[1] == '4') {
       type = STYPE_RS41;
+    } else if (space[1] == 'R') {
+      type = STYPE_RS92;
     }
     else if (space[1] == '9') {
       type = STYPE_DFM09;
@@ -215,7 +217,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[3]); // Ugly TODO
+    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[3]);   // a bit ugly
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
@@ -791,6 +793,13 @@ void checkTouchStatus();
 void touchISR();
 void touchISR2();
 
+// ISR won't work for SPI transfer, so forget about the following approach
+///// Also initialized timers for sx1278 handling with interruts
+///// fastest mode currentily is 4800 bit/s, i.e. 600 bytes/sec
+///// 64 byte FIFO will last for at most about 106 ms.
+///// lets use a timer every 20ms to handle sx1278 FIFO input, that should be fine.
+// Instead create a tast...
+
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
   if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttongs configured
@@ -808,6 +817,46 @@ void initTouch() {
     Serial.printf("Initializing touch 2 on pin %d\n", sonde.config.button2_pin & 0x7f);
   }
 }
+
+void sx1278Task(void *parameter) {
+  /* new strategy:
+      background tasks handles all interactions with sx1278.
+      implementation is decoder specific.
+      This task is a simple infinit loop that
+       (a) initially and after frequency or mode change calls <decoder>.setup()
+       (b) then repeatedly calls <decoder>.receive() which should
+           (1) update data in the Sonde structure
+           (2) set an output flag (success/errors/timeout-norx)
+           (3) return to this task look after about 1s  or if some extern trigger (key) is detected
+  */
+  while (1) {
+    boolean resetup = false;
+    Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
+    // RX task state update. Check rxtask.activate and rxtask.requestSonde
+    if (rxtask.activate >= 0) {
+      rxtask.mainState = rxtask.activate;
+      rxtask.activate = -1;
+      resetup = true;
+    }
+    if (rxtask.requestSonde >= 0) {
+      resetup = true;
+      rxtask.currentSonde = rxtask.requestSonde;
+      rxtask.requestSonde = -1;
+    }
+    /* only if mainState is ST_DECODER */
+    if (rxtask.mainState != ST_DECODER) {
+      delay(100);
+      continue;
+    }
+    if (resetup) {
+      resetup = false;
+      sonde.setup();
+    }
+    sonde.receive();
+    delay(20);
+  }
+}
+
 
 void IRAM_ATTR touchISR() {
   if (!button1.isTouched) {
@@ -1052,6 +1101,11 @@ void setup()
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
 
+  xTaskCreate( sx1278Task, "sx1278Task",
+               10000, /* stack size */
+               NULL, /* paramter */
+               1, /* priority */
+               NULL);  /* task handle*/
   sonde.setup();
 
   WiFi.onEvent(WiFiEvent);
@@ -1059,17 +1113,28 @@ void setup()
 
 void enterMode(int mode) {
   Serial.printf("enterMode(%d)\n", mode);
-  if (mode == ST_SCANNER) {
-    mode = ST_DECODER;
-    currentDisplay = 0;
+  // Backround RX task should only be active in mode ST_DECODER for now
+  // (future changes might use RX background task for spectrum display as well)
+  if (mode != ST_DECODER) {
+    rxtask.activate = mode;
+    while (rxtask.activate == mode) {
+      delay(10);  // until cleared by RXtask
+    }
   }
   mainState = (MainState)mode;
   if (mainState == ST_SPECTRUM) {
     sonde.clearDisplay();
     u8x8->setFont(u8x8_font_chroma48medium8_r);
     specTimer = millis();
+    //scanner.init();
   } else {
-    sonde.clearDisplay();
+    //sonde.clearDisplay();
+  }
+  if (mode == ST_DECODER) {
+    // trigger activation of background task
+    // currentSonde should be set before enterMode()
+    rxtask.requestSonde = sonde.currentSonde;
+    rxtask.activate = mode;
   }
 }
 
@@ -1091,10 +1156,11 @@ void loopDecoder() {
       sonde.nextConfig();
       sonde.updateDisplayRXConfig();
       sonde.updateDisplay();
+      enterMode(ST_DECODER);  // just to trigger rxtask reconfiguration
       break;
     case KP_DOUBLE:
-      //enterMode(ST_SCANNER);
       currentDisplay = 0;
+      enterMode(ST_DECODER);  // just to trigger rxtask reconfiguration
       return;
     case KP_MID:
       enterMode(ST_SPECTRUM);
@@ -1104,23 +1170,33 @@ void loopDecoder() {
       return;
   }
 #endif
-  // Handle events that change display or sonde
-  uint8_t event = getKeyPressEvent();
-  if (!event) event = sonde.timeoutEvent();
-  // Check if there is an action for this event
-  int action = disp.layout->actions[event];
+  // sonde knows the current type and frequency, and delegates to the right decoder
+  int res = sonde.waitRXcomplete();
+  int action, event;
+  if ((res >> 8) == 0xFF) { // no implicit action returned from RXTask
+    // Handle events that change display or sonde
+    uint8_t event = getKeyPressEvent();
+    if (!event) event = sonde.timeoutEvent();
+    // Check if there is an action for this event
+    Serial.printf("Event: %d\n", event);
+    action = disp.layout->actions[event];
+  } else {
+    action = res >> 8;
+    action = (int)(int8_t)action;
+    sonde.currentSonde = rxtask.currentSonde;
+  }
+
   if (action >= 0) {
     Serial.printf("Loop: triggering action %s (%d) for event %s (%d)\n", action2text(action), action, EVENTNAME(event), event);
+    Serial.printf("current main is %d, current rxtask is %d\n", sonde.currentSonde, rxtask.currentSonde);
     action = sonde.updateState(action);
     if (action >= 0) {
       if (action == ACT_DISPLAY_SPECTRUM) enterMode(ST_SPECTRUM);
       else if (action == ACT_DISPLAY_WIFI) enterMode(ST_WIFISCAN);
-      return;
+      else if (action == ACT_NEXTSONDE) enterMode(ST_DECODER); // update rx background task
     }
   }
 
-  // sonde knows the current type and frequency, and delegates to the right decoder
-  int res = sonde.receiveFrame();
 
   if (0 && res == 0 && connected) {
     //Send a packet with position information
@@ -1189,7 +1265,8 @@ void loopSpectrum() {
       enterMode(ST_WIFISCAN);
       return;
     case KP_DOUBLE:
-      enterMode(ST_SCANNER);
+      currentDisplay = 0;
+      enterMode(ST_DECODER);
       return;
     default: break;
   }
@@ -1213,7 +1290,8 @@ void loopSpectrum() {
     u8x8->drawString(0, 1 + marker, buf);
     u8x8->drawString(2, 1 + marker, "Sec.");
     if (remaining <= 0) {
-      enterMode(ST_SCANNER);
+      currentDisplay = 0;
+      enterMode(ST_DECODER);
     }
   }
 }
@@ -1231,7 +1309,7 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
     case (WIFI_AUTH_OPEN):
       return "Open";
     case (WIFI_AUTH_WEP):
-      return "WEP";
+      return "WEP"; 
     case (WIFI_AUTH_WPA_PSK):
       return "WPA_PSK";
     case (WIFI_AUTH_WPA2_PSK):
@@ -1457,7 +1535,8 @@ void initialMode() {
     startSpectrumDisplay();
     //done in startSpectrumScan(): enterMode(ST_SPECTRUM);
   } else {
-    enterMode(ST_SCANNER);
+    currentDisplay = 0;
+    enterMode(ST_DECODER);
   }
 }
 
@@ -1569,7 +1648,8 @@ void loopWifiScan() {
     //startSpectrumDisplay();
     enterMode(ST_SPECTRUM);
   } else {
-    enterMode(ST_SCANNER);
+    currentDisplay = 0;
+    enterMode(ST_DECODER);
   }
 }
 
@@ -1747,9 +1827,9 @@ void execOTA() {
 
 void loop() {
   Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
+  Serial.printf("currentDisp:%d lastDisp:%d\n", currentDisplay, lastDisplay);
   switch (mainState) {
     case ST_DECODER: loopDecoder(); break;
-    // handled by decoder now ...... case ST_SCANNER: loopScanner(); break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;

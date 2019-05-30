@@ -12,7 +12,7 @@
 #define DFM_DBG(x)
 #endif
 
-int DFM::setup(int inv) 
+int DFM::setup(float frequency, int inv) 
 {
 	inverse = inv;
 #if DFM_DEBUG
@@ -68,15 +68,14 @@ int DFM::setup(int inv)
 		DFM_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
-	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
-	return 0;
-}
-
-int DFM::setFrequency(float frequency) {
         Serial.print("DFM: setting RX frequency to ");
         Serial.println(frequency);
-	return sx1278.setFrequency(frequency);
+
+	int retval = sx1278.setFrequency(frequency);
+	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
+	return retval;
 }
+
 
 #define bit(value,bitpos) ((value>>(7-bitpos))&0x01)
 // Input: str: packed data, MSB first
@@ -267,9 +266,10 @@ int DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 	bytes[(i-1)/8] &= 0x0F;
 }
 
-int DFM::receiveFrame() {
-	byte data[33];
-	sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes
+int DFM::receive() {
+	byte data[1000];  // pending data from previous mode may write more than 33 bytes. TODO. 
+	for(int i=0; i<2; i++) {
+	sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
 
 	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	int e = sx1278.receivePacketTimeout(1000, data);
@@ -296,7 +296,27 @@ int DFM::receiveFrame() {
 	decodeCFG(byte_conf);
 	decodeDAT(byte_dat1);
 	decodeDAT(byte_dat2);
+	}
 	return RX_OK;
+}
+
+// maybe move to a single function in Sonde()? maybe not, we can do custom additional 
+// processing here, that takes too long for doing in the RX task loop
+int DFM::waitRXcomplete() {
+	int res=0;
+	uint32_t t0 = millis();
+	while( rxtask.receiveResult < 0 && millis()-t0 < 2000) { delay(50); }
+
+	if( rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) { 
+                res = RX_TIMEOUT;
+        } else if ( rxtask.receiveResult ==0) {
+                res = RX_OK;
+        } else {
+                res = RX_ERROR;
+        }
+        rxtask.receiveResult = -1;
+        Serial.printf("waitRXcomplete returning %d\n", res);
+        return res;
 }
 
 DFM dfm = DFM();
