@@ -17,7 +17,8 @@
 #define RS92_DBG(x)
 #endif
 
-static uint16_t CRCTAB[256];
+//static uint16_t CRCTAB[256];
+uint16_t *CRCTAB = NULL;
 
 #define X2C_DIVR(a, b) ((b) != 0.0f ? (a)/(b) : (a))
 #define X2C_DIVL(a, b) ((a)/(b))
@@ -63,6 +64,7 @@ static void Gencrctab(void)
    uint16_t j;
    uint16_t i;
    uint16_t crc;
+   if(!CRCTAB) { CRCTAB=(uint16_t *)malloc(256*sizeof(uint16_t)); }
    for (i = 0U; i<=255U; i++) {
       crc = (uint16_t)(i*256U);
       for (j = 0U; j<=7U; j++) {
