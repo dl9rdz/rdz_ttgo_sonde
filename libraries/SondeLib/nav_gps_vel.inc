@@ -307,17 +307,16 @@ static EPHEM_t *te;
 
 
 //EPHEM_t *read_RNXpephs(FILE *fp) {
-EPHEM_t *read_RNXpephs(char *file) {
-    int l, i, n;
-    char buffer[86];
+EPHEM_t *read_RNXpephs(const char *file) {
+    int l, i;
+    //char buffer[86];
     char buf[64], str[20];
-    int pbuf;
     unsigned ui;
     double dbl;
     int c;
     EPHEM_t ephem = {};
-    int count = 0;
-    long fpos;
+    // int count = 0;
+    //long fpos;
 
     File fp = SPIFFS.open(file, "r");
     if(!fp) { Serial.printf("Error opening %s\n", file); }
@@ -329,7 +328,6 @@ EPHEM_t *read_RNXpephs(char *file) {
         //buffer[82] = '\0';
 	Serial.printf("Skipping header: %s\n", line.c_str());
     } while ( fp.available()  &&  !strstr((const char *)line.c_str(), "END OF HEADER") );
-    Serial.printf("pbuf is %d\n", pbuf);
     if (!fp.available()) return NULL;
 /*
     fpos = ftell(fp);
@@ -352,7 +350,8 @@ EPHEM_t *read_RNXpephs(char *file) {
     te = (EPHEM_t *)calloc( 34, sizeof(ephem) ); // calloc( 1, sizeof(ephem) );
     if (te == NULL) return NULL;
 
-    n = 0;
+    //int n = 0;
+
 
     while (true) {  // brdc/hour-rinex sollte nur Daten von einem Tag enthalten
 
@@ -437,7 +436,7 @@ EPHEM_t *read_RNXpephs(char *file) {
 
         ephem.week = 1; // ephem.gpsweek
 	Serial.printf("Reading ephem for prn %d\n", ui);
-	if(ui>=0 && ui<33) {
+	if(ui<33) {
 		te[ui] = ephem;
 	} else {
 		Serial.printf("bad prn: %d\n", ui);

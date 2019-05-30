@@ -22,7 +22,7 @@ class RS41
 private:
 	uint32_t bits2val(const uint8_t *bits, int len);
 	void printRaw(uint8_t *data, int len);
-	int bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
+	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
 	int decode41(byte *data, int maxlen);
 
 #define B 8

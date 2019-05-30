@@ -162,7 +162,7 @@ void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 	Serial.print(" ");
 }
 
-int DFM::decodeCFG(uint8_t *cfg)
+void DFM::decodeCFG(uint8_t *cfg)
 {
 	static int lowid, highid, idgood=0, type=0;
 	if((cfg[0]>>4)==0x06 && type==0) {   // DFM-6 ID
@@ -189,7 +189,7 @@ int DFM::decodeCFG(uint8_t *cfg)
 	}
 }
 
-int DFM::decodeDAT(uint8_t *dat)
+void DFM::decodeDAT(uint8_t *dat)
 {
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
 	switch(dat[6]) {
@@ -256,7 +256,7 @@ int DFM::decodeDAT(uint8_t *dat)
 	}
 }
 
-int DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
+void DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 {
 	int i;
 	for(i=0; i<len*4; i++) {
@@ -300,9 +300,10 @@ int DFM::receive() {
 	return RX_OK;
 }
 
-// maybe move to a single function in Sonde()? maybe not, we can do custom additional 
+// moved to a single function in Sonde(). This function can be used for additional
 // processing here, that takes too long for doing in the RX task loop
 int DFM::waitRXcomplete() {
+#if 0
 	int res=0;
 	uint32_t t0 = millis();
 	while( rxtask.receiveResult < 0 && millis()-t0 < 2000) { delay(50); }
@@ -317,6 +318,8 @@ int DFM::waitRXcomplete() {
         rxtask.receiveResult = -1;
         Serial.printf("waitRXcomplete returning %d\n", res);
         return res;
+#endif
+	return 0;
 }
 
 DFM dfm = DFM();

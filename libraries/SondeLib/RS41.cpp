@@ -447,7 +447,7 @@ void RS41::printRaw(uint8_t *data, int len)
 	Serial.println();
 }
 
-int RS41::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
+void RS41::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 {
 	int i;
 	for(i=0; i<len*4; i++) {
@@ -485,6 +485,9 @@ int RS41::receive() {
 }
 
 int RS41::waitRXcomplete() {
+	// Currently not used. can be used for additinoal post-processing
+	// (required for RS92 to avoid FIFO overrun in rx task)
+#if 0
 	int res;
 	uint32_t t0 = millis();
 	while(rxtask.receiveResult<0 && millis()-t0 < 3000) { delay(50); }
@@ -499,6 +502,8 @@ int RS41::waitRXcomplete() {
 	rxtask.receiveResult = -1;
 	Serial.printf("waitRXcomplete returning %d\n", res);
 	return res;
+#endif
+	return 0;
 }
 
 RS41 rs41 = RS41();

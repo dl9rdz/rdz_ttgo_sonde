@@ -30,9 +30,9 @@ private:
 	int check(uint8_t code[8]);
 	int hamming(uint8_t *ham, int L, uint8_t *sym);
 	void printRaw(const char *prefix, int len, int ret, const uint8_t* data);
-	int decodeCFG(uint8_t *cfg);
-	int decodeDAT(uint8_t *dat);
-	int bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
+	void decodeCFG(uint8_t *cfg);
+	void decodeDAT(uint8_t *dat);
+	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
 
 #define B 8
 #define S 4

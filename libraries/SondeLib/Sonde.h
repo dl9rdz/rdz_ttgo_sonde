@@ -60,7 +60,7 @@ typedef struct st_RXTask {
 	// via waitRXcomplete function
 	uint16_t receiveResult;
 	// status variabe set by decoder to indicate something is broken
-	int fifoOverflo;
+	// int fifoOverflo;
 } RXTask;
 
 extern RXTask rxtask;

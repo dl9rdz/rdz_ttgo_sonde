@@ -39,6 +39,7 @@ static uint32_t X2C_LSH(uint32_t a, int32_t length, int32_t n)
 	return (a >> -n) & m;
 }
 
+#if 0
 static double atang2(double x, double y)
 {
    double w;
@@ -57,7 +58,7 @@ static double atang2(double x, double y)
    else w = 0.0;
    return w;
 } /* end atang2() */
-
+#endif
 
 static void Gencrctab(void)
 {
@@ -183,7 +184,7 @@ RS92::RS92() {
  */
 
 
-
+#if 0
 static char crcrs(const byte frame[], uint32_t frame_len,
                 int32_t from, int32_t to)
 {
@@ -269,68 +270,7 @@ static void wgs84r(double x, double y, double z,
 /*  lat:=atan(z/(rh*(1.0 - E2))); */
 /*  heig:=sqrt(h + z*z) - EARTHA; */
 } /* end wgs84r() */
-static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
-{
-   double dir;
-   double vu;
-   double ve;
-   double vn;
-   double vz;
-   double vy;
-   double vx;
-   double heig;
-   double long0;
-   double lat;
-   double z;
-   double y;
-   double x;
-   x = (double)getint32(b, b_len, p)*0.01;
-   y = (double)getint32(b, b_len, p+4UL)*0.01;
-   z = (double)getint32(b, b_len, p+8UL)*0.01;
-   wgs84r(x, y, z, &lat, &long0, &heig);
-   Serial.print(" ");
-   sonde.si()->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
-   Serial.print(sonde.si()->lat);
-   Serial.print(" ");
-   sonde.si()->lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
-   Serial.print(sonde.si()->lon);
-   if (heig<1.E+5 && heig>(-1.E+5)) {
-      Serial.print(" ");
-      Serial.print((uint32_t)heig);
-      Serial.print("m");
-   }
-   /*speed */
-   vx = (double)getint16(b, b_len, p+12UL)*0.01;
-   vy = (double)getint16(b, b_len, p+14UL)*0.01;
-   vz = (double)getint16(b, b_len, p+16UL)*0.01;
-   vn = (-(vx*(double)sin((float)lat)*(double)
-                cos((float)long0))-vy*(double)
-                sin((float)lat)*(double)sin((float)
-                long0))+vz*(double)cos((float)lat);
-   ve = -(vx*(double)sin((float)long0))+vy*(double)
-                cos((float)long0);
-   vu = vx*(double)cos((float)lat)*(double)
-                cos((float)long0)+vy*(double)
-                cos((float)lat)*(double)sin((float)
-                long0)+vz*(double)sin((float)lat);
-   dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
-   if (dir<0.0) dir = 360.0+dir;
-   sonde.si()->dir = dir;
-   Serial.print(" ");
-   sonde.si()->hs = sqrt((float)(vn*vn+ve*ve))*3.6f;
-   Serial.print(sonde.si()->hs);
-   Serial.print("km/h ");
-   Serial.print(dir);
-   Serial.print("deg ");
-   Serial.print((float)vu);
-   sonde.si()->vs = vu;
-   Serial.print("m/s ");
-   Serial.print(getcard16(b, b_len, p+18UL)&255UL);
-   Serial.print("Sats");
-   sonde.si()->alt = heig;
-   sonde.si()->validPos = true;
-} /* end posrs41() */
-
+#endif
 
 
 static int32_t reedsolomon92(uint8_t *buf, uint32_t buf_len)
@@ -371,18 +311,16 @@ void printRaw(uint8_t *data, int len)
 	Serial.println();
 }
 
-static struct CONTEXTR9 contextr9;
-
 void RS92::decodeframe92(uint8_t *data)
 {
-	uint32_t gpstime;
-	uint32_t flen;
-	uint32_t j;
+	//uint32_t gpstime;
+	//uint32_t flen;
+	//uint32_t j;
 	int32_t corr;
 	corr = reedsolomon92(data, 301ul);
-	int calok;
-	int mesok;
-	uint32_t calibok;
+	//int calok;
+	//int mesok;
+	//uint32_t calibok;
 	Serial.printf("rs corr is %d\n", corr);
 	print_frame(data, 240);
 #if 0
@@ -468,6 +406,8 @@ void RS92::printRaw(uint8_t *data, int len)
 	Serial.println();
 }
 
+#if 0
+// I guess this is old copy&paste stuff from RS41??
 int RS92::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 {
 	int i;
@@ -492,6 +432,7 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
                 153U,162U,44U,147U,124U,48U,99U,245U,16U,46U,97U,208U,188U,
                 180U,182U,6U,170U,244U,35U,120U,110U,59U,174U,191U,123U,76U,
 		193U};
+#endif
 
 static byte data[5000];
 
@@ -582,6 +523,7 @@ int RS92::receive() {
 
 #define RS92MAXLEN (240)
 int RS92::waitRXcomplete() {
+#if 0
 	int res=0;
         uint32_t t0 = millis();
         while( rxtask.receiveResult == 0xFFFF && millis()-t0 < 2000) { delay(20); }
@@ -596,6 +538,8 @@ int RS92::waitRXcomplete() {
         rxtask.receiveResult = 0xFFFF;
         Serial.printf("RS92::waitRXcomplete returning %d (%s)\n", res, RXstr[res]);
         return res;
+#endif
+	return 0;
 }
 
 

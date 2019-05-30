@@ -259,7 +259,7 @@ void Sonde::setup() {
 }
 
 void Sonde::receive() {
-	uint16_t res;
+	uint16_t res = 0;
 	SondeInfo *si = &sondeList[rxtask.currentSonde];
 	switch(si->type) {
 	case STYPE_RS41:
@@ -342,7 +342,7 @@ uint16_t Sonde::waitRXcomplete() {
 uint8_t Sonde::timeoutEvent() {
 	uint32_t now = millis();
 #if 1
-	Serial.printf("Timeout check: %ld - %ld vs %ld; %ld - %ld vs %ld; %ld - %ld vs %ld\n",
+	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d\n",
 		now, sonde.si()->viewStart, disp.layout->timeouts[0],
 		now, sonde.si()->rxStart, disp.layout->timeouts[1],
 		now, sonde.si()->norxStart, disp.layout->timeouts[2]);

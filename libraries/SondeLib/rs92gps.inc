@@ -762,7 +762,7 @@ int calc_satpos_alm(EPHEM_t alm[], double t, SAT_t *satp) {
 int calc_satpos_rnx(EPHEM_t eph[][24], double t, SAT_t *satp) {
     double X, Y, Z, vX, vY, vZ;
     int j, i, ti;
-    int week;
+    int week = 0;
     double cl_corr, cl_drift;
     double tdiff, td;
 
@@ -818,7 +818,7 @@ int calc_satpos_rnx(EPHEM_t eph[][24], double t, SAT_t *satp) {
 int calc_satpos_rnx2(EPHEM_t *eph, double t, SAT_t *satp) {
     double X, Y, Z, vX, vY, vZ;
     int j;
-    int week;
+    int week = 0;
     double cl_corr, cl_drift;
     double tdiff, td;
     int count, count0, satfound;
@@ -985,7 +985,7 @@ int get_pseudorange() {
 */
 	Serial.printf("j=%d: prns=%d status=%d  dist=%f\n", j, prns[j], sat_status[j], dist(sat[prns[j]].X, sat[prns[j]].Y, sat[prns[j]].Z, 0, 0, 0));
 	int o=prns[j];
-	Serial.printf("x=%d y=%d z=%d\n", sat[o].X, sat[o].Y, sat[o].Z);
+	Serial.printf("x=%f y=%f z=%f\n", sat[o].X, sat[o].Y, sat[o].Z);
         if (  (prns[j] > 0)  &&  ((sat_status[j] & 0x0F) == 0xF)
            && (dist(sat[prns[j]].X, sat[prns[j]].Y, sat[prns[j]].Z, 0, 0, 0) > 6700000) )
         {
@@ -1063,7 +1063,7 @@ int get_GPSkoord(int N) {
     SAT_t Sat_B[12]; // N <= 12
     SAT_t Sat_B1s[12];
     SAT_t Sat_C[12]; // 11
-    double diter;
+    double diter = 0;
     int exN = -1;
 
     if (option_vergps == 8) {
@@ -1387,7 +1387,7 @@ void print_frame(uint8_t *data, int len) {
     else print_position();
 }
 
-void get_eph(char *file) {
+void get_eph(const char *file) {
         ephs = read_RNXpephs(file);
         if (ephs) {
             ephem = 1;

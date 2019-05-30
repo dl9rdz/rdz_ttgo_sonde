@@ -701,8 +701,6 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	state = receive();
 	if(state != 0) { return state; }
 
-	boolean p_received = false;
-
 #if (SX1278FSK_debug_mode > 0)
 	Serial.println(F("RX mode sucessfully activated"));
 #endif
