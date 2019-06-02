@@ -621,6 +621,8 @@ int RS92::waitRXcomplete() {
 	si->hs = gpx.vH;
 	si->dir = gpx.vD;
 	si->validPos = 0x3f;
+	memcpy(si->id, gpx.id, 9);
+	si->validID = true;
 
 #if 0
 	int res=0;
