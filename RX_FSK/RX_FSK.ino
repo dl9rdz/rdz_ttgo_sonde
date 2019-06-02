@@ -14,7 +14,8 @@
 #include <Scanner.h>
 #include <aprs.h>
 #include "version.h"
-#include <geteph.h>
+#include "geteph.h"
+#include "rs92gps.h"
 
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after reading config file
@@ -407,9 +408,13 @@ struct st_configitems config_list[] = {
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
   {"---", "---", -1, NULL},
-  /* RS41 decoder settings */
+  /* decoder settings */
   {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
+  {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
+  {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
+  {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
   {"oled_sda", "OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
@@ -857,7 +862,7 @@ void sx1278Task(void *parameter) {
       resetup = false;
       sonde.setup();
     }
-    Serial.println("rx task: calling sonde.receive()");
+    //Serial.println("rx task: calling sonde.receive()");
     sonde.receive();
     delay(20);
   }
@@ -1481,7 +1486,7 @@ void wifiConnect(int16_t res) {
 static int wifi_cto;
 
 void loopWifiBackground() {
-  Serial.printf("WifiBackground: state %d\n", wifi_state);
+  // Serial.printf("WifiBackground: state %d\n", wifi_state);
   // handle Wifi station mode in background
   if (sonde.config.wifi == 0 || sonde.config.wifi == 2) return; // nothing to do if disabled or access point mode
 
@@ -1648,6 +1653,7 @@ void loopWifiScan() {
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
     geteph();
+    get_eph("/brdc");
     delay(3000);
   }
   enableNetwork(true);

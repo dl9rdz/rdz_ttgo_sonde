@@ -67,8 +67,12 @@ Sonde::Sonde() {
 	config.marker=0;
 	config.showafc=0;
 	config.freqofs=0;
-	config.rs41.agcbw=25000;
-	config.rs41.rxbw=12000;
+	config.rs41.agcbw=12500;
+	config.rs41.rxbw=6300;
+	config.rs92.rxbw=12500;
+	config.rs92.alt2d=480;
+	config.dfm.agcbw=20800;
+	config.dfm.rxbw=10400;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -145,6 +149,14 @@ void Sonde::setConfig(const char *cfg) {
 		config.rs41.agcbw = atoi(val);
 	} else if(strcmp(cfg,"rs41.rxbw")==0) {
 		config.rs41.rxbw = atoi(val);
+	} else if(strcmp(cfg,"dfm.agcbw")==0) {
+		config.dfm.agcbw = atoi(val);
+	} else if(strcmp(cfg,"dfm.rxbw")==0) {
+		config.dfm.rxbw = atoi(val);
+	} else if(strcmp(cfg,"rs92.alt2d")==0) {
+		config.rs92.alt2d= atoi(val);
+	} else if(strcmp(cfg,"rs92.rxbw")==0) {
+		config.rs92.rxbw = atoi(val);
 	} else if(strcmp(cfg,"axudp.active")==0) {
 		config.udpfeed.active = atoi(val)>0;
 	} else if(strcmp(cfg,"axudp.host")==0) {
@@ -326,23 +338,20 @@ rxloop:
 	}
         rxtask.receiveResult = 0xFFFF;
         Serial.printf("waitRXcomplete returning %04x (%s)\n", res, RXstr[res&0xff]);
-#if 0
-//currently not used...
-{
-	int res;
-	switch(sondeList[rxtask.currentSonde].type) {
+	// currently used only by RS92
+	// TODO: rxtask.currentSonde might not be the right thing (after sonde channel change)
+	switch(sondeList[/*rxtask.*/currentSonde].type) {
 	case STYPE_RS41:
-		res = rs41.waitRXcomplete();
+		rs41.waitRXcomplete();
 		break;
 	case STYPE_RS92:
-		res = rs92.waitRXcomplete();
+		rs92.waitRXcomplete();
 		break;
 	case STYPE_DFM06:
 	case STYPE_DFM09:
-		res = dfm.waitRXcomplete();
+		dfm.waitRXcomplete();
 		break;
 	}
-#endif
 	memmove(sonde.si()->rxStat+1, sonde.si()->rxStat, 17);
         sonde.si()->rxStat[0] = res;
 	return res;

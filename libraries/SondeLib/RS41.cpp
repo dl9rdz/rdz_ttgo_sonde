@@ -103,11 +103,11 @@ int RS41::setup(float frequency)
 #endif
 
 	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
-		RS41_DBG(Serial.println("Setting AFC bandwidth 25 kHz FAILED"));
+		RS41_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs41.agcbw));
 		return 1;
 	}
 	if(sx1278.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
-		RS41_DBG(Serial.println("Setting RX bandwidth 12kHz FAILED"));
+		RS41_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs41.rxbw));
 		return 1;
 	}
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble

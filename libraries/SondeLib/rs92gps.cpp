@@ -50,28 +50,10 @@
 
 #include <SPIFFS.h>
 #include "nav_gps_vel.h"
-
-#ifdef CYGWIN
-  #include <fcntl.h>  // cygwin: _setmode()
-  #include <io.h>
-#endif
+#include "rs92gps.h"
+#include "Sonde.h"
 
 
-typedef struct {
-    int frnr;
-    char id[11];
-    int week; int gpssec;
-    int jahr; int monat; int tag;
-    int wday;
-    int std; int min; float sek;
-    double lat; double lon; double alt;
-    double vH; double vD; double vU;
-    int sats[4];
-    double dop;
-    int freq;
-    unsigned short aux[4];
-    double diter;
-} gpx_t;
 
 gpx_t gpx;
 
@@ -91,6 +73,7 @@ int option_verbose = 0,  // ausfuehrliche Anzeige
     rawin = 0;
 double dop_limit = 9.9;
 double d_err = 10000;
+//double fixalt2d = 480; // bei mir zu Hause :-) TODO: make it configurable
 
 int rollover = 0,
     err_gps = 0;
@@ -550,6 +533,7 @@ int get_GPStime() {
     gpstime /= 1000;
 
     gpx.gpssec = gpstime;
+    Serial.printf("GPS time is %04x (%d)\n", gpstime, gpstime);
 
     day = (gpstime / (24 * 3600)) % 7;        // besser CRC-check, da auch
     //if ((day < 0) || (day > 6)) return -1;  // gpssec=604800,604801 beobachtet
@@ -901,6 +885,8 @@ const double df = 299792.458/1023.0/1024.0; //0.286183844 // c=299792458m/s, 102
 //           dl = L1/(chips/sec)/4
 const double dl = 1575.42/1.023/4.0; //385.0 // GPS L1 1575.42MHz=154*10.23MHz, dl=154*10/4
 
+double pr_ofs;
+double GPSsatAlt = 20200e3;
 
 int get_pseudorange() {
     uint32_t gpstime;
@@ -919,10 +905,12 @@ int get_pseudorange() {
     memcpy(&gpstime, gpstime_bytes, 4);
 
     // Sat Status
+    Serial.print("Sat status: ");
     for (i = 0; i < 12; i++) {
         sat_status[i] = framebyte(posGPS_STATUS + i);
-	Serial.printf("sat status %d: %d\n", i, sat_status[i]);
+	Serial.printf("%d:%d ", i, sat_status[i]);
     }
+    Serial.print("\n");
 
     // PRN-Nummern
     for (i = 0; i < 4; i++) {
@@ -953,7 +941,7 @@ int get_pseudorange() {
             pseudobytes[i] = frame[posGPS_DATA+8*j+i];
         }
         memcpy(&chipbytes, pseudobytes, 4);
-	Serial.printf("Chipbytes(%d): %04x\n",j, chipbytes);
+	//Serial.printf("Chipbytes(%d): %04x\n",j, chipbytes);
 
         // delta_pseudochips / 385
         for (i = 0; i < 3; i++) {
@@ -985,9 +973,9 @@ int get_pseudorange() {
             continue;
         }
 */
-	Serial.printf("j=%d: prns=%d status=%d  dist=%f\n", j, prns[j], sat_status[j], dist(sat[prns[j]].X, sat[prns[j]].Y, sat[prns[j]].Z, 0, 0, 0));
-	int o=prns[j];
-	Serial.printf("x=%f y=%f z=%f\n", sat[o].X, sat[o].Y, sat[o].Z);
+	Serial.printf("j=%d: prns=%d status=%d  dist=%f\n ", j, prns[j], sat_status[j], dist(sat[prns[j]].X, sat[prns[j]].Y, sat[prns[j]].Z, 0, 0, 0));
+	//int o=prns[j];
+	//Serial.printf("x=%f y=%f z=%f\n", sat[o].X, sat[o].Y, sat[o].Z);
         if (  (prns[j] > 0)  &&  ((sat_status[j] & 0x0F) == 0xF)
            && (dist(sat[prns[j]].X, sat[prns[j]].Y, sat[prns[j]].Z, 0, 0, 0) > 6700000) )
         {
@@ -1020,12 +1008,13 @@ int get_pseudorange() {
         prj = sat[prn[j]].pseudorange + sat[prn[j]].clock_corr;
         if (prj < pr0) pr0 = prj;
     }
-    for (j = 0; j < k; j++) sat[prn[j]].PR = sat[prn[j]].pseudorange + sat[prn[j]].clock_corr - pr0 + 20e6;
+    for (j = 0; j < k; j++) sat[prn[j]].PR = sat[prn[j]].pseudorange + sat[prn[j]].clock_corr - pr0 + GPSsatAlt;
     // es kann PRNs geben, die zeitweise stark abweichende PR liefern;
     // eventuell Standardabweichung ermitteln und fehlerhafte Sats weglassen
     for (j = 0; j < k; j++) {                      //  sat/sat1s...             PR-check
-        sat1s[prn[j]].PR = sat1s[prn[j]].pseudorange + sat[prn[j]].clock_corr - pr0 + 20e6;
+        sat1s[prn[j]].PR = sat1s[prn[j]].pseudorange + sat[prn[j]].clock_corr - pr0 + GPSsatAlt;
     }
+    pr_ofs = pr0;
 
     return k;
 }
@@ -1048,6 +1037,80 @@ int get_GPSvel(double lat, double lon, double vel_ecef[3],
 }
 
 double DOP[4];
+
+int naiv_2Dfix(int N, SAT_t sats[], double alt) {
+// simple 2D fix: 3 Sats & Alt above ellipsoid
+//
+// - fuer 3 unbekannte lat, lon, t braucht man mind. 3 Satelliten
+// - fuer Iteration braucht man jedoch einen Startwert
+// - es gibt direkte Methoden
+// - hier werden die vorhandenen Funktionen benutzt:
+//   - der 4. Satellit im Erdmittelpunkt
+//   - seine pseudorange(+clock) wird grob geschaetzt
+//     (pseudochips liefern erst Rueckschluesse, wenn man Position kennt)
+//   - dann approximieren, bis Hoehe stimmt
+// - bei 3-4 Satelliten ist die DOP-Konstellation oft schlecht
+// - moeglicherweise ist in einigen Faellen die 2. Loesung besser
+
+    double radius = 6371e3 + alt; // wird dann approximiert
+    double lat2d, lon2d, alt2d,
+           pos_ecef[3], rx_cl_bias,
+           dpos_ecef[3];
+    //double d;
+    double rofs = 200000.0, rdiff = 0.0;
+    int k, k_limit;
+    double gdop = -1;
+
+
+    sats[3].X = sats[3].Y = sats[3].Z = 0;
+
+    k = 0;
+    k_limit = 100;
+
+    if (N >= 3) {
+
+            do
+            {
+                // PR = pseudorange + clock_corr - pr_ofs + GPSsatAlt
+                sats[3].X = sats[3].Y = sats[3].Z = 0;
+                sats[3].PR = radius - rofs;
+                sats[3].pseudorange = sats[3].PR + pr_ofs - GPSsatAlt;
+
+
+                NAV_bancroft1(4, sats, pos_ecef, &rx_cl_bias);
+                //NAV_bancroft3(4, sats, pos_ecef1, &rx_cl_bias1, pos_ecef2, &rx_cl_bias2);
+
+                ecef2elli(pos_ecef[0], pos_ecef[1], pos_ecef[2], &lat2d, &lon2d, &alt2d);
+                rdiff = alt-alt2d;
+
+                rofs -= rdiff*1.2;
+                k += 1;
+
+            } while (k < k_limit  &&  fabs(rdiff) > 1.0);
+
+            NAV_LinP(4, sats, pos_ecef, rx_cl_bias, dpos_ecef, &rx_cl_bias);
+            //  for (j=0;j<3;j++) pos_ecef[j] += dpos_ecef[j];
+            //  NAV_LinP(4, sats, pos_ecef, rx_cl_bias, dpos_ecef, &rx_cl_bias);
+            //  d = dist(0, 0, 0, dpos_ecef[0], dpos_ecef[1], dpos_ecef[2]);
+
+    }
+
+    if (calc_DOPn(4, sats, pos_ecef, DOP) == 0) {
+        gdop = sqrt(DOP[0]+DOP[1]+DOP[2]+DOP[3]);
+    }
+    //if (gdop > 2*dop_limit) gdop = -1;
+    //if (gdop < 0) gdop = -1;
+
+    gpx.lat = lat2d;
+    gpx.lon = lon2d;
+    gpx.alt = alt2d;
+    gpx.dop = gdop;
+
+    if ( fabs(alt2d-alt) > 1000.0 ) return -1;
+    if ( k == k_limit ) return 0;
+    return 1;
+}
+
 
 int get_GPSkoord(int N) {
     double lat, lon, alt, rx_cl_bias;
@@ -1281,8 +1344,8 @@ int get_GPSkoord(int N) {
 
 
 int print_position() {  // GPS-Hoehe ueber Ellipsoid
-    int j, k, n = 0;
-    int err1, err2;
+    int j, k = 0, n = 0;
+    int err1, err2, fix2d = 0;
 
     err1 = 0;
     if (!option_verbose) err1 = err_gps;
@@ -1293,13 +1356,22 @@ int print_position() {  // GPS-Hoehe ueber Ellipsoid
   //err2 |= get_GPSweek();
     err2 |= get_GPStime();
 
+#if 0
     Serial.printf("ephem=%d\n",ephem);
+    Serial.printf("print_position: ephs is %p\n", ephs);
+#endif
+
     if (!err2 && (almanac || ephem)) {
         k = get_pseudorange();
 	Serial.printf("k=%d\n", k);
         if (k >= 4) {
             n = get_GPSkoord(k);
         }
+	if (k == 3) {
+	    SAT_t Sat_A[4];
+	    for (j = 0; j < 3; j++) { Sat_A[j] = sat[prn[j]]; }
+	    fix2d = naiv_2Dfix( 3, Sat_A, sonde.config.rs92.alt2d);
+	}
     }
 
     if (!err1) {
@@ -1316,7 +1388,11 @@ int print_position() {  // GPS-Hoehe ueber Ellipsoid
         fprintf(stdout, "%s ", weekday[gpx.wday]);  // %04.1f: wenn sek >= 59.950, wird auf 60.0 gerundet
         fprintf(stdout, "%02d:%02d:%06.3f", gpx.std, gpx.min, gpx.sek);
 
-        if (n > 0) {
+	if (k == 3  &&  fix2d > 0  &&  gpx.dop > 0  &&  gpx.dop < 2*dop_limit) {
+             fprintf(stdout, "  2D  lat: %.5f  lon: %.5f  alt: %.1f ", gpx.lat, gpx.lon, gpx.alt);
+             fprintf(stdout, " DOP[%02d,%02d,%02d,0] %.1f ", prn[0], prn[1], prn[2], gpx.dop);
+        }
+        else if (n > 0) {
             fprintf(stdout, " ");
 
             if (almanac) fprintf(stdout, " lat: %.4f  lon: %.4f  alt: %.1f ", gpx.lat, gpx.lon, gpx.alt);
@@ -1386,7 +1462,8 @@ void print_frame(uint8_t *data, int len) {
         }
         fprintf(stdout, "\n");
     }
-    else print_position();
+    //Serial.printf("print_frame: ephs is %p\n", ephs);
+    print_position();
 }
 
 void get_eph(const char *file) {
@@ -1395,7 +1472,7 @@ void get_eph(const char *file) {
             ephem = 1;
             almanac = 0;
         }
-	Serial.printf("reading RNX done, result is %d\n", ephem);
+	Serial.printf("reading RNX done, result is %d, ephs=%p\n", ephem, ephs);
         if (!option_der) d_err = 1000;
 }
 

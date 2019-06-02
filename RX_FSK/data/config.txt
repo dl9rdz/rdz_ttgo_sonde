@@ -2,8 +2,8 @@
 # Hardware depending settings
 #-------------------------------#
 # pin: 255=disabled; x=button x+128=touch button
-button_pin=0
-button2_pin=255
+button_pin=130
+button2_pin=142
 # LED port
 led_pout=9
 # OLED Setup is depending on hardware of LoRa board
@@ -38,9 +38,17 @@ call=N0CALL
 passcode=12345
 #-------------------------------#
 # Sonde specific settings: bandwidth
+# valid values: 3100, 3900, 5200, 6300, 7800, 10400, 12500,
+# 15600, 20800, 25000, ...
+# other values will be rounded up to the next valid value
+# rs92.alt2d: default altitude used by RS92 decoder if only 3 sats available
 #-------------------------------#
-rs41.agcbw=6300
+rs41.agcbw=12500
 rs41.rxbw=6300
+rs92.rxbw=12500
+rs92.alt2d=480
+dfm.agcbw=20800
+dfm.rxbw=10400
 #-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#

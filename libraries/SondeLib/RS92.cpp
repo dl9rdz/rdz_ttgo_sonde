@@ -76,6 +76,20 @@ static void Gencrctab(void)
    } /* end for */
 } /* end Gencrctab() */
 
+
+static byte data1[512]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
+static byte data2[512]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
+static byte *dataptr=data1;
+
+static uint8_t rxbitc;
+static int32_t asynst[10]={0};
+static uint16_t rxbyte;
+int rxp=0;
+
+static int haveNewFrame = 0;
+static int lastFrame = 0;
+static int headerDetected = 0;
+
 int RS92::setup(float frequency) 
 {
 #if RS92_DEBUG
@@ -84,7 +98,7 @@ int RS92::setup(float frequency)
 	if(!initialized) {
 		Gencrctab();
 		initrsc();
-        	get_eph("/brdc.19n");
+        	// not here for now.... get_eph("/brdc.19n");
 		initialized = true;
 	}
 
@@ -105,15 +119,15 @@ int RS92::setup(float frequency)
 	Serial.print("Exact bitrate is ");
 	Serial.println(br);
 #endif
+        if(sx1278.setAFCBandwidth(sonde.config.rs92.rxbw)!=0) {
+                RS92_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs92.rxbw));
+                return 1;
+        }
+        if(sx1278.setRxBandwidth(sonde.config.rs92.rxbw)!=0) {
+                RS92_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs92.rxbw));
+                return 1;
+        }
 
-	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
-		RS92_DBG(Serial.println("Setting AFC bandwidth 25 kHz FAILED"));
-		return 1;
-	}
-	if(sx1278.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
-		RS92_DBG(Serial.println("Setting RX bandwidth 12kHz FAILED"));
-		return 1;
-	}
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(sx1278.setRxConf(0x1E)!=0) {
 		RS92_DBG(Serial.println("Setting RX Config FAILED"));
@@ -345,8 +359,10 @@ void RS92::decodeframe92(uint8_t *data)
 	//int calok;
 	//int mesok;
 	//uint32_t calibok;
-	Serial.printf("rs corr is %d\n", corr);
-	print_frame(data, 240);
+	lastFrame = (dataptr==data1)?1:2;
+	Serial.printf("rs corr is %d --- data:%p data1:%p data2:%p lastframe=%d\n", corr, data, data1, data2, lastFrame);
+	dataptr = (dataptr==data1)?data2:data1;
+	//print_frame(data, 240);
 #if 0
 	/* from sondemod*/
 	int p=6;
@@ -458,19 +474,10 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 		193U};
 #endif
 
-static byte data[5000]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
-
-static uint8_t rxbitc;
-static int32_t asynst[10]={0};
-static uint16_t rxbyte;
-int rxp=0;
-
-static int haveNewFrame = 0;
-static int headerDetected = 0;
 
 void RS92::stobyte92(uint8_t b)
 {
-	data[rxp] = b;
+	dataptr[rxp] = b;
 	if(rxp>=5 || b=='*') rxp++; else rxp=0;
 	if(rxp==6) { // header detected
 		headerDetected = 1;	
@@ -478,7 +485,7 @@ void RS92::stobyte92(uint8_t b)
 	if(rxp>=240) { // frame complete... (240 byte)
 		rxp=0;
 		//printRaw(data, 240);
-		decodeframe92(data);
+		decodeframe92(dataptr);
 		haveNewFrame = 1;
 	}
 } /* end stobyte92() */
@@ -506,9 +513,9 @@ void RS92::process8N1data(uint8_t dt)
                                 int rssi=sx1278.getRSSI();
                                 int fei=sx1278.getFEI();
                                 int afc=sx1278.getAFC();
-                                Serial.print("Test: RSSI="); Serial.println(rssi);
-                                Serial.print("Test: FEI="); Serial.println(fei);
-                                Serial.print("Test: AFC="); Serial.println(afc);
+                                Serial.print("Test: RSSI="); Serial.print(rssi);
+                                Serial.print(" FEI="); Serial.print(fei);
+                                Serial.print(" AFC="); Serial.println(afc);
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 			}
@@ -516,14 +523,14 @@ void RS92::process8N1data(uint8_t dt)
 			rxbitc = (rxbitc+1)%20;
 			if(rxbitc == 0) { // got startbit, 8 data bit, stop bit
 				//Serial.printf("%03x ",rxbyte);
-				data[rxp++] = (rxbyte>>1)&0xff;
-				if(rxp==7 && data[6] != 0x65) {
-					Serial.printf("wrong start: %02x\n",data[6]);
+				dataptr[rxp++] = (rxbyte>>1)&0xff;
+				if(rxp==7 && dataptr[6] != 0x65) {
+					Serial.printf("wrong start: %02x\n",dataptr[6]);
 					rxsearching = true;
 				}
 				if(rxp>=240) {
 					rxsearching = true;
-					decodeframe92(data);
+					decodeframe92(dataptr);
 					haveNewFrame = 1;
 				}
 			}
@@ -602,6 +609,19 @@ int RS92::receive() {
 
 #define RS92MAXLEN (240)
 int RS92::waitRXcomplete() {
+	// called after complete...
+	Serial.printf("decoding frame %d\n", lastFrame);
+	print_frame(lastFrame==1?data1:data2, 240);
+
+	SondeInfo *si = sonde.sondeList+sonde.currentSonde;
+	si->lat = gpx.lat;
+	si->lon = gpx.lon;
+	si->alt = gpx.alt;
+	si->vs = gpx.vU;
+	si->hs = gpx.vH;
+	si->dir = gpx.vD;
+	si->validPos = 0x3f;
+
 #if 0
 	int res=0;
         uint32_t t0 = millis();

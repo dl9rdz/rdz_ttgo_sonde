@@ -7,7 +7,7 @@
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
-enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN };
+enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN, RX_NOPOS };
 #define RX_UPDATERSSI 0xFFFE
 
 // Events that change what is displayed (mode, sondenr)
@@ -70,6 +70,14 @@ struct st_rs41config {
 	int agcbw;
 	int rxbw;
 };
+struct st_rs92config {
+	int rxbw;
+	int alt2d;
+};
+struct st_dfmconfig {
+	int agcbw;
+	int rxbw;
+};
 
 typedef struct st_rdzconfig {
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
@@ -96,6 +104,8 @@ typedef struct st_rdzconfig {
 	char call[9];			// APRS callsign
 	char passcode[9];		// APRS passcode
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
+	struct st_rs92config rs92;
+	struct st_dfmconfig dfm;
 	// for now, one feed for each type is enough, but might get extended to more?
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
@@ -103,7 +113,7 @@ typedef struct st_rdzconfig {
 
 typedef struct st_sondeinfo {
         // receiver configuration
-		bool active;
+	bool active;
         SondeType type;
         float freq;
         // decoded ID
@@ -116,7 +126,7 @@ typedef struct st_sondeinfo {
         float alt;			// altitude
         float vs;			// vertical speed
         float hs;			// horizontal speed
-		float dir; 			// 0..360
+	float dir; 			// 0..360
         uint8_t validPos;   // bit pattern for validity of above 6 fields
         // RSSI from receiver
         int rssi;			// signal strength
@@ -128,7 +138,7 @@ typedef struct st_sondeinfo {
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
 } SondeInfo;
-// rxStat: 0=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1]
+// rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1] 5=no valid position[°]
 
 
 #define MAXSONDE 99

@@ -542,7 +542,7 @@ int32_t SX1278FSK::getFEI()
 {
 	int32_t FEI;
 	int16_t regval = (readRegister(REG_FEI_MSB)<<8) | readRegister(REG_FEI_LSB);
-	Serial.printf("feireg: %04x\n", regval);
+	//Serial.printf("feireg: %04x\n", regval);
 	FEI = (int32_t)(regval * SX127X_FSTEP);
 	return FEI;
 }
@@ -554,7 +554,7 @@ int32_t SX1278FSK::getAFC()
 {
 	int32_t AFC;
 	int16_t regval = (readRegister(REG_AFC_MSB)<<8) | readRegister(REG_AFC_LSB);
-	Serial.printf("afcreg: %04x\n", regval);
+	//Serial.printf("afcreg: %04x\n", regval);
 	AFC = (int32_t)(regval * SX127X_FSTEP);
 	return AFC;
 }

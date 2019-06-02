@@ -384,6 +384,20 @@ EPHEM_t *read_RNXpephs(const char *file) {
         ephem.week = 1; // ephem.gpsweek
 	Serial.printf("Reading ephem for prn %d\n", ui);
 	if(ui<33) {
+#if 0
+		// no need to do it the difficult way, most recent data is at end of file :-)
+		double tdiff;
+		if(te[ui].prn!=ui) {
+			tdiff = WEEKSEC;
+		} else {
+			tdiff = now - te[ui].toe;
+			if(tdiff>WEEKSEC/2) tdiff -= WEEKSEC;
+			if(tdiff<-WEEKSEC/2) tdiff += WEEKSEC;
+		}
+		double td = now - ephem.toe;
+		if(td>WEEKSEC/2) td -= WEEKSEC;
+		if(td<-WEEKSEC/2) td += WEEKSEC;
+#endif		
 		te[ui] = ephem;
 	} else {
 		Serial.printf("bad prn: %d\n", ui);

@@ -36,14 +36,14 @@ int DFM::setup(float frequency, int inv)
 	Serial.println(br);
 #endif
 
-	if(sx1278.setAFCBandwidth(25000)!=0) {
-		DFM_DBG(Serial.println("Setting AFC bandwidth 25 kHz FAILED"));
-		return 1;
-	}
-	if(sx1278.setRxBandwidth(12000)!=0) {
-		DFM_DBG(Serial.println("Setting RX bandwidth 12kHz FAILED"));
-		return 1;
-	}
+        if(sx1278.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
+                DFM_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.dfm.agcbw));
+                return 1;
+        }
+        if(sx1278.setRxBandwidth(sonde.config.dfm.rxbw)!=0) {
+                DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
+                return 1;
+        }
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(sx1278.setRxConf(0x1E)!=0) {
 		DFM_DBG(Serial.println("Setting RX Config FAILED"));
