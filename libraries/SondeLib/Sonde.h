@@ -8,6 +8,7 @@
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
 enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN };
+#define RX_UPDATERSSI 0xFFFE
 
 // Events that change what is displayed (mode, sondenr)
 // Keys:
@@ -139,7 +140,9 @@ public:
 	RDZConfig config;
 	int currentSonde = 0;
 	int nSonde;
-	SondeInfo sondeList[MAXSONDE+1];
+	// moved to heap, saving space in .bss
+	//SondeInfo sondeList[MAXSONDE+1];
+	SondeInfo *sondeList;
 
 	Sonde();
 	void setConfig(const char *str);

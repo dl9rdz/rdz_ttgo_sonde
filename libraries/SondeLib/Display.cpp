@@ -39,12 +39,12 @@ static unsigned char stattiles[4][4] =  {
    0x00, 0x00, 0x00, 0x00 };  // ' ' == unknown/unassigned
 
 
-static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
+//static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
 
 static uint8_t halfdb_tile1[8]={0x00, 0x38, 0x28, 0x28, 0x28, 0xC8, 0x00, 0x00};
 static uint8_t halfdb_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 
-static uint8_t empty_tile[8]={0x80, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00, 0x00};
+//static uint8_t empty_tile[8]={0x80, 0x3E, 0x51, 0x49, 0x45, 0x3E, 0x00, 0x00};
 
 static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
 static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
@@ -60,11 +60,11 @@ static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
  */
 DispEntry searchLayout[] = {
 	{0, 0, FONT_LARGE, disp.drawText, "Scan:"},
-	{0, 8, FONT_LARGE, disp.drawType},
+	{0, 8, FONT_LARGE, disp.drawType, NULL},
 	{3, 0, FONT_LARGE, disp.drawFreq, " MHz"},
-	{5, 0, FONT_LARGE, disp.drawSite},
-	{7, 5, 0, disp.drawIP},	
-	{-1, -1, -1, NULL},
+	{5, 0, FONT_LARGE, disp.drawSite, NULL},
+	{7, 5, 0, disp.drawIP, NULL},	
+	{-1, -1, -1, NULL, NULL},
 };
 int16_t searchTimeouts[] = { -1, 0, 0 };
 int8_t searchActions[] = {
@@ -74,18 +74,18 @@ int8_t searchActions[] = {
 	ACT_NONE, ACT_DISPLAY_DEFAULT, ACT_NEXTSONDE};
 DispEntry legacyLayout[] = {
 	{0, 5, FONT_SMALL, disp.drawFreq, " MHz"},
-	{1, 8, FONT_SMALL, disp.drawAFC},
-	{0, 0, FONT_SMALL, disp.drawType},
-	{1, 0, FONT_SMALL, disp.drawID},
-	{2, 0, FONT_LARGE, disp.drawLat},
-	{4, 0, FONT_LARGE, disp.drawLon},
-	{2, 10, FONT_SMALL, disp.drawAlt},
-	{3, 10, FONT_SMALL, disp.drawHS},
-	{4, 9, FONT_SMALL, disp.drawVS},
-	{6, 0, FONT_LARGE, disp.drawRSSI},
-	{6, 7, 0, disp.drawQS},
-	{7, 5, 0, disp.drawIP},	
-	{-1, -1, -1, NULL},
+	{1, 8, FONT_SMALL, disp.drawAFC, NULL},
+	{0, 0, FONT_SMALL, disp.drawType, NULL},
+	{1, 0, FONT_SMALL, disp.drawID, NULL},
+	{2, 0, FONT_LARGE, disp.drawLat, NULL},
+	{4, 0, FONT_LARGE, disp.drawLon, NULL},
+	{2, 10, FONT_SMALL, disp.drawAlt, NULL},
+	{3, 10, FONT_SMALL, disp.drawHS, NULL},
+	{4, 9, FONT_SMALL, disp.drawVS, NULL},
+	{6, 0, FONT_LARGE, disp.drawRSSI, NULL},
+	{6, 7, 0, disp.drawQS, NULL},
+	{7, 5, 0, disp.drawIP, NULL},	
+	{-1, -1, -1, NULL, NULL},
 };
 int16_t legacyTimeouts[] = { -1, -1, 20000 };
 int8_t legacyActions[] = {
@@ -94,14 +94,14 @@ int8_t legacyActions[] = {
 	ACT_DISPLAY(2), ACT_NONE, ACT_NONE, ACT_NONE,
 	ACT_NONE, ACT_NONE, ACT_DISPLAY(0)};
 DispEntry fieldLayout[] = {
-	{2, 0, FONT_LARGE, disp.drawLat},
-	{4, 0, FONT_LARGE, disp.drawLon},
-	{3, 10, FONT_SMALL, disp.drawHS},
-	{4, 9, FONT_SMALL, disp.drawVS},
-	{0, 0, FONT_LARGE, disp.drawID},
-	{6, 0, FONT_LARGE, disp.drawAlt},
-	{6, 7, 0, disp.drawQS},
-	{-1, -1, -1, NULL},
+	{2, 0, FONT_LARGE, disp.drawLat, NULL},
+	{4, 0, FONT_LARGE, disp.drawLon, NULL},
+	{3, 10, FONT_SMALL, disp.drawHS, NULL},
+	{4, 9, FONT_SMALL, disp.drawVS, NULL},
+	{0, 0, FONT_LARGE, disp.drawID, NULL},
+	{6, 0, FONT_LARGE, disp.drawAlt, NULL},
+	{6, 7, 0, disp.drawQS, NULL},
+	{-1, -1, -1, NULL, NULL},
 };
 int16_t fieldTimeouts[] = { -1, -1, -1 };
 int8_t fieldActions[] = {
@@ -110,16 +110,16 @@ int8_t fieldActions[] = {
 	ACT_DISPLAY(3), ACT_NONE, ACT_NONE, ACT_NONE,
 	ACT_NONE, ACT_NONE, ACT_NONE};
 DispEntry field2Layout[] = {
-	{2, 0, FONT_LARGE, disp.drawLat},
-	{4, 0, FONT_LARGE, disp.drawLon},
-	{1, 12, FONT_SMALL, disp.drawType},
+	{2, 0, FONT_LARGE, disp.drawLat, NULL},
+	{4, 0, FONT_LARGE, disp.drawLon, NULL},
+	{1, 12, FONT_SMALL, disp.drawType, NULL},
 	{0, 9, FONT_SMALL, disp.drawFreq, ""},
-	{3, 10, FONT_SMALL, disp.drawHS},
-	{4, 9, FONT_SMALL, disp.drawVS},
-	{0, 0, FONT_LARGE, disp.drawID},
-	{6, 0, FONT_LARGE, disp.drawAlt},
-	{6, 7, 0, disp.drawQS},
-	{-1, -1, -1, NULL},
+	{3, 10, FONT_SMALL, disp.drawHS, NULL},
+	{4, 9, FONT_SMALL, disp.drawVS, NULL},
+	{0, 0, FONT_LARGE, disp.drawID, NULL},
+	{6, 0, FONT_LARGE, disp.drawAlt, NULL},
+	{6, 7, 0, disp.drawQS, NULL},
+	{-1, -1, -1, NULL, NULL},
 };
 int8_t field2Actions[] = {
 	ACT_NONE,
@@ -203,6 +203,7 @@ void Display::drawRSSI(DispEntry *de) {
 	SETFONT(de->fmt);
 	snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
 	int len=strlen(buf)-3;
+	Serial.printf("drawRSSI: %d %d %d (%d)[%d]\n", de->y, de->x, sonde.si()->rssi/2, sonde.currentSonde, len);
 	buf[5]=0;
 	u8x8->drawString(de->x,de->y,buf);
 	u8x8->drawTile(de->x+len, de->y, 1, (sonde.si()->rssi&1)?halfdb_tile1:empty_tile1);

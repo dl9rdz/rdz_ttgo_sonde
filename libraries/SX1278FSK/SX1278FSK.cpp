@@ -714,15 +714,21 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 		if( bitRead(value,2)==1 ) ready=1;
 		if( bitRead(value, 6) == 0 ) { // FIFO not empty
 			data[di++] = readRegister(REG_FIFO);
-			if(di==1) {
+			// It's a bit of a hack.... get RSSI and AFC (a) at beginning of packet and
+			// for RS41 after about 0.5 sec. It might be more logical to put this decoder-specific
+			// code into RS41.cpp instead of this file... (maybe TODO?)
+			
+			if(di==1 || di==290 ) {
 				int rssi=getRSSI();
-				int fei=getFEI();
 				int afc=getAFC();
-				Serial.print("Test: RSSI="); Serial.println(rssi);
-				Serial.print("Test: FEI="); Serial.println(fei);
+				Serial.printf("Test(%d): RSSI=%d", rxtask.currentSonde, rssi/2);
 				Serial.print("Test: AFC="); Serial.println(afc);
-				sonde.si()->rssi = rssi;
-				sonde.si()->afc = afc;
+				sonde.sondeList[rxtask.currentSonde].rssi = rssi;
+				sonde.sondeList[rxtask.currentSonde].afc = afc;
+				if(rxtask.receiveResult==0xFFFF)
+					rxtask.receiveResult = RX_UPDATERSSI;
+				//sonde.si()->rssi = rssi;
+				//sonde.si()->afc = afc;
 			}
 			if(di>520) {
 				// TODO

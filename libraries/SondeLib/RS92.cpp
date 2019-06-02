@@ -7,7 +7,7 @@
 #include <SPIFFS.h>
 
 // well...
-#include "rs92gps.inc"
+#include "rs92gps.h"
 
 #define RS92_DEBUG 1
 
@@ -126,8 +126,10 @@ int RS92::setup(float frequency)
 	//const char *SYNC="\x08\x6D\x53\x88\x44\x69\x48\x1F";
 	// was 0x57
 	//const char *SYNC="\x99\x9A";
+#if 1
+	// version 1, working with continuous RX
 	const char *SYNC="\x66\x65";
-	if(sx1278.setSyncConf(0x71, 2, (const uint8_t *)SYNC)!=0) {
+	if(sx1278.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
 		RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
 		return 1;
 	}
@@ -135,6 +137,27 @@ int RS92::setup(float frequency)
 		RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
+#endif
+#if 0
+	// version 2, with per-packet rx start, untested
+	// header is 2a 10 65, i.e. with lsb first
+	// 0 0101 0100 1            0 0000 1000 1            0 1010 0110 1
+ 	// 10 10011001 10011010 01  10 10101010 01101010 01  10 01100110 10010110 01
+	//                             preamble 0x6A 0x66 0x6A
+	// i.e. preamble detector on (0x80), preamble detector size 1 (0x00), preample chip errors??? (0x0A)
+	// after 2a2a2a2a2a1065
+        if(sx1278.setPreambleDetect(0xA8)!=0) {
+                RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
+                return 1;
+        }
+	// sync config: ato restart (01), preamble polarity AA (0), sync on (1), resevered (0), syncsize 2+1 (010) => 0x52
+	const char *SYNC="\x6A\x66\x69";
+        if(sx1278.setSyncConf(0x52, 3, (const uint8_t *)SYNC)!=0) {
+                RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
+                return 1;
+        }
+	// payload length is ((240 - 7)*10 +6)/8 = 292
+#endif
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
@@ -148,6 +171,7 @@ int RS92::setup(float frequency)
         int res = sx1278.setFrequency(frequency);
         // enable RX
         sx1278.setPayloadLength(0);  // infinite for now...
+	//sx1278.setPayloadLength(292);
         sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 
 #if RS92_DEBUG
@@ -434,7 +458,7 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 		193U};
 #endif
 
-static byte data[5000];
+static byte data[5000]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
 
 static uint8_t rxbitc;
 static int32_t asynst[10]={0};
@@ -442,11 +466,15 @@ static uint16_t rxbyte;
 int rxp=0;
 
 static int haveNewFrame = 0;
+static int headerDetected = 0;
 
 void RS92::stobyte92(uint8_t b)
 {
 	data[rxp] = b;
 	if(rxp>=5 || b=='*') rxp++; else rxp=0;
+	if(rxp==6) { // header detected
+		headerDetected = 1;	
+	}
 	if(rxp>=240) { // frame complete... (240 byte)
 		rxp=0;
 		//printRaw(data, 240);
@@ -456,10 +484,56 @@ void RS92::stobyte92(uint8_t b)
 } /* end stobyte92() */
 
 
+uint32_t rxdata;
+bool rxsearching=true;
 
-void RS92::process8N1data(uint8_t data)
+// search for
+// 101001100110011010011010011001100110100110101010100110101001
+// 1010011001100110100110100110 0110.0110 1001.1010 1010.1001 1010.1001 => 0x669AA9A9
+void RS92::process8N1data(uint8_t dt)
 {
-	// data contains 8 bits, big endian
+	for(int i=0; i<8; i++) {
+		uint8_t d = (dt&0x80)?1:0;
+		rxdata = (rxdata<<1) | d;
+		if((rxbitc&1)==1) { rxbyte = (rxbyte>>1) + (d<<9); } // mancester decoded data
+		dt <<= 1;
+		//
+		if(rxsearching) {
+			if(rxdata == 0x669AA9A9) {
+				rxsearching = false;
+				rxbitc = 0;
+				rxp = 6;
+                                int rssi=sx1278.getRSSI();
+                                int fei=sx1278.getFEI();
+                                int afc=sx1278.getAFC();
+                                Serial.print("Test: RSSI="); Serial.println(rssi);
+                                Serial.print("Test: FEI="); Serial.println(fei);
+                                Serial.print("Test: AFC="); Serial.println(afc);
+                                sonde.si()->rssi = rssi;
+                                sonde.si()->afc = afc;
+			}
+		} else {
+			rxbitc = (rxbitc+1)%20;
+			if(rxbitc == 0) { // got startbit, 8 data bit, stop bit
+				//Serial.printf("%03x ",rxbyte);
+				data[rxp++] = (rxbyte>>1)&0xff;
+				if(rxp==7 && data[6] != 0x65) {
+					Serial.printf("wrong start: %02x\n",data[6]);
+					rxsearching = true;
+				}
+				if(rxp>=240) {
+					rxsearching = true;
+					decodeframe92(data);
+					haveNewFrame = 1;
+				}
+			}
+		}
+	}
+}
+
+void process8N1dataOrig(uint8_t data)
+{
+	// data contains 8 bits (after mancester encoding; 4 real bit), big endian
 	for(int i=0; i<4; i++) {
 		uint8_t d = (data&0x80)?1:0;
 		data = data << 2;
@@ -476,7 +550,7 @@ void RS92::process8N1data(uint8_t data)
 		//Serial.printf("<%d,%d,%d>",max0,maxk,rxbitc);
 		if(rxbitc == maxk) {
 			if(max0<0) { rxbyte = rxbyte ^ 0xFF; }
-			stobyte92( rxbyte&0xff );
+		/////TODO	stobyte92( rxbyte&0xff );
 		}
 		//Serial.printf("%d:",asynst[rxbitc]);
 		if(d) {
@@ -492,7 +566,7 @@ void RS92::process8N1data(uint8_t data)
 int RS92::receive() {
 	unsigned long t0 = millis();
 	Serial.printf("RS92::receive() start at %ld\n",t0);
-   	while( millis() - t0 < 2000 ) {
+   	while( millis() - t0 < 1000 ) {
 		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);
 		if ( bitRead(value, 7) ) {
 			Serial.println("FIFO full");
@@ -506,9 +580,14 @@ int RS92::receive() {
       		}
 		if(bitRead(value, 6) == 0) { // while FIFO not empty
       			byte data = sx1278.readRegister(REG_FIFO);
+			//Serial.printf("%02x",data);
       			process8N1data(data);
       			value = sx1278.readRegister(REG_IRQ_FLAGS2);
     		} else {
+			if(headerDetected) {
+				t0 = millis(); // restart timer... don't time out if header detected...
+				headerDetected = 0;
+			}
     			if(haveNewFrame) {
 				Serial.printf("RS92::receive(): new frame complete after %ldms\n", millis()-t0);
 				haveNewFrame = 0;

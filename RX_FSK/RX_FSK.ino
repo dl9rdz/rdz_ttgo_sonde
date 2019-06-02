@@ -14,6 +14,7 @@
 #include <Scanner.h>
 #include <aprs.h>
 #include "version.h"
+#include <geteph.h>
 
 // UNCOMMENT one of the constructor lines below
 U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after reading config file
@@ -833,14 +834,15 @@ void sx1278Task(void *parameter) {
   */
   while (1) {
     boolean resetup = false;
-    Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
     // RX task state update. Check rxtask.activate and rxtask.requestSonde
     if (rxtask.activate >= 0) {
+      Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
       rxtask.mainState = rxtask.activate;
       rxtask.activate = -1;
       resetup = true;
     }
     if (rxtask.requestSonde >= 0) {
+      Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
       resetup = true;
       rxtask.currentSonde = rxtask.requestSonde;
       rxtask.requestSonde = -1;
@@ -851,9 +853,11 @@ void sx1278Task(void *parameter) {
       continue;
     }
     if (resetup) {
+      Serial.println("rx task: calling sonde.setup()");
       resetup = false;
       sonde.setup();
     }
+    Serial.println("rx task: calling sonde.receive()");
     sonde.receive();
     delay(20);
   }
@@ -1643,6 +1647,7 @@ void loopWifiScan() {
     sonde.setIP(localIPstr.c_str(), false);
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
+    geteph();
     delay(3000);
   }
   enableNetwork(true);

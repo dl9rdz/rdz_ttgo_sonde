@@ -11,7 +11,7 @@
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
-RXTask rxtask = { -1, -1, -1, -1, 0 };
+RXTask rxtask = { -1, -1, -1, -1, -1, 0 };
 
 const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KEY2D", "KEY2M", "KEY2L",
                                "VIEWTO", "RXTO", "NORXTO", "(max)"};
@@ -34,6 +34,8 @@ const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
  */   
 
 Sonde::Sonde() {
+	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
+	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	config.button_pin = 0;
 	config.button2_pin = T4 + 128;     // T4 == GPIO13, should be ok for v1 and v2
 	config.touch_thresh = 60;
@@ -308,7 +310,14 @@ void Sonde::receive() {
 uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
+rxloop:
         while( rxtask.receiveResult==0xFFFF && millis()-t0 < 2000) { delay(50); }
+	if( rxtask.receiveResult == RX_UPDATERSSI ) {
+		Serial.println("RSSI update");
+		rxtask.receiveResult = 0xFFFF;
+		disp.updateDisplayRSSI();
+		goto rxloop;
+	}
 
 	if( rxtask.receiveResult==0xFFFF) {
 		res = RX_TIMEOUT;

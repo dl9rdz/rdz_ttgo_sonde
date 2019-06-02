@@ -40,13 +40,16 @@
 
 */
 
-#if 0
+#if 1
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <stdint.h>
 #endif
+
+#include <SPIFFS.h>
+#include "nav_gps_vel.h"
 
 #ifdef CYGWIN
   #include <fcntl.h>  // cygwin: _setmode()
@@ -630,7 +633,6 @@ int get_Cal() {
 /* ---------------------------------------------------------------------------------------------------- */
 
 
-#include "nav_gps_vel.inc"
 
 //we only use ephs  EPHEM_t alm[33];
 //EPHEM_t eph[33][24];
