@@ -39,15 +39,36 @@ void geteph() {
 		return;
 	}
 
+	// Check time of last update
+	int year = tinfo.tm_year + 1900;
+	int day = tinfo.tm_yday + 1;
+	Serial.printf("year %d, day %d\n", year, day);
+	char nowstr[20];
+	snprintf(nowstr, 20, "%04d%03d%02d", year, day, tinfo.tm_hour);
+	File status = SPIFFS.open("/brdc.time", "r");
+	if(status) {
+		String ts = status.readStringUntil('\n');
+		const char *tsstr = ts.c_str();
+		if(tsstr && strlen(tsstr)>=9) {
+			if(strcmp(nowstr, ts.c_str())<=0) {
+				Serial.println("local brdc is up to date\n");
+				return;
+			}
+		}
+		Serial.printf("now: %s, existing: %s => updating\n", nowstr, tsstr);
+	}
+	status.close();
+
+	status = SPIFFS.open("/brdc.time","w");
+	status.println(nowstr);
+	status.close();
+
 	// fetch rinex from server
 	File fh = SPIFFS.open("/brdc.gz","w");
 	if(!fh) {	
 		Serial.println("cannot open file\n");
 		return;
 	}
-	int year = tinfo.tm_year + 1900;
-	int day = tinfo.tm_yday;
-	Serial.printf("year %d, day %d\n", year, day);
 	char buf[256];
 	snprintf(buf, 128, "/cors/rinex/%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
 	Serial.println("running geteph\n");
