@@ -525,7 +525,6 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
     f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
   }
   f.close();
-  currentDisplay = sonde.config.display;
   setupConfigData();
   return "";
 }
@@ -1256,12 +1255,12 @@ void loopDecoder() {
   }
 
 
-  if (0 && res == 0 && connected) {
+  if ((res&0xff) == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
-    if (sonde.si()->validID && ((sonde.si()->validPos & 0x03) == 0x03)) {
+    SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
+    if (s->validID && ((s->validPos & 0x03) == 0x03)) {
       Serial.println("Sending position via UDP");
-      SondeInfo *s = sonde.si();
       char raw[201];
       const char *str = aprs_senddata(s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST",
                                       sonde.config.udpfeed.symbol);
