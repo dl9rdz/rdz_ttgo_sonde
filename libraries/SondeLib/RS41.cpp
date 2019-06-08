@@ -476,7 +476,6 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 int RS41::receive() {
 	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
-	rxtask.lastSonde = rxtask.currentSonde;
 	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } 
 
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }

@@ -5,7 +5,9 @@
 #include <rom/miniz.h>
 #include <inttypes.h>
 #include <WiFi.h>
+#include <U8x8lib.h>
 
+extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern WiFiClient client;
 
 static const char *ftpserver = "www.ngs.noaa.gov";
@@ -27,6 +29,18 @@ uint8_t getreply() {
 		} while( str[0]!=str2[0] || str[1]!=str2[1] || str[2]!=str2[2] || str2[3]!=' ' );
 	}
 	return str[0];
+}
+
+void writeFully(File &file, uint8_t *buf, size_t len)
+{
+	size_t olen;
+
+	while(len) {
+		olen = file.write(buf, len);
+		Serial.printf("written: %d of %d\n", olen, len);
+		len -= olen;
+		buf += olen;
+	}
 }
 
 void geteph() {
@@ -58,20 +72,19 @@ void geteph() {
 		Serial.printf("now: %s, existing: %s => updating\n", nowstr, tsstr);
 	}
 	status.close();
-
-	status = SPIFFS.open("/brdc.time","w");
-	status.println(nowstr);
-	status.close();
-
+	u8x8->clear();
+	u8x8->setFont(u8x8_font_chroma48medium8_r);
+	u8x8->drawString(0, 0, "FTP ngs.noaa.gov");
 	// fetch rinex from server
 	File fh = SPIFFS.open("/brdc.gz","w");
 	if(!fh) {	
 		Serial.println("cannot open file\n");
 		return;
 	}
-	char buf[256];
+	char buf[252];
 	snprintf(buf, 128, "/cors/rinex/%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
 	Serial.println("running geteph\n");
+	u8x8->drawString(0, 1, buf+21);
 	
 	if(!client.connect(ftpserver, 21)) {
 		Serial.println("FTP connection to www.ngs.noaa.gov failed");
@@ -130,8 +143,11 @@ void geteph() {
 	}
 	Serial.printf("fetched %d bytes\n", len);
 	fh.close();
-	
+	snprintf(buf, 16, "Fetched %d B    ",len);
+	buf[16]=0;
+	u8x8->drawString(0,2,buf);
 
+	u8x8->drawString(0,4,"Decompressing...");
 	// decompression
 	tinfl_decompressor *decomp = (tinfl_decompressor *)malloc(sizeof(tinfl_decompressor));
 	tinfl_init(decomp);
@@ -166,22 +182,26 @@ void geteph() {
 	int total = 0;
 	Serial.println("Decompressing ephemeris data...\n");
 	char *obuf =(char *)malloc(32768);
+	char *ibuf =(char *)malloc(8192);
 	while(file.available()) {
-		size_t len = file.readBytes(buf, 256);
+		size_t len = file.readBytes(ibuf, 8192);
 		size_t inofs = 0;
 		size_t inlen = len;
 		while(inofs<len) {
 			size_t outlen=32768-opos;
-			int res = tinfl_decompress(decomp, (const mz_uint8 *)buf+inofs, &inlen, (uint8_t *)obuf, (mz_uint8 *)obuf+opos, &outlen, TINFL_FLAG_HAS_MORE_INPUT);
+			int res = tinfl_decompress(decomp, (const mz_uint8 *)ibuf+inofs, &inlen, (uint8_t *)obuf, (mz_uint8 *)obuf+opos, &outlen, TINFL_FLAG_HAS_MORE_INPUT);
 			if(res<0) break;
 			if(outlen==0) break;
-			//Serial.printf("... (res=%d) decompressed %d into %d bytes\n", res, inlen, outlen);
-			if(res==0) break; // done indication
+			Serial.printf("... (res=%d) decompressed %d into %d bytes\n", res, inlen, outlen);
 			inofs += inlen;
 			inlen = len - inofs;
-			ofile.write((uint8_t *)(obuf+opos), outlen);
+			//size_t retv = ofile.write((uint8_t *)(obuf+opos), outlen);
+			//Serial.printf("write %d bytes\n", retv);
+			writeFully(ofile, (uint8_t *)(obuf+opos), outlen);
+			//Serial.write((uint8_t *)(obuf+opos), outlen);
 			total += outlen;
 			opos += outlen;
+			if(res==0) break; // done indication
 			if(opos>=32768) {
 				Serial.printf("... decompressed %d bytes\n", total);
 				opos=0;
@@ -190,7 +210,16 @@ void geteph() {
 	}
 	// maybe todo: check crc?!?
 	Serial.printf("done extracing content (total length: %d)\n", total);
+	status = SPIFFS.open("/brdc.time","w");
+	status.println(nowstr);
+	status.close();
+        snprintf(buf, 16, "Done: %d B    ",total);
+        buf[16]=0;
+        u8x8->drawString(0,5,buf);
+	delay(1000);
+
 	free(obuf);
+	free(ibuf);
 	free(decomp);
 	file.close();
 	ofile.close();

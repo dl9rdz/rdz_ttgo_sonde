@@ -382,7 +382,7 @@ EPHEM_t *read_RNXpephs(const char *file) {
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }  */
 
         ephem.week = 1; // ephem.gpsweek
-	Serial.printf("Reading ephem for prn %d\n", ui);
+	//Serial.printf("Reading ephem for prn %d\n", ui);
 	if(ui<33) {
 #if 0
 		// no need to do it the difficult way, most recent data is at end of file :-)

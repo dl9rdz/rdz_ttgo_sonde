@@ -31,13 +31,14 @@ extern const char *RXstr[];
 #define EVENTNAME(s) evstring[s]
 
 //int8_t actions[EVT_MAX];
-#define ACT_NONE -1
+#define ACT_NONE 255
 #define ACT_DISPLAY(n) (n)
-#define ACT_DISPLAY_DEFAULT 15
-#define ACT_DISPLAY_SPECTRUM 14
-#define ACT_DISPLAY_WIFI 13
+#define ACT_DISPLAY_DEFAULT 63
+#define ACT_DISPLAY_SPECTRUM 62
+#define ACT_DISPLAY_WIFI 61
 #define ACT_NEXTSONDE 65
-#define ACT_PREVSONDE 64
+#define ACT_PREVSONDE 66
+#define ACT_SONDE(n) ((n)+128)
 
 // 0000nnnn => goto display nnnn
 // 01000000 => goto sonde -1
@@ -49,19 +50,19 @@ extern const char *sondeTypeStr[5];
 // Used for interacting with the RX background task
 typedef struct st_RXTask {
 	// Variables set by Arduino main loop to value >=0 for requesting
-	// mode change in RXTask. Will be reset to -1 by RXTask
+	// mode change to sonde reception for sonde <value) in RXTask.
+	// Will be reset to -1 by RXTask
 	int activate;
-	int requestSonde;
-	// Variables set by RXTask, corresponding to activate
-	// and requestSonde
+	// Variables set by RXTask, corresponding to mode ST_DECODER (if active) or something else,
+	// and currently received sonde
 	int mainState;
 	int currentSonde;
-	int lastSonde;
 	// Variable set by RXTask to communicate status to Arduino task
 	// via waitRXcomplete function
 	uint16_t receiveResult;
+	uint16_t receiveSonde;  // sonde inde corresponding to receiveResult
 	// status variabe set by decoder to indicate something is broken
-	// int fifoOverflo;
+	// int fifoOverflow;
 } RXTask;
 
 extern RXTask rxtask;
@@ -87,6 +88,8 @@ typedef struct st_rdzconfig {
 	int oled_sda;			// OLED data pin
 	int oled_scl;			// OLED clock pin
 	int oled_rst;			// OLED reset pin
+	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
+	int gps_txd;			// GPS module TXD pin
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
@@ -174,8 +177,8 @@ public:
 
 	SondeInfo *si();
 
-	uint8_t timeoutEvent();
-	int updateState(int8_t event);
+	uint8_t timeoutEvent(SondeInfo *si);
+	uint8_t updateState(uint8_t event);
 
 	void updateDisplayPos();
 	void updateDisplayPos2();

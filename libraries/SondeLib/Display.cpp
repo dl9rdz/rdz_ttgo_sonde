@@ -1,11 +1,13 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 
+#include <MicroNMEA.h>
 #include "Display.h"
 #include "Sonde.h"
 
 extern Sonde sonde;
 
+extern MicroNMEA nmea;
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41", "RS92" };
@@ -50,6 +52,9 @@ static uint8_t halfdb_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 static uint8_t empty_tile1[8]={0x00, 0xF0, 0x88, 0x48, 0x28, 0xF0, 0x00, 0x00};
 static uint8_t empty_tile2[8]={0x00, 0x11, 0x02, 0x02, 0x02, 0x01, 0x00, 0x00};
 
+//static uint8_t gps_tile[8]={0x3E, 0x77, 0x63, 0x77, 0x3E, 0x1C, 0x08, 0x00};
+static uint8_t gps_tile[8]={0x00, 0x0E, 0x1F, 0x3B, 0x71, 0x3B, 0x1F, 0x0E};
+static uint8_t nogps_tile[8]={0x41, 0x22, 0x14, 0x08, 0x14, 0x22, 0x41, 0x00};
 
 #define SETFONT(large) u8x8->setFont((large)?u8x8_font_7x14_1x2_r:u8x8_font_chroma48medium8_r);
 
@@ -68,7 +73,7 @@ DispEntry searchLayout[] = {
 	{-1, -1, -1, NULL, NULL},
 };
 int16_t searchTimeouts[] = { -1, 0, 0 };
-int8_t searchActions[] = {
+uint8_t searchActions[] = {
 	ACT_NONE,
 	ACT_DISPLAY_DEFAULT, ACT_NONE, ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
 	ACT_NONE, ACT_NONE, ACT_NONE, ACT_NONE,
@@ -89,7 +94,7 @@ DispEntry legacyLayout[] = {
 	{-1, -1, -1, NULL, NULL},
 };
 int16_t legacyTimeouts[] = { -1, -1, 20000 };
-int8_t legacyActions[] = {
+uint8_t legacyActions[] = {
 	ACT_NONE,
 	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
 	ACT_DISPLAY(2), ACT_NONE, ACT_NONE, ACT_NONE,
@@ -105,10 +110,10 @@ DispEntry fieldLayout[] = {
 	{-1, -1, -1, NULL, NULL},
 };
 int16_t fieldTimeouts[] = { -1, -1, -1 };
-int8_t fieldActions[] = {
+uint8_t fieldActions[] = {
 	ACT_NONE,
 	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
-	ACT_DISPLAY(3), ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_DISPLAY(4), ACT_NONE, ACT_NONE, ACT_NONE,
 	ACT_NONE, ACT_NONE, ACT_NONE};
 DispEntry field2Layout[] = {
 	{2, 0, FONT_LARGE, disp.drawLat, NULL},
@@ -122,17 +127,35 @@ DispEntry field2Layout[] = {
 	{6, 7, 0, disp.drawQS, NULL},
 	{-1, -1, -1, NULL, NULL},
 };
-int8_t field2Actions[] = {
+uint8_t field2Actions[] = {
+	ACT_NONE,
+	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
+	ACT_DISPLAY(1), ACT_NONE, ACT_NONE, ACT_NONE,
+	ACT_NONE, ACT_NONE, ACT_NONE};
+DispEntry gpsLayout[] = {
+	{0, 0, FONT_LARGE, disp.drawID, NULL},
+	{2, 0, FONT_SMALL, disp.drawLat, NULL},
+	{3, 0, FONT_SMALL, disp.drawLon, NULL},
+	{4, 0, FONT_SMALL, disp.drawAlt, NULL},
+	{6, 0, FONT_SMALL, disp.drawGPS, "V"},
+	//{6, 1, FONT_SMALL, disp.drawGPS, "A"},
+	//{6, 8, FONT_SMALL, disp.drawGPS, "O"},
+	{7, 0, FONT_SMALL, disp.drawGPS, "D"},
+	{7, 8, FONT_SMALL, disp.drawGPS, "I"},
+	{-1, -1, -1, NULL, NULL},
+};
+uint8_t gpsActions[] = {
 	ACT_NONE,
 	ACT_NEXTSONDE, ACT_DISPLAY(0), ACT_DISPLAY_SPECTRUM, ACT_DISPLAY_WIFI,
 	ACT_DISPLAY(1), ACT_NONE, ACT_NONE, ACT_NONE,
 	ACT_NONE, ACT_NONE, ACT_NONE};
 
-DispInfo layouts[4] = {
+DispInfo layouts[5] = {
   { searchLayout, searchActions, searchTimeouts },
   { legacyLayout, legacyActions, legacyTimeouts },
   { fieldLayout, fieldActions, fieldTimeouts },
-  { field2Layout, field2Actions, fieldTimeouts } };
+  { field2Layout, field2Actions, fieldTimeouts },
+  { gpsLayout, gpsActions, fieldTimeouts } };
 
 char Display::buf[17];
 
@@ -245,7 +268,85 @@ void Display::drawSite(DispEntry *de) {
 }
 void Display::drawTelemetry(DispEntry *de) {
 }
-void Display::drawGPSdist(DispEntry *de) {
+
+#define EARTH_RADIUS (6371000.0F)
+#ifndef PI
+#define  PI  (3.1415926535897932384626433832795)
+#endif
+// defined by Arduino.h   #define radians(x) ( (x)*180.0F/PI )
+
+void Display::drawGPS(DispEntry *de) {
+	if(sonde.config.gps_rxd<0) return;
+	SETFONT(de->fmt);
+	switch(de->extra[0]) {
+	case 'V':
+		{
+		// show if GPS location is valid
+		uint8_t *tile = nmea.isValid()?gps_tile:nogps_tile;
+		u8x8->drawTile(de->x, de->y, 1, tile);
+		}
+		break;
+	case 'O':
+		// GPS long
+		{
+		float lon = nmea.getLongitude()*0.000001;
+		Serial.print("lon: "); Serial.println(lon);
+		snprintf(buf, 16, "%2.5f", lon);
+		u8x8->drawString(de->x,de->y,buf);
+		}
+		break;
+	case 'A':
+		// GPS lat
+		{
+		float lat = nmea.getLatitude()*0.000001;
+		Serial.print("lat: "); Serial.println(lat);
+		snprintf(buf, 16, "%2.5f", lat);
+		u8x8->drawString(de->x,de->y,buf);
+		}
+		break;
+	case 'H':
+		// GPS alt
+		{
+		long alt = -1;
+		nmea.getAltitude(alt);
+		snprintf(buf, 16, "%5fm", alt*0.00001);
+		u8x8->drawString(de->x,de->y,buf);
+		}
+		break;
+	case 'D':
+		{
+		// distance
+		// equirectangular approximation is good enough
+		float lat1 = nmea.getLatitude()*0.000001;
+		float lat2 = sonde.si()->lat;
+		float x = radians(nmea.getLongitude()*0.000001-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
+		float y = radians(lat2-lat1);
+		float d = sqrt(x*x+y*y)*EARTH_RADIUS;
+		snprintf(buf, 16, "d=%.0fm  ", d);
+		buf[7]=0;
+		u8x8->drawString(de->x, de->y, buf);
+		}
+		break;
+	case 'I':
+		// dIrection
+		{
+		float lat1 = radians(nmea.getLatitude()*0.000001);
+                float lat2 = radians(sonde.si()->lat);
+		float lon1 = radians(nmea.getLongitude()*0.000001);
+                float lon2 = radians(sonde.si()->lon);
+		float y = sin(lon2-lon1)*cos(lat2);
+		float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
+		float dir = atan2(y, x)/PI*180;
+		Serial.printf("direction is %.2f\n", dir);
+		snprintf(buf, 16, "dir=%d  ", (int)dir);
+		buf[8]=0;
+		u8x8->drawString(de->x, de->y, buf);
+		}
+		break;
+	case 'E':
+		// elevation
+		break;
+	}
 }
 void Display::drawText(DispEntry *de) {
         SETFONT(de->fmt);

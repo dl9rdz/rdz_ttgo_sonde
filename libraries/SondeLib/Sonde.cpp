@@ -11,12 +11,14 @@
 extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
-RXTask rxtask = { -1, -1, -1, -1, -1, 0 };
+RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
 const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KEY2D", "KEY2M", "KEY2L",
                                "VIEWTO", "RXTO", "NORXTO", "(max)"};
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
+
+int getKeyPressEvent(); /* in RX_FSK.ino */
 
 /* Task model:
  * There is a background task for all SX1278 interaction.
@@ -52,6 +54,8 @@ Sonde::Sonde() {
 	}
 	//
 	config.oled_rst = 16;
+	config.gps_rxd = -1;
+	config.gps_txd = -1;
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
@@ -119,6 +123,10 @@ void Sonde::setConfig(const char *cfg) {
 		config.oled_scl = atoi(val);
 	} else if(strcmp(cfg,"oled_rst")==0) {
 		config.oled_rst = atoi(val);
+	} else if(strcmp(cfg,"gps_rxd")==0) {
+		config.gps_rxd = atoi(val);
+	} else if(strcmp(cfg,"gps_txd")==0) {
+		config.gps_txd = atoi(val);
 	} else if(strcmp(cfg,"maxsonde")==0) {
 		config.maxsonde = atoi(val);
 		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
@@ -248,9 +256,6 @@ void Sonde::setup() {
 		Serial.println(rxtask.currentSonde);
 		rxtask.currentSonde = 0;
 	}
-	// TODO: maybe better done in arduino task, not in rx task
-	sondeList[rxtask.currentSonde].lastState = -1;
-	sondeList[rxtask.currentSonde].viewStart = millis();
 
 	// update receiver config
 	Serial.print("\nSonde::setup() on sonde index ");
@@ -300,20 +305,27 @@ void Sonde::receive() {
                         si->lastState = 0;
                 }
         }
+	Serial.printf("debug: res was %d, now lastState is %d\n", res, si->lastState);
 
 
 	// we should handle timer events here, because after returning from receive,
 	// we'll directly enter setup
-	int event = timeoutEvent();
-	int action = disp.layout->actions[event];
+	rxtask.receiveSonde = rxtask.currentSonde; // pass info about decoded sonde to main loop
+
+	int event = getKeyPressEvent();
+	if (!event) event = timeoutEvent(si);
+	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
+	// If action is to move to a different sonde index, we do update things here, set activate
+	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
+	// main loop (display update...)
 	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE) {
 		// handled here...
 		nextRxSonde();
-		rxtask.requestSonde = rxtask.currentSonde;
-		res = 0xFF00 | res;
-	} else {
-		res = (action<<8) | res;
+		action = ACT_SONDE(rxtask.currentSonde);
+		rxtask.activate = action;
 	}
+	res = (action<<8) | (res&0xff);
+	Serial.printf("receive Result is %04x\n", res);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -337,7 +349,8 @@ rxloop:
 		res = rxtask.receiveResult;
 	}
         rxtask.receiveResult = 0xFFFF;
-        Serial.printf("waitRXcomplete returning %04x (%s)\n", res, RXstr[res&0xff]);
+	/// TODO: THis has caused an exception when swithcing back to spectrumm...
+        Serial.printf("waitRXcomplete returning %04x (%s)\n", res, (res&0xff)<4?RXstr[res&0xff]:"");
 	// currently used only by RS92
 	// TODO: rxtask.currentSonde might not be the right thing (after sonde channel change)
 	switch(sondeList[/*rxtask.*/currentSonde].type) {
@@ -357,33 +370,61 @@ rxloop:
 	return res;
 }
 
-uint8_t Sonde::timeoutEvent() {
+uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 	uint32_t now = millis();
 #if 1
 	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d\n",
-		now, sonde.si()->viewStart, disp.layout->timeouts[0],
-		now, sonde.si()->rxStart, disp.layout->timeouts[1],
-		now, sonde.si()->norxStart, disp.layout->timeouts[2]);
+		now, si->viewStart, disp.layout->timeouts[0],
+		now, si->rxStart, disp.layout->timeouts[1],
+		now, si->norxStart, disp.layout->timeouts[2]);
 #endif
-	Serial.printf("lastState is %d\n", sonde.si()->lastState);
-	if(disp.layout->timeouts[0]>=0 && now - sonde.si()->viewStart >= disp.layout->timeouts[0]) {
+	Serial.printf("lastState is %d\n", si->lastState);
+	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
 		Serial.println("View timer expired");
 		return EVT_VIEWTO;
 	}
-	if(sonde.si()->lastState==1 && disp.layout->timeouts[1]>=0 && now - sonde.si()->rxStart >= disp.layout->timeouts[1]) {
+	if(si->lastState==1 && disp.layout->timeouts[1]>=0 && now - si->rxStart >= disp.layout->timeouts[1]) {
 		Serial.println("RX timer expired");
 		return EVT_RXTO;
 	}
-	if(sonde.si()->lastState==0 && disp.layout->timeouts[2]>=0 && now - sonde.si()->norxStart >= disp.layout->timeouts[2]) {
+	if(si->lastState==0 && disp.layout->timeouts[2]>=0 && now - si->norxStart >= disp.layout->timeouts[2]) {
 		Serial.println("NORX timer expired");
 		return EVT_NORXTO;
 	}
 	return 0;
 }
 
-int Sonde::updateState(int8_t event) {
+uint8_t Sonde::updateState(uint8_t event) {
 	Serial.printf("Sonde::updateState for event %d\n", event);
-	if(event==ACT_NONE) return -1;
+	// No change
+	if(event==ACT_NONE) return 0xFF;
+
+	// In all cases (new display mode, new sonde) we reset the mode change timers
+	sonde.sondeList[sonde.currentSonde].viewStart = millis();
+        sonde.sondeList[sonde.currentSonde].lastState = -1;
+
+	// Moving to a different display mode
+	if (event==ACT_DISPLAY_SPECTRUM || event==ACT_DISPLAY_WIFI) {
+		// main loop will call setMode() and disable sx1278 background task
+		return event;
+	}
+	int n = event;
+	if(event==ACT_DISPLAY_DEFAULT) {
+		n = config.display;
+	}
+	if(n>=0&&n<5) {
+		disp.setLayout(n);
+		// TODO: This is kind of a hack...
+		// ACT_NEXTSONDE will cause loopDecoder to call enterMode(ST_DECODER)
+		//return ACT_NEXTSONDE;
+
+		// TODO::: we probably should clear the display?? -- YES
+		sonde.clearDisplay();
+		return 0xFF;
+	}		
+
+	// Moving to a different value for currentSonde
+	// TODO: THis should be done in sx1278 task, not in main loop!!!!!
 	if(event==ACT_NEXTSONDE) {
 		sonde.nextConfig();
 		Serial.printf("advancing to next sonde %d\n", sonde.currentSonde);
@@ -395,20 +436,11 @@ int Sonde::updateState(int8_t event) {
 		sonde.nextConfig();
 		return ACT_NEXTSONDE;
 	}
-	if (event==ACT_DISPLAY_SPECTRUM || event==ACT_DISPLAY_WIFI) {
-		return event;
-	}
-	int n = event;
-	if(event==ACT_DISPLAY_DEFAULT) {
-		n = config.display;
-	}
-	if(n>=0&&n<4) {
-		disp.setLayout(n);
-		clearDisplay();
-		updateDisplay();
+	if(event&0x80) {
+		sonde.currentSonde = (event&0x7F);
 		return ACT_NEXTSONDE;
-	}		
-	return -1;
+	}
+	return 0xFF;
 }
 
 void Sonde::updateDisplayPos() {

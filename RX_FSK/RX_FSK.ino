@@ -7,6 +7,8 @@
 #include <SPI.h>
 #include <Update.h>
 #include <ESPmDNS.h>
+#include <MicroNMEA.h>
+#include <Ticker.h>
 
 #include <SX1278FSK.h>
 #include <Sonde.h>
@@ -31,7 +33,7 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
 
-String updateHost = "rdzsonde.my.to";
+String updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
 String updateBinM = "/master/update.ino.bin";
 String updateBinD = "/devel/update.ino.bin";
@@ -46,16 +48,17 @@ WiFiClient client;
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
+// "doublepress" is now also used to eliminate key glitch on TTGO T-Beam startup (SENSOR_VN/GPIO39)
 struct Button {
   uint8_t pin;
   uint32_t numberKeyPresses;
   KeyPress pressed;
-  unsigned long keydowTime;
-  bool doublepress;
+  unsigned long keydownTime;
+  int8_t doublepress;
   bool isTouched;
 };
-Button button1 = {0, 0, KP_NONE, 0, false, false};
-Button button2 = {0, 0, KP_NONE, 0, false, false};
+Button button1 = {0, 0, KP_NONE, 0, -1, false};
+Button button2 = {0, 0, KP_NONE, 0, -1, false};
 
 
 static int lastDisplay = 1;
@@ -424,6 +427,8 @@ struct st_configitems config_list[] = {
   {"button2_pin", "Button 2 input port (needs reboot)", 0, &sonde.config.button2_pin},
   {"touch_thresh", "Touch button threshold (needs reboot)", 0, &sonde.config.touch_thresh},
   {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
+  {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
+  {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -590,7 +595,7 @@ const char *createEditForm(String filename) {
     String line = file.readStringUntil('\n');
     strcat(ptr, line.c_str()); strcat(ptr, "\n");
   }
-  strcat(ptr, "</textarea><input type=\"submit\">Save</input></form></body></html>");
+  strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
   return message;
 }
 
@@ -770,7 +775,7 @@ const char *fetchWifiPw(const char *id) {
 }
 
 // It is not safe to call millis() in ISR!!!
-// millis() does a division int16_t by 1000 for which gcc creates a library call
+// millis() does a division int64_t by 1000 for which gcc creates a library call
 // on a 32bit system, and the called function has no IRAM_ATTR
 // so doing it manually...
 // Code adapted for 64 bits from https://www.hackersdelight.org/divcMore.pdf
@@ -808,14 +813,23 @@ void touchISR2();
 ///// lets use a timer every 20ms to handle sx1278 FIFO input, that should be fine.
 // Instead create a tast...
 
+Ticker ticker;
+
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
-  if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttongs configured
+  if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttons configured
 
-  hw_timer_t *timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(timer, checkTouchStatus, true);
-  timerAlarmWrite(timer, 300000, true);
-  timerAlarmEnable(timer);
+
+  /*
+   *  ** no. readTouch is not safe to use in ISR!
+      so now using Ticker
+    hw_timer_t *timer = timerBegin(0, 80, true);
+    timerAttachInterrupt(timer, checkTouchStatus, true);
+    timerAlarmWrite(timer, 300000, true);
+    timerAlarmEnable(timer);
+  */
+  ticker.attach_ms(300, checkTouchStatus);
+
   if ( IS_TOUCH(sonde.config.button_pin) ) {
     touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 20);
     Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
@@ -826,6 +840,40 @@ void initTouch() {
   }
 }
 
+char buffer[85];
+MicroNMEA nmea(buffer, sizeof(buffer));
+
+void gpsTask(void *parameter) {
+  while (1) {
+    while (Serial2.available()) {
+      char c = Serial2.read();
+      //Serial.print(c);
+      if (nmea.process(c)) {
+        long lat = nmea.getLatitude();
+        long lon = nmea.getLongitude();
+        long alt = -1;
+        bool b = nmea.getAltitude(alt);
+        bool valid = nmea.isValid();
+        uint8_t hdop = nmea.getHDOP();
+        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid?1:0, lat, lon, alt, b, hdop);
+      }
+    }
+    delay(50);
+  }
+}
+
+void initGPS() {
+  if (sonde.config.gps_rxd < 0) return; // GPS disabled
+  Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+
+  xTaskCreate( gpsTask, "gpsTask",
+               5000, /* stack size */
+               NULL, /* paramter */
+               1, /* priority */
+               NULL);  /* task handle*/
+}
+
+
 void sx1278Task(void *parameter) {
   /* new strategy:
       background tasks handles all interactions with sx1278.
@@ -833,36 +881,32 @@ void sx1278Task(void *parameter) {
       This task is a simple infinit loop that
        (a) initially and after frequency or mode change calls <decoder>.setup()
        (b) then repeatedly calls <decoder>.receive() which should
-           (1) update data in the Sonde structure
-           (2) set an output flag (success/errors/timeout-norx)
-           (3) return to this task look after about 1s  or if some extern trigger (key) is detected
+           (1) update data in the Sonde structure (additional updates may be done later in main loop/waitRXcomplete)
+           (2) set output flag receiveResult (success/error/timeout and keybord events)
+
   */
+  Serial.printf("rx task: activate=%d  mainstate=%d\n", rxtask.activate, rxtask.mainState);
   while (1) {
-    boolean resetup = false;
-    // RX task state update. Check rxtask.activate and rxtask.requestSonde
-    if (rxtask.activate >= 0) {
-      Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
-      rxtask.mainState = rxtask.activate;
-      rxtask.activate = -1;
-      resetup = true;
+    if (rxtask.activate >= 128) {
+      // activating sx1278 background task...
+      rxtask.mainState = ST_DECODER;
+      rxtask.currentSonde = rxtask.activate & 0x7F;
+      Serial.println("rx task: calling sonde.setup()");
+      sonde.setup();
     }
-    if (rxtask.requestSonde >= 0) {
-      Serial.printf("rx task: activate=%d requestsonde=%d mainstate=%d\n", rxtask.activate, rxtask.requestSonde, rxtask.mainState);
-      resetup = true;
-      rxtask.currentSonde = rxtask.requestSonde;
-      rxtask.requestSonde = -1;
-    }
+    rxtask.activate = -1;
     /* only if mainState is ST_DECODER */
     if (rxtask.mainState != ST_DECODER) {
       delay(100);
       continue;
     }
+#if 0
     if (resetup) {
-      Serial.println("rx task: calling sonde.setup()");
       resetup = false;
       sonde.setup();
     }
     //Serial.println("rx task: calling sonde.receive()");
+#endif
     sonde.receive();
     delay(20);
   }
@@ -872,9 +916,9 @@ void sx1278Task(void *parameter) {
 void IRAM_ATTR touchISR() {
   if (!button1.isTouched) {
     unsigned long now = my_millis();
-    if (now - button1.keydowTime < 500) button1.doublepress = true;
-    else button1.doublepress = false;
-    button1.keydowTime = now;
+    if (now - button1.keydownTime < 500) button1.doublepress = 1;
+    else button1.doublepress = 0;
+    button1.keydownTime = now;
     button1.isTouched = true;
   }
 }
@@ -882,19 +926,20 @@ void IRAM_ATTR touchISR() {
 void IRAM_ATTR touchISR2() {
   if (!button2.isTouched) {
     unsigned long now = my_millis();
-    if (now - button2.keydowTime < 500) button2.doublepress = true;
-    else button2.doublepress = false;
-    button2.keydowTime = now;
+    if (now - button2.keydownTime < 500) button2.doublepress = 1;
+    else button2.doublepress = 0;
+    button2.keydownTime = now;
     button2.isTouched = true;
   }
 }
 
-void IRAM_ATTR checkTouchButton(Button &button) {
+// TODO: touchRead in ISR is also a bad idea.
+void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
     if (tmp > sonde.config.touch_thresh) {
       button.isTouched = false;
-      unsigned long elapsed = my_millis() - button.keydowTime;
+      unsigned long elapsed = my_millis() - button.keydownTime;
       if (elapsed > 1500) {
         if (elapsed < 4000) {
           button.pressed = KP_MID;
@@ -911,7 +956,7 @@ void IRAM_ATTR checkTouchButton(Button &button) {
   }
 }
 
-void IRAM_ATTR checkTouchStatus() {
+void checkTouchStatus() {
   checkTouchButton(button1);
   checkTouchButton(button2);
 }
@@ -920,15 +965,16 @@ void IRAM_ATTR checkTouchStatus() {
 void IRAM_ATTR buttonISR() {
   unsigned long now = my_millis();
   if (digitalRead(button1.pin) == 0) { // Button down
-    if (now - button1.keydowTime < 500) {
+    if (now - button1.keydownTime < 500) {
       // Double press
-      button1.doublepress = true;
+      button1.doublepress = 1;
     } else {
-      button1.doublepress = false;
+      button1.doublepress = 0;
     }
-    button1.keydowTime = now;
+    button1.keydownTime = now;
   } else { //Button up
-    unsigned int elapsed = now - button1.keydowTime;
+    if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
+    unsigned int elapsed = now - button1.keydownTime;
     if (elapsed > 1500) {
       if (elapsed < 4000) {
         button1.pressed = KP_MID;
@@ -941,21 +987,22 @@ void IRAM_ATTR buttonISR() {
       else button1.pressed = KP_SHORT;
     }
     button1.numberKeyPresses += 1;
-    button1.keydowTime = now;
+    button1.keydownTime = now;
   }
 }
 
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
-  //Serial.printf("button1 press: %d at %ld (%d)\n", p, button1.keydowTime, button1.numberKeyPresses);
+  int x = digitalRead(button1.pin);
+  Serial.printf("button1 press (now:%d): %d at %ld (%d)\n", x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
 }
 
 int getKey2Press() {
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
-  //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydowTime, button2.numberKeyPresses);
+  Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
   return p;
 }
 int hasKeyPress() {
@@ -994,6 +1041,18 @@ void setup()
 
   setupConfigData();    // configuration must be read first due to OLED ports!!!
   LORA_LED = sonde.config.led_pout;
+  button1.pin = sonde.config.button_pin;
+  button2.pin = sonde.config.button2_pin;
+  if (button1.pin != 0xff)
+    pinMode(button1.pin, INPUT);  // configure as input if not disabled
+  if (button2.pin != 0xff)
+    pinMode(button2.pin, INPUT);  // configure as input if not disabled
+
+  // Handle button press
+  if ( (button1.pin & 0x80) == 0) {
+    attachInterrupt( button1.pin, buttonISR, CHANGE);
+    Serial.printf("button1.pin is %d, attaching interrupt\n", button1.pin);
+  }
   initTouch();
 
   u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
@@ -1013,12 +1072,6 @@ void setup()
   sonde.clearDisplay();
 
   setupWifiList();
-  button1.pin = sonde.config.button_pin;
-  button2.pin = sonde.config.button2_pin;
-  if (button1.pin != 0xff)
-    pinMode(button1.pin, INPUT);  // configure as input if not disabled
-  if (button2.pin != 0xff)
-    pinMode(button2.pin, INPUT);  // configure as input if not disabled
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
@@ -1092,11 +1145,6 @@ void setup()
   //  }
   //   xTaskCreate(mainloop, "MainServer", 10240, NULL, 10, NULL);
 
-  // Handle button press
-  if ( (button1.pin & 0x80) == 0) {
-    attachInterrupt( button1.pin, buttonISR, CHANGE);
-    Serial.printf("button1.pin is %d, attaching interrupt\n", button1.pin);
-  }
 
   // == setup default channel list if qrg.txt read fails =========== //
   setupChannelList();
@@ -1118,8 +1166,10 @@ void setup()
                1, /* priority */
                NULL);  /* task handle*/
   sonde.setup();
+  initGPS();
 
   WiFi.onEvent(WiFiEvent);
+  getKeyPress();    // clear key buffer
 }
 
 void enterMode(int mode) {
@@ -1129,83 +1179,67 @@ void enterMode(int mode) {
   if (mode != ST_DECODER) {
     rxtask.activate = mode;
     while (rxtask.activate == mode) {
-      delay(10);  // until cleared by RXtask
+      delay(10);  // until cleared by RXtask -- rx task is deactivated
     }
   }
   mainState = (MainState)mode;
   if (mainState == ST_SPECTRUM) {
+    Serial.println("Entering ST_SPECTRUM mode");
     sonde.clearDisplay();
     u8x8->setFont(u8x8_font_chroma48medium8_r);
     specTimer = millis();
     //scanner.init();
-  } else {
-    //sonde.clearDisplay();
+  } else if (mainState == ST_WIFISCAN) {
+    sonde.clearDisplay();
   }
   if (mode == ST_DECODER) {
     // trigger activation of background task
     // currentSonde should be set before enterMode()
-    rxtask.requestSonde = sonde.currentSonde;
-    rxtask.activate = mode;
+    rxtask.activate = ACT_SONDE(sonde.currentSonde);
+    sonde.clearDisplay();
+    sonde.updateDisplay();
   }
 }
 
 static char text[40];
-static const char *action2text(int action) {
+static const char *action2text(uint8_t action) {
   if (action == ACT_DISPLAY_DEFAULT) return "Default Display";
   if (action == ACT_DISPLAY_SPECTRUM) return "Spectrum Display";
   if (action == ACT_DISPLAY_WIFI) return "Wifi Scan Display";
   if (action == ACT_NEXTSONDE) return "Go to next sonde";
   if (action == ACT_PREVSONDE) return "presonde (not implemented)";
   if (action == ACT_NONE) return "none";
-  snprintf(text, 40, "Display=%d", action);
+  if (action >= 128) {
+    snprintf(text, 40, "Sonde=%d", action & 127);
+  } else {
+    snprintf(text, 40, "Display=%d", action);
+  }
   return text;
 }
 void loopDecoder() {
-#if 0
-  switch (getKeyPress()) {
-    case KP_SHORT:
-      sonde.nextConfig();
-      sonde.updateDisplayRXConfig();
-      sonde.updateDisplay();
-      enterMode(ST_DECODER);  // just to trigger rxtask reconfiguration
-      break;
-    case KP_DOUBLE:
-      currentDisplay = 0;
-      enterMode(ST_DECODER);  // just to trigger rxtask reconfiguration
-      return;
-    case KP_MID:
-      enterMode(ST_SPECTRUM);
-      return;
-    case KP_LONG:
-      enterMode(ST_WIFISCAN);
-      return;
-  }
-#endif
   // sonde knows the current type and frequency, and delegates to the right decoder
-  int res = sonde.waitRXcomplete();
+  uint16_t res = sonde.waitRXcomplete();
   int action, event = 0;
-  if ((res >> 8) == 0xFF) { // no implicit action returned from RXTask
-    // Handle events that change display or sonde
-    event = getKeyPressEvent();
-    if (!event) event = sonde.timeoutEvent();
-    // Check if there is an action for this event
-    Serial.printf("Event: %d\n", event);
-    action = disp.layout->actions[event];
-  } else {
-    action = res >> 8;
-    action = (int)(int8_t)action;
-    sonde.currentSonde = rxtask.currentSonde;
-  }
+  action = (int)(res >> 8);
+  // TODO: update displayed sonde?
 
-  if (action >= 0) {
-    Serial.printf("Loop: triggering action %s (%d) for event %s (%d)\n", action2text(action), action, EVENTNAME(event), event);
-    Serial.printf("current main is %d, current rxtask is %d\n", sonde.currentSonde, rxtask.currentSonde);
+  if (action != ACT_NONE) {
+    Serial.printf("Loop: triggering action %s (%d)\n", action2text(action), action);
     action = sonde.updateState(action);
-    if (action >= 0) {
-      if (action == ACT_DISPLAY_SPECTRUM) enterMode(ST_SPECTRUM);
-      else if (action == ACT_DISPLAY_WIFI) enterMode(ST_WIFISCAN);
-      else if (action == ACT_NEXTSONDE) enterMode(ST_DECODER); // update rx background task
+    Serial.printf("Loop: action is %d, sonde index is %d\n", action, sonde.currentSonde);
+    if (action != 255) {
+      if (action == ACT_DISPLAY_SPECTRUM) {
+        enterMode(ST_SPECTRUM);
+        return;
+      }
+      else if (action == ACT_DISPLAY_WIFI) {
+        enterMode(ST_WIFISCAN);
+        return;
+      }
+      // no... we are already in DECODER mode, so no need to do anything!?
+      //else if (action == ACT_NEXTSONDE) enterMode(ST_DECODER); // update rx background task
     }
+    Serial.printf("current main is %d, current rxtask is %d\n", sonde.currentSonde, rxtask.currentSonde);
   }
 
 
@@ -1225,42 +1259,9 @@ void loopDecoder() {
       udp.endPacket();
     }
   }
-  // Handle events (keypress and timeouts)
   sonde.updateDisplay();
 }
 
-#if 0
-// now handled by loopDecoder in display mode 0
-#define SCAN_MAXTRIES 1
-void loopScanner() {
-  sonde.updateDisplayScanner();
-  static int tries = 0;
-  switch (getKeyPress()) {
-    case KP_SHORT:
-      enterMode(ST_DECODER);
-      return;
-    case KP_DOUBLE: break; /* ignored */
-    case KP_MID:
-      enterMode(ST_SPECTRUM);
-      return;
-    case KP_LONG:
-      enterMode(ST_WIFISCAN);
-      return;
-  }
-  // receiveFrame returns 0 on success, 1 on timeout
-  int res = sonde.receiveFrame();   // Maybe instead of receiveFrame, just detect if right type is present? TODO
-  Serial.print("Scanner: receiveFrame returned: ");
-  Serial.println(res);
-  if (res == 0) {
-    enterMode(ST_DECODER);
-    return;
-  }
-  if (++tries >= SCAN_MAXTRIES && !hasKeyPress()) {
-    sonde.nextConfig();
-    tries = 0;
-  }
-}
-#endif
 
 void loopSpectrum() {
   int marker = 0;
@@ -1273,6 +1274,7 @@ void loopSpectrum() {
       return;
     case KP_MID: /* restart, TODO */ break;
     case KP_LONG:
+      Serial.println("loopSpectrum: KP_LONG");
       enterMode(ST_WIFISCAN);
       return;
     case KP_DOUBLE:
@@ -1652,8 +1654,14 @@ void loopWifiScan() {
     sonde.setIP(localIPstr.c_str(), false);
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
-    geteph();
-    get_eph("/brdc");
+    bool hasRS92 = false;
+    for (int i = 0; i < MAXSONDE; i++) {
+      if (sonde.sondeList[i].type == STYPE_RS92) hasRS92 = true;
+    }
+    if (hasRS92) {
+      geteph();
+      get_eph("/brdc");
+    }
     delay(3000);
   }
   enableNetwork(true);
