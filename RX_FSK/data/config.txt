@@ -2,8 +2,11 @@
 # Hardware depending settings
 #-------------------------------#
 # pin: 255=disabled; x=button x+128=touch button
-button_pin=130
-button2_pin=142
+#button_pin=130
+#button2_pin=142
+# No specification in config file: try autodetection (gpio4 pin level at startup)
+#button_pin=0
+#button2_pin=255
 # LED port
 led_pout=9
 # OLED Setup is depending on hardware of LoRa board
@@ -13,6 +16,8 @@ led_pout=9
 #oled_sda=21
 #oled_scl=22
 oled_rst=16
+#gps_rxd=-1
+gps_txd=-1
 #-------------------------------#
 # General config settings
 #-------------------------------#

@@ -34,18 +34,24 @@ int getKeyPressEvent(); /* in RX_FSK.ino */
  *    value of receiveResult (or timeout, if receiveResult was not set within 1s). It
  *    should also return immediately if there is some keyboard input.
  */   
+int initlevels[40];
 
 Sonde::Sonde() {
+	for (int i = 0; i < 39; i++) {
+		initlevels[i] = gpio_get_level((gpio_num_t)i);
+  	}
+	for (int i = 0; i < 39*3; i++) {
+		initlevels[i%39] += gpio_get_level((gpio_num_t)(i%39));
+  	}
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	config.touch_thresh = 70;
 	config.led_pout = 9;	
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
-   	int autodetect = gpio_get_level((gpio_num_t)16); 
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
-	if(autodetect==0) {
+	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
 		config.button_pin = 0;
@@ -53,8 +59,7 @@ Sonde::Sonde() {
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
-		autodetect = gpio_get_level((gpio_num_t)17);
-		if(autodetect==0) { // T-Beam
+		if(initlevels[17]==0) { // T-Beam
 			config.button_pin = 39;
 			config.button2_pin = T4 + 128;  // T4 == GPIO13
 			config.gps_rxd = 12;

@@ -1031,6 +1031,7 @@ int getKeyPressEvent() {
   return p;  /* map KP_x to EVT_KEY1_x / EVT_KEY2_x*/
 }
 
+extern int initlevels[40];
 void setup()
 {
   char buf[12];
@@ -1041,6 +1042,11 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
+
+  for (int i = 0; i < 39; i++) {
+    Serial.printf("%d:%d ", i, initlevels[i]);
+  }
+  Serial.println(" (before setup)");
   pinMode(LORA_LED, OUTPUT);
 
   aprs_gencrctab();
@@ -1255,7 +1261,7 @@ void loopDecoder() {
   }
 
 
-  if ((res&0xff) == 0 && connected) {
+  if ((res & 0xff) == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
