@@ -12,10 +12,11 @@
 #define DFM_DBG(x)
 #endif
 
-int DFM::setup(int inverse) 
+int DFM::setup(float frequency, int inv) 
 {
+	inverse = inv;
 #if DFM_DEBUG
-	Serial.println("Setup sx1278 for DFM sonde");
+	Serial.printf("Setup sx1278 for DFM sonde (inv=%d)\n",inv);
 #endif
 	if(sx1278.ON()!=0) {
 		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
@@ -35,14 +36,14 @@ int DFM::setup(int inverse)
 	Serial.println(br);
 #endif
 
-	if(sx1278.setAFCBandwidth(25000)!=0) {
-		DFM_DBG(Serial.println("Setting AFC bandwidth 25 kHz FAILED"));
-		return 1;
-	}
-	if(sx1278.setRxBandwidth(12000)!=0) {
-		DFM_DBG(Serial.println("Setting RX bandwidth 12kHz FAILED"));
-		return 1;
-	}
+        if(sx1278.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
+                DFM_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.dfm.agcbw));
+                return 1;
+        }
+        if(sx1278.setRxBandwidth(sonde.config.dfm.rxbw)!=0) {
+                DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
+                return 1;
+        }
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(sx1278.setRxConf(0x1E)!=0) {
 		DFM_DBG(Serial.println("Setting RX Config FAILED"));
@@ -67,23 +68,22 @@ int DFM::setup(int inverse)
 		DFM_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
-	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
-	return 0;
-}
-
-int DFM::setFrequency(float frequency) {
         Serial.print("DFM: setting RX frequency to ");
         Serial.println(frequency);
-	return sx1278.setFrequency(frequency);
+
+	int retval = sx1278.setFrequency(frequency);
+	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
+	return retval;
 }
 
-#define bit(value,bitpos) ((value>>(7-bitpos))&0x01)
+
+#define bitpick(value,bitpos) (((value)>>(7-(bitpos)))&0x01)
 // Input: str: packed data, MSB first
 void DFM::deinterleave(uint8_t *str, int L, uint8_t *block) {
 	int i, j;
 	for (j = 0; j < B; j++) {  // L = 7 (CFG), 13 (DAT1, DAT2)
 		for (i = 0; i < L; i++) {
-			block[B*i+j] = bit( str[(L*j+i)/8], (L*j+i)&7 )?0:1;
+			block[B*i+j] = bitpick( str[(L*j+i)/8], (L*j+i)&7 )?0:1;
 		}
 	}
 }
@@ -162,7 +162,7 @@ void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 	Serial.print(" ");
 }
 
-int DFM::decodeCFG(uint8_t *cfg)
+void DFM::decodeCFG(uint8_t *cfg)
 {
 	static int lowid, highid, idgood=0, type=0;
 	if((cfg[0]>>4)==0x06 && type==0) {   // DFM-6 ID
@@ -189,7 +189,7 @@ int DFM::decodeCFG(uint8_t *cfg)
 	}
 }
 
-int DFM::decodeDAT(uint8_t *dat)
+void DFM::decodeDAT(uint8_t *dat)
 {
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
 	switch(dat[6]) {
@@ -206,7 +206,7 @@ int DFM::decodeDAT(uint8_t *dat)
 		{
 		float lat, vh;
 		lat = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
-		vh = (dat[4]<<8) + dat[5];
+		vh = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
 		sonde.si()->lat = lat*0.0000001;
@@ -230,7 +230,7 @@ int DFM::decodeDAT(uint8_t *dat)
 		{
 		float alt, vv;
 		alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
-		vv = (int16_t)( (dat[4]<<8) | dat[5] );
+		vv = (int16_t)( ((int16_t)dat[4]<<8) | dat[5] );
 		Serial.print("GPS-height: "); Serial.print(alt*0.01);
 		Serial.print(", vv: "); Serial.print(vv*0.01);
 		sonde.si()->alt = alt*0.01;
@@ -256,7 +256,7 @@ int DFM::decodeDAT(uint8_t *dat)
 	}
 }
 
-int DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
+void DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 {
 	int i;
 	for(i=0; i<len*4; i++) {
@@ -266,14 +266,17 @@ int DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 	bytes[(i-1)/8] &= 0x0F;
 }
 
-int DFM::receiveFrame() {
-	byte data[33];
-	sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes
+int DFM::receive() {
+	byte data[1000];  // pending data from previous mode may write more than 33 bytes. TODO. 
+	for(int i=0; i<2; i++) {
+	sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
 
 	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	int e = sx1278.receivePacketTimeout(1000, data);
 	if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
+	Serial.printf("inverse is %d\b", inverse);
+	if(!inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
 	deinterleave(data+20, 13, hamming_dat2);
@@ -293,7 +296,30 @@ int DFM::receiveFrame() {
 	decodeCFG(byte_conf);
 	decodeDAT(byte_dat1);
 	decodeDAT(byte_dat2);
+	}
 	return RX_OK;
+}
+
+// moved to a single function in Sonde(). This function can be used for additional
+// processing here, that takes too long for doing in the RX task loop
+int DFM::waitRXcomplete() {
+#if 0
+	int res=0;
+	uint32_t t0 = millis();
+	while( rxtask.receiveResult < 0 && millis()-t0 < 2000) { delay(50); }
+
+	if( rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) { 
+                res = RX_TIMEOUT;
+        } else if ( rxtask.receiveResult ==0) {
+                res = RX_OK;
+        } else {
+                res = RX_ERROR;
+        }
+        rxtask.receiveResult = -1;
+        Serial.printf("waitRXcomplete returning %d\n", res);
+        return res;
+#endif
+	return 0;
 }
 
 DFM dfm = DFM();

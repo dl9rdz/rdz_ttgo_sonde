@@ -34,12 +34,12 @@
 	<iframe src="wifi.html" style="border:none;" width="100%%" height="100%%"></iframe>
 </div>
 
-<div id="Data" class="tabcontent">
+<div id="Data" class="tabcontent" data-src="status.html">
 	<h3>Data</h3>
 	<iframe src="status.html" style="border:none;" width="100%%" height="100%%"></iframe>
 </div>
 
-<div id="SondeMap" class="tabcontent">
+<div id="SondeMap" class="tabcontent" data-src="https://wx.dl2mf.de/#?">
 	<iframe src="https://wx.dl2mf.de/#?" style="border:none;" width="98%%" height="98%%"></iframe>
 </div>
 
@@ -74,13 +74,25 @@ function selTab(evt, id) {
 	tabcontent=document.getElementsByClassName("tabcontent");
 	for(i=0; i<tabcontent.length; i++) {
 		tabcontent[i].style.display = "none";
+		var link = tabcontent[i].dataset.src;
+		if(link) {
+			var iframe = tabcontent[i].getElementsByTagName("iframe")[0];
+			iframe.setAttribute("src", "");
+		}
 	}
 	tablinks=document.getElementsByClassName("tablinks");
 	for(i=0; i<tablinks.length; i++) {
 		tablinks[i].className = tablinks[i].className.replace(" active", "");
-	}
-	document.getElementById(id).style.display = "block";
+	}	
+	var act = document.getElementById(id);
+	act.style.display = "block";
 	evt.currentTarget.className += " active";
+	
+	var link = act.dataset.src;
+	if(link) {
+		var iframe = act.getElementsByTagName("iframe")[0];
+		iframe.setAttribute("src", link);
+	}
 }
 document.getElementById("defaultTab").click();
 </script>

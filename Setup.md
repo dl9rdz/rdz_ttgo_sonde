@@ -32,6 +32,7 @@ similar on other OS) and restart IDE
 Select Tools -> Library Manager
 
 Install "U8g2"
+Install "MicroNMEA"
 
 ## Additional libraries, part 2
 

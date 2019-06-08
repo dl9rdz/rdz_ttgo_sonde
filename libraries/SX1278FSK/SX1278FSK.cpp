@@ -542,7 +542,7 @@ int32_t SX1278FSK::getFEI()
 {
 	int32_t FEI;
 	int16_t regval = (readRegister(REG_FEI_MSB)<<8) | readRegister(REG_FEI_LSB);
-	Serial.printf("feireg: %04x\n", regval);
+	//Serial.printf("feireg: %04x\n", regval);
 	FEI = (int32_t)(regval * SX127X_FSTEP);
 	return FEI;
 }
@@ -554,7 +554,7 @@ int32_t SX1278FSK::getAFC()
 {
 	int32_t AFC;
 	int16_t regval = (readRegister(REG_AFC_MSB)<<8) | readRegister(REG_AFC_LSB);
-	Serial.printf("afcreg: %04x\n", regval);
+	//Serial.printf("afcreg: %04x\n", regval);
 	AFC = (int32_t)(regval * SX127X_FSTEP);
 	return AFC;
 }
@@ -701,8 +701,6 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	state = receive();
 	if(state != 0) { return state; }
 
-	boolean p_received = false;
-
 #if (SX1278FSK_debug_mode > 0)
 	Serial.println(F("RX mode sucessfully activated"));
 #endif
@@ -711,20 +709,26 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	value = readRegister(REG_IRQ_FLAGS2);
 	byte ready=0;
 	// while not yet done or FIFO not yet empty
-	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) &&(!hasKeyPress()) )
+	while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) )
 	{
 		if( bitRead(value,2)==1 ) ready=1;
 		if( bitRead(value, 6) == 0 ) { // FIFO not empty
 			data[di++] = readRegister(REG_FIFO);
-			if(di==1) {
+			// It's a bit of a hack.... get RSSI and AFC (a) at beginning of packet and
+			// for RS41 after about 0.5 sec. It might be more logical to put this decoder-specific
+			// code into RS41.cpp instead of this file... (maybe TODO?)
+			
+			if(di==1 || di==290 ) {
 				int rssi=getRSSI();
-				int fei=getFEI();
 				int afc=getAFC();
-				Serial.print("Test: RSSI="); Serial.println(rssi);
-				Serial.print("Test: FEI="); Serial.println(fei);
+				Serial.printf("Test(%d): RSSI=%d", rxtask.currentSonde, rssi/2);
 				Serial.print("Test: AFC="); Serial.println(afc);
-				sonde.si()->rssi = rssi;
-				sonde.si()->afc = afc;
+				sonde.sondeList[rxtask.currentSonde].rssi = rssi;
+				sonde.sondeList[rxtask.currentSonde].afc = afc;
+				if(rxtask.receiveResult==0xFFFF)
+					rxtask.receiveResult = RX_UPDATERSSI;
+				//sonde.si()->rssi = rssi;
+				//sonde.si()->afc = afc;
 			}
 			if(di>520) {
 				// TODO
@@ -732,6 +736,8 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 				break;
 			}
 			previous = millis(); // reset timeout after receiving data
+		} else {
+			delay(10);
 		}
 		value = readRegister(REG_IRQ_FLAGS2);
 	}

@@ -1,7 +1,12 @@
 #-------------------------------#
 # Hardware depending settings
 #-------------------------------#
-button_pin=0
+# pin: 255=disabled; x=button x+128=touch button
+#button_pin=130
+#button2_pin=142
+# No specification in config file: try autodetection (gpio4 pin level at startup)
+#button_pin=0
+#button2_pin=255
 # LED port
 led_pout=9
 # OLED Setup is depending on hardware of LoRa board
@@ -11,13 +16,17 @@ led_pout=9
 #oled_sda=21
 #oled_scl=22
 oled_rst=16
+#gps_rxd=-1
+gps_txd=-1
 #-------------------------------#
 # General config settings
 #-------------------------------#
 maxsonde=20
-debug=1
+debug=0
 # wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
 wifi=3
+# display mode: 1=standard 2=fieldmode 3=field w/sondetype
+display=1
 #-------------------------------#
 # Spectrum display settings
 #-------------------------------#
@@ -32,6 +41,19 @@ marker=1
 #-------------------------------#
 call=N0CALL
 passcode=12345
+#-------------------------------#
+# Sonde specific settings: bandwidth
+# valid values: 3100, 3900, 5200, 6300, 7800, 10400, 12500,
+# 15600, 20800, 25000, ...
+# other values will be rounded up to the next valid value
+# rs92.alt2d: default altitude used by RS92 decoder if only 3 sats available
+#-------------------------------#
+rs41.agcbw=12500
+rs41.rxbw=6300
+rs92.rxbw=12500
+rs92.alt2d=480
+dfm.agcbw=20800
+dfm.rxbw=10400
 #-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
