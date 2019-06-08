@@ -423,8 +423,8 @@ struct st_configitems config_list[] = {
   {"oled_sda", "OLED SDA (needs reboot)", 0, &sonde.config.oled_sda},
   {"oled_scl", "OLED SCL (needs reboot)", 0, &sonde.config.oled_scl},
   {"oled_rst", "OLED RST (needs reboot)", 0, &sonde.config.oled_rst},
-  {"button_pin", "Button input port (needs reboot)", 0, &sonde.config.button_pin},
-  {"button2_pin", "Button 2 input port (needs reboot)", 0, &sonde.config.button2_pin},
+  {"button_pin", "Button input port (needs reboot)", -4, &sonde.config.button_pin},
+  {"button2_pin", "Button 2 input port (needs reboot)", -4, &sonde.config.button2_pin},
   {"touch_thresh", "Touch button threshold (needs reboot)", 0, &sonde.config.touch_thresh},
   {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
@@ -439,6 +439,11 @@ void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *
 void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%d\"/></td></tr>\n",
           label, idx, *value);
+}
+void addConfigButtonEntry(char *ptr, int idx, const char *label, int *value) {
+  sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" size=\"3\" value=\"%d\"/>",
+          label, idx, 127 & *value);
+  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, 128 & *value ? " checked" : "");
 }
 void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
   // TODO
@@ -466,6 +471,9 @@ const char *createConfigForm() {
         break;
       case 0:
         addConfigNumEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
+        break;
+      case -4:
+        addConfigButtonEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
         break;
       default:
         addConfigStringEntry(ptr, i, config_list[i].label, config_list[i].type, (char *)config_list[i].data);
@@ -504,6 +512,15 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
     AsyncWebParameter *value = request->getParam(label, true);
     if (!value) continue;
     String strvalue = value->value();
+    if (config_list[idx].type == -4) {  // input button port with "touch" checkbox
+      char tmp[10];
+      snprintf(tmp, 10, "TO%d", idx);
+      AsyncWebParameter *touch = request->getParam(tmp, true);
+      if (touch) {
+        int i = atoi(strvalue.c_str()) + 128;
+        strvalue = String(i);
+      }
+    }
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
     f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
   }
@@ -885,14 +902,17 @@ void sx1278Task(void *parameter) {
            (2) set output flag receiveResult (success/error/timeout and keybord events)
 
   */
-  Serial.printf("rx task: activate=%d  mainstate=%d\n", rxtask.activate, rxtask.mainState);
   while (1) {
     if (rxtask.activate >= 128) {
       // activating sx1278 background task...
+      Serial.printf("rx task: activate=%d  mainstate=%d\n", rxtask.activate, rxtask.mainState);
       rxtask.mainState = ST_DECODER;
       rxtask.currentSonde = rxtask.activate & 0x7F;
       Serial.println("rx task: calling sonde.setup()");
       sonde.setup();
+    } else if (rxtask.activate != -1) {
+      Serial.printf("rx task: activate=%d  mainstate=%d\n", rxtask.activate, rxtask.mainState);
+      rxtask.mainState = rxtask.activate;
     }
     rxtask.activate = -1;
     /* only if mainState is ST_DECODER */
@@ -900,13 +920,6 @@ void sx1278Task(void *parameter) {
       delay(100);
       continue;
     }
-#if 0
-    if (resetup) {
-      resetup = false;
-      sonde.setup();
-    }
-    //Serial.println("rx task: calling sonde.receive()");
-#endif
     sonde.receive();
     delay(20);
   }
@@ -933,7 +946,7 @@ void IRAM_ATTR touchISR2() {
   }
 }
 
-// TODO: touchRead in ISR is also a bad idea.
+// touchRead in ISR is also a bad idea. Now moved to Ticker task
 void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);

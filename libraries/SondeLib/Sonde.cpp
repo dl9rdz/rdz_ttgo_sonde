@@ -38,24 +38,33 @@ int getKeyPressEvent(); /* in RX_FSK.ino */
 Sonde::Sonde() {
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
-	config.button_pin = 0;
-	config.button2_pin = T4 + 128;     // T4 == GPIO13, should be ok for v1 and v2
-	config.touch_thresh = 60;
+	config.touch_thresh = 70;
 	config.led_pout = 9;	
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
-   	int autodetect = gpio_get_level((gpio_num_t)4); 
-	if(autodetect==1) {
+   	int autodetect = gpio_get_level((gpio_num_t)16); 
+	config.gps_rxd = -1;
+	config.gps_txd = -1;
+	if(autodetect==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
+		config.button_pin = 0;
+		config.button2_pin = T4 + 128;     // T4 == GPIO13
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
+		autodetect = gpio_get_level((gpio_num_t)17);
+		if(autodetect==0) { // T-Beam
+			config.button_pin = 39;
+			config.button2_pin = T4 + 128;  // T4 == GPIO13
+			config.gps_rxd = 12;
+		} else {
+			config.button_pin = 2 + 128;     // GPIO2 / T2
+			config.button2_pin = 14 + 128;   // GPIO14 / T6
+		}
 	}
 	//
 	config.oled_rst = 16;
-	config.gps_rxd = -1;
-	config.gps_txd = -1;
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
@@ -322,7 +331,10 @@ void Sonde::receive() {
 		// handled here...
 		nextRxSonde();
 		action = ACT_SONDE(rxtask.currentSonde);
-		rxtask.activate = action;
+		if(rxtask.activate==-1) {
+			// race condition here. maybe better use mutex. TODO
+			rxtask.activate = action;
+		}
 	}
 	res = (action<<8) | (res&0xff);
 	Serial.printf("receive Result is %04x\n", res);
@@ -471,23 +483,10 @@ void Sonde::updateDisplayIP() {
 	disp.updateDisplayIP();
 }
 
-// Probing RS41
-// 40x.xxx MHz
 void Sonde::updateDisplayScanner() {
 	disp.setLayout(0);
 	disp.updateDisplay();
 	disp.setLayout(config.display);
-#if 0
-	char buf[16];
-	u8x8->setFont(u8x8_font_7x14_1x2_r);
-	u8x8->drawString(0, 0, "Scan:");
-	u8x8->drawString(8, 0,  sondeTypeStr[si()->type]);
-	snprintf(buf, 16, "%3.3f MHz", si()->freq);
-	u8x8->drawString(0,3, buf);
-	snprintf(buf, 16, "%s", si()->launchsite);
-	u8x8->drawString(0,5, buf);	
-	updateDisplayIP();
-#endif
 }
 
 void Sonde::updateDisplay()
