@@ -1,0 +1,143 @@
+# Definition of display content and action behaviour
+#
+# Timer: (view timer, rx timer, norx timer)
+# - value -1: timer is disabled; value>=0: timer fires after (value) seconds
+# - view timer: time since current view (display mode and sonde) was started
+# - rx timer: time since when sonde data has been received continuously (trigger immediatly after RX)
+# - norx timer: time since when no sonde data has been received continuously
+#   (rx and norx timer is started after tuning a new frequency and receiving a signal or not receiving
+#    anything for a 1s period)
+# 
+# Actions:
+# - W: activate WiFi scan
+# - F: activate frequency spectrum display
+# - 0: activate "Scan:" display (this is basically just display mode 0)
+# - x: (1..N): activate display mode x
+# - D: activate default receiver display (display mode specified in config)
+# - +: advance to next active sonde from QRG config
+# - #: no action
+#
+# Display content (lower/upper case: small/large font)
+#    line,column=content
+#
+# XText : Text
+# F(suffix): frequency (with suffix, e.g., " MHz")
+# L latitade
+# O lOngitute
+# A altitude
+# H hor. speed
+# V vert. speef
+# Ix sonde ID (dfm format by x: d=>dxlaprs, a=>autorx, s=>real serial number)
+# Q signal quality statistics bar
+# T type string (RS41/DFM9/DFM6/RS92)
+# C afC value
+# N ip address (only tiny font)
+# S launch site
+# Mx telemetry value x (t temp p preassure h hyg)
+# Gx value relativ to GPS reference point (x: D dist, I direction)  GV. GPS valid symbol;  GL, GO, GA: ref lat long alt
+# R RSSI
+###########
+# 
+# Default configuration for "Scanner" display:
+# - view timer disabled;  rx timer=0; norx timer = 0
+#   => after 1 second immediately an action is triggered
+#      (norx: go to next sonde; rx: go to default receiver display)
+# - key1 actions: D,0,F,W
+#   => Button press activates default receiver view, double press does nothing
+#      Mid press activates Spectrum display, long press activates Wifi scan
+# - key2 has no function
+@Scanner:5
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+0,0=XScan:
+0,8=T
+3,0=F MHz
+5,0=S
+7,5=n
+
+############
+# Default configuration for "Legacy" display:
+# - view timer=-1, rx timer=-1 (disabled); norx timer=20000 (or -1 for "old" behaviour)
+#    => norx timer fires after not receiving a singla for 20 seconds
+# - key1 actions: +,0,F,W
+#    => Button1 press: next sonde; double press => @Scanner display
+#    => Mid press activates Spectrum display, long press activates Wifi scan
+# - key2 actions: 2,#,#,#
+#    => BUtton2 activates display 2 (@Field)
+# - timer actions: #,#,0
+#   (norx timer: if no signal for >20 seconds: go back to scanner mode)
+#
+@Legacy:11
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=2,#,#,#
+timeaction=#,#,0
+0,5=f MHz
+1,8=c
+0,0=t
+1,0=is
+2,0=L
+4,0=O
+2,10=a
+3,10=h
+4,9=v
+6,0=R
+6,7=Q
+
+############
+# Configuratoon for "Field" display (display 2)
+# similar to @Legacy, but no norx timer, and Key2 goes to display 4
+@Field:7
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=3,#,#,#
+timeaction=#,#,#
+2,0=L
+4,0=O
+3,10=h
+4,9=v
+0,0=Is
+6,0=A
+6,7=Q
+
+############
+# Configuration for "Field2" display (display 3)
+# similar to @Field
+@Field2:9
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=4,#,#,#
+timeaction=#,#,#
+2,0=L
+4,0=O
+1,12=t
+0,9=f
+3,10=h
+4,9=v
+0,0=Is
+6,0=A
+6,7=Q
+
+#############
+# Configuration for "GPS" display
+# not yet the final version, just for testing
+@GPSDIST:14
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=1,#,#,#
+timeaction=#,#,#
+0,0=Is
+0,9=f
+1,12=t
+2,0=L
+4,0=O
+2,10=a
+3,10=h
+4,9=v
+6,7=Q
+7,0=gV
+7,2=xd=
+7,4=gD
+7,12=gI°

@@ -23,7 +23,13 @@ struct DispInfo {
 
 class Display {
 private:
+	void freeLayouts();
+	int allocDispInfo(int entries, DispInfo *d);
+	void parseDispElement(char *text, DispEntry *de);
+
 public:
+	void initFromFile();
+
 	void setLayout(DispInfo *layout);
 	DispInfo *layout;
 

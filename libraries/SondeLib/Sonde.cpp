@@ -329,6 +329,7 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
+	Serial.printf("event %x: action is %x\n", event, action);
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -369,8 +370,7 @@ rxloop:
 	/// TODO: THis has caused an exception when swithcing back to spectrumm...
         Serial.printf("waitRXcomplete returning %04x (%s)\n", res, (res&0xff)<4?RXstr[res&0xff]:"");
 	// currently used only by RS92
-	// TODO: rxtask.currentSonde might not be the right thing (after sonde channel change)
-	switch(sondeList[/*rxtask.*/currentSonde].type) {
+	switch(sondeList[rxtask.receiveSonde].type) {
 	case STYPE_RS41:
 		rs41.waitRXcomplete();
 		break;
@@ -430,12 +430,8 @@ uint8_t Sonde::updateState(uint8_t event) {
 		n = config.display;
 	}
 	if(n>=0&&n<5) {
+		Serial.printf("Setting display mode %d\n", n);
 		disp.setLayout(n);
-		// TODO: This is kind of a hack...
-		// ACT_NEXTSONDE will cause loopDecoder to call enterMode(ST_DECODER)
-		//return ACT_NEXTSONDE;
-
-		// TODO::: we probably should clear the display?? -- YES
 		sonde.clearDisplay();
 		return 0xFF;
 	}		

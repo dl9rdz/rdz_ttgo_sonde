@@ -73,7 +73,6 @@ int option_verbose = 0,  // ausfuehrliche Anzeige
     rawin = 0;
 double dop_limit = 9.9;
 double d_err = 10000;
-//double fixalt2d = 480; // bei mir zu Hause :-) TODO: make it configurable
 
 int rollover = 0,
     err_gps = 0;
