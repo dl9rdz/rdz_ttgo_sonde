@@ -631,6 +631,10 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   }
   file.print(content);
   file.close();
+  if (strcmp(filename.c_str(), "screens.txt")==0) {
+    // screens update => reload
+    disp.initFromFile();
+  }
   return "";
 }
 
@@ -973,18 +977,21 @@ void checkTouchStatus() {
   checkTouchButton(button2);
 }
 
-
+unsigned long bdd1, bdd2;
 void IRAM_ATTR buttonISR() {
-  unsigned long now = my_millis();
   if (digitalRead(button1.pin) == 0) { // Button down
+    unsigned long now = my_millis();
     if (now - button1.keydownTime < 500) {
       // Double press
       button1.doublepress = 1;
+      bdd1 = now; bdd2 = button1.keydownTime;
     } else {
       button1.doublepress = 0;
     }
+    button1.numberKeyPresses += 1;
     button1.keydownTime = now;
   } else { //Button up
+    unsigned long now = my_millis();
     if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
     unsigned int elapsed = now - button1.keydownTime;
     if (elapsed > 1500) {
@@ -1007,7 +1014,9 @@ int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
   int x = digitalRead(button1.pin);
-  Serial.printf("button1 press (now:%d): %d at %ld (%d)\n", x, p, button1.keydownTime, button1.numberKeyPresses);
+  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+
+  Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
 }
 
@@ -1032,6 +1041,7 @@ int getKeyPressEvent() {
 }
 
 extern int initlevels[40];
+extern DispInfo *layouts;
 void setup()
 {
   char buf[12];
@@ -1090,6 +1100,11 @@ void setup()
   sonde.clearDisplay();
 
   setupWifiList();
+  Serial.printf("before disp.initFromFile... layouts is %p", layouts);
+
+  disp.initFromFile();
+  Serial.printf("disp.initFromFile... layouts is %p", layouts);
+
 
   // == show initial values from config.txt ========================= //
   if (sonde.config.debug == 1) {
