@@ -137,6 +137,7 @@ static int mkaprscall(int32_t * p, char raw[],
 } /* end call() */
 
 
+
 // returns raw len, 0 in case of error
 extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
 {
@@ -207,6 +208,28 @@ extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
    return p+2;
 } /* end mon2raw() */
 
+extern int aprsstr_mon2kiss(const char *mon, char raw[], int raw_len)
+{
+	char tmp[201];
+	int len = aprsstr_mon2raw(mon, tmp, 201);
+	if(len==0) return 0;
+	int idx=0;
+	raw[idx++] = '\xC0';
+	for(int i=0; i<len-2; i++) { // -2: discard CRC, not used in KISS
+		if(tmp[i]=='\xC0') {	
+			raw[idx++] = '\xDB';
+			raw[idx++] = '\xDC';
+		} else if (tmp[i]=='\xDB') {
+			raw[idx++] = '\xDB';
+			raw[idx++] = '\xDD';
+		} else {
+			raw[idx++] = tmp[i];
+		}
+		if(idx>=raw_len)
+			return 0;
+	}
+	return idx;
+}
 
 #define FEET (1.0/0.3048)
 #define KNOTS (1.851984)

@@ -112,6 +112,7 @@ typedef struct st_rdzconfig {
 	// for now, one feed for each type is enough, but might get extended to more?
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
+	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 } RDZConfig;
 
 typedef struct st_sondeinfo {

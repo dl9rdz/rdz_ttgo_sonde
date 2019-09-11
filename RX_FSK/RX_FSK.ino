@@ -45,6 +45,10 @@ boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
 
+// KISS over TCP für communicating with APRSdroid
+WiFiServer tncserver(14580);
+WiFiClient tncclient;
+
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
@@ -397,6 +401,9 @@ struct st_configitems config_list[] = {
   {"call", "Call", 8, sonde.config.call},
   {"passcode", "Passcode", 8, sonde.config.passcode},
   {"---", "---", -1, NULL},
+  /* KISS tnc settings */
+  {"kisstnc", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
+  {"kisstnc.idformat", "DFM ID Format", -2, &sonde.config.kisstnc.idformat},
   /* AXUDP settings */
   {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
   {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},
@@ -631,7 +638,7 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   }
   file.print(content);
   file.close();
-  if (strcmp(filename.c_str(), "screens.txt")==0) {
+  if (strcmp(filename.c_str(), "screens.txt") == 0) {
     // screens update => reload
     disp.initFromFile();
   }
@@ -1201,6 +1208,9 @@ void setup()
   sonde.setup();
   initGPS();
 
+  if (sonde.config.kisstnc.active) {
+    tncserver.begin();
+  }
   WiFi.onEvent(WiFiEvent);
   getKeyPress();    // clear key buffer
 }
@@ -1275,21 +1285,44 @@ void loopDecoder() {
     Serial.printf("current main is %d, current rxtask is %d\n", sonde.currentSonde, rxtask.currentSonde);
   }
 
-
-  if ((res & 0xff) == 0 && connected) {
+  if (!tncclient.connected()) {
+    Serial.println("TNC client not connected");
+    tncclient = tncserver.available();
+    if(tncclient.connected()) {
+      Serial.println("new TCP KISS connection");
+    }
+  }
+  if (tncclient.available()) {
+    Serial.print("TCP KISS socket: recevied ");
+    while (tncclient.available()) {
+      Serial.print(tncclient.read());  // Check if we receive anything from Bluetooth
+    }
+    Serial.println("");
+  }
+  // wifi (axudp) or bluetooth (bttnc) active => send packet
+  if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
     if (s->validID && ((s->validPos & 0x03) == 0x03)) {
-      Serial.println("Sending position via UDP");
-      char raw[201];
       const char *str = aprs_senddata(s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST",
                                       sonde.config.udpfeed.symbol);
-      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-      Serial.print("Sending: "); Serial.println(raw);
-      udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
-      udp.write((const uint8_t *)raw, rawlen);
-      udp.endPacket();
+      if (connected)  {
+        char raw[201];
+        int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
+        Serial.println("Sending position via UDP");
+        Serial.print("Sending: "); Serial.println(raw);
+        udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
+        udp.write((const uint8_t *)raw, rawlen);
+        udp.endPacket();
+      }
+      if(tncclient.connected()) {
+         Serial.println("Sending position via TCP");
+         char raw[201];
+         int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
+         Serial.print("sending: "); Serial.println(raw);
+         tncclient.write(raw, rawlen);
+      }
     }
   }
   sonde.updateDisplay();
@@ -1375,6 +1408,7 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
+    tncserver.begin();
     connected = true;
   } else {
     MDNS.end();
