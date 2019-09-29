@@ -5,9 +5,9 @@
 #include <rom/miniz.h>
 #include <inttypes.h>
 #include <WiFi.h>
-#include <U8x8lib.h>
+#include "Display.h"
 
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
+
 extern WiFiClient client;
 
 static const char *ftpserver = "www.ngs.noaa.gov";
@@ -72,9 +72,9 @@ void geteph() {
 		Serial.printf("now: %s, existing: %s => updating\n", nowstr, tsstr);
 	}
 	status.close();
-	u8x8->clear();
-	u8x8->setFont(u8x8_font_chroma48medium8_r);
-	u8x8->drawString(0, 0, "FTP ngs.noaa.gov");
+	disp.rdis->clear();
+	disp.rdis->setFont(FONT_SMALL);
+	disp.rdis->drawString(0, 0, "FTP ngs.noaa.gov");
 	// fetch rinex from server
 	File fh = SPIFFS.open("/brdc.gz","w");
 	if(!fh) {	
@@ -84,7 +84,7 @@ void geteph() {
 	char buf[252];
 	snprintf(buf, 128, "/cors/rinex/%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
 	Serial.println("running geteph\n");
-	u8x8->drawString(0, 1, buf+21);
+	disp.rdis->drawString(0, 1, buf+21);
 	
 	if(!client.connect(ftpserver, 21)) {
 		Serial.println("FTP connection to www.ngs.noaa.gov failed");
@@ -145,9 +145,9 @@ void geteph() {
 	fh.close();
 	snprintf(buf, 16, "Fetched %d B    ",len);
 	buf[16]=0;
-	u8x8->drawString(0,2,buf);
+	disp.rdis->drawString(0,2,buf);
 
-	u8x8->drawString(0,4,"Decompressing...");
+	disp.rdis->drawString(0,4,"Decompressing...");
 	// decompression
 	tinfl_decompressor *decomp = (tinfl_decompressor *)malloc(sizeof(tinfl_decompressor));
 	tinfl_init(decomp);
@@ -215,7 +215,7 @@ void geteph() {
 	status.close();
         snprintf(buf, 16, "Done: %d B    ",total);
         buf[16]=0;
-        u8x8->drawString(0,5,buf);
+        disp.rdis->drawString(0,5,buf);
 	delay(1000);
 
 	free(obuf);

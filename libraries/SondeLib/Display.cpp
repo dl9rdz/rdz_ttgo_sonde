@@ -6,10 +6,13 @@
 #include "Display.h"
 #include "Sonde.h"
 
+
+#include <../fonts/FreeSans9pt7b.h>
+#include <../fonts/FreeSans12pt7b.h>
+
 extern Sonde sonde;
 
 extern MicroNMEA nmea;
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41", "RS92" };
 
@@ -59,7 +62,6 @@ static uint8_t nogps_tile[8]={0x41, 0x22, 0x14, 0x08, 0x14, 0x22, 0x41, 0x00};
 
 static uint8_t deg_tile[8]={0x00, 0x06,0x09, 0x09, 0x06, 0x00, 0x00, 0x00};
 
-#define SETFONT(large) u8x8->setFont((large)?u8x8_font_7x14_1x2_r:u8x8_font_chroma48medium8_r);
 
 /* Description of display layouts.
  * for each display, the content is described by a DispEntry structure
@@ -162,7 +164,97 @@ DispInfo staticLayouts[5] = {
 
 DispInfo *layouts = staticLayouts;
 
+/////////////// Wrapper code for various display
+
+void U8x8Display::begin() {
+	u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
+	u8x8->begin();
+
+}
+
+void U8x8Display::clear() {
+	u8x8->clear();
+}
+
+// For u8x8 oled display: 0=small font, 1=large font 7x14
+void U8x8Display::setFont(int large) {
+	u8x8->setFont((large)?u8x8_font_7x14_1x2_r:u8x8_font_chroma48medium8_r);
+}
+
+void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s) {
+	u8x8->drawString(x, y, s);
+}
+
+void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+	u8x8->drawTile(x, y, cnt, tile_ptr);
+}
+
+
+#define TFT_LED 0 // 0 if wired to +5V directly
+#define TFT_BRIGHTNESS 100 // Initial brightness of TFT backlight (optional)
+
+void ILI9225Display::begin() {
+	tft = new TFT_22_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
+			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
+        tft->begin();
+	tft->setOrientation(1);
+}
+
+void ILI9225Display::clear() {
+        tft->clear();
+}
+
+// for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
+void ILI9225Display::setFont(int large) {
+	tft->setGFXFont(large ? &FreeSans12pt7b : &FreeSans9pt7b);
+	//tft->setFont(large?Terminal12x16: Terminal6x8);
+	yofs = 0;
+}
+
+void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s) {
+	int16_t w,h;
+	tft->getGFXTextExtent(s, x*14, y*14, &w, &h);
+	tft->fillRectangle(x*14, y*14, x*14+w, y*14+h, COLOR_BLACK);
+        tft->drawGFXText(x*14, y*14+h, s, COLOR_WHITE);
+	//tft->drawText(x*12, y*12, s, COLOR_WHITE);
+}
+
+void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+	int i,j;
+	for(int i=0; i<cnt*8; i++) {
+		uint8_t v = tile_ptr[i];
+		for(j=0; j<8; j++) {
+			tft->drawPixel(8*x+i, 8*y+j, (v&0x01) ? COLOR_GREEN:COLOR_BLUE);
+			v >>= 1;
+		}
+	}
+	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
+        //???u8x8->drawTile(x, y, cnt, tile_ptr);
+}
+
+
+
+///////////////
+
+
 char Display::buf[17];
+
+RawDisplay *Display::rdis = NULL;
+
+//TODO: maybe merge with initFromFile later?
+void Display::init() {
+	if(sonde.config.disptype==1) {
+		rdis = new ILI9225Display();
+	} else {
+		rdis = new U8x8Display();
+	}
+	Serial.println("Display created");
+	rdis->begin();
+	delay(100);
+	Serial.println("Display initialized");
+	rdis->clear();
+}
+
 
 Display::Display() {
 	setLayout(0);
@@ -372,85 +464,85 @@ void Display::setLayout(int layoutIdx) {
 }
 
 void Display::drawLat(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"<?""?>      ");
+	   rdis->drawString(de->x,de->y,"<?""?>      ");
 	   return;
 	}
 	snprintf(buf, 16, "%2.5f", sonde.si()->lat);
-	u8x8->drawString(de->x,de->y,buf);
+	rdis->drawString(de->x,de->y,buf);
 }
 void Display::drawLon(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"<?""?>      ");
+	   rdis->drawString(de->x,de->y,"<?""?>      ");
 	   return;
 	}
 	snprintf(buf, 16, "%2.5f", sonde.si()->lon);
-	u8x8->drawString(de->x,de->y,buf);
+	rdis->drawString(de->x,de->y,buf);
 }
 void Display::drawAlt(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"     ");
+	   rdis->drawString(de->x,de->y,"     ");
 	   return;
 	}
 	snprintf(buf, 16, sonde.si()->alt>=1000?"   %5.0fm":"   %3.1fm", sonde.si()->alt);
-	u8x8->drawString(de->x,de->y,buf+strlen(buf)-6);
+	rdis->drawString(de->x,de->y,buf+strlen(buf)-6);
 }
 void Display::drawHS(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"     ");
+	   rdis->drawString(de->x,de->y,"     ");
 	   return;
 	}
 	snprintf(buf, 16, sonde.si()->hs>99?" %3.0f":" %2.1f", sonde.si()->hs);
-	u8x8->drawString(de->x,de->y,buf+strlen(buf)-4);
-	u8x8->drawTile(de->x+4,de->y,2,kmh_tiles);
+	rdis->drawString(de->x,de->y,buf+strlen(buf)-4);
+	rdis->drawTile(de->x+4,de->y,2,kmh_tiles);
 }
 void Display::drawVS(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validPos) {
-	   u8x8->drawString(de->x,de->y,"     ");
+	   rdis->drawString(de->x,de->y,"     ");
 	   return;
 	}
 	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
-	u8x8->drawString(de->x, de->y, buf+strlen(buf)-5);
-	u8x8->drawTile(de->x+5,de->y,2,ms_tiles);
+	rdis->drawString(de->x, de->y, buf+strlen(buf)-5);
+	rdis->drawTile(de->x+5,de->y,2,ms_tiles);
 }
 void Display::drawID(DispEntry *de) {
-	SETFONT((de->fmt&0x01));
+	rdis->setFont(de->fmt);
 	if(!sonde.si()->validID) {
-		u8x8->drawString(de->x, de->y, "nnnnnnnn ");
+		rdis->drawString(de->x, de->y, "nnnnnnnn ");
 		return;
 	}
 	// TODO: handle DFM6 IDs
 
 	if(!de->extra || de->extra[0]=='s') {
 		// real serial number, as printed on sonde
-		u8x8->drawString(de->x, de->y, sonde.si()->id);
+		rdis->drawString(de->x, de->y, sonde.si()->id);
 	} else if (de->extra[0]=='a') {
 		// autorx sonde number ("DF9" and last 6 digits of real serial number
 		strcpy(buf, sonde.si()->id);
 		memcpy(buf, "DF9", 3);
-		u8x8->drawString(de->x, de->y, buf);
+		rdis->drawString(de->x, de->y, buf);
 	} else {
 		// dxlAPRS sonde number (DF6 (why??) and 5 last digits of serial number as hex number
 		uint32_t id = atoi(sonde.si()->id);
 		id = id&0xfffff;
 		snprintf(buf, 16, "DF6%05X", id);
-		u8x8->drawString(de->x, de->y, buf);
+		rdis->drawString(de->x, de->y, buf);
 	}
 }
 void Display::drawRSSI(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
 	int len=strlen(buf)-3;
 	Serial.printf("drawRSSI: %d %d %d (%d)[%d]\n", de->y, de->x, sonde.si()->rssi/2, sonde.currentSonde, len);
 	buf[5]=0;
-	u8x8->drawString(de->x,de->y,buf);
-	u8x8->drawTile(de->x+len, de->y, 1, (sonde.si()->rssi&1)?halfdb_tile1:empty_tile1);
-	u8x8->drawTile(de->x+len, de->y+1, 1, (sonde.si()->rssi&1)?halfdb_tile2:empty_tile2);
+	rdis->drawString(de->x,de->y,buf);
+	rdis->drawTile(de->x+len, de->y, 1, (sonde.si()->rssi&1)?halfdb_tile1:empty_tile1);
+	rdis->drawTile(de->x+len, de->y+1, 1, (sonde.si()->rssi&1)?halfdb_tile2:empty_tile2);
 }
 void Display::drawQS(DispEntry *de) {
 	uint8_t *stat = sonde.si()->rxStat;
@@ -458,32 +550,32 @@ void Display::drawQS(DispEntry *de) {
 	        uint8_t tile[8];
 	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
 	        *(uint32_t *)(&tile[4]) = *(uint32_t *)(&(stattiles[stat[i+1]]));
-	        u8x8->drawTile(de->x+i/2, de->y, 1, tile);
+	        rdis->drawTile(de->x+i/2, de->y, 1, tile);
 	}
 }
 void Display::drawType(DispEntry *de) {
-	SETFONT(de->fmt);
-        u8x8->drawString(de->x, de->y, sondeTypeStr[sonde.si()->type]);
+	rdis->setFont(de->fmt);
+        rdis->drawString(de->x, de->y, sondeTypeStr[sonde.si()->type]);
 }
 void Display::drawFreq(DispEntry *de) {
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
         snprintf(buf, 16, "%3.3f%s", sonde.si()->freq, de->extra?de->extra:"");
-        u8x8->drawString(de->x, de->y, buf);
+        rdis->drawString(de->x, de->y, buf);
 }
 void Display::drawAFC(DispEntry *de) {
  	if(!sonde.config.showafc) return;
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	if(sonde.si()->afc==0) { strcpy(buf, "        "); }
 	else { snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001); }
-        u8x8->drawString(de->x, de->y, buf+strlen(buf)-8);
+        rdis->drawString(de->x, de->y, buf+strlen(buf)-8);
 }
 void Display::drawIP(DispEntry *de) {
-        u8x8->drawTile(de->x, de->y, 11, myIP_tiles);
+        rdis->drawTile(de->x, de->y, 11, myIP_tiles);
 
 }
 void Display::drawSite(DispEntry *de) {
-        SETFONT(de->fmt);
-	u8x8->drawString(de->x, de->y, sonde.si()->launchsite);
+        rdis->setFont(de->fmt);
+	rdis->drawString(de->x, de->y, sonde.si()->launchsite);
 }
 void Display::drawTelemetry(DispEntry *de) {
 }
@@ -496,13 +588,13 @@ void Display::drawTelemetry(DispEntry *de) {
 
 void Display::drawGPS(DispEntry *de) {
 	if(sonde.config.gps_rxd<0) return;
-	SETFONT(de->fmt);
+	rdis->setFont(de->fmt);
 	switch(de->extra[0]) {
 	case 'V':
 		{
 		// show if GPS location is valid
 		uint8_t *tile = nmea.isValid()?gps_tile:nogps_tile;
-		u8x8->drawTile(de->x, de->y, 1, tile);
+		rdis->drawTile(de->x, de->y, 1, tile);
 		}
 		break;
 	case 'O':
@@ -511,7 +603,7 @@ void Display::drawGPS(DispEntry *de) {
 		float lon = nmea.getLongitude()*0.000001;
 		Serial.print("lon: "); Serial.println(lon);
 		snprintf(buf, 16, "%2.5f", lon);
-		u8x8->drawString(de->x,de->y,buf);
+		rdis->drawString(de->x,de->y,buf);
 		}
 		break;
 	case 'A':
@@ -520,7 +612,7 @@ void Display::drawGPS(DispEntry *de) {
 		float lat = nmea.getLatitude()*0.000001;
 		Serial.print("lat: "); Serial.println(lat);
 		snprintf(buf, 16, "%2.5f", lat);
-		u8x8->drawString(de->x,de->y,buf);
+		rdis->drawString(de->x,de->y,buf);
 		}
 		break;
 	case 'H':
@@ -529,7 +621,7 @@ void Display::drawGPS(DispEntry *de) {
 		long alt = -1;
 		nmea.getAltitude(alt);
 		snprintf(buf, 16, "%5fm", alt*0.00001);
-		u8x8->drawString(de->x,de->y,buf);
+		rdis->drawString(de->x,de->y,buf);
 		}
 		break;
 	case 'D':
@@ -559,13 +651,13 @@ void Display::drawGPS(DispEntry *de) {
 				buf[6]=0;
 			}
 		}
-		u8x8->drawString(de->x, de->y, buf);
+		rdis->drawString(de->x, de->y, buf);
 		}
 		break;
 	case 'I':
 		// dIrection
 		if( (!nmea.isValid()) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
-			u8x8->drawString(de->x, de->y, "---");
+			rdis->drawString(de->x, de->y, "---");
 			break;
 		}
 		{
@@ -580,9 +672,9 @@ void Display::drawGPS(DispEntry *de) {
 		Serial.printf("direction is %.2f\n", dir);
 		snprintf(buf, 16, "%3d", (int)dir);
 		buf[3]=0;
-		u8x8->drawString(de->x, de->y, buf);
+		rdis->drawString(de->x, de->y, buf);
 		if(de->extra[1]==(char)176)
-			u8x8->drawTile(de->x+3, de->y, 1, deg_tile);
+			rdis->drawTile(de->x+3, de->y, 1, deg_tile);
 		}
 		break;
 	case 'E':
@@ -591,8 +683,8 @@ void Display::drawGPS(DispEntry *de) {
 	}
 }
 void Display::drawText(DispEntry *de) {
-        SETFONT(de->fmt);
-	u8x8->drawString(de->x, de->y, de->extra);
+        rdis->setFont(de->fmt);
+	rdis->drawString(de->x, de->y, de->extra);
 }
 
 

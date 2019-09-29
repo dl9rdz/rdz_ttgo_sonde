@@ -8,7 +8,6 @@
 #include "SX1278FSK.h"
 #include "Display.h"
 
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
@@ -51,6 +50,8 @@ Sonde::Sonde() {
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
+	config.oled_rst = 16;
+	config.disptype = 0;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -63,13 +64,21 @@ Sonde::Sonde() {
 			config.button_pin = 39;
 			config.button2_pin = T4 + 128;  // T4 == GPIO13
 			config.gps_rxd = 12;
+			// Check if we possibly have a large display
+			if(initlevels[21]==0) {
+				config.disptype = 1;
+				config.oled_sda = 4;
+				config.oled_scl = 21;
+				config.oled_rst = 22;
+				config.tft_rs = 2;
+				config.tft_cs = 0;
+			}
 		} else {
 			config.button_pin = 2 + 128;     // GPIO2 / T2
 			config.button2_pin = 14 + 128;   // GPIO14 / T6
 		}
 	}
 	//
-	config.oled_rst = 16;
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
@@ -496,7 +505,7 @@ void Sonde::updateDisplay()
 }
 
 void Sonde::clearDisplay() {
-	u8x8->clearDisplay();
+	disp.rdis->clear();
 }
 
 Sonde sonde = Sonde();
