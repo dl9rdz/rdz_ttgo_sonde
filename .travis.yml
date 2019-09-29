@@ -1,7 +1,7 @@
 language: c
 env:
  global: 
-   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.2/tools
+   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.3/tools
    - MKSPIFFS=/home/travis/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs
 before_install:
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"
@@ -35,6 +35,7 @@ install:
 script:
   - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino
   - find build
+  - find /home/travis/.arduino15/packages/esp32/hardware/esp32
   - $MKSPIFFS -c $PWD/RX_FSK/data -b 4096 -p 256 -s 1503232 $PWD/spiffs.bin
   - $PWD/scripts/makeimage.py $ESP32TOOLS $PWD/build/RX_FSK.ino.bin $PWD/spiffs.bin $PWD/out.bin
 after_success:
