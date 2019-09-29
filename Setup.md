@@ -33,6 +33,7 @@ Select Tools -> Library Manager
 
 Install "U8g2"
 Install "MicroNMEA"
+Install "TFT_22_ILI9225"
 
 ## Additional libraries, part 2
 
