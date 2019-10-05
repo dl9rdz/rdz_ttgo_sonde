@@ -22,6 +22,15 @@ before_install:
   - wget https://github.com/lewisxhe/AXP202X_Library/archive/v1.0.zip
   - unzip v1.0.zip
   - sudo mv AXP202X_Library-1.0 /usr/local/share/arduino/libraries/
+  # Trying to get rid of mDNS warnings (1000s of them...)
+  # as suggested by https://forum.arduino.cc/index.php?topic=469428.0
+  # Arduino IDE adds a lot of noise caused by network traffic, trying to firewall it off
+  - sudo iptables -P INPUT DROP
+  - sudo iptables -P FORWARD DROP
+  - sudo iptables -P OUTPUT ACCEPT
+  - sudo iptables -A INPUT -i lo -j ACCEPT
+  - sudo iptables -A OUTPUT -o lo -j ACCEPT
+  - sudo iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
 install:
   - arduino --pref "boardsmanager.additional.urls=https://dl.espressif.com/dl/package_esp32_index.json" --save-prefs
@@ -38,6 +47,7 @@ install:
 script:
   - arduino --board esp32:esp32:ttgo-lora32-v1 --verify $PWD/RX_FSK/RX_FSK.ino
   - find build
+  - find /home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.3/tools
   - $MKSPIFFS -c $PWD/RX_FSK/data -b 4096 -p 256 -s 1503232 $PWD/spiffs.bin
   - $PWD/scripts/makeimage.py $ESP32TOOLS $PWD/build/RX_FSK.ino.bin $PWD/spiffs.bin $PWD/out.bin
 after_success:
