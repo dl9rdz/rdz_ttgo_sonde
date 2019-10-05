@@ -61,17 +61,23 @@ Sonde::Sonde() {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
 		if(initlevels[17]==0) { // T-Beam
-			config.button_pin = 39;
-			config.button2_pin = T4 + 128;  // T4 == GPIO13
-			config.gps_rxd = 12;
-			// Check if we possibly have a large display
-			if(initlevels[21]==0) {
-				config.disptype = 1;
-				config.oled_sda = 4;
-				config.oled_scl = 21;
-				config.oled_rst = 22;
-				config.tft_rs = 2;
-				config.tft_cs = 0;
+			if(initlevels[12]==0) {  // T-Beam v1.0
+				config.button_pin = 38;
+				config.button2_pin = T4 + 128;  // T4 = GPIO13
+				config.gps_rxd = 34;
+			} else {
+				config.button_pin = 39;
+				config.button2_pin = T4 + 128;  // T4 == GPIO13
+				config.gps_rxd = 12;
+				// Check if we possibly have a large display
+				if(initlevels[21]==0) {
+					config.disptype = 1;
+					config.oled_sda = 4;
+					config.oled_scl = 21;
+					config.oled_rst = 22;
+					config.tft_rs = 2;
+					config.tft_cs = 0;
+				}
 			}
 		} else {
 			config.button_pin = 2 + 128;     // GPIO2 / T2
