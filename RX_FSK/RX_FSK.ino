@@ -862,11 +862,11 @@ void initTouch() {
   ticker.attach_ms(300, checkTouchStatus);
 
   if ( IS_TOUCH(sonde.config.button_pin) ) {
-    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 20);
+    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 60);
     Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
   }
   if ( IS_TOUCH(sonde.config.button2_pin) ) {
-    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, 20);
+    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, 60);
     Serial.printf("Initializing touch 2 on pin %d\n", sonde.config.button2_pin & 0x7f);
   }
 }
@@ -964,6 +964,7 @@ void IRAM_ATTR touchISR2() {
 void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
+    Serial.printf("touch read %d: value is %d\n", button.pin,tmp);
     if (tmp > sonde.config.touch_thresh) {
       button.isTouched = false;
       unsigned long elapsed = my_millis() - button.keydownTime;
@@ -1139,10 +1140,6 @@ void setup()
     Serial.println("AXP192 Begin PASS");
   } else {
     Serial.println("AXP192 Begin FAIL");
-    while (1) {
-      Serial.println("...");
-      delay(2000);
-    }
   }
   axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
   axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
