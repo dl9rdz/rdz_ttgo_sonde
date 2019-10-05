@@ -6,6 +6,8 @@
 #include "Display.h"
 #include "Sonde.h"
 
+extern const char *version_name;
+extern const char *version_id;
 
 #include <../fonts/FreeSans9pt7b.h>
 #include <../fonts/FreeSans12pt7b.h>
@@ -13,6 +15,8 @@
 extern Sonde sonde;
 
 extern MicroNMEA nmea;
+
+SPIClass spiDisp(HSPI);
 
 const char *sondeTypeStr[5] = { "DFM6", "DFM9", "RS41", "RS92" };
 
@@ -167,7 +171,10 @@ DispInfo *layouts = staticLayouts;
 /////////////// Wrapper code for various display
 
 void U8x8Display::begin() {
-	u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
+	Serial.printf("Init SSD1306 display %d %d\n", sonde.config.oled_scl, sonde.config.oled_sda);
+	//u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
+	u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(/* reset=*/ sonde.config.oled_rst, /* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda); // Unbuffered, basic graphics, software I2C
+	//u8x8->setI2CAddress(0x3C); // test
 	u8x8->begin();
 
 }
@@ -188,15 +195,24 @@ void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s) {
 void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
 	u8x8->drawTile(x, y, cnt, tile_ptr);
 }
+void U8x8Display::welcome() {
+	u8x8->clear();
+  	setFont(FONT_LARGE);
+  	drawString(8 - strlen(version_name) / 2, 0, version_name);
+  	drawString(8 - strlen(version_id) / 2, 2, version_id);
+  	setFont(FONT_SMALL);
+	drawString(0, 4, "RS41,RS92,DFM6/9");
+  	drawString(0, 6, "by Hansi, DL9RDZ");
+}
 
 
 #define TFT_LED 0 // 0 if wired to +5V directly
 #define TFT_BRIGHTNESS 100 // Initial brightness of TFT backlight (optional)
 
 void ILI9225Display::begin() {
-	tft = new TFT_22_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
+	tft = new MY_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
 			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
-        tft->begin();
+        tft->begin(spiDisp);
 	tft->setOrientation(1);
 }
 
@@ -208,19 +224,35 @@ void ILI9225Display::clear() {
 void ILI9225Display::setFont(int large) {
 	tft->setGFXFont(large ? &FreeSans12pt7b : &FreeSans9pt7b);
 	//tft->setFont(large?Terminal12x16: Terminal6x8);
+	fsize = large;
 	yofs = 0;
 }
 
+/* Notes on Fonts:
+ * FreeSans9pt:  höhe: baseline -13..+5; breite: max 18, i.d.r. <=15
+*/
+// normal size: avg. 14x22  // large wvg. 17x29
+#define XSKIP 14
+#define YSKIP 22
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s) {
 	int16_t w,h;
-	tft->getGFXTextExtent(s, x*14, y*14, &w, &h);
-	tft->fillRectangle(x*14, y*14, x*14+w, y*14+h, COLOR_BLACK);
-        tft->drawGFXText(x*14, y*14+h, s, COLOR_WHITE);
-	//tft->drawText(x*12, y*12, s, COLOR_WHITE);
+#if 1
+	tft->getGFXTextExtent(s, x*XSKIP, y*YSKIP, &w, &h);
+	int len = strlen(s);
+	if(fsize) {
+		tft->fillRectangle(x*XSKIP, y*YSKIP+3, x*XSKIP + len*17, y*YSKIP +29, COLOR_BLACK);
+	} else {
+		tft->fillRectangle(x*XSKIP, y*YSKIP+3, x*XSKIP + len*14, y*YSKIP +22, COLOR_BLACK);
+	}
+        tft->drawGFXText(x*XSKIP, (1+y)*YSKIP, s, COLOR_WHITE);
+#endif
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+	tft->drawTile(x, y, cnt, tile_ptr);
+#if 0
 	int i,j;
+	tft->startWrite();
 	for(int i=0; i<cnt*8; i++) {
 		uint8_t v = tile_ptr[i];
 		for(j=0; j<8; j++) {
@@ -228,12 +260,73 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 			v >>= 1;
 		}
 	}
+	tft->endWrite();
 	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
         //???u8x8->drawTile(x, y, cnt, tile_ptr);
+#endif
+}
+
+void ILI9225Display::welcome() {
+	tft->clear();
+        setFont(FONT_LARGE);
+        drawString(0, 0, version_name);
+        setFont(FONT_SMALL);
+        drawString(0, 1, "RS41,RS92,DFM6/9");
+        drawString(0, 3, version_id);
+        drawString(0, 5, "by Hansi, DL9RDZ");
+
+}
+#include <pgmspace.h>
+#define pgm_read_pointer(addr) ((void *)pgm_read_dword(addr))
+
+void MY_ILI9225::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+        int i,j;
+        startWrite();
+        for(int i=0; i<cnt*8; i++) {
+                uint8_t v = tile_ptr[i];
+                for(j=0; j<8; j++) {
+                        drawPixel(8*x+i, 8*y+j, (v&0x01) ? COLOR_GREEN:COLOR_BLUE);
+                        v >>= 1;
+                }
+        }
+        endWrite();
 }
 
 
+uint16_t MY_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color) {
 
+    c -= (uint8_t)pgm_read_byte(&gfxFont->first);
+    GFXglyph *glyph  = &(((GFXglyph *)pgm_read_pointer(&gfxFont->glyph))[c]);
+    uint8_t  *bitmap = (uint8_t *)pgm_read_pointer(&gfxFont->bitmap);
+
+    uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
+    uint8_t  w  = pgm_read_byte(&glyph->width),
+             h  = pgm_read_byte(&glyph->height),
+             xa = pgm_read_byte(&glyph->xAdvance);
+    int8_t   xo = pgm_read_byte(&glyph->xOffset),
+             yo = pgm_read_byte(&glyph->yOffset);
+    uint8_t  xx, yy, bits = 0, bit = 0;
+
+    // Add character clipping here one day
+
+    startWrite();
+    for(yy=0; yy<h; yy++) {
+        for(xx=0; xx<w; xx++) {
+            if(!(bit++ & 7)) {
+                bits = pgm_read_byte(&bitmap[bo++]);
+            }
+            if(bits & 0x80) {
+                drawPixel(x+xo+xx, y+yo+yy, color);
+            } else {
+                drawPixel(x+xo+xx, y+yo+yy, COLOR_YELLOW); //color);
+	    }
+            bits <<= 1;
+        }
+    }
+    endWrite();
+
+    return (uint16_t)xa;
+}
 ///////////////
 
 
@@ -243,6 +336,7 @@ RawDisplay *Display::rdis = NULL;
 
 //TODO: maybe merge with initFromFile later?
 void Display::init() {
+	Serial.printf("disptype is %d\n",sonde.config.disptype);
 	if(sonde.config.disptype==1) {
 		rdis = new ILI9225Display();
 	} else {

@@ -32,11 +32,12 @@ public:
 	virtual void setFont(int nr) = 0;
 	virtual void drawString(uint8_t x, uint8_t y, const char *s) = 0;
 	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
+	virtual void welcome() = 0;
 };
 
 class U8x8Display : public RawDisplay {
 private:
-	U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8 = NULL; // initialize later after reading config file
+	U8X8 *u8x8 = NULL; // initialize later after reading config file
 
 public:
 	void begin();
@@ -44,12 +45,21 @@ public:
 	void setFont(int nr);
         void drawString(uint8_t x, uint8_t y, const char *s);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+	void welcome();
+};
+
+class MY_ILI9225 : public TFT_22_ILI9225 {
+	using TFT_22_ILI9225::TFT_22_ILI9225;
+public:
+	uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
+	void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 };
 
 class ILI9225Display : public RawDisplay {
 private:
-	TFT_22_ILI9225 *tft = NULL; // initialize later after reading config file
+	MY_ILI9225 *tft = NULL; // initialize later after reading config file
 	uint8_t yofs=0;
+	uint8_t fsize=0;
 
 public:
 	void begin();
@@ -57,6 +67,7 @@ public:
 	void setFont(int nr);
         void drawString(uint8_t x, uint8_t y, const char *s);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+	void welcome();
 };
 
 class Display {

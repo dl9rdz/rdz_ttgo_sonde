@@ -12,6 +12,7 @@
 #include "SX1278FSK.h"
 #include "SPI.h"
 #include <Sonde.h>
+#include <Display.h>
 
 SX1278FSK::SX1278FSK()
 {
@@ -19,7 +20,7 @@ SX1278FSK::SX1278FSK()
 };
 
 
-
+static SPISettings spiset = SPISettings(40000000L, MSBFIRST, SPI_MODE0);
 
 /*
 Function: Turns the module ON.
@@ -97,6 +98,7 @@ byte SX1278FSK::readRegister(byte address)
 {
 	byte value = 0x00;
 
+	SPI.beginTransaction(spiset);
 	digitalWrite(SX1278_SS,LOW);
 
 	//delay(1);
@@ -104,6 +106,7 @@ byte SX1278FSK::readRegister(byte address)
 	SPI.transfer(address);
 	value = SPI.transfer(0x00);
 	digitalWrite(SX1278_SS,HIGH);
+	SPI.endTransaction();
 
 #if (SX1278FSK_debug_mode > 1)
 	if(address!=0x3F) {
@@ -128,6 +131,7 @@ Parameters:
 */
 void SX1278FSK::writeRegister(byte address, byte data)
 {
+	SPI.beginTransaction(spiset);
 	digitalWrite(SX1278_SS,LOW);
 
 	//delay(1);
@@ -135,6 +139,7 @@ void SX1278FSK::writeRegister(byte address, byte data)
 	SPI.transfer(address);
 	SPI.transfer(data);
 	digitalWrite(SX1278_SS,HIGH);
+	SPI.endTransaction();
 
 #if (SX1278FSK_debug_mode > 1)
 	Serial.print(F("## Writing:  ##\t"));
