@@ -139,13 +139,19 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg,"touch_thresh")==0) {
 		config.touch_thresh = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
-		config.led_pout = atoi(val);		
+		config.led_pout = atoi(val);
+	} else if(strcmp(cfg,"disptype")==0) {
+		config.disptype = atoi(val);
 	} else if(strcmp(cfg,"oled_sda")==0) {
 		config.oled_sda = atoi(val);
 	} else if(strcmp(cfg,"oled_scl")==0) {
 		config.oled_scl = atoi(val);
 	} else if(strcmp(cfg,"oled_rst")==0) {
 		config.oled_rst = atoi(val);
+	} else if(strcmp(cfg,"tft_rs")==0) {
+		config.tft_rs = atoi(val);
+	} else if(strcmp(cfg,"tft_cs")==0) {
+		config.tft_cs = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
