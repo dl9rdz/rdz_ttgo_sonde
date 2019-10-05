@@ -1,3 +1,5 @@
+#include <axp20x.h>
+
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
@@ -26,6 +28,8 @@ enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
+AXP20X_Class axp;
+
 
 String updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -1046,6 +1050,47 @@ int getKeyPressEvent() {
   return p;  /* map KP_x to EVT_KEY1_x / EVT_KEY2_x*/
 }
 
+#define SSD1306_ADDRESS 0x3c
+#define AXP192_SLAVE_ADDRESS    0x34
+bool ssd1306_found = false;
+bool axp192_found = false;
+
+void scanI2Cdevice(void)
+{
+    byte err, addr;
+    int nDevices = 0;
+    for (addr = 1; addr < 127; addr++) {
+        Wire.beginTransmission(addr);
+        err = Wire.endTransmission();
+        if (err == 0) {
+            Serial.print("I2C device found at address 0x");
+            if (addr < 16)
+                Serial.print("0");
+            Serial.print(addr, HEX);
+            Serial.println(" !");
+            nDevices++;
+
+            if (addr == SSD1306_ADDRESS) {
+                ssd1306_found = true;
+                Serial.println("ssd1306 display found");
+            }
+            if (addr == AXP192_SLAVE_ADDRESS) {
+                axp192_found = true;
+                Serial.println("axp192 PMU found");
+            }
+        } else if (err == 4) {
+            Serial.print("Unknow error at address 0x");
+            if (addr < 16)
+                Serial.print("0");
+            Serial.println(addr, HEX);
+        }
+    }
+    if (nDevices == 0)
+        Serial.println("No I2C devices found\n");
+    else
+        Serial.println("done\n");
+}
+
 extern int initlevels[40];
 extern DispInfo *layouts;
 void setup()
@@ -1063,18 +1108,38 @@ void setup()
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
   Serial.println(" (before setup)");
-  pinMode(LORA_LED, OUTPUT);
 
   aprs_gencrctab();
 
+  Serial.println("Initializing SPIFFS");
   // Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
     Serial.println("An Error has occurred while mounting SPIFFS");
     return;
   }
 
+  Serial.println("Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
+
+  // FOr T-Beam 1.0
+  Wire.begin(21, 22);
+  scanI2Cdevice();
+  
+  if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
+    Serial.println("AXP192 Begin PASS");
+  } else {
+    Serial.println("AXP192 Begin FAIL");
+  }
+  axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+  axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
+  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+  axp.setDCDC1Voltage(3300);
+  
   LORA_LED = sonde.config.led_pout;
+  pinMode(LORA_LED, OUTPUT);
+
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;
   if (button1.pin != 0xff)
@@ -1091,14 +1156,7 @@ void setup()
 
   disp.init();
   delay(100);
-  disp.rdis->clear();
-
-  disp.rdis->setFont(FONT_LARGE);
-  disp.rdis->drawString(8 - strlen(version_name) / 2, 1, version_name);
-  disp.rdis->drawString(8 - strlen(version_id) / 2, 3, version_id);
-  disp.rdis->setFont(FONT_SMALL);
-  disp.rdis->drawString(0, 5, "by Hansi, DL9RDZ");
-  disp.rdis->drawString(1, 6, "Mods by DL2MF");
+  disp.rdis->welcome();
   delay(3000);
 
   sonde.clearDisplay();
@@ -1322,7 +1380,9 @@ void loopDecoder() {
       }
     }
   }
+  Serial.println("updateDisplay started");
   sonde.updateDisplay();
+  Serial.println("updateDisplay done");
 }
 
 
