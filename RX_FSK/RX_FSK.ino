@@ -29,6 +29,7 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
 AXP20X_Class axp;
+#define PMU_IRQ             35
 
 
 String updateHost = "rdzsonde.mooo.com";
@@ -885,7 +886,7 @@ void gpsTask(void *parameter) {
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
         uint8_t hdop = nmea.getHDOP();
-        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid?1:0, lat, lon, alt, b, hdop);
+        Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
       }
     }
     delay(50);
@@ -1057,42 +1058,45 @@ bool axp192_found = false;
 
 void scanI2Cdevice(void)
 {
-    byte err, addr;
-    int nDevices = 0;
-    for (addr = 1; addr < 127; addr++) {
-        Wire.beginTransmission(addr);
-        err = Wire.endTransmission();
-        if (err == 0) {
-            Serial.print("I2C device found at address 0x");
-            if (addr < 16)
-                Serial.print("0");
-            Serial.print(addr, HEX);
-            Serial.println(" !");
-            nDevices++;
+  byte err, addr;
+  int nDevices = 0;
+  for (addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    err = Wire.endTransmission();
+    if (err == 0) {
+      Serial.print("I2C device found at address 0x");
+      if (addr < 16)
+        Serial.print("0");
+      Serial.print(addr, HEX);
+      Serial.println(" !");
+      nDevices++;
 
-            if (addr == SSD1306_ADDRESS) {
-                ssd1306_found = true;
-                Serial.println("ssd1306 display found");
-            }
-            if (addr == AXP192_SLAVE_ADDRESS) {
-                axp192_found = true;
-                Serial.println("axp192 PMU found");
-            }
-        } else if (err == 4) {
-            Serial.print("Unknow error at address 0x");
-            if (addr < 16)
-                Serial.print("0");
-            Serial.println(addr, HEX);
-        }
+      if (addr == SSD1306_ADDRESS) {
+        ssd1306_found = true;
+        Serial.println("ssd1306 display found");
+      }
+      if (addr == AXP192_SLAVE_ADDRESS) {
+        axp192_found = true;
+        Serial.println("axp192 PMU found");
+      }
+    } else if (err == 4) {
+      Serial.print("Unknow error at address 0x");
+      if (addr < 16)
+        Serial.print("0");
+      Serial.println(addr, HEX);
     }
-    if (nDevices == 0)
-        Serial.println("No I2C devices found\n");
-    else
-        Serial.println("done\n");
+  }
+  if (nDevices == 0)
+    Serial.println("No I2C devices found\n");
+  else
+    Serial.println("done\n");
 }
 
 extern int initlevels[40];
 extern DispInfo *layouts;
+bool pmu_irq = false;
+
+
 void setup()
 {
   char buf[12];
@@ -1103,6 +1107,7 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
+  delay(2000);
 
   for (int i = 0; i < 39; i++) {
     Serial.printf("%d:%d ", i, initlevels[i]);
@@ -1123,12 +1128,21 @@ void setup()
 
   // FOr T-Beam 1.0
   Wire.begin(21, 22);
-  scanI2Cdevice();
+  // Make sure the whole thing powers up!?!?!?!?!?
+  U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
+  u8x8->initDisplay(); 
+  delay(500);
   
+  scanI2Cdevice();
+
   if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
     Serial.println("AXP192 Begin PASS");
   } else {
     Serial.println("AXP192 Begin FAIL");
+    while (1) {
+      Serial.println("...");
+      delay(2000);
+    }
   }
   axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
   axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
@@ -1136,7 +1150,20 @@ void setup()
   axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
   axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
   axp.setDCDC1Voltage(3300);
-  
+
+  pinMode(PMU_IRQ, INPUT_PULLUP);
+  attachInterrupt(PMU_IRQ, [] {
+    pmu_irq = true;
+  }, FALLING);
+
+  axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+  axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+  axp.clearIRQ();
+
+  delay(500);
+  scanI2Cdevice();
+
+
   LORA_LED = sonde.config.led_pout;
   pinMode(LORA_LED, OUTPUT);
 
@@ -1156,9 +1183,10 @@ void setup()
 
   disp.init();
   delay(100);
+  Serial.println("Showing welcome display");
   disp.rdis->welcome();
   delay(3000);
-
+  Serial.println("Clearing display");
   sonde.clearDisplay();
 
   setupWifiList();
