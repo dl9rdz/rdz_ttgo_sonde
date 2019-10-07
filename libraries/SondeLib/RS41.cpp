@@ -89,7 +89,7 @@ int RS41::setup(float frequency)
 		return 1;
 	}
 	if(sx1278.setFSK()!=0) {
-		RS41_DBG(Serial.println("Setting FSM mode FAILED"));
+		RS41_DBG(Serial.println("Setting FSK mode FAILED"));
 		return 1;
 	}
 	if(sx1278.setBitrate(4800)!=0) {

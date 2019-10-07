@@ -6,7 +6,7 @@
 #define FONT_SMALL 0
 
 #include <SPI.h>
-#include <TFT_22_ILI9225.h>
+#include <TFT22_ILI9225.h>
 #include <U8x8lib.h>
 
 
@@ -38,8 +38,10 @@ public:
 class U8x8Display : public RawDisplay {
 private:
 	U8X8 *u8x8 = NULL; // initialize later after reading config file
+	int _type;
 
 public:
+	U8x8Display(int type = 0) { _type = type; }
 	void begin();
 	void clear();
 	void setFont(int nr);
@@ -48,8 +50,8 @@ public:
 	void welcome();
 };
 
-class MY_ILI9225 : public TFT_22_ILI9225 {
-	using TFT_22_ILI9225::TFT_22_ILI9225;
+class MY_ILI9225 : public TFT22_ILI9225 {
+	using TFT22_ILI9225::TFT22_ILI9225;
 public:
 	uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
 	void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
@@ -60,6 +62,7 @@ private:
 	MY_ILI9225 *tft = NULL; // initialize later after reading config file
 	uint8_t yofs=0;
 	uint8_t fsize=0;
+
 
 public:
 	void begin();

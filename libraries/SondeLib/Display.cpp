@@ -173,8 +173,11 @@ DispInfo *layouts = staticLayouts;
 void U8x8Display::begin() {
 	Serial.printf("Init SSD1306 display %d %d\n", sonde.config.oled_scl, sonde.config.oled_sda);
 	//u8x8 = new U8X8_SSD1306_128X64_NONAME_SW_I2C(/* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda, /* reset=*/ sonde.config.oled_rst); // Unbuffered, basic graphics, software I2C
-	u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(/* reset=*/ sonde.config.oled_rst, /* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda); // Unbuffered, basic graphics, software I2C
-	//u8x8->setI2CAddress(0x3C); // test
+	if (_type==2) {
+               	u8x8 = new U8X8_SH1106_128X64_NONAME_HW_I2C(/* reset=*/ sonde.config.oled_rst, /* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda); // Unbuffered, basic graphics, software I2C
+	} else { //__type==0 or anything else
+		u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(/* reset=*/ sonde.config.oled_rst, /* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda); // Unbuffered, basic graphics, software I2C
+	} 
 	u8x8->begin();
 
 }
@@ -340,7 +343,7 @@ void Display::init() {
 	if(sonde.config.disptype==1) {
 		rdis = new ILI9225Display();
 	} else {
-		rdis = new U8x8Display();
+		rdis = new U8x8Display(sonde.config.disptype);
 	}
 	Serial.println("Display created");
 	rdis->begin();

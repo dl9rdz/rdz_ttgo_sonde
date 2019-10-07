@@ -428,7 +428,7 @@ struct st_configitems config_list[] = {
   {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
-  {"disptype", "Display type (0=OLED, 1=TFT/ILI9225)", 0, &sonde.config.disptype},
+  {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
   {"oled_sda", "OLED/TFT SDA (needs reboot)", 0, &sonde.config.oled_sda},
   {"oled_scl", "OLED SCL/TFT CLK (needs reboot)", 0, &sonde.config.oled_scl},
   {"oled_rst", "OLED/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},

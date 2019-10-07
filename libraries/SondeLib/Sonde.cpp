@@ -63,8 +63,16 @@ Sonde::Sonde() {
 		if(initlevels[17]==0) { // T-Beam
 			if(initlevels[12]==0) {  // T-Beam v1.0
 				config.button_pin = 38;
-				config.button2_pin = T4 + 128;  // T4 = GPIO13
+				config.button2_pin = -1; //T4 + 128;  // T4 = GPIO13
 				config.gps_rxd = 34;
+				// for now, lets assume TFT display / SPI
+				// CS=0, RST=14, RS=2, SDA=4, CLK=13
+				config.disptype = 1;
+				config.oled_sda = 4;
+				config.oled_scl = 13;
+				config.oled_rst = 14;
+				config.tft_rs = 2;
+				config.tft_cs = 0;
 			} else {
 				config.button_pin = 39;
 				config.button2_pin = T4 + 128;  // T4 == GPIO13
