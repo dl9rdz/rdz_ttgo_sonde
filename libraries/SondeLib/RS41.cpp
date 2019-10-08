@@ -89,7 +89,7 @@ int RS41::setup(float frequency)
 		return 1;
 	}
 	if(sx1278.setFSK()!=0) {
-		RS41_DBG(Serial.println("Setting FSM mode FAILED"));
+		RS41_DBG(Serial.println("Setting FSK mode FAILED"));
 		return 1;
 	}
 	if(sx1278.setBitrate(4800)!=0) {
@@ -363,7 +363,10 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print(getcard16(b, b_len, p+18UL)&255UL);
    Serial.print("Sats");
    sonde.si()->alt = heig;
-   sonde.si()->validPos = true;
+   if( 0==(int)(lat*10000) && 0==(int)(long0*10000) )
+      sonde.si()->validPos = 0;
+   else
+      sonde.si()->validPos = 0x3f;
 } /* end posrs41() */
 
 

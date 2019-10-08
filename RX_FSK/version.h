@@ -1,2 +1,2 @@
-const char *version_name = "RDZ_TTGO_SONDE";
-const char *version_id = "master v0.7.0";
+const char *version_name = "rdzTTGOsonde";
+const char *version_id = "master_v0.7.1";

@@ -3,8 +3,7 @@
 #include <U8x8lib.h>
 
 #include "Sonde.h"
-
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
+#include "Display.h"
 
 #define CHANBW 10
 #define PIXSAMPL (50/CHANBW)
@@ -56,7 +55,7 @@ void Scanner::plotResult()
 				// don't overwrite MHz marker text
 				if(i<3*8 || (i>=7*8&&i<10*8) || i>=13*8) continue;
 			}
-			u8x8->drawTile(i/8, y, 1, row+8*y);
+			disp.rdis->drawTile(i/8, y, 1, row+8*y);
 		}
 	}
 }

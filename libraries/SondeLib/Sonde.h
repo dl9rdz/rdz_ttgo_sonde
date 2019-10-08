@@ -85,9 +85,12 @@ typedef struct st_rdzconfig {
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
 	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
-	int oled_sda;			// OLED data pin
-	int oled_scl;			// OLED clock pin
-	int oled_rst;			// OLED reset pin
+	int disptype;			// 0=OLED; 1=ILI9225
+	int oled_sda;			// OLED/TFT data pin 
+	int oled_scl;			// OLED/TFT clock pin
+	int oled_rst;			// OLED/TFT reset pin
+	int tft_rs;			// TFT RS pin
+	int tft_cs;			// TFT CS pin
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
 	int debug;				// show port and config options after reboot
@@ -112,6 +115,7 @@ typedef struct st_rdzconfig {
 	// for now, one feed for each type is enough, but might get extended to more?
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
+	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 } RDZConfig;
 
 typedef struct st_sondeinfo {

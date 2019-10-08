@@ -12,10 +12,17 @@ led_pout=9
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
+# T-BEAM, OLED: SDA=21, SCL=22, RST=16
+# T-BEAM, ILI9225: SDA=4, CLK=21, RS=2, RST=22, CS=0
 # No specification in config file: try autodetection (gpio4 pin level at startup)
+#
+# disptype: 0=OLED, 1=ILI9225
+#disptype=0
 #oled_sda=21
 #oled_scl=22
-oled_rst=16
+#oled_rst=16
+#tft_rs=2
+#tft_cs=0
 #gps_rxd=-1
 gps_txd=-1
 #-------------------------------#
@@ -25,6 +32,9 @@ maxsonde=20
 debug=0
 # wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
 wifi=3
+# TCP/IP KISS TNC in port 14590 for APRSdroid (0=disabled, 1=enabled)
+kisstnc.active = 1
+
 # display mode: 1=standard 2=fieldmode 3=field w/sondetype
 display=1
 #-------------------------------#

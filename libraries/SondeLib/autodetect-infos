@@ -17,6 +17,16 @@ TTGO T-Beam
 0:1 1:0 2:0 3:1 4:0 5:1 6:0 7:1 8:0 9:1 10:1 11:1 12:1 13:0 14:1 15:1 16:1 17:0 18:0 19:0 20:0 21:1 22:1 23:1 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0 
 0:4 1:4 2:0 3:4 4:0 5:4 6:0 7:4 8:0 9:4 10:4 11:4 12:4 13:0 14:4 15:4 16:4 17:0 18:0 19:0 20:0 21:4 22:4 23:4 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0  (before setup)
 
+TTGO T-Beam 1.0 with OLED display
+0:1 1:0 2:0 3:1 4:0 5:1 6:0 7:1 8:0 9:1 10:1 11:1 12:0 13:0 14:1 15:1 16:1 17:0 18:0 19:0 20:0 21:1 22:1 23:1 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0 
+0:4 1:4 2:0 3:4 4:0 5:4 6:0 7:4 8:0 9:4 10:4 11:4 12:0 13:0 14:4 15:4 16:4 17:0 18:0 19:0 20:0 21:4 22:4 23:4 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0  (before setup)
+
+
+
+TTGO T-Beam with extern 2" ILI9225 Display
+0:1 1:0 2:0 3:1 4:0 5:1 6:0 7:1 8:0 9:1 10:1 11:1 12:1 13:0 14:1 15:1 16:1 17:0 18:0 19:0 20:0 21:0 22:0 23:1 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0 
+0:4 1:4 2:0 3:4 4:0 5:4 6:0 7:4 8:0 9:4 10:4 11:4 12:4 13:0 14:4 15:4 16:4 17:0 18:0 19:0 20:0 21:0 22:0 23:4 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0  (before setup)
+1
 
 Current autodetect strategy:
 RST always set to 16
@@ -30,13 +40,22 @@ GPIO16=0  (GPio22,23 would also work):
 
 otherwise
   ==LORA32 v2.1 or T-Beam==
-  SDA,SCL set to (21,22)
   GPIO17=0:
     == T-BEAM =
-    GPS RX set to 12
-    Button 1 set to GPIO39
-    Button 2 set to Touch GPIO13 (141)
+    GPIO12==0:  v1 (or check PMU via I2C?)
+      GPS RX set to 34
+      Button 1 set to GPIO28
+      BUtton 2 set to Touch GPIO13
+    else: 
+      GPS RX set to 12
+      Button 1 set to GPIO39
+      Button 2 set to Touch GPIO13 (141)
+      GPIO21=0:
+         large display connected (use ILI9225 contig: SDA4 CLK21 RS2 RST22 CS0)
+      else:
+         small display connected, set SDA,SCL to (21,22)
   otherweise:
+    SDA,SCL set to (21,22)
     GPS disabled
     Button 1 set to Touch GPIO2 (130)
     Button 2 set to Touch GPIO14 (142)

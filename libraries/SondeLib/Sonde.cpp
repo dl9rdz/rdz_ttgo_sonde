@@ -8,7 +8,6 @@
 #include "SX1278FSK.h"
 #include "Display.h"
 
-extern U8X8_SSD1306_128X64_NONAME_SW_I2C *u8x8;
 extern SX1278FSK sx1278;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
@@ -51,6 +50,8 @@ Sonde::Sonde() {
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
+	config.oled_rst = 16;
+	config.disptype = 0;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -60,16 +61,38 @@ Sonde::Sonde() {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
 		if(initlevels[17]==0) { // T-Beam
-			config.button_pin = 39;
-			config.button2_pin = T4 + 128;  // T4 == GPIO13
-			config.gps_rxd = 12;
+			if(initlevels[12]==0) {  // T-Beam v1.0
+				config.button_pin = 38;
+				config.button2_pin = -1; //T4 + 128;  // T4 = GPIO13
+				config.gps_rxd = 34;
+				// for now, lets assume TFT display / SPI
+				// CS=0, RST=14, RS=2, SDA=4, CLK=13
+				config.disptype = 1;
+				config.oled_sda = 4;
+				config.oled_scl = 13;
+				config.oled_rst = 14;
+				config.tft_rs = 2;
+				config.tft_cs = 0;
+			} else {
+				config.button_pin = 39;
+				config.button2_pin = T4 + 128;  // T4 == GPIO13
+				config.gps_rxd = 12;
+				// Check if we possibly have a large display
+				if(initlevels[21]==0) {
+					config.disptype = 1;
+					config.oled_sda = 4;
+					config.oled_scl = 21;
+					config.oled_rst = 22;
+					config.tft_rs = 2;
+					config.tft_cs = 0;
+				}
+			}
 		} else {
 			config.button_pin = 2 + 128;     // GPIO2 / T2
 			config.button2_pin = 14 + 128;   // GPIO14 / T6
 		}
 	}
 	//
-	config.oled_rst = 16;
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
@@ -130,13 +153,19 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg,"touch_thresh")==0) {
 		config.touch_thresh = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
-		config.led_pout = atoi(val);		
+		config.led_pout = atoi(val);
+	} else if(strcmp(cfg,"disptype")==0) {
+		config.disptype = atoi(val);
 	} else if(strcmp(cfg,"oled_sda")==0) {
 		config.oled_sda = atoi(val);
 	} else if(strcmp(cfg,"oled_scl")==0) {
 		config.oled_scl = atoi(val);
 	} else if(strcmp(cfg,"oled_rst")==0) {
 		config.oled_rst = atoi(val);
+	} else if(strcmp(cfg,"tft_rs")==0) {
+		config.tft_rs = atoi(val);
+	} else if(strcmp(cfg,"tft_cs")==0) {
+		config.tft_cs = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
@@ -329,6 +358,7 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
+	Serial.printf("event %x: action is %x\n", event, action);
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -369,8 +399,7 @@ rxloop:
 	/// TODO: THis has caused an exception when swithcing back to spectrumm...
         Serial.printf("waitRXcomplete returning %04x (%s)\n", res, (res&0xff)<4?RXstr[res&0xff]:"");
 	// currently used only by RS92
-	// TODO: rxtask.currentSonde might not be the right thing (after sonde channel change)
-	switch(sondeList[/*rxtask.*/currentSonde].type) {
+	switch(sondeList[rxtask.receiveSonde].type) {
 	case STYPE_RS41:
 		rs41.waitRXcomplete();
 		break;
@@ -430,12 +459,8 @@ uint8_t Sonde::updateState(uint8_t event) {
 		n = config.display;
 	}
 	if(n>=0&&n<5) {
+		Serial.printf("Setting display mode %d\n", n);
 		disp.setLayout(n);
-		// TODO: This is kind of a hack...
-		// ACT_NEXTSONDE will cause loopDecoder to call enterMode(ST_DECODER)
-		//return ACT_NEXTSONDE;
-
-		// TODO::: we probably should clear the display?? -- YES
 		sonde.clearDisplay();
 		return 0xFF;
 	}		
@@ -500,7 +525,7 @@ void Sonde::updateDisplay()
 }
 
 void Sonde::clearDisplay() {
-	u8x8->clearDisplay();
+	disp.rdis->clear();
 }
 
 Sonde sonde = Sonde();
