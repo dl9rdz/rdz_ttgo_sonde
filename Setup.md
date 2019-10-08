@@ -32,6 +32,7 @@ similar on other OS) and restart IDE
 Select Tools -> Library Manager
 
 Install "U8g2"
+
 Install "MicroNMEA"
 Install "TFT_22_ILI9225"
 
@@ -49,9 +50,11 @@ of your Arduino IDE, and rename main folder to AsyncTCP
 Copy the libraries/SX1278FSK and libraries/SondeLib folder of this project to your Arduino IDE's libraries
 folders, or, alternatively, create symbolic links (MacOS/Linux):
 
+```
 cd ~/Documents/Arduino/libraries
 ln -s <whereyouclonedthegit>/rdz_ttgo_sonde/libraries/SondeLib/ .
 ln -s <whereyouclonedthegit>/rdz_ttgo_sonde/libraries/SX1278FSK/ .
+```
 
 Restart the Arduino IDE
 
