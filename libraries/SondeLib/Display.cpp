@@ -252,7 +252,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s) {
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
-	tft->drawTile(x, y, cnt, tile_ptr);
+	tft->drawTile(x, 2*y, cnt, tile_ptr);
 #if 0
 	int i,j;
 	tft->startWrite();
