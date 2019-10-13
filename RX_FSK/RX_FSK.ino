@@ -901,7 +901,7 @@ void gpsTask(void *parameter) {
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
         uint8_t hdop = nmea.getHDOP();
-        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
+        Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
       }
     }
     delay(50);
@@ -1147,7 +1147,7 @@ void setup()
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
   Serial.println(" (before setup)");
-
+  sonde.defaultConfig();  // including autoconfiguration
   aprs_gencrctab();
 
   Serial.println("Initializing SPIFFS");

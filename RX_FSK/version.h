@@ -1,2 +1,2 @@
 const char *version_name = "rdzTTGOsonde";
-const char *version_id = "devel20191013";
+const char *version_id = "devel20191013b";

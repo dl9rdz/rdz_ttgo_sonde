@@ -7,6 +7,7 @@
 #include "DFM.h"
 #include "SX1278FSK.h"
 #include "Display.h"
+#include <Wire.h>
 
 extern SX1278FSK sx1278;
 
@@ -17,8 +18,9 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
-int fingerprintValue[]={ 31, 64, 55, 51, 23, 48, -1 };
+int fingerprintValue[]={ 17, 31, 64, 55, 48, 23, 128+23, -1 };
 const char *fingerprintText[]={
+  "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
   "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
   "TTGO LORA v1.0 or Heltecc (0.9\" OLED@4,15)",
   "TTGO T-Beam (old version), 0.9\" OLED@21,22",
@@ -49,6 +51,9 @@ Sonde::Sonde() {
 	for (int i = 0; i < 39; i++) {
 		initlevels[i] = gpio_get_level((gpio_num_t)i);
   	}
+}
+
+void Sonde::defaultConfig() {
 	fingerprint = initlevels[4];
 	fingerprint = (fingerprint<<1) | initlevels[12];
 	fingerprint = (fingerprint<<1) | initlevels[16];
@@ -82,9 +87,18 @@ Sonde::Sonde() {
 				config.button_pin = 38;
 				config.button2_pin = -1; //T4 + 128;  // T4 = GPIO13
 				config.gps_rxd = 34;
-				// for now, lets assume TFT display / SPI
-				// CS=0, RST=14, RS=2, SDA=4, CLK=13
-				if(initlevels[21]==0) {
+				// Check for I2C-Display@21,22
+#define SSD1306_ADDRESS 0x3c
+				Wire.begin(21, 22);
+			    	Wire.beginTransmission(SSD1306_ADDRESS);
+    				byte err = Wire.endTransmission();
+				delay(100);  // otherwise its too fast?!
+			    	Wire.beginTransmission(SSD1306_ADDRESS);
+    				err = Wire.endTransmission();
+				if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
+					fingerprint |= 128;
+					Serial.println("no I2C display found, assuming large TFT display\n");
+					// CS=0, RST=14, RS=2, SDA=4, CLK=13
 					Serial.println("... with large TFT display\n");
 					config.disptype = 1;
 					config.oled_sda = 4;

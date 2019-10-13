@@ -168,6 +168,7 @@ public:
 	SondeInfo *sondeList;
 
 	Sonde();
+	void defaultConfig();
 	void setConfig(const char *str);
 
 	void clearSonde();
