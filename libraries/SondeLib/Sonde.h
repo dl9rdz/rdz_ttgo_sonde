@@ -150,13 +150,19 @@ typedef struct st_sondeinfo {
 
 #define MAXSONDE 99
 
+extern int fingerprintValue[];
+extern const char *fingerprintText[];
+
 class Sonde
 {
 private:
 public:
 	RDZConfig config;
+	int fingerprint = 0;
 	int currentSonde = 0;
 	int nSonde;
+	String ipaddr;
+	bool isAP;
 	// moved to heap, saving space in .bss
 	//SondeInfo sondeList[MAXSONDE+1];
 	SondeInfo *sondeList;
@@ -194,8 +200,8 @@ public:
 	void updateDisplay();
 	void updateDisplayScanner();
 	void clearDisplay();
-	void setIP(const char *ip, bool isAP);
-	void clearIP();
+
+	void setIP(String ip, bool isAP);
 };
 
 extern Sonde sonde;

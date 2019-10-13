@@ -48,6 +48,8 @@ WiFiClient client;
 WiFiServer tncserver(14580);
 WiFiClient tncclient;
 
+boolean forceReloadScreenConfig = false;
+
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 // "doublepress" is now also used to eliminate key glitch on TTGO T-Beam startup (SENSOR_VN/GPIO39)
@@ -92,6 +94,19 @@ String processor(const String& var) {
   }
   if (var == "VERSION_ID") {
     return String(version_id);
+  }
+  if (var == "AUTODETECT_INFO") {
+    char tmpstr[128];
+    const char *fpstr;
+    int i=0;
+    while(fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i]!=-1) i++;
+    if(fingerprintValue[i]==-1) {
+      fpstr = "Unknown board";
+    } else {
+      fpstr = fingerprintText[i];
+    }
+    snprintf(tmpstr, 128, "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
+    return String(tmpstr);
   }
   return String();
 }
@@ -644,7 +659,7 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   file.close();
   if (strcmp(filename.c_str(), "screens.txt") == 0) {
     // screens update => reload
-    disp.initFromFile();
+    forceReloadScreenConfig = true;
   }
   return "";
 }
@@ -886,7 +901,7 @@ void gpsTask(void *parameter) {
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
         uint8_t hdop = nmea.getHDOP();
-        Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
+        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
       }
     }
     delay(50);
@@ -1053,7 +1068,6 @@ int getKeyPressEvent() {
 }
 
 #define SSD1306_ADDRESS 0x3c
-#define AXP192_SLAVE_ADDRESS    0x34
 bool ssd1306_found = false;
 bool axp192_found = false;
 
@@ -1108,8 +1122,27 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
+  #if 0
   delay(2000);
-
+  // temporary test
+  volatile uint32_t *ioport = portOutputRegister(digitalPinToPort(4));
+  uint32_t portmask = digitalPinToBitMask(4);
+  int t = millis();
+  for(int i=0; i<10000000; i++) {
+    digitalWrite(4, LOW);
+    digitalWrite(4, HIGH);
+  }
+  int res = millis() - t;
+  Serial.printf("Duration w/ digitalWriteo: %d\n", res);
+  
+  t = millis();
+  for(int i=0; i<10000000; i++) {
+    *ioport |=  portmask;
+    *ioport &= ~portmask;
+  }
+  res = millis() - t;
+  Serial.printf("Duration w/ fast io: %d\n", res);
+#endif  
   for (int i = 0; i < 39; i++) {
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
@@ -1342,7 +1375,8 @@ static const char *action2text(uint8_t action) {
 void loopDecoder() {
   // sonde knows the current type and frequency, and delegates to the right decoder
   uint16_t res = sonde.waitRXcomplete();
-  int action, event = 0;
+  int action;
+  Serial.printf("waitRX result is %x\n", (int)res);
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
@@ -1406,6 +1440,10 @@ void loopDecoder() {
     }
   }
   Serial.println("updateDisplay started");
+  if(forceReloadScreenConfig) {
+    disp.initFromFile();
+    forceReloadScreenConfig = false;
+  }
   sonde.updateDisplay();
   Serial.println("updateDisplay done");
 }
@@ -1676,8 +1714,9 @@ void loopWifiBackground() {
     }
   } else if (wifi_state == WIFI_CONNECTED) {
     if (!WiFi.isConnected()) {
-      sonde.clearIP();
+      sonde.setIP("",false);
       sonde.updateDisplayIP();
+      
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);

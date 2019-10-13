@@ -1373,7 +1373,8 @@ void TFT22_ILI9225::getGFXTextExtent(STRING str, int16_t x, int16_t y, int16_t *
         if(gh > *h) {
             *h = gh;
         }
-        *w += xa;
+        *w += xa + 1;
     }
+    if(*w>0) (*w)--;
 }
 

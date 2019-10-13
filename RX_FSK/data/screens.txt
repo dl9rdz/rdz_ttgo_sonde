@@ -36,6 +36,44 @@
 # Mx telemetry value x (t temp p preassure h hyg)
 # Gx value relativ to GPS reference point (x: D dist, I direction)  GV. GPS valid symbol;  GL, GO, GA: ref lat long alt
 # R RSSI
+#
+# fonts=x,y can be used to select font (x=small, y=large) for all items below
+# for SSD1306, x and y can be used to select one of those fonts:
+# (y should be a 1x2 font (1,5,6,7), x a small font)
+#                u8x8_font_chroma48medium8_r,        // 0 ** default small
+#                u8x8_font_7x14_1x2_f,               // 1 ** default large
+#                u8x8_font_amstrad_cpc_extended_f,   // 2
+#                u8x8_font_5x7_f,                    // 3
+#                u8x8_font_5x8_f,                    // 4
+#                u8x8_font_8x13_1x2_f,               // 5
+#                u8x8_font_8x13B_1x2_f,              // 6
+#                u8x8_font_7x14B_1x2_f,              // 7
+#                u8x8_font_artossans8_r,             // 8
+#                u8x8_font_artosserif8_r,            // 9
+#                u8x8_font_torussansbold8_r,         // 10 
+#                u8x8_font_victoriabold8_r,          // 11
+#                u8x8_font_victoriamedium8_r,        // 12
+#                u8x8_font_pressstart2p_f,           // 13
+#                u8x8_font_pcsenior_f,               // 14
+#                u8x8_font_pxplusibmcgathin_f,       // 15
+#                u8x8_font_pxplusibmcga_f,           // 16
+#                u8x8_font_pxplustandynewtv_f,       // 17
+#
+# for ILI9225, these fonts are available:
+# 	Terminal6x8		// 0
+#       Terminal11x16		// 1
+#       Terminal12x16		// 2
+#	FreeMono9pt7b,          // 3
+#       FreeMono12pt7b,         // 4
+#       FreeSans9pt7b,          // 5
+#       FreeSans12pt7b,         // 6
+#       Picopixel,  		// 7
+#
+# color=rrggbb,rrggbb  can be used to select color (foreground, background)
+# see https://github.com/Nkawu/TFT_22_ILI9225/wiki#color-reference for example (use without "#"-sign)
+#
+# for TFT display, coordinates are multiplied by xscale,yscale and later used in pixels
+# with scale=1,1 you can directly use pixel coordinates. 
 ###########
 # 
 # Default configuration for "Scanner" display:

@@ -13,7 +13,8 @@
 struct DispEntry {
 	int8_t y;
 	int8_t x;
-	int16_t fmt;
+	int16_t fmt, width;
+	uint16_t fg,bg;
 	void (*func)(DispEntry *de);
 	const char *extra;
 };
@@ -29,25 +30,29 @@ class RawDisplay {
 public:
 	virtual void begin() = 0;
 	virtual void clear() = 0;
-	virtual void setFont(int nr) = 0;
-	virtual void drawString(uint8_t x, uint8_t y, const char *s) = 0;
+	virtual void setFont(uint8_t fontindex) = 0;
+	virtual void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
 	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
 	virtual void welcome() = 0;
+	virtual void drawIP(uint8_t x, uint8_t y, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
 };
 
 class U8x8Display : public RawDisplay {
 private:
 	U8X8 *u8x8 = NULL; // initialize later after reading config file
 	int _type;
+	const uint8_t **fontlist;
+	int nfonts;
 
 public:
 	U8x8Display(int type = 0) { _type = type; }
 	void begin();
 	void clear();
-	void setFont(int nr);
-        void drawString(uint8_t x, uint8_t y, const char *s);
+	void setFont(uint8_t fontindex);
+        void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void welcome();
+	void drawIP(uint8_t x, uint8_t y, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
 class MY_ILI9225 : public TFT22_ILI9225 {
@@ -61,16 +66,17 @@ class ILI9225Display : public RawDisplay {
 private:
 	MY_ILI9225 *tft = NULL; // initialize later after reading config file
 	uint8_t yofs=0;
-	uint8_t fsize=0;
+	uint8_t findex=0;
 
 
 public:
 	void begin();
 	void clear();
-	void setFont(int nr);
-        void drawString(uint8_t x, uint8_t y, const char *s);
+	void setFont(uint8_t fontindex);
+        void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void welcome();
+	void drawIP(uint8_t x, uint8_t y, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
 class Display {
@@ -78,7 +84,9 @@ private:
 	void freeLayouts();
 	int allocDispInfo(int entries, DispInfo *d);
 	void parseDispElement(char *text, DispEntry *de);
-
+	int xscale=13, yscale=22;
+	int fontsma=0, fontlar=1;
+	uint16_t colfg, colbg;
 public:
 	void initFromFile();
 
@@ -105,6 +113,7 @@ public:
 	static void drawTelemetry(DispEntry *de);
 	static void drawGPS(DispEntry *de);
 	static void drawText(DispEntry *de);
+	static void drawString(DispEntry *de, const char *str);
 	void clearIP();
 	void setIP(const char *ip, bool AP);
 	void updateDisplayPos();

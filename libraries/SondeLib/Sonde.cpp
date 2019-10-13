@@ -17,6 +17,16 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
+int fingerprintValue[]={ 31, 64, 55, 51, 23, 48, -1 };
+const char *fingerprintText[]={
+  "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
+  "TTGO LORA v1.0 or Heltecc (0.9\" OLED@4,15)",
+  "TTGO T-Beam (old version), 0.9\" OLED@21,22",
+  "TTGO T-Beam (old version), SPI TFT@4,21,22",
+  "TTGO T-Beam (new version 1.0), 0.9\" OLED@21,22",
+  "TTGO T-Beam (new version 1.0), SPI TFT@4,13,14",
+};
+
 int getKeyPressEvent(); /* in RX_FSK.ino */
 
 /* Task model:
@@ -39,9 +49,14 @@ Sonde::Sonde() {
 	for (int i = 0; i < 39; i++) {
 		initlevels[i] = gpio_get_level((gpio_num_t)i);
   	}
-	for (int i = 0; i < 39*3; i++) {
-		initlevels[i%39] += gpio_get_level((gpio_num_t)(i%39));
-  	}
+	fingerprint = initlevels[4];
+	fingerprint = (fingerprint<<1) | initlevels[12];
+	fingerprint = (fingerprint<<1) | initlevels[16];
+	fingerprint = (fingerprint<<1) | initlevels[17];
+	fingerprint = (fingerprint<<1) | initlevels[21];
+	fingerprint = (fingerprint<<1) | initlevels[22];
+	fingerprint = (fingerprint<<1) | initlevels[23];
+
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	config.touch_thresh = 70;
@@ -57,28 +72,39 @@ Sonde::Sonde() {
 		config.oled_scl = 15;
 		config.button_pin = 0;
 		config.button2_pin = T4 + 128;     // T4 == GPIO13
+		Serial.println("Autoconfig: looks like v1 board");
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
 		if(initlevels[17]==0) { // T-Beam
 			if(initlevels[12]==0) {  // T-Beam v1.0
+				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
 				config.button_pin = 38;
 				config.button2_pin = -1; //T4 + 128;  // T4 = GPIO13
 				config.gps_rxd = 34;
 				// for now, lets assume TFT display / SPI
 				// CS=0, RST=14, RS=2, SDA=4, CLK=13
-				config.disptype = 1;
-				config.oled_sda = 4;
-				config.oled_scl = 13;
-				config.oled_rst = 14;
-				config.tft_rs = 2;
-				config.tft_cs = 0;
+				if(initlevels[21]==0) {
+					Serial.println("... with large TFT display\n");
+					config.disptype = 1;
+					config.oled_sda = 4;
+					config.oled_scl = 13;
+					config.oled_rst = 14;
+					config.tft_rs = 2;
+					config.tft_cs = 0;
+				} else {
+					// OLED display, pins 21,22 ok...
+					config.disptype = 0;
+					Serial.println("... with small OLED display\n");
+				}
 			} else {
+				Serial.println("Autoconfig: looks like T-Beam v0.7 board");
 				config.button_pin = 39;
 				config.button2_pin = T4 + 128;  // T4 == GPIO13
 				config.gps_rxd = 12;
 				// Check if we possibly have a large display
 				if(initlevels[21]==0) {
+					Serial.println("Autoconfig: looks like T-Beam v0.7 board with large TFT display");
 					config.disptype = 1;
 					config.oled_sda = 4;
 					config.oled_scl = 21;
@@ -237,12 +263,9 @@ void Sonde::setConfig(const char *cfg) {
 	}
 }
 
-void Sonde::clearIP() {
-	disp.clearIP();
-}
-
-void Sonde::setIP(const char *ip, bool AP) {
-	disp.setIP(ip, AP);
+void Sonde::setIP(String ip, bool AP) {
+	ipaddr = ip;
+	isAP = AP;
 }
 
 void Sonde::clearSonde() {
