@@ -18,11 +18,12 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
-int fingerprintValue[]={ 17, 31, 64, 55, 48, 23, 128+23, -1 };
+int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, -1 };
 const char *fingerprintText[]={
   "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
   "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
-  "TTGO LORA v1.0 or Heltecc (0.9\" OLED@4,15)",
+  "TTGO LORA v1.0 (0.9\" OLED@4,15)",
+  "Heltec v1/v2 (0.9\"OLED@4,15)",
   "TTGO T-Beam (old version), 0.9\" OLED@21,22",
   "TTGO T-Beam (old version), SPI TFT@4,21,22",
   "TTGO T-Beam (new version 1.0), 0.9\" OLED@21,22",
@@ -77,7 +78,7 @@ void Sonde::defaultConfig() {
 		config.oled_scl = 15;
 		config.button_pin = 0;
 		config.button2_pin = T4 + 128;     // T4 == GPIO13
-		Serial.println("Autoconfig: looks like v1 board");
+		Serial.println("Autoconfig: looks like TTGO v1 / Heltec v1/V2 board");
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;

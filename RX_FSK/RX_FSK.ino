@@ -98,9 +98,9 @@ String processor(const String& var) {
   if (var == "AUTODETECT_INFO") {
     char tmpstr[128];
     const char *fpstr;
-    int i=0;
-    while(fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i]!=-1) i++;
-    if(fingerprintValue[i]==-1) {
+    int i = 0;
+    while (fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i] != -1) i++;
+    if (fingerprintValue[i] == -1) {
       fpstr = "Unknown board";
     } else {
       fpstr = fingerprintText[i];
@@ -979,7 +979,7 @@ void IRAM_ATTR touchISR2() {
 void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
-    Serial.printf("touch read %d: value is %d\n", button.pin,tmp);
+    Serial.printf("touch read %d: value is %d\n", button.pin, tmp);
     if (tmp > sonde.config.touch_thresh) {
       button.isTouched = false;
       unsigned long elapsed = my_millis() - button.keydownTime;
@@ -1122,27 +1122,27 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
-  #if 0
+#if 0
   delay(2000);
   // temporary test
   volatile uint32_t *ioport = portOutputRegister(digitalPinToPort(4));
   uint32_t portmask = digitalPinToBitMask(4);
   int t = millis();
-  for(int i=0; i<10000000; i++) {
+  for (int i = 0; i < 10000000; i++) {
     digitalWrite(4, LOW);
     digitalWrite(4, HIGH);
   }
   int res = millis() - t;
   Serial.printf("Duration w/ digitalWriteo: %d\n", res);
-  
+
   t = millis();
-  for(int i=0; i<10000000; i++) {
+  for (int i = 0; i < 10000000; i++) {
     *ioport |=  portmask;
     *ioport &= ~portmask;
   }
   res = millis() - t;
   Serial.printf("Duration w/ fast io: %d\n", res);
-#endif  
+#endif
   for (int i = 0; i < 39; i++) {
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
@@ -1160,39 +1160,40 @@ void setup()
   Serial.println("Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
 
-  // FOr T-Beam 1.0
-  Wire.begin(21, 22);
-  // Make sure the whole thing powers up!?!?!?!?!?
-  U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
-  u8x8->initDisplay(); 
-  delay(500);
-  
-  scanI2Cdevice();
+  if ((sonde.fingerprint & 16) == 16) { // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
+    // FOr T-Beam 1.0
+    Wire.begin(21, 22);
+    // Make sure the whole thing powers up!?!?!?!?!?
+    U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
+    u8x8->initDisplay();
+    delay(500);
 
-  if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-    Serial.println("AXP192 Begin PASS");
-  } else {
-    Serial.println("AXP192 Begin FAIL");
+    scanI2Cdevice();
+
+    if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
+      Serial.println("AXP192 Begin PASS");
+    } else {
+      Serial.println("AXP192 Begin FAIL");
+    }
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+    axp.setDCDC1Voltage(3300);
+
+    pinMode(PMU_IRQ, INPUT_PULLUP);
+    attachInterrupt(PMU_IRQ, [] {
+      pmu_irq = true;
+    }, FALLING);
+
+    axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+    axp.clearIRQ();
+
+    delay(500);
+    scanI2Cdevice();
   }
-  axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-  axp.setDCDC1Voltage(3300);
-
-  pinMode(PMU_IRQ, INPUT_PULLUP);
-  attachInterrupt(PMU_IRQ, [] {
-    pmu_irq = true;
-  }, FALLING);
-
-  axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-  axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-  axp.clearIRQ();
-
-  delay(500);
-  scanI2Cdevice();
-
 
   LORA_LED = sonde.config.led_pout;
   pinMode(LORA_LED, OUTPUT);
@@ -1440,7 +1441,7 @@ void loopDecoder() {
     }
   }
   Serial.println("updateDisplay started");
-  if(forceReloadScreenConfig) {
+  if (forceReloadScreenConfig) {
     disp.initFromFile();
     forceReloadScreenConfig = false;
   }
@@ -1714,9 +1715,9 @@ void loopWifiBackground() {
     }
   } else if (wifi_state == WIFI_CONNECTED) {
     if (!WiFi.isConnected()) {
-      sonde.setIP("",false);
+      sonde.setIP("", false);
       sonde.updateDisplayIP();
-      
+
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);
@@ -1786,8 +1787,8 @@ void loopWifiScan() {
     Serial.print("Network name: ");
     String ssid = WiFi.SSID(i);
     Serial.println(ssid);
-    disp.rdis->drawString(0, dispys*(1 + line), ssid.c_str());
-    line = (line + 1) % (disph/dispys);
+    disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
+    line = (line + 1) % (disph / dispys);
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
     Serial.print("MAC address: ");
@@ -1802,13 +1803,13 @@ void loopWifiScan() {
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
     }
   }
-  int lastl = (disph/dispys-2)*dispys;
+  int lastl = (disph / dispys - 2) * dispys;
   if (index >= 0) { // some network was found
     Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
     Serial.print(" with password "); Serial.println(fetchWifiPw(index));
 
     disp.rdis->drawString(0, lastl, "Conn:");
-    disp.rdis->drawString(6*dispxs, lastl, fetchWifiSSID(index));
+    disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
     while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
@@ -1822,7 +1823,7 @@ void loopWifiScan() {
         Serial.print(" with password "); Serial.println(fetchWifiPw(index));
         delay(500);
       }
-      disp.rdis->drawString(15*dispxs, lastl+dispys, _scan[cnt & 1]);
+      disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
       cnt++;
     }
   }
@@ -1834,7 +1835,7 @@ void loopWifiScan() {
     Serial.print("AP IP address: ");
     Serial.println(myIP);
     disp.rdis->drawString(0, lastl, "AP:             ");
-    disp.rdis->drawString(6*dispxs, lastl+1, networks[0].id.c_str());
+    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
     delay(3000);
   } else {
     Serial.println("");
