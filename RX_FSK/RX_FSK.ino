@@ -1772,6 +1772,8 @@ void loopWifiScan() {
   // wifi==3 => original mode with non-async wifi setup
   disp.rdis->setFont(FONT_SMALL);
   disp.rdis->drawString(0, 0, "WiFi Scan...");
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
 
   int line = 0;
   int cnt = 0;
@@ -1784,8 +1786,8 @@ void loopWifiScan() {
     Serial.print("Network name: ");
     String ssid = WiFi.SSID(i);
     Serial.println(ssid);
-    disp.rdis->drawString(0, 1 + line, ssid.c_str());
-    line = (line + 1) % 5;
+    disp.rdis->drawString(0, dispys*(1 + line), ssid.c_str());
+    line = (line + 1) % (disph/dispys);
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
     Serial.print("MAC address: ");
@@ -1800,12 +1802,13 @@ void loopWifiScan() {
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
     }
   }
+  int lastl = (disph/dispys-2)*dispys;
   if (index >= 0) { // some network was found
     Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
     Serial.print(" with password "); Serial.println(fetchWifiPw(index));
 
-    disp.rdis->drawString(0, 6, "Conn:");
-    disp.rdis->drawString(6, 6, fetchWifiSSID(index));
+    disp.rdis->drawString(0, lastl, "Conn:");
+    disp.rdis->drawString(6*dispxs, lastl, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
     while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
@@ -1819,7 +1822,7 @@ void loopWifiScan() {
         Serial.print(" with password "); Serial.println(fetchWifiPw(index));
         delay(500);
       }
-      disp.rdis->drawString(15, 7, _scan[cnt & 1]);
+      disp.rdis->drawString(15*dispxs, lastl+dispys, _scan[cnt & 1]);
       cnt++;
     }
   }
@@ -1830,8 +1833,8 @@ void loopWifiScan() {
     IPAddress myIP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
     Serial.println(myIP);
-    disp.rdis->drawString(0, 6, "AP:             ");
-    disp.rdis->drawString(6, 6, networks[0].id.c_str());
+    disp.rdis->drawString(0, lastl, "AP:             ");
+    disp.rdis->drawString(6*dispxs, lastl+1, networks[0].id.c_str());
     delay(3000);
   } else {
     Serial.println("");

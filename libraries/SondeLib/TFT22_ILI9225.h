@@ -389,6 +389,7 @@ class TFT22_ILI9225 {
         /// @return   width of character in display pixels
         uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
 
+        void getGFXCharExtent(uint8_t c, int16_t *gw, int16_t *gh, int16_t *xa);
 
     private:
 
@@ -458,7 +459,6 @@ class TFT22_ILI9225 {
         void startWrite(void);
         void endWrite(void);
 
-        void getGFXCharExtent(uint8_t c, int16_t *gw, int16_t *gh, int16_t *xa);
         
         GFXfont *gfxFont;
 };

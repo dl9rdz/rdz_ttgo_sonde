@@ -225,6 +225,14 @@ void U8x8Display::setFont(uint8_t fontindex) {
 	u8x8->setFont( fontlist[fontindex] );
 }
 
+void U8x8Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) {
+	// TODO: maybe we should decided depending on font size (single/double?)
+        if(height) *height = 8;
+        if(width) *width = 16;
+	if(lineskip) *lineskip = 1;
+	if(colskip) *colskip = 1;
+}
+
 void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	u8x8->drawString(x, y, s);
 }
@@ -318,6 +326,33 @@ void ILI9225Display::setFont(uint8_t fontindex) {
 	}
 }
 
+void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) {
+	if(height) *height = 176;
+	if(width) *width = 220;
+	switch(findex) {
+	case 0:
+		if(lineskip) *lineskip=10;
+		if(colskip) *colskip=8;
+		break;
+	case 1:
+		if(lineskip) *lineskip=18;
+		if(colskip) *colskip=13;
+		break;
+	case 2:
+		if(lineskip) *lineskip=18;
+		if(colskip) *colskip=14;
+		break;
+	default: // get size from GFX Font
+	{
+		int16_t w,h,a;
+		tft->getGFXCharExtent('|',&w,&h,&a);
+		if(lineskip) *lineskip = h+2;
+		tft->getGFXCharExtent('A',&w,&h,&a);
+		if(colskip) *colskip = w+2; // just an approximation
+	}
+	}
+}
+
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	if(findex<3) {  // standard font
@@ -370,7 +405,7 @@ void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, ui
 	setFont(0);
 	char buf[20];
 	snprintf(buf, 20, "%c %s", sonde.isAP?'A':' ', sonde.ipaddr.c_str());
-	drawString(x, y, buf);		
+	drawString(x, y, buf, width, fg, bg);		
 }
 
 #include <pgmspace.h>
@@ -460,6 +495,7 @@ void Display::freeLayouts() {
 	DispInfo *old = layouts;
 	layouts=staticLayouts;
 	setLayout(0);
+	delay(500);  // Make it unlikely that anyone else is still using previous layouts
 	for(int i=0; i<MAXSCREENS; i++) {
 		if(old[i].de) free(old[i].de);
 	}
@@ -567,7 +603,7 @@ void Display::initFromFile() {
 	if(!d) return;
 
 	freeLayouts();
-	layouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
+	DispInfo *layouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
 	if(!layouts) {
 		layouts = staticLayouts;
 		return;
@@ -668,6 +704,7 @@ void Display::initFromFile() {
 			break;
 		}
 	}
+	::layouts = layouts;
 	setLayout(0);
 }
 

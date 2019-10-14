@@ -31,6 +31,7 @@ public:
 	virtual void begin() = 0;
 	virtual void clear() = 0;
 	virtual void setFont(uint8_t fontindex) = 0;
+	virtual void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) = 0;
 	virtual void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
 	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
 	virtual void welcome() = 0;
@@ -49,6 +50,7 @@ public:
 	void begin();
 	void clear();
 	void setFont(uint8_t fontindex);
+	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void welcome();
@@ -73,6 +75,7 @@ public:
 	void begin();
 	void clear();
 	void setFont(uint8_t fontindex);
+	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=-1, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void welcome();
