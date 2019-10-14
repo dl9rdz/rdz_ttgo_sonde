@@ -1071,7 +1071,7 @@ int getKeyPressEvent() {
 bool ssd1306_found = false;
 bool axp192_found = false;
 
-void scanI2Cdevice(void)
+int scanI2Cdevice(void)
 {
   byte err, addr;
   int nDevices = 0;
@@ -1105,6 +1105,7 @@ void scanI2Cdevice(void)
     Serial.println("No I2C devices found\n");
   else
     Serial.println("done\n");
+  return nDevices;
 }
 
 extern int initlevels[40];
@@ -1162,37 +1163,36 @@ void setup()
 
   if ((sonde.fingerprint & 16) == 16) { // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
     // FOr T-Beam 1.0
-    Wire.begin(21, 22);
-    // Make sure the whole thing powers up!?!?!?!?!?
-    U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
-    u8x8->initDisplay();
-    delay(500);
+    for (int i = 0; i < 10; i++) { // try multiple times
+      Wire.begin(21, 22);
+      // Make sure the whole thing powers up!?!?!?!?!?
+      U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
+      u8x8->initDisplay();
+      delay(500);
 
-    scanI2Cdevice();
-
-    if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-      Serial.println("AXP192 Begin PASS");
-    } else {
-      Serial.println("AXP192 Begin FAIL");
+      scanI2Cdevice();
+      if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
+        Serial.println("AXP192 Begin PASS");
+      } else {
+        Serial.println("AXP192 Begin FAIL");
+      }
+      axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
+      axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+      axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
+      axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+      axp.setDCDC1Voltage(3300);
+      pinMode(PMU_IRQ, INPUT_PULLUP);
+      attachInterrupt(PMU_IRQ, [] {
+        pmu_irq = true;
+      }, FALLING);
+      axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+      axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+      axp.clearIRQ();
+      int ndevices = scanI2Cdevice();
+      if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
+      sleep(500);
     }
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-    axp.setDCDC1Voltage(3300);
-
-    pinMode(PMU_IRQ, INPUT_PULLUP);
-    attachInterrupt(PMU_IRQ, [] {
-      pmu_irq = true;
-    }, FALLING);
-
-    axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-    axp.clearIRQ();
-
-    delay(500);
-    scanI2Cdevice();
   }
 
   LORA_LED = sonde.config.led_pout;

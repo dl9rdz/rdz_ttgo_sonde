@@ -62,6 +62,7 @@ void Sonde::defaultConfig() {
 	fingerprint = (fingerprint<<1) | initlevels[21];
 	fingerprint = (fingerprint<<1) | initlevels[22];
 	fingerprint = (fingerprint<<1) | initlevels[23];
+	Serial.printf("Board fingerprint is %d\n", fingerprint);
 
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
