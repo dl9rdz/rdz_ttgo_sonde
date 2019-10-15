@@ -877,9 +877,14 @@ void Display::drawGPS(DispEntry *de) {
 		{
 		long alt = -1;
 		nmea.getAltitude(alt);
-		snprintf(buf, 16, "%5fm", alt*0.00001);
+		snprintf(buf, 16, "%4.0fm", alt*0.001);
 		drawString(de,buf);
 		}
+		break;
+	case 'C':
+		// GPS Course over ground
+		snprintf(buf, 4, "%3d", (int)(nmea.getCourse()/1000));
+		drawString(de, buf);
 		break;
 	case 'D':
 		{
@@ -928,6 +933,33 @@ void Display::drawGPS(DispEntry *de) {
 		if(dir<0) dir+=360;
 		Serial.printf("direction is %.2f\n", dir);
 		snprintf(buf, 16, "%3d", (int)dir);
+		buf[3]=0;
+		drawString(de, buf);
+		if(de->extra[1]==(char)176)
+			rdis->drawTile(de->x+3, de->y, 1, deg_tile);
+		}
+		break;
+	case 'B':
+		// relative bearing
+		if( (!nmea.isValid()) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+			drawString(de, "---");
+			break;
+		}
+		{
+		float lat1 = radians(nmea.getLatitude()*0.000001);
+                float lat2 = radians(sonde.si()->lat);
+		float lon1 = radians(nmea.getLongitude()*0.000001);
+                float lon2 = radians(sonde.si()->lon);
+		float y = sin(lon2-lon1)*cos(lat2);
+		float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
+		float dir = atan2(y, x)/PI*180;
+		if(dir<0) dir+=360;
+		Serial.printf("direction is %.2f\n", dir);
+		float course = nmea.getCourse()*0.001;
+		float bearing = dir - course;
+		if(bearing<0) bearing += 360;
+		if(bearing>=360) bearing -= 360;
+		snprintf(buf, 16, "%3d", (int)bearing);
 		buf[3]=0;
 		drawString(de, buf);
 		if(de->extra[1]==(char)176)

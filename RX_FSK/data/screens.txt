@@ -34,7 +34,9 @@
 # N ip address (only tiny font)
 # S launch site
 # Mx telemetry value x (t temp p preassure h hyg)
-# Gx value relativ to GPS reference point (x: D dist, I direction)  GV. GPS valid symbol;  GL, GO, GA: ref lat long alt
+# Gx  GPS-related data
+#     raw data from GPS:  GL, GO, GA, GC: Latitude, lOngitude, Altutide, Course
+#     relative to sonde:  GD, GI, GB: Distance, dIrection (absolute), relative Bearing
 # R RSSI
 #
 # fonts=x,y can be used to select font (x=small, y=large) for all items below
@@ -174,6 +176,8 @@ timeaction=#,#,#
 2,10=a
 3,10=h
 4,9=v
+5,9=gC
+5,13=gB
 6,7=Q
 7,0=gV
 7,2=xd=

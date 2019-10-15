@@ -895,13 +895,15 @@ void gpsTask(void *parameter) {
       char c = Serial2.read();
       //Serial.print(c);
       if (nmea.process(c)) {
+        //Serial.println(nmea.getSentence());
         long lat = nmea.getLatitude();
         long lon = nmea.getLongitude();
         long alt = -1;
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
+        int course = nmea.getCourse()/1000;
         uint8_t hdop = nmea.getHDOP();
-        Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
+        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
       }
     }
     delay(50);
