@@ -19,14 +19,17 @@
 #
 # Display content (lower/upper case: small/large font)
 #    line,column=content
+# for ILI9225 its also possible to indicate
+#    line,column,width=content          for text within a box of width 'width'
+#    line,column,-width=content         for right-justified text
 #
 # XText : Text
 # F(suffix): frequency (with suffix, e.g., " MHz")
 # L latitade
 # O lOngitute
 # A altitude
-# H hor. speed
-# V vert. speef
+# H(suffix) hor. speed (suffix: e.g. "km/h"; no suffix=>km/h as 16x8 bitmap for SSD1306 display only)
+# V(suffix) vert. speef (suffix: e.h. "m/s"; no suffix=>m/s  as 16x8 bitmap for SSD1306 display only)
 # Ix sonde ID (dfm format by x: d=>dxlaprs, a=>autorx, s=>real serial number)
 # Q signal quality statistics bar
 # T type string (RS41/DFM9/DFM6/RS92)
@@ -74,8 +77,8 @@
 # color=rrggbb,rrggbb  can be used to select color (foreground, background)
 # see https://github.com/Nkawu/TFT_22_ILI9225/wiki#color-reference for example (use without "#"-sign)
 #
-# for TFT display, coordinates are multiplied by xscale,yscale and later used in pixels
-# with scale=1,1 you can directly use pixel coordinates. 
+# for TFT display, coordinates and width are multiplied by xscale,yscale and later used in pixels
+# with scale=1,1 you can directly use pixel coordinates.  (default: xscale=13,yscale=22 => 8 lines, 16 columns)
 ###########
 # 
 # Default configuration for "Scanner" display:
