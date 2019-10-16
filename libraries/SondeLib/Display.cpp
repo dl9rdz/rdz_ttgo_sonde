@@ -355,21 +355,32 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
+	boolean alignright=false;
+	Serial.printf("drawString: width=%d\n", width);
 	if(findex<3) {  // standard font
 		//////////////tft->drawText(x...);
-		Serial.printf("Simple Text %s at %d,%d\n", s, x, y);
+		Serial.printf("Simple Text %s at %d,%d [%d]\n", s, x, y, width);
 		tft->drawText(x, y, s, fg);
 		return;
 	}
 	// GFX font
-	if(width==-1) {
-		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
-		width = w;
+	if(width<0) {
+		width = -width;
+		alignright = true;
 	}
+	if(width==WIDTH_AUTO || alignright) {
+		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
+		if(width==WIDTH_AUTO) width=w;
+	}
+
 	if(findex-3>=ngfx) findex=3;
 	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-3].yclear, bg);
 	Serial.printf("GFX Text %s at %d,%d+%d in color %x, width=%d\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width);
-        tft->drawGFXText(x, y + gfxoffsets[findex-3].yofs, s, fg);
+	if(alignright) {
+        	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-3].yofs, s, fg);
+	} else {
+        	tft->drawGFXText(x, y + gfxoffsets[findex-3].yofs, s, fg);
+	}
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
@@ -393,7 +404,7 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 void ILI9225Display::welcome() {
 	tft->clear();
         setFont(6);
-        drawString(0, 0*22, version_name, -1, 0xff77);
+        drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff77);
         setFont(5);
         drawString(0, 1*22, "RS41,RS92,DFM6/9");
         drawString(0, 3*22, version_id);
@@ -540,9 +551,11 @@ void Display::parseDispElement(char *text, DispEntry *de)
 	case 'a':
 		de->func = disp.drawAlt; break;
 	case 'h':
-		de->func = disp.drawHS; break;
+		de->func = disp.drawHS; 
+		de->extra = text[1]?strdup(text+1):NULL; break;
 	case 'v':
-		de->func = disp.drawVS; break;
+		de->func = disp.drawVS; 
+		de->extra = text[1]?strdup(text+1):NULL; break;
 	case 'i':
 		de->func = disp.drawID;
 		de->extra = strdup(text+1);
@@ -618,6 +631,7 @@ void Display::initFromFile() {
 	int entrysize;
 	Serial.printf("Reading from /screens.txt. available=%d\n",d.available());
 	while(d.available()) {
+		const char *ptr;
 		String line = d.readStringUntil('\n');
 		line.trim();
 		const char *s = line.c_str();
@@ -683,15 +697,17 @@ void Display::initFromFile() {
 				if(res==2) {
 					colbg = (bg>>19) << 11 | ((bg>>10)&0x3F) << 5 | ((bg>>3)&0x1F);
 				}
-			} else if(strchr(s, '=')) {  // one line with some data...
-				int x,y;
+			} else if( (ptr=strchr(s, '=')) ) {  // one line with some data...
+				int x,y,w,n;
 				char text[30];
-				sscanf(s, "%d,%d=%30[^\r\n]", &y, &x, text);
-				if(sonde.config.disptype==1) { x*=xscale; y*=yscale; }
+				n=sscanf(s, "%d,%d,%d", &y, &x, &w);
+				sscanf(ptr+1, "%30[^\r\n]", text);
+				if(sonde.config.disptype==1) { x*=xscale; y*=yscale; w*=xscale; }
 				layouts[idx].de[what].x = x;
 				layouts[idx].de[what].y = y;
+				layouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
 				parseDispElement(text, layouts[idx].de+what);
-				Serial.printf("entry at %d,%d font %d, color=%x,%x\n", x, y, layouts[idx].de[what].fmt,
+				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", x, y, layouts[idx].de[what].width, layouts[idx].de[what].fmt,
 					layouts[idx].de[what].fg, layouts[idx].de[what].bg);
 				what++;
 				layouts[idx].de[what].func = NULL;
@@ -713,7 +729,7 @@ void Display::setLayout(int layoutIdx) {
 }
 
 void Display::drawString(DispEntry *de, const char *str) {
-	rdis->drawString(de->x, de->y, str, -1 /*de->width*/, de->fg, de->bg);
+	rdis->drawString(de->x, de->y, str, de->width, de->fg, de->bg);
 }
 
 void Display::drawLat(DispEntry *de) {
@@ -750,8 +766,9 @@ void Display::drawHS(DispEntry *de) {
 	   return;
 	}
 	snprintf(buf, 16, sonde.si()->hs>99?" %3.0f":" %2.1f", sonde.si()->hs);
-	drawString(de,buf+strlen(buf)-4);
-	rdis->drawTile(de->x+4,de->y,2,kmh_tiles);
+	if(de->extra) { strcat(buf, de->extra); }
+	drawString(de,buf+strlen(buf)-4- (de->extra?strlen(de->extra):0) );
+	if(!de->extra) rdis->drawTile(de->x+4,de->y,2,kmh_tiles);
 }
 void Display::drawVS(DispEntry *de) {
 	rdis->setFont(de->fmt);
@@ -760,8 +777,10 @@ void Display::drawVS(DispEntry *de) {
 	   return;
 	}
 	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
-	drawString(de, buf+strlen(buf)-5);
-	rdis->drawTile(de->x+5,de->y,2,ms_tiles);
+	Serial.printf("drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
+	if(de->extra) { strcat(buf, de->extra); }
+	drawString(de, buf+strlen(buf)-5- (de->extra?strlen(de->extra):0) );
+	if(!de->extra) rdis->drawTile(de->x+5,de->y,2,ms_tiles);
 }
 void Display::drawID(DispEntry *de) {
 	rdis->setFont(de->fmt);
@@ -828,7 +847,7 @@ void Display::drawAFC(DispEntry *de) {
         drawString(de, buf+strlen(buf)-8);
 }
 void Display::drawIP(DispEntry *de) {
-	rdis->drawIP(de->x, de->y, -1 /*de->width*/, de->fg, de->bg);
+	rdis->drawIP(de->x, de->y, de->width, de->fg, de->bg);
 }
 void Display::drawSite(DispEntry *de) {
         rdis->setFont(de->fmt);
