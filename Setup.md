@@ -34,7 +34,8 @@ Select Tools -> Library Manager
 Install "U8g2"
 
 Install "MicroNMEA"
-Install "TFT_22_ILI9225"
+
+(Install "TFT_22_ILI9225" -- currently not needed, due to some issues with the official library, there is a modified version in the rdz_ttgo_sonde source tree)
 
 ## Additional libraries, part 2
 
@@ -44,6 +45,9 @@ folder of your Arduino IDE (~/Documents/Arduino/libraries on MacOS), rename main
 
 From https://github.com/me-no-dev/AsyncTCP select "Download ZIP", extract to the libraries folder
 of your Arduino IDE, and rename main folder to AsyncTCP
+
+From https://github.com/lewisxhe/AXP202X_Library select "Download ZIP", extract to the libraries
+folder of your Arduino IDE, and rename main folder to AXP202X_Library-1.0
 
 ## Additional libraries, part 3
 
@@ -64,7 +68,8 @@ each update)
 ## Final steps
 
 In the IDE Tools -> Board: ->
-Select "TTGO LoRa32-OLED v1"
+Select "TTGO LoRa32-OLED v1" (or something that fits your board.
+The binary images are currently built with the "T-Beam" board selection)
 
 Compile and Upload code
 
