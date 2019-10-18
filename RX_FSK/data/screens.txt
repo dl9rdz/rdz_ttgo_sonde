@@ -28,8 +28,9 @@
 # L latitade
 # O lOngitute
 # A altitude
-# H(suffix) hor. speed (suffix: e.g. "km/h"; no suffix=>km/h as 16x8 bitmap for SSD1306 display only)
-# V(suffix) vert. speef (suffix: e.h. "m/s"; no suffix=>m/s  as 16x8 bitmap for SSD1306 display only)
+# Hm(suffix) hor. speed m/s (suffix: e.g. "m/s"; no suffix=>m/s as 16x8 bitmap for SSD1306 display only)
+# Hk(suffix) hor. speed km/h (suffix: e.g. "km/h"; no suffix=>km/h as 16x8 bitmap for SSD1306 display only)
+# V(suffix) vert. speef (suffix: e.g. "m/s"; no suffix=>m/s  as 16x8 bitmap for SSD1306 display only)
 # Ix sonde ID (dfm format by x: d=>dxlaprs, a=>autorx, s=>real serial number)
 # Q signal quality statistics bar
 # T type string (RS41/DFM9/DFM6/RS92)
