@@ -163,13 +163,12 @@ uint8_t gpsActions[] = {
 	ACT_NONE, ACT_NONE, ACT_NONE};
 
 DispInfo staticLayouts[5] = {
-  { searchLayout, searchActions, searchTimeouts },
-  { legacyLayout, legacyActions, legacyTimeouts },
-  { fieldLayout, fieldActions, fieldTimeouts },
-  { field2Layout, field2Actions, fieldTimeouts },
-  { gpsLayout, gpsActions, fieldTimeouts } };
+  { searchLayout, searchActions, searchTimeouts, "StaticSearch" },
+  { legacyLayout, legacyActions, legacyTimeouts, "StaticLegacy" },
+  { fieldLayout, fieldActions, fieldTimeouts, "StaticField1" },
+  { field2Layout, field2Actions, fieldTimeouts, "StaticFiel2" },
+  { gpsLayout, gpsActions, fieldTimeouts, "StaticGPS" } };
 
-DispInfo *layouts = staticLayouts;
 
 /////////////// Wrapper code for various display
 
@@ -413,7 +412,7 @@ void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap
 void ILI9225Display::welcome() {
 	tft->clear();
         setFont(6);
-        drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff77);
+        drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);
         drawString(0, 1*22, "RS41,RS92,DFM6/9");
         drawString(0, 3*22, version_id);
@@ -503,10 +502,11 @@ void Display::init() {
 
 
 Display::Display() {
+	layouts = staticLayouts;
 	setLayout(0);
 }
 
-#define MAXSCREENS 10
+#define MAXSCREENS 20
 #define DISP_ACTIONS_N 12
 #define DISP_TIMEOUTS_N 3
 
@@ -522,7 +522,7 @@ void Display::freeLayouts() {
 	free(old);
 }
 
-int Display::allocDispInfo(int entries, DispInfo *d)
+int Display::allocDispInfo(int entries, DispInfo *d, char *label)
 {
 	int totalsize = (entries+1)*sizeof(DispEntry) + DISP_ACTIONS_N*sizeof(uint8_t) + DISP_TIMEOUTS_N * sizeof(int16_t);
 	char *mem = (char *)malloc(totalsize);
@@ -537,6 +537,8 @@ int Display::allocDispInfo(int entries, DispInfo *d)
 	d->actions[0] = ACT_NONE;
 
 	d->timeouts = (int16_t *)mem;
+
+	d->label = label;
 	Serial.printf("allocated %d bytes (%d entries) for %p (addr=%p)\n", totalsize, entries, d, d->de);
 	return 0;
 }
@@ -632,17 +634,35 @@ static uint8_t ACTION(char c) {
 	return ACT_NONE;
 }
 
+int Display::countEntries(File f) {
+	int pos = f.position();
+	int n = 0;
+	while(1) {
+		String line = f.readStringUntil('\n');
+		line.trim();
+		const char *c=line.c_str();
+		if(*c=='#') continue;
+		if(*c>='0'&&*c<='9') n++;
+		if(strchr(c,'=')) continue;
+		break;
+	}	
+	f.seek(pos, SeekSet);
+	Serial.printf("Counted %d entries\n", n);
+	return n;
+}
+
 void Display::initFromFile() {
 	File d = SPIFFS.open("/screens.txt", "r");
 	if(!d) return;
 
 	freeLayouts();
-	DispInfo *layouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
-	if(!layouts) {
+	DispInfo *newlayouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
+	if(!newlayouts) {
+		Serial.println("Init from file: FAILED, using static layouts");
 		layouts = staticLayouts;
 		return;
 	}
-	memset(layouts, 0, MAXSCREENS * sizeof(DispInfo));
+	memset(newlayouts, 0, MAXSCREENS * sizeof(DispInfo));
 
 	// default color
 	colfg = 0xffff; // white; only used for ILI9225
@@ -665,15 +685,11 @@ void Display::initFromFile() {
 				Serial.printf("Illegal start of screen: %s\n", s);
 				continue;
 			}
-			char *num = strchr(s, ':');
-			if(!num) {
-				Serial.println("Line missing size length indication");
-				continue;
-			}
-			entrysize = atoi(num+1);
+			entrysize = countEntries(d);
 			Serial.printf("Reading entry with %d elements\n", entrysize);
 			idx++;
-			int res = allocDispInfo(entrysize, &layouts[idx]);
+			int res = allocDispInfo(entrysize, &newlayouts[idx], strdup(s+1));
+			Serial.printf("allocDispInfo: idx %d: label is %p - %s\n",idx,newlayouts[idx].label, newlayouts[idx].label);
 			if(res<0) {
 				Serial.println("Error allocating memory for disp info");
 				continue;
@@ -683,29 +699,29 @@ void Display::initFromFile() {
 			break;
 		default:	// parse content... (additional data or line `what`)
 			if(strncmp(s,"timer=",6)==0) {  // timer values
-				sscanf(s+6, "%hd,%hd,%hd", layouts[idx].timeouts, layouts[idx].timeouts+1, layouts[idx].timeouts+2);
-				Serial.printf("timer values: %d, %d, %d\n", layouts[idx].timeouts[0], layouts[idx].timeouts[1], layouts[idx].timeouts[2]);
+				sscanf(s+6, "%hd,%hd,%hd", newlayouts[idx].timeouts, newlayouts[idx].timeouts+1, newlayouts[idx].timeouts+2);
+				Serial.printf("timer values: %d, %d, %d\n", newlayouts[idx].timeouts[0], newlayouts[idx].timeouts[1], newlayouts[idx].timeouts[2]);
 			} else if(strncmp(s, "key1action=",11)==0) { // key 1 actions
 				char c1,c2,c3,c4;
 				sscanf(s+11, "%c,%c,%c,%c", &c1, &c2, &c3, &c4);
-				layouts[idx].actions[1] = ACTION(c1);
-				layouts[idx].actions[2] = ACTION(c2);
-				layouts[idx].actions[3] = ACTION(c3);
-				layouts[idx].actions[4] = ACTION(c4);
+				newlayouts[idx].actions[1] = ACTION(c1);
+				newlayouts[idx].actions[2] = ACTION(c2);
+				newlayouts[idx].actions[3] = ACTION(c3);
+				newlayouts[idx].actions[4] = ACTION(c4);
 			} else if(strncmp(s, "key2action=",11)==0) { // key 2 actions
 				char c1,c2,c3,c4;
 				sscanf(s+11, "%c,%c,%c,%c", &c1, &c2, &c3, &c4);
-				layouts[idx].actions[5] = ACTION(c1);
-				layouts[idx].actions[6] = ACTION(c2);
-				layouts[idx].actions[7] = ACTION(c3);
-				layouts[idx].actions[8] = ACTION(c4);
+				newlayouts[idx].actions[5] = ACTION(c1);
+				newlayouts[idx].actions[6] = ACTION(c2);
+				newlayouts[idx].actions[7] = ACTION(c3);
+				newlayouts[idx].actions[8] = ACTION(c4);
 				Serial.printf("parsing key2action: %c %c %c %c\n", c1, c2, c3, c4);
 			} else if(strncmp(s, "timeaction=",11)==0) { // timer actions
 				char c1,c2,c3;
 				sscanf(s+11, "%c,%c,%c", &c1, &c2, &c3);
-				layouts[idx].actions[9] = ACTION(c1);
-				layouts[idx].actions[10] = ACTION(c2);
-				layouts[idx].actions[11] = ACTION(c3);
+				newlayouts[idx].actions[9] = ACTION(c1);
+				newlayouts[idx].actions[10] = ACTION(c2);
+				newlayouts[idx].actions[11] = ACTION(c3);
 			} else if(strncmp(s, "fonts=",6)==0) { // change font
 				sscanf(s+6, "%d,%d", &fontsma, &fontlar);
 			} else if(strncmp(s, "scale=",6)==0) { // change line->pixel scaling for ILI9225 display
@@ -724,24 +740,25 @@ void Display::initFromFile() {
 				n=sscanf(s, "%d,%d,%d", &y, &x, &w);
 				sscanf(ptr+1, "%30[^\r\n]", text);
 				if(sonde.config.disptype==1) { x*=xscale; y*=yscale; w*=xscale; }
-				layouts[idx].de[what].x = x;
-				layouts[idx].de[what].y = y;
-				layouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
-				parseDispElement(text, layouts[idx].de+what);
-				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", x, y, layouts[idx].de[what].width, layouts[idx].de[what].fmt,
-					layouts[idx].de[what].fg, layouts[idx].de[what].bg);
+				newlayouts[idx].de[what].x = x;
+				newlayouts[idx].de[what].y = y;
+				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
+				parseDispElement(text, newlayouts[idx].de+what);
+				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", x, y, newlayouts[idx].de[what].width, newlayouts[idx].de[what].fmt,
+					newlayouts[idx].de[what].fg, newlayouts[idx].de[what].bg);
 				what++;
-				layouts[idx].de[what].func = NULL;
+				newlayouts[idx].de[what].func = NULL;
 			} else {
 				for(int i=0; i<12; i++) {
-					Serial.printf("action %d: %d\n", i, (int)layouts[idx].actions[i]);
+					Serial.printf("action %d: %d\n", i, (int)newlayouts[idx].actions[i]);
 				}
  				what=-1;
 			}
 			break;
 		}
 	}
-	::layouts = layouts;
+	layouts = newlayouts;
+	nLayouts = idx+1;
 	setLayout(0);
 }
 
@@ -782,6 +799,8 @@ void Display::circ(uint16_t *bm, int16_t size, int16_t x0, int16_t y0, int16_t r
 
 
 void Display::setLayout(int layoutIdx) {
+	Serial.printf("setLayout: %d (max is %d)\n", layoutIdx, nLayouts);
+	if(layoutIdx>=nLayouts) layoutIdx = 0; 
 	layout = &layouts[layoutIdx];
 }
 

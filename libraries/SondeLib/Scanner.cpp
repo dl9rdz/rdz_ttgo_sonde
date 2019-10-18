@@ -62,13 +62,6 @@ void Scanner::plotResult()
 
 void Scanner::scan()
 {
-#if 0
-	// Test only
-	for(int i=0; i<PLOT_N; i++) {
-		scandisp[i] = 30*sin(2*3.1415*i/50)-180;
-	}
-	return;
-#endif
 	// Configure 
 	sx1278.writeRegister(REG_PLL_HOP, 0x80);   // FastHopOn
 	sx1278.setRxBandwidth(CHANBW*1000);

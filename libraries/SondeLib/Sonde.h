@@ -33,6 +33,7 @@ extern const char *RXstr[];
 //int8_t actions[EVT_MAX];
 #define ACT_NONE 255
 #define ACT_DISPLAY(n) (n)
+#define ACT_DISPLAY_NEXT 64
 #define ACT_DISPLAY_DEFAULT 63
 #define ACT_DISPLAY_SPECTRUM 62
 #define ACT_DISPLAY_WIFI 61
@@ -99,7 +100,7 @@ typedef struct st_rdzconfig {
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
-	int display;			// select display mode (0=default, 1=default, 2=fieldmode)
+	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
 	int spectrum;			// show freq spectrum for n seconds -1=disable; 0=forever

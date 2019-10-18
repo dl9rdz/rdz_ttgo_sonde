@@ -90,7 +90,7 @@
 #   => Button press activates default receiver view, double press does nothing
 #      Mid press activates Spectrum display, long press activates Wifi scan
 # - key2 has no function
-@Scanner:5
+@Scanner
 timer=-1,0,0
 key1action=D,#,F,W
 key2action=#,#,#,#
@@ -113,7 +113,7 @@ timeaction=#,D,+
 # - timer actions: #,#,0
 #   (norx timer: if no signal for >20 seconds: go back to scanner mode)
 #
-@Legacy:11
+@Legacy
 timer=-1,-1,20000
 key1action=+,0,F,W
 key2action=2,#,#,#
@@ -133,7 +133,7 @@ timeaction=#,#,0
 ############
 # Configuratoon for "Field" display (display 2)
 # similar to @Legacy, but no norx timer, and Key2 goes to display 4
-@Field:7
+@Field
 timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=3,#,#,#
@@ -149,7 +149,7 @@ timeaction=#,#,#
 ############
 # Configuration for "Field2" display (display 3)
 # similar to @Field
-@Field2:9
+@Field2
 timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=4,#,#,#
@@ -167,7 +167,7 @@ timeaction=#,#,#
 #############
 # Configuration for "GPS" display
 # not yet the final version, just for testing
-@GPSDIST:14
+@GPSDIST
 timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=1,#,#,#
@@ -187,3 +187,45 @@ timeaction=#,#,#
 7,2=xd=
 7,4=gD
 7,12=gI°
+
+############
+# Scan display for large 2" TFT dispaly
+@ScannerTFT
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+font=5,6
+0,0=XScan:
+0,8=T
+3,0=F MHz
+5,0=S
+7,5=n
+
+############
+@MainTFT
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=2,#,#,#
+timeaction=#,#,0
+color=FFD700
+0,0=Is
+color=0000FF
+0,9,-7=f
+1,1,6=c
+1,12,-4=t
+color=00ff00
+2,0=L
+4,0=O
+color=FFA500
+2,9,-7=A
+3,9,-7=vm/s
+color=AA5522
+4,9,-7=hkkm/h
+color=FFFFFF
+6,2=r
+7,0=xd=
+7,2,6=gD
+7,12=gI
+
+

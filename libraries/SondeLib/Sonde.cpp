@@ -144,7 +144,9 @@ void Sonde::defaultConfig() {
 	config.debug=0;
 	config.wifi=1;
 	config.wifiap=1;
-	config.display=1;
+	config.display[0]=0;
+	config.display[1]=1;
+	config.display[2]=-1;
 	config.startfreq=400;
 	config.channelbw=10;
 	config.spectrum=10;
@@ -225,8 +227,16 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg,"wifiap")==0) {
 		config.wifiap = atoi(val);
 	} else if(strcmp(cfg,"display")==0) {
-		config.display = atoi(val);
-		disp.setLayout(config.display);
+		int i = 0;
+		char *ptr;
+		while(val) {
+			ptr = strchr(val,',');
+			if(ptr) *ptr = 0;
+			config.display[i++] = atoi(val);
+			val = ptr?ptr+1:NULL;
+			Serial.printf("appending value %d  next is %s\n", config.display[i-1], val?val:"");
+		}
+		config.display[i] = -1;
 	} else if(strcmp(cfg,"startfreq")==0) {
 		config.startfreq = atoi(val);
 	} else if(strcmp(cfg,"channelbw")==0) {
@@ -496,9 +506,9 @@ uint8_t Sonde::updateState(uint8_t event) {
 	}
 	int n = event;
 	if(event==ACT_DISPLAY_DEFAULT) {
-		n = config.display;
+		n = config.display[1];
 	}
-	if(n>=0&&n<5) {
+	if(n>=0&&n<disp.nLayouts) {
 		Serial.printf("Setting display mode %d\n", n);
 		disp.setLayout(n);
 		sonde.clearDisplay();
@@ -554,9 +564,9 @@ void Sonde::updateDisplayIP() {
 }
 
 void Sonde::updateDisplayScanner() {
-	disp.setLayout(0);
+	disp.setLayout(config.display[0]);
 	disp.updateDisplay();
-	disp.setLayout(config.display);
+	disp.setLayout(config.display[1]);
 }
 
 void Sonde::updateDisplay()

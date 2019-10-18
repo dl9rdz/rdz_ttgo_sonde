@@ -387,15 +387,23 @@ struct st_configitems config_list[] = {
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
-  {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
+  {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
   /* Spectrum display settings */
   {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
   {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
   {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  /* decoder settings */
+  {"", "Receiver configuration", -5, NULL},
   {"showafc", "Show AFC value", 0, &sonde.config.showafc},
   {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
+  {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
+  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
+  {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
+  {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
+  {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -415,14 +423,6 @@ struct st_configitems config_list[] = {
   {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
-  /* decoder settings */
-  {"", "Receiver configuration", -5, NULL},
-  {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
-  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
-  {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
-  {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
-  {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
-  {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
   {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
@@ -434,7 +434,7 @@ struct st_configitems config_list[] = {
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
   {"touch_thresh", "Touch button threshold", 0, &sonde.config.touch_thresh},
-  {"power_pout", "Power control port", 0, &sonde.config.power_pout}, 
+  {"power_pout", "Power control port", 0, &sonde.config.power_pout},
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
@@ -468,14 +468,37 @@ void addConfigHeading(char *ptr, const char *label) {
   strcat(ptr, label);
   strcat(ptr, "</th></tr>\n");
 }
+void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
+  sprintf(ptr + strlen(ptr), "<tr><td>%s", label);
+  for (int i = 0; i < disp.nLayouts; i++) {
+    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label);
+  }
+  sprintf(ptr + strlen(ptr), "</td><td><input name=\"CFG%d\" type=\"text\" value=\"", idx);
+  if (*list == -1) {
+    strcat(ptr, "0");
+  }
+  else {
+    sprintf(ptr + strlen(ptr), "%d", list[0]);
+    list++;
+  }
+  while (*list != -1) {
+    sprintf(ptr + strlen(ptr), ",%d", *list);
+    list++;
+  }
+  strcat(ptr, "\"/></td></tr>\n");
+}
 
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     switch (config_list[i].type) {
-      case -5: // Heading  
+      case -5: // Heading
         addConfigHeading(ptr, config_list[i].label);
+        break;
+      case -6: // List of int8 values
+        addConfigInt8List(ptr, i, config_list[i].label, (int8_t *)config_list[i].data);
+        break;
       case -3: // in/offt
         addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
         break;
@@ -879,18 +902,18 @@ char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
 void unkHandler(const MicroNMEA& nmea) {
-  if(strcmp(nmea.getMessageID(), "VTG")==0) {
+  if (strcmp(nmea.getMessageID(), "VTG") == 0) {
     const char *s = nmea.getSentence();
-    while(*s && *s!=',') s++;
-    if(*s==',') s++; else return;
-    if(*s==',') return; /// no new course data
+    while (*s && *s != ',') s++;
+    if (*s == ',') s++; else return;
+    if (*s == ',') return; /// no new course data
     int course = nmea.parseFloat(s, 0, NULL);
     Serial.printf("Course update: %d\n", course);
   }
 }
 void gpsTask(void *parameter) {
   nmea.setUnknownSentenceHandler(unkHandler);
-  
+
   while (1) {
     while (Serial2.available()) {
       char c = Serial2.read();
@@ -902,7 +925,7 @@ void gpsTask(void *parameter) {
         long alt = -1;
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
-        int course = nmea.getCourse()/1000;
+        int course = nmea.getCourse() / 1000;
         uint8_t hdop = nmea.getHDOP();
         //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
       }
@@ -1112,7 +1135,6 @@ int scanI2Cdevice(void)
 }
 
 extern int initlevels[40];
-extern DispInfo *layouts;
 bool pmu_irq = false;
 
 
@@ -1197,9 +1219,9 @@ void setup()
       sleep(500);
     }
   }
-  if(sonde.config.power_pout>=0) {  // for a heltec v2, pull GPIO21 low for display power
-    pinMode(sonde.config.power_pout&127, OUTPUT);
-    digitalWrite(sonde.config.power_pout&127, sonde.config.power_pout&128?1:0);
+  if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
+    pinMode(sonde.config.power_pout & 127, OUTPUT);
+    digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
   }
 
   LORA_LED = sonde.config.led_pout;
@@ -1228,10 +1250,10 @@ void setup()
   sonde.clearDisplay();
 
   setupWifiList();
-  Serial.printf("before disp.initFromFile... layouts is %p", layouts);
+  Serial.printf("before disp.initFromFile... layouts is %p", disp.layouts);
 
   disp.initFromFile();
-  Serial.printf("disp.initFromFile... layouts is %p", layouts);
+  Serial.printf("disp.initFromFile... layouts is %p", disp.layouts);
 
 
   // == show initial values from config.txt ========================= //
@@ -1453,6 +1475,10 @@ void loopDecoder() {
   Serial.println("updateDisplay done");
 }
 
+void setCurrentDisplay(int value) {
+  Serial.printf("setCurrentDisplay: setting index %d, entry %d\b", value, sonde.config.display[value]);
+  currentDisplay = sonde.config.display[value];
+}
 
 void loopSpectrum() {
   int marker = 0;
@@ -1469,7 +1495,7 @@ void loopSpectrum() {
       enterMode(ST_WIFISCAN);
       return;
     case KP_DOUBLE:
-      currentDisplay = 0;
+      setCurrentDisplay(0);
       enterMode(ST_DECODER);
       return;
     default: break;
@@ -1484,7 +1510,7 @@ void loopSpectrum() {
     itoa((sonde.config.startfreq + 6), buf, 10);
     disp.rdis->drawString(13, 1, buf);
   }
-  if (sonde.config.spectrum>0) {
+  if (sonde.config.spectrum > 0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
     itoa(remaining, buf, 10);
     Serial.printf("config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.spectrum, specTimer, millis(), remaining);
@@ -1494,7 +1520,7 @@ void loopSpectrum() {
     disp.rdis->drawString(0, 1 + marker, buf);
     disp.rdis->drawString(2, 1 + marker, "Sec.");
     if (remaining <= 0) {
-      currentDisplay = 0;
+      setCurrentDisplay(0);
       enterMode(ST_DECODER);
     }
   }
@@ -1533,7 +1559,9 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
-    if(sonde.config.kisstnc.active) { tncserver.begin(); }
+    if (sonde.config.kisstnc.active) {
+      tncserver.begin();
+    }
     connected = true;
   } else {
     MDNS.end();
@@ -1744,7 +1772,7 @@ void initialMode() {
   if (sonde.config.spectrum != -1) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
     startSpectrumDisplay();
   } else {
-    currentDisplay = 0;
+    setCurrentDisplay(0);
     enterMode(ST_DECODER);
   }
 }
@@ -1861,15 +1889,6 @@ void loopWifiScan() {
   }
   enableNetwork(true);
   initialMode();
-#if 0
-  // done already in initialMode
-  if (sonde.config.spectrum != -1) {     // enable Spectrum in config.txt: spectrum=number_of_seconds (0=forever)
-    enterMode(ST_SPECTRUM);
-  } else {
-    currentDisplay = 0;
-    enterMode(ST_DECODER);
-  }
-#endif
 }
 
 
