@@ -11,8 +11,8 @@
 
 #define WIDTH_AUTO 9999
 struct DispEntry {
-	int8_t y;
-	int8_t x;
+	int16_t y;
+	int16_t x;
 	int16_t fmt, width;
 	uint16_t fg,bg;
 	void (*func)(DispEntry *de);
@@ -25,6 +25,15 @@ struct DispInfo {
         int16_t *timeouts;
 };
 
+struct CircleInfo {
+	char type;
+	uint8_t radius;
+	uint8_t brad;
+	uint16_t bcol;
+	uint8_t awidth;
+	uint16_t acol;
+};
+
 // Now starting towards supporting different Display types / libraries
 class RawDisplay {
 public:
@@ -34,8 +43,10 @@ public:
 	virtual void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) = 0;
 	virtual void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
 	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
+	virtual void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) = 0;
 	virtual void welcome() = 0;
 	virtual void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
+
 };
 
 class U8x8Display : public RawDisplay {
@@ -53,6 +64,7 @@ public:
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+        void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
 };
@@ -78,6 +90,7 @@ public:
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+        void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
 };
@@ -90,6 +103,7 @@ private:
 	int xscale=13, yscale=22;
 	int fontsma=0, fontlar=1;
 	uint16_t colfg, colbg;
+	static void circ(uint16_t *bm, int16_t w, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg);
 public:
 	void initFromFile();
 

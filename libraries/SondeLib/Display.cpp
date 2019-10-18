@@ -240,6 +240,11 @@ void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width,
 void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
 	u8x8->drawTile(x, y, cnt, tile_ptr);
 }
+
+void U8x8Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
+	// not supported
+}
+
 void U8x8Display::welcome() {
 	u8x8->clear();
   	setFont(FONT_LARGE);
@@ -399,6 +404,10 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
         //???u8x8->drawTile(x, y, cnt, tile_ptr);
 #endif
+}
+
+void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
+	tft->drawBitmap(x1, y1, bitmap, w, h);
 }
 
 void ILI9225Display::welcome() {
@@ -577,7 +586,19 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->func = disp.drawSite; break;
 	case 'g':
 		de->func = disp.drawGPS;
-		de->extra = strdup(text+1);
+		if(text[1]=='0') {  
+			// extended configuration for arrow...
+			struct CircleInfo *circinfo = (struct CircleInfo *)malloc(sizeof(struct CircleInfo));
+			circinfo->type = '0';
+			circinfo->radius = atoi(text+2);
+			circinfo->brad = 3;
+			circinfo->bcol = 0xffff;
+			circinfo->acol = 0xffff;
+			circinfo->awidth = 4;
+			de->extra = (char *)circinfo;
+		} else {
+			de->extra = strdup(text+1);
+		}
 		Serial.printf("parsing 'g' entry: extra is '%s'\n", de->extra);
 		break;
 	case 'r':
@@ -724,6 +745,42 @@ void Display::initFromFile() {
 	setLayout(0);
 }
 
+void Display::circ(uint16_t *bm, int16_t size, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg) {
+	// draw circle
+        int x = 0;
+        int y = r;
+        int ddF_x = 1;
+        int ddF_y = -2 * r;
+        int f = 1-r;
+        bm[x0 + (y0+r)*size] = fg;
+        bm[x0 + (y0-r)*size] = fg;
+        bm[x0+r + y0*size] = fg;
+        bm[x0-r + y0*size] = fg;
+	if(fill) { for(int yy=-y+1; yy<y-1; yy++) { bm[ (x0+yy) + y0*size ] = bg; } }
+        while(x<y) {
+		boolean newy = false;
+                if(f>=0) { y--; ddF_y += 2; f += ddF_y; newy = true; }
+                x++; ddF_x += 2; f += ddF_x;
+                bm[ (x0+x) + (y0+y)*size ] = fg;
+                bm[ (x0-x) + (y0+y)*size ] = fg;
+                bm[ (x0+x) + (y0-y)*size ] = fg;
+                bm[ (x0-x) + (y0-y)*size ] = fg;
+                bm[ (x0+y) + (y0+x)*size ] = fg;
+                bm[ (x0-y) + (y0+x)*size ] = fg;
+                bm[ (x0+y) + (y0-x)*size ] = fg;
+                bm[ (x0-y) + (y0-x)*size ] = fg;
+		if(fill) {
+			if(newy) {
+				for(int xx = -x+1; xx<x-1; xx++) bm[ (x0+xx) + (y0+y)*size ] = bg;
+				for(int xx = -x+1; xx<x-1; xx++) bm[ (x0+xx) + (y0-y)*size ] = bg;
+			}
+			for(int yy = -y+1; yy<y-1; yy++) bm[ (x0+yy) + (y0+x)*size ] = bg;
+			for(int yy = -y+1; yy<y-1; yy++) bm[ (x0+yy) + (y0-x)*size ] = bg;
+		}
+        }
+}
+
+
 void Display::setLayout(int layoutIdx) {
 	layout = &layouts[layoutIdx];
 }
@@ -765,10 +822,14 @@ void Display::drawHS(DispEntry *de) {
 	   drawString(de,"     ");
 	   return;
 	}
+	boolean is_ms = (de->extra && de->extra[0]=='m')?true:false;  // m/s or km/h
+	float hs = sonde.si()->hs;
+	if(is_ms) hs = hs / 3.6;
+	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
 	snprintf(buf, 16, sonde.si()->hs>99?" %3.0f":" %2.1f", sonde.si()->hs);
-	if(de->extra) { strcat(buf, de->extra); }
-	drawString(de,buf+strlen(buf)-4- (de->extra?strlen(de->extra):0) );
-	if(!de->extra) rdis->drawTile(de->x+4,de->y,2,kmh_tiles);
+	if(has_extra) { strcat(buf, de->extra+1); }
+	drawString(de,buf+strlen(buf)-4- (has_extra?strlen(de->extra+1):0) );
+	if(!has_extra) rdis->drawTile(de->x+4,de->y,2,is_ms?ms_tiles:kmh_tiles);
 }
 void Display::drawVS(DispEntry *de) {
 	rdis->setFont(de->fmt);
@@ -983,6 +1044,23 @@ void Display::drawGPS(DispEntry *de) {
 		drawString(de, buf);
 		if(de->extra[1]==(char)176)
 			rdis->drawTile(de->x+3, de->y, 1, deg_tile);
+		}
+		break;
+	case '0':
+		// diagram
+		{
+		struct CircleInfo *circinfo = (struct CircleInfo *)de->extra;
+		int size = 1 + 2*circinfo->radius + 2*circinfo->brad;
+		uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * size * size);
+		Serial.printf("Drawing circle with size %d at %d,%d\n",size,de->x, de->y);
+		for(int i=0; i<size*size; i++) { bitmap[i] = 0; }
+		// draw circle
+		int x0=size/2;
+		int y0=x0;
+		circ(bitmap, size, x0, y0, circinfo->radius, de->fg, true, de->bg);
+		circ(bitmap, size, x0+circinfo->radius, y0, circinfo->brad, 0xff00, true, 0xff00);
+		rdis->drawBitmap(de->x, de->y, bitmap, size, size);
+		free(bitmap);
 		}
 		break;
 	case 'E':

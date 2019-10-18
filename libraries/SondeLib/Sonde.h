@@ -81,10 +81,12 @@ struct st_dfmconfig {
 };
 
 typedef struct st_rdzconfig {
+	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
 	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
+	int power_pout;			// Power control pin (for Heltec v2)
 	int disptype;			// 0=OLED; 1=ILI9225
 	int oled_sda;			// OLED/TFT data pin 
 	int oled_scl;			// OLED/TFT clock pin
@@ -93,26 +95,28 @@ typedef struct st_rdzconfig {
 	int tft_cs;			// TFT CS pin
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
+	// software configuration
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
 	int display;			// select display mode (0=default, 1=default, 2=fieldmode)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
-	int spectrum;			// show freq spectrum for n seconds 0=disable
-	int timer;				// show remaining time in spectrum  0=disable
+	int spectrum;			// show freq spectrum for n seconds -1=disable; 0=forever
 	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
 	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
 	int noisefloor;			// for spectrum display
+	// receiver configuration
 	int showafc;			// show afc value in rx screen
 	int freqofs;			// frequency offset (tuner config = rx frequency + freqofs) in Hz
-	char call[9];			// APRS callsign
-	char passcode[9];		// APRS passcode
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	struct st_rs92config rs92;
 	struct st_dfmconfig dfm;
+	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
+	char call[9];			// APRS callsign
+	char passcode[9];		// APRS passcode
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)

@@ -68,27 +68,12 @@ Button button2 = {0, 0, KP_NONE, 0, -1, false};
 static int lastDisplay = 1;
 static int currentDisplay = 1;
 
-// Set LED GPIO
-int ledPin = 1;
-// Stores LED state
-String ledState;
-
 // timestamp when spectrum display was activated
 static unsigned long specTimer;
 
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
-  if (var == "STATE") {
-    if (digitalRead(ledPin)) {
-      ledState = "ON";
-    }
-    else {
-      ledState = "OFF";
-    }
-    Serial.print(ledState);
-    return ledState;
-  }
   if (var == "VERSION_NAME") {
     return String(version_name);
   }
@@ -398,25 +383,23 @@ struct st_configitems {
 
 struct st_configitems config_list[] = {
   /* General config settings */
+  {"", "Software configuration", -5, NULL},
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
   {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
-  {"---", "---", -1, NULL},
   /* Spectrum display settings */
-  {"spectrum", "ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
   {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"timer", "Spectrum Timer", 0, &sonde.config.timer},
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
   {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
   {"showafc", "Show AFC value", 0, &sonde.config.showafc},
   {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
-  {"---", "---", -1, NULL},
+  {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
   {"passcode", "Passcode", 8, sonde.config.passcode},
-  {"---", "---", -1, NULL},
   /* KISS tnc settings */
   {"kisstnc", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
   {"kisstnc.idformat", "DFM ID Format", -2, &sonde.config.kisstnc.idformat},
@@ -426,33 +409,33 @@ struct st_configitems config_list[] = {
   {"axudp.port", "AXUDP Port", 0, &sonde.config.udpfeed.port},
   {"axudp.idformat", "DFM ID Format", -2, &sonde.config.udpfeed.idformat},
   {"axudp.highrate", "Rate limit", 0, &sonde.config.udpfeed.highrate},
-  {"---", "---", -1, NULL},
   /* APRS TCP settings, current not used */
   {"tcp.active", "APRS TCP active", -3, &sonde.config.tcpfeed.active},
   {"tcp.host", "ARPS TCP Host", 63, sonde.config.tcpfeed.host},
   {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
-  {"---", "---", -1, NULL},
   /* decoder settings */
+  {"", "Receiver configuration", -5, NULL},
   {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
   {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
   {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
   {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
-  {"---", "---", -1, NULL},
   /* Hardware dependeing settings */
+  {"", "Hardware configuration (requires reboot)", -5, NULL},
   {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
-  {"oled_sda", "OLED/TFT SDA (needs reboot)", 0, &sonde.config.oled_sda},
-  {"oled_scl", "OLED SCL/TFT CLK (needs reboot)", 0, &sonde.config.oled_scl},
-  {"oled_rst", "OLED/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
-  {"tft_rs", "TFT RS (needs reboot)", 0, &sonde.config.tft_rs},
-  {"tft_cs", "TFT CS (needs reboot)", 0, &sonde.config.tft_cs},
-  {"button_pin", "Button input port (needs reboot)", -4, &sonde.config.button_pin},
-  {"button2_pin", "Button 2 input port (needs reboot)", -4, &sonde.config.button2_pin},
-  {"touch_thresh", "Touch button threshold (needs reboot)", 0, &sonde.config.touch_thresh},
-  {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
+  {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
+  {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
+  {"oled_rst", "OLED RST/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
+  {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
+  {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
+  {"button_pin", "Button input port", -4, &sonde.config.button_pin},
+  {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
+  {"touch_thresh", "Touch button threshold", 0, &sonde.config.touch_thresh},
+  {"power_pout", "Power control port", 0, &sonde.config.power_pout}, 
+  {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
 };
@@ -480,12 +463,19 @@ void addConfigOnOffEntry(char *ptr, int idx, const char *label, int *value) {
 void addConfigSeparatorEntry(char *ptr) {
   strcat(ptr, "<tr><td colspan=\"2\" class=\"divider\"><hr /></td></tr>\n");
 }
+void addConfigHeading(char *ptr, const char *label) {
+  strcat(ptr, "<tr><th colspan=\"2\">");
+  strcat(ptr, label);
+  strcat(ptr, "</th></tr>\n");
+}
 
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     switch (config_list[i].type) {
+      case -5: // Heading  
+        addConfigHeading(ptr, config_list[i].label);
       case -3: // in/offt
         addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
         break;
@@ -771,7 +761,6 @@ void SetupAsyncServer() {
 
   // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
-    //digitalWrite(ledPin, HIGH);
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
@@ -889,7 +878,19 @@ void initTouch() {
 char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
+void unkHandler(const MicroNMEA& nmea) {
+  if(strcmp(nmea.getMessageID(), "VTG")==0) {
+    const char *s = nmea.getSentence();
+    while(*s && *s!=',') s++;
+    if(*s==',') s++; else return;
+    if(*s==',') return; /// no new course data
+    int course = nmea.parseFloat(s, 0, NULL);
+    Serial.printf("Course update: %d\n", course);
+  }
+}
 void gpsTask(void *parameter) {
+  nmea.setUnknownSentenceHandler(unkHandler);
+  
   while (1) {
     while (Serial2.available()) {
       char c = Serial2.read();
@@ -1196,6 +1197,10 @@ void setup()
       sleep(500);
     }
   }
+  if(sonde.config.power_pout>=0) {  // for a heltec v2, pull GPIO21 low for display power
+    pinMode(sonde.config.power_pout&127, OUTPUT);
+    digitalWrite(sonde.config.power_pout&127, sonde.config.power_pout&128?1:0);
+  }
 
   LORA_LED = sonde.config.led_pout;
   pinMode(LORA_LED, OUTPUT);
@@ -1324,9 +1329,6 @@ void setup()
   sonde.setup();
   initGPS();
 
-  if (sonde.config.kisstnc.active) {
-    tncserver.begin();
-  }
   WiFi.onEvent(WiFiEvent);
   getKeyPress();    // clear key buffer
 }
@@ -1482,10 +1484,10 @@ void loopSpectrum() {
     itoa((sonde.config.startfreq + 6), buf, 10);
     disp.rdis->drawString(13, 1, buf);
   }
-  if (sonde.config.timer) {
+  if (sonde.config.spectrum>0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
     itoa(remaining, buf, 10);
-    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
+    Serial.printf("config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
@@ -1531,7 +1533,7 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
-    tncserver.begin();
+    if(sonde.config.kisstnc.active) { tncserver.begin(); }
     connected = true;
   } else {
     MDNS.end();
@@ -1639,7 +1641,7 @@ void WiFiEvent(WiFiEvent_t event)
 
 
 void wifiConnect(int16_t res) {
-  Serial.printf("WLAN scan result: found %d networks\n", res);
+  Serial.printf("WiFi scan result: found %d networks\n", res);
 
   // pick best network
   int bestEntry = -1;
@@ -1684,13 +1686,13 @@ void loopWifiBackground() {
 
   if (wifi_state == WIFI_DISABLED) {  // stopped => start can
     wifi_state = WIFI_SCAN;
-    Serial.println("WLAN start scan");
+    Serial.println("WiFi start scan");
     WiFi.scanNetworks(true); // scan in async mode
   } else if (wifi_state == WIFI_SCAN) {
     int16_t res = WiFi.scanComplete();
     if (res == 0 || res == WIFI_SCAN_FAILED) {
       // retry
-      Serial.println("WLAN restart scan");
+      Serial.println("WiFi restart scan");
       WiFi.disconnect(true);
       wifi_state = WIFI_DISABLED;
       return;
@@ -1739,9 +1741,8 @@ void startAP() {
 }
 
 void initialMode() {
-  if (sonde.config.spectrum != 0) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
+  if (sonde.config.spectrum != -1) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
     startSpectrumDisplay();
-    //done in startSpectrumScan(): enterMode(ST_SPECTRUM);
   } else {
     currentDisplay = 0;
     enterMode(ST_DECODER);
@@ -1860,14 +1861,15 @@ void loopWifiScan() {
   }
   enableNetwork(true);
   initialMode();
-
-  if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
-    //startSpectrumDisplay();
+#if 0
+  // done already in initialMode
+  if (sonde.config.spectrum != -1) {     // enable Spectrum in config.txt: spectrum=number_of_seconds (0=forever)
     enterMode(ST_SPECTRUM);
   } else {
     currentDisplay = 0;
     enterMode(ST_DECODER);
   }
+#endif
 }
 
 

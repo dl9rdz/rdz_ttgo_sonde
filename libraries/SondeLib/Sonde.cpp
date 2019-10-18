@@ -68,6 +68,7 @@ void Sonde::defaultConfig() {
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	config.touch_thresh = 70;
 	config.led_pout = 9;	
+	config.power_pout = -1;
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
@@ -79,6 +80,7 @@ void Sonde::defaultConfig() {
 		config.oled_scl = 15;
 		config.button_pin = 0;
 		config.button2_pin = T4 + 128;     // T4 == GPIO13
+		config.power_pout = 21;		   // for Heltec v2
 		Serial.println("Autoconfig: looks like TTGO v1 / Heltec v1/V2 board");
 	} else {
 		config.oled_sda = 21;
@@ -146,7 +148,6 @@ void Sonde::defaultConfig() {
 	config.startfreq=400;
 	config.channelbw=10;
 	config.spectrum=10;
-	config.timer=0;
 	config.marker=0;
 	config.showafc=0;
 	config.freqofs=0;
@@ -196,6 +197,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.touch_thresh = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
 		config.led_pout = atoi(val);
+	} else if(strcmp(cfg,"power_pout")==0) {
+		config.power_pout = atoi(val);
 	} else if(strcmp(cfg,"disptype")==0) {
 		config.disptype = atoi(val);
 	} else if(strcmp(cfg,"oled_sda")==0) {
@@ -230,8 +233,6 @@ void Sonde::setConfig(const char *cfg) {
 		config.channelbw = atoi(val);	
 	} else if(strcmp(cfg,"spectrum")==0) {
 		config.spectrum = atoi(val);
-	} else if(strcmp(cfg,"timer")==0) {
-		config.timer = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
 	} else if(strcmp(cfg,"showafc")==0) {
