@@ -12,7 +12,8 @@
 # - W: activate WiFi scan
 # - F: activate frequency spectrum display
 # - 0: activate "Scan:" display (this is basically just display mode 0)
-# - x: (1..N): activate display mode x
+# - x: (1..N): activate display mode x [deprecated]
+# - >: activate next display mode 
 # - D: activate default receiver display (display mode specified in config)
 # - +: advance to next active sonde from QRG config
 # - #: no action
@@ -116,7 +117,7 @@ timeaction=#,D,+
 @Legacy
 timer=-1,-1,20000
 key1action=+,0,F,W
-key2action=2,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,0
 0,5=f MHz
 1,8=c
@@ -136,7 +137,7 @@ timeaction=#,#,0
 @Field
 timer=-1,-1,-1
 key1action=+,0,F,W
-key2action=3,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 2,0=L
 4,0=O
@@ -152,7 +153,7 @@ timeaction=#,#,#
 @Field2
 timer=-1,-1,-1
 key1action=+,0,F,W
-key2action=4,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 2,0=L
 4,0=O
@@ -170,7 +171,7 @@ timeaction=#,#,#
 @GPSDIST
 timer=-1,-1,-1
 key1action=+,0,F,W
-key2action=1,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 0,0=Is
 0,9=f
@@ -206,7 +207,7 @@ fonts=5,6
 @MainTFT
 timer=-1,-1,20000
 key1action=+,0,F,W
-key2action=2,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,0
 color=FFD700
 0,0=Is

@@ -507,13 +507,28 @@ uint8_t Sonde::updateState(uint8_t event) {
 	int n = event;
 	if(event==ACT_DISPLAY_DEFAULT) {
 		n = config.display[1];
+	} else if(event==ACT_DISPLAY_SCANNER) {
+		n= config.display[0];
+	} else if(event==ACT_DISPLAY_NEXT) {
+		int i;
+		for(i=0; config.display[i]!=-1; i++) {
+			if(config.display[i] == disp.layoutIdx) break;
+		}
+		if(config.display[i]==-1 || config.display[i+1]==-1) {
+			//unknown index, or end of list => loop to start
+			n = config.display[1];
+		}
 	}
-	if(n>=0&&n<disp.nLayouts) {
+	if(n>=0 && n<ACT_MAXDISPLAY) {
+		if(n>=disp.nLayouts) {
+			Serial.println("WARNNG: next layout out of range");
+			n = config.display[1];
+		}
 		Serial.printf("Setting display mode %d\n", n);
 		disp.setLayout(n);
 		sonde.clearDisplay();
 		return 0xFF;
-	}		
+	}
 
 	// Moving to a different value for currentSonde
 	// TODO: THis should be done in sx1278 task, not in main loop!!!!!
@@ -564,6 +579,7 @@ void Sonde::updateDisplayIP() {
 }
 
 void Sonde::updateDisplayScanner() {
+	// TODO: WTF??? not used any more?
 	disp.setLayout(config.display[0]);
 	disp.updateDisplay();
 	disp.setLayout(config.display[1]);

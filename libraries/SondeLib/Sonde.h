@@ -33,6 +33,8 @@ extern const char *RXstr[];
 //int8_t actions[EVT_MAX];
 #define ACT_NONE 255
 #define ACT_DISPLAY(n) (n)
+#define ACT_MAXDISPLAY 50
+#define ACT_DISPLAY_SCANNER 0
 #define ACT_DISPLAY_NEXT 64
 #define ACT_DISPLAY_DEFAULT 63
 #define ACT_DISPLAY_SPECTRUM 62

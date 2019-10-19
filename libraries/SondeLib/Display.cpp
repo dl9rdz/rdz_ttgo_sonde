@@ -627,6 +627,8 @@ static uint8_t ACTION(char c) {
 		return ACT_NEXTSONDE;
 	case '#':	
 		return ACT_NONE;
+	case '>':
+		return ACT_DISPLAY_NEXT;
 	default:
 		if(c>='0'&&c<='9')
 		return ACT_DISPLAY(c-'0');
@@ -759,7 +761,7 @@ void Display::initFromFile() {
 	}
 	layouts = newlayouts;
 	nLayouts = idx+1;
-	setLayout(0);
+	/// DONE by caller setLayout(0);
 }
 
 void Display::circ(uint16_t *bm, int16_t size, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg) {
@@ -798,10 +800,11 @@ void Display::circ(uint16_t *bm, int16_t size, int16_t x0, int16_t y0, int16_t r
 }
 
 
-void Display::setLayout(int layoutIdx) {
-	Serial.printf("setLayout: %d (max is %d)\n", layoutIdx, nLayouts);
-	if(layoutIdx>=nLayouts) layoutIdx = 0; 
-	layout = &layouts[layoutIdx];
+void Display::setLayout(int newidx) {
+	Serial.printf("setLayout: %d (max is %d)\n", newidx, nLayouts);
+	if(newidx>=nLayouts) newidx = 0; 
+	layout = &layouts[newidx];
+	layoutIdx = newidx;
 }
 
 void Display::drawString(DispEntry *de, const char *str) {

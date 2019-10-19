@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include <TFT22_ILI9225.h>
 #include <U8x8lib.h>
+#include <SPIFFS.h>
 
 #define WIDTH_AUTO 9999
 struct DispEntry {
@@ -23,6 +24,7 @@ struct DispInfo {
         DispEntry *de;
         uint8_t *actions;
         int16_t *timeouts;
+	char *label;
 };
 
 struct CircleInfo {
@@ -98,17 +100,21 @@ public:
 class Display {
 private:
 	void freeLayouts();
-	int allocDispInfo(int entries, DispInfo *d);
+	int allocDispInfo(int entries, DispInfo *d, char *label);
 	void parseDispElement(char *text, DispEntry *de);
 	int xscale=13, yscale=22;
 	int fontsma=0, fontlar=1;
 	uint16_t colfg, colbg;
 	static void circ(uint16_t *bm, int16_t w, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg);
+	static int countEntries(File f);
 public:
 	void initFromFile();
 
-	void setLayout(DispInfo *layout);
+	int layoutIdx;
 	DispInfo *layout;
+
+	DispInfo *layouts;
+	int nLayouts;
 	static RawDisplay *rdis;
 
 	Display();
