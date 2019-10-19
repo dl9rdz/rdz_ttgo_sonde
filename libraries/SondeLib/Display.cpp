@@ -848,7 +848,7 @@ void Display::drawHS(DispEntry *de) {
 	float hs = sonde.si()->hs;
 	if(is_ms) hs = hs / 3.6;
 	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
-	snprintf(buf, 16, sonde.si()->hs>99?" %3.0f":" %2.1f", sonde.si()->hs);
+	snprintf(buf, 16, hs>99?" %3.0f":" %2.1f", hs);
 	if(has_extra) { strcat(buf, de->extra+1); }
 	drawString(de,buf+strlen(buf)-4- (has_extra?strlen(de->extra+1):0) );
 	if(!has_extra) rdis->drawTile(de->x+4,de->y,2,is_ms?ms_tiles:kmh_tiles);
