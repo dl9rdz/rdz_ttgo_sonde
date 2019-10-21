@@ -40,9 +40,18 @@
 # S launch site
 # Mx telemetry value x (t temp p preassure h hyg)
 # Gx  GPS-related data
-#     raw data from GPS:  GL, GO, GA, GC: Latitude, lOngitude, Altutide, Course
+#     raw data from GPS:  GA, GO, GH, GC: LAtitude, lOngitude, Altutide(Height), Course over ground
 #     relative to sonde:  GD, GI, GB: Distance, dIrection (absolute), relative Bearing
+# G0  GPS circle diagram e.g.  3,5=g0NCS,50,ff0000,000033,5,ffff00,4,ffffff
+#     "N" (what is on top: N=north C=course)
+#     "C" (where does the arrow point to: C=course, S=sonde)
+#     "S" (what is shown by the bullet: C=course, S=sonde)
+#     50: circle radius, followed by fg and bg color
+#     5: bullet radius, followed by fg color
+#     4: arrow width, followed by fg color
 # R RSSI
+# B battery(T-Beam 1.0) S=status V=Batt.Volt C=charge current D=discharge current
+#                       U=USB volt I=USB current  T=IC temp
 #
 # fonts=x,y can be used to select font (x=small, y=large) for all items below
 # for SSD1306, x and y can be used to select one of those fonts:
@@ -229,4 +238,58 @@ color=FFFFFF
 7,2,6=gD
 7,12=gI
 
+############
+@PeilungTFT
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+color=ffff00,000033
+color=bbbbbb,000000
+0,2=xN Top:
+0,8=xCourse Top:
+color=ffff00,000033
+1,0=g0NCS,48,ffff00,000044,6,33ff33,5,eeaa00
+1,8=g0CCS,48,ffff00,000044,6,55ff55,5,eeaa00
+color=ffffff,000000
+6,0=xDirection:
+6,8,4=gI
+7,0=xCOG:
+7,4,4=gC
+7,8=xturn:
+7,12,4=gB
 
+
+############
+@GPSdataTFT
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+0,0=xOn-board GPS:
+1,0,8=gA
+2,0,8=gO
+3,0,8=gH
+4,0,8=gC
+5,0=xGPS vs Sonde:
+6,0,8=gD
+7,0,8=gI
+7,8,8=gB
+
+############
+@BatteryTFT
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+0,0=xBattery status:
+0,14=bS
+1,0=xBatt:
+1,5,5=bVV
+2,0,16=bCmA(charging)
+3,0,16=bDmA(discharging)
+4.4,0=xUSB:
+4.4,5,5=bUV
+5.4,0,10=bImA
+6.4,0=xTemp:
+6.4,5,5=bT C

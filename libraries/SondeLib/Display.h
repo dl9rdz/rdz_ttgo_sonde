@@ -20,15 +20,21 @@ struct DispEntry {
 	const char *extra;
 };
 
+#define GPSUSE_BASE 1
+#define GPSUSE_DIST 2
+#define GPSUSE_BEARING 4
 struct DispInfo {
         DispEntry *de;
         uint8_t *actions;
         int16_t *timeouts;
-	char *label;
+	const char *label;
+	uint8_t usegps;
 };
 
-struct CircleInfo {
+struct CircleInfo {  // 3,5=g0NCS,50,ff0000,000033,5,ffff00,4,ffffff
 	char type;
+	char top,bul,arr; // what to point to with top, bullet, array
+	uint16_t fgcol, bgcol;
 	uint8_t radius;
 	uint8_t brad;
 	uint16_t bcol;
@@ -45,6 +51,7 @@ public:
 	virtual void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) = 0;
 	virtual void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
 	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
+	virtual void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill) = 0;
 	virtual void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) = 0;
 	virtual void welcome() = 0;
 	virtual void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
@@ -66,6 +73,7 @@ public:
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+	void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill);
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
@@ -80,18 +88,18 @@ public:
 
 class ILI9225Display : public RawDisplay {
 private:
-	MY_ILI9225 *tft = NULL; // initialize later after reading config file
 	uint8_t yofs=0;
 	uint8_t findex=0;
 
-
 public:
+	MY_ILI9225 *tft = NULL; // initialize later after reading config file
 	void begin();
 	void clear();
 	void setFont(uint8_t fontindex);
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
         void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+	void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill);
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
@@ -99,7 +107,7 @@ public:
 
 class Display {
 private:
-	void freeLayouts();
+	void replaceLayouts(DispInfo *newlayout, int nnew);
 	int allocDispInfo(int entries, DispInfo *d, char *label);
 	void parseDispElement(char *text, DispEntry *de);
 	int xscale=13, yscale=22;
@@ -107,6 +115,13 @@ private:
 	uint16_t colfg, colbg;
 	static void circ(uint16_t *bm, int16_t w, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg);
 	static int countEntries(File f);
+	void calcGPS();
+	boolean gpsValid;
+	float gpsLat, gpsLon;
+	int gpsAlt;
+	int gpsDist; // -1: invalid
+	int gpsCourse, gpsDir, gpsBear;   // 0..360; -1: invalid
+	boolean gpsCourseOld;
 public:
 	void initFromFile();
 
@@ -136,6 +151,7 @@ public:
 	static void drawTelemetry(DispEntry *de);
 	static void drawGPS(DispEntry *de);
 	static void drawText(DispEntry *de);
+	static void drawBatt(DispEntry *de);
 	static void drawString(DispEntry *de, const char *str);
 	void clearIP();
 	void setIP(const char *ip, bool AP);

@@ -1343,6 +1343,38 @@ uint16_t TFT22_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint1
     return (uint16_t)xa;
 }
 
+// Write a character to a bitmap
+uint16_t TFT22_ILI9225::drawGFXcharBM(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t *bm, int bmwd) {
+    c -= (uint8_t)pgm_read_byte(&gfxFont->first);
+    GFXglyph *glyph  = &(((GFXglyph *)pgm_read_pointer(&gfxFont->glyph))[c]);
+    uint8_t  *bitmap = (uint8_t *)pgm_read_pointer(&gfxFont->bitmap);
+
+    uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
+    uint8_t  w  = pgm_read_byte(&glyph->width),
+             h  = pgm_read_byte(&glyph->height),
+             xa = pgm_read_byte(&glyph->xAdvance);
+    int8_t   xo = pgm_read_byte(&glyph->xOffset),
+             yo = pgm_read_byte(&glyph->yOffset);
+    uint8_t  xx, yy, bits = 0, bit = 0;
+
+    for(yy=0; yy<h; yy++) {
+	if(y+yo+yy>=bmwd) continue;
+	if(y+yo+yy<0) continue;		// yo can be negative
+        for(xx=0; xx<w; xx++) {
+	    if(x+xo+xx>=bmwd) continue;
+            if(!(bit++ & 7)) {
+                bits = pgm_read_byte(&bitmap[bo++]);
+            }
+            if(bits & 0x80) {
+		bm[x+xo+xx + bmwd*(y+yo+yy)] = color;
+            }
+            bits <<= 1;
+        }
+    }
+
+    return (uint16_t)xa;
+}
+
 
 void TFT22_ILI9225::getGFXCharExtent(uint8_t c, int16_t *gw, int16_t *gh, int16_t *xa) {
     uint8_t first = pgm_read_byte(&gfxFont->first),

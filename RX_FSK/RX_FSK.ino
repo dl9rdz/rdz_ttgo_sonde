@@ -901,14 +901,15 @@ void initTouch() {
 char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
+int lastCourse=0;
 void unkHandler(const MicroNMEA& nmea) {
   if (strcmp(nmea.getMessageID(), "VTG") == 0) {
     const char *s = nmea.getSentence();
     while (*s && *s != ',') s++;
     if (*s == ',') s++; else return;
     if (*s == ',') return; /// no new course data
-    int course = nmea.parseFloat(s, 0, NULL);
-    Serial.printf("Course update: %d\n", course);
+    lastCourse = nmea.parseFloat(s, 0, NULL);
+    Serial.printf("Course update: %d\n", lastCourse);
   }
 }
 void gpsTask(void *parameter) {
@@ -1067,16 +1068,15 @@ int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
   int x = digitalRead(button1.pin);
-  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
-
-  Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
+  //Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+  //Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
 }
 
 int getKey2Press() {
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
-  Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
+  //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
   return p;
 }
 int hasKeyPress() {
@@ -1088,8 +1088,10 @@ int getKeyPressEvent() {
     p = getKey2Press();
     if (p == KP_NONE)
       return EVT_NONE;
+    Serial.printf("Key 2 was pressed [%d]\n", p+4);
     return p + 4;
   }
+  Serial.printf("Key 1 was pressed [%d]\n", p);
   return p;  /* map KP_x to EVT_KEY1_x / EVT_KEY2_x*/
 }
 
@@ -1207,6 +1209,8 @@ void setup()
       axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
       axp.setDCDC1Voltage(3300);
+      axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
+      axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       pinMode(PMU_IRQ, INPUT_PULLUP);
       attachInterrupt(PMU_IRQ, [] {
         pmu_irq = true;
@@ -1469,6 +1473,7 @@ void loopDecoder() {
   Serial.println("updateDisplay started");
   if (forceReloadScreenConfig) {
     disp.initFromFile();
+    sonde.clearDisplay();
     forceReloadScreenConfig = false;
   }
   sonde.updateDisplay();
@@ -2088,4 +2093,5 @@ void loop() {
     sonde.updateDisplay();
     lastDisplay = currentDisplay;
   }
+  Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 }

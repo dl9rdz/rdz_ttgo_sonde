@@ -389,6 +389,8 @@ class TFT22_ILI9225 {
         /// @return   width of character in display pixels
         uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
 
+	uint16_t drawGFXcharBM(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t *bm, int bmwd);
+
         void getGFXCharExtent(uint8_t c, int16_t *gw, int16_t *gh, int16_t *xa);
 
     private:

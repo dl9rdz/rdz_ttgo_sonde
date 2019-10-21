@@ -398,7 +398,7 @@ void Sonde::receive() {
                         si->lastState = 0;
                 }
         }
-	Serial.printf("debug: res was %d, now lastState is %d\n", res, si->lastState);
+	// Serial.printf("debug: res was %d, now lastState is %d\n", res, si->lastState);
 
 
 	// we should handle timer events here, because after returning from receive,
@@ -434,7 +434,7 @@ uint16_t Sonde::waitRXcomplete() {
 rxloop:
         while( rxtask.receiveResult==0xFFFF && millis()-t0 < 2000) { delay(50); }
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
-		Serial.println("RSSI update");
+		Serial.print("RSSI update: ");
 		rxtask.receiveResult = 0xFFFF;
 		disp.updateDisplayRSSI();
 		goto rxloop;
@@ -517,6 +517,8 @@ uint8_t Sonde::updateState(uint8_t event) {
 		if(config.display[i]==-1 || config.display[i+1]==-1) {
 			//unknown index, or end of list => loop to start
 			n = config.display[1];
+		} else {
+			n = config.display[i+1];
 		}
 	}
 	if(n>=0 && n<ACT_MAXDISPLAY) {
@@ -578,16 +580,11 @@ void Sonde::updateDisplayIP() {
 	disp.updateDisplayIP();
 }
 
-void Sonde::updateDisplayScanner() {
-	// TODO: WTF??? not used any more?
-	disp.setLayout(config.display[0]);
-	disp.updateDisplay();
-	disp.setLayout(config.display[1]);
-}
-
 void Sonde::updateDisplay()
 {
+	int t = millis();
 	disp.updateDisplay();
+	Serial.printf("updateDisplay took %d ms\n", (int)(millis()-t));
 }
 
 void Sonde::clearDisplay() {

@@ -381,16 +381,18 @@ int RS41::decode41(byte *data, int maxlen)
 	if(corr<0) {
 		corr = reedsolomon41(data, 560, 230);  // try long frame
 	}
+#if 0
 	Serial.print("RS result:");
 	Serial.print(corr);
 	Serial.println();
+#endif
 	int p = 57; // 8 byte header, 48 byte RS 
 	while(p<maxlen) {  /* why 555? */
 		uint8_t typ = data[p++];
 		uint32_t len = data[p++]+2UL;
 		if(p+len>maxlen) break;
 
-#if 1
+#if 0
 		// DEBUG OUTPUT
 		Serial.print("@");
 		Serial.print(p-2);

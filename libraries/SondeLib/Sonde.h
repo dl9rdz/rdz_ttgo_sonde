@@ -206,7 +206,6 @@ public:
 	void updateStat();
 	void updateDisplayIP();
 	void updateDisplay();
-	void updateDisplayScanner();
 	void clearDisplay();
 
 	void setIP(String ip, bool isAP);

@@ -1,7 +1,7 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
-
+#include <axp20x.h>
 #include <MicroNMEA.h>
 #include "Display.h"
 #include "Sonde.h"
@@ -18,6 +18,9 @@ extern const char *version_id;
 extern Sonde sonde;
 
 extern MicroNMEA nmea;
+
+extern AXP20X_Class axp;
+extern bool axp192_found;
 
 SPIClass spiDisp(HSPI);
 
@@ -243,6 +246,9 @@ void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr)
 void U8x8Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
 	// not supported
 }
+void U8x8Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill) {
+	// not supported (yet)
+}
 
 void U8x8Display::welcome() {
 	u8x8->clear();
@@ -360,9 +366,7 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
-	Serial.printf("drawString: width=%d\n", width);
 	if(findex<3) {  // standard font
-		//////////////tft->drawText(x...);
 		Serial.printf("Simple Text %s at %d,%d [%d]\n", s, x, y, width);
 		tft->drawText(x, y, s, fg);
 		return;
@@ -379,7 +383,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 
 	if(findex-3>=ngfx) findex=3;
 	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-3].yclear, bg);
-	Serial.printf("GFX Text %s at %d,%d+%d in color %x, width=%d\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width);
+	Serial.printf("GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
 	if(alignright) {
         	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-3].yofs, s, fg);
 	} else {
@@ -403,6 +407,13 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
         //???u8x8->drawTile(x, y, cnt, tile_ptr);
 #endif
+}
+
+void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, boolean fill) {
+	if(fill)
+		tft->fillTriangle(x1, y1, x2, y2, x3, y3, color);
+	else
+		tft->drawTriangle(x1, y1, x2, y2, x3, y3, color);
 }
 
 void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
@@ -510,12 +521,24 @@ Display::Display() {
 #define DISP_ACTIONS_N 12
 #define DISP_TIMEOUTS_N 3
 
-void Display::freeLayouts() {
-	if(layouts==staticLayouts) return;
+void Display::replaceLayouts(DispInfo *newlayouts, int nnew) {
+	if(nnew<1) return;  // no new layouts => ignore
+
+	// remember old layouts
 	DispInfo *old = layouts;
-	layouts=staticLayouts;
-	setLayout(0);
-	delay(500);  // Make it unlikely that anyone else is still using previous layouts
+
+	// assign new layouts and current layout
+	Serial.printf("replaceLayouts: idx=%d n(new)=%d\n", layoutIdx, nLayouts);
+	layouts = newlayouts;
+	nLayouts = nnew;
+	if(layoutIdx >= nLayouts) layoutIdx = 0;
+	layout = layouts+layoutIdx;
+
+	// Make it unlikely that anyone else is still using previous layouts
+	delay(500);
+
+	// and release memory not used any more
+	if(old==staticLayouts) return;
 	for(int i=0; i<MAXSCREENS; i++) {
 		if(old[i].de) free(old[i].de);
 	}
@@ -541,6 +564,16 @@ int Display::allocDispInfo(int entries, DispInfo *d, char *label)
 	d->label = label;
 	Serial.printf("allocated %d bytes (%d entries) for %p (addr=%p)\n", totalsize, entries, d, d->de);
 	return 0;
+}
+
+uint16_t encodeColor(uint32_t col) {
+	return (col>>19) << 11 | ((col>>10)&0x3F) << 5 | ((col>>3)&0x1F);
+}
+uint16_t encodeColor(char *colstr) {
+	uint32_t col;
+	int res=sscanf(colstr, "%" SCNx32, &col);
+	if(res!=1) return 0xffff;
+	return encodeColor(col);
 }
 
 void Display::parseDispElement(char *text, DispEntry *de)
@@ -591,12 +624,36 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		if(text[1]=='0') {  
 			// extended configuration for arrow...
 			struct CircleInfo *circinfo = (struct CircleInfo *)malloc(sizeof(struct CircleInfo));
+#if 1
 			circinfo->type = '0';
-			circinfo->radius = atoi(text+2);
-			circinfo->brad = 3;
-			circinfo->bcol = 0xffff;
-			circinfo->acol = 0xffff;
-			circinfo->awidth = 4;
+			circinfo->top = text[2];
+			circinfo->arr = text[3];
+			circinfo->bul = text[4];
+			char *ptr=text+5;
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			// next: radius
+			circinfo->radius = atoi(ptr);
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->fgcol = encodeColor(ptr);
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->bgcol = encodeColor(ptr);
+#else
+			circinfo->type = '0';
+			circinfo->top = 'N';
+			circinfo->bul = 'S';
+			circinfo->arr = 'C';
+			circinfo->radius = 50;
+			circinfo->fgcol = 0xfe80;
+			circinfo->bgcol = 0x0033;
+#endif
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->awidth = atoi(ptr);
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->acol = encodeColor(ptr);
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->brad = atoi(ptr);
+			while(*ptr && *ptr!=',') ptr++; ptr++;
+			circinfo->bcol = encodeColor(ptr);
 			de->extra = (char *)circinfo;
 		} else {
 			de->extra = strdup(text+1);
@@ -607,6 +664,10 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->func = disp.drawRSSI; break;
 	case 'x':
 		de->func = disp.drawText;
+		de->extra = strdup(text+1);
+		break;
+	case 'b':
+		de->func = disp.drawBatt;
 		de->extra = strdup(text+1);
 		break;
 	default:
@@ -657,11 +718,9 @@ void Display::initFromFile() {
 	File d = SPIFFS.open("/screens.txt", "r");
 	if(!d) return;
 
-	freeLayouts();
 	DispInfo *newlayouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
 	if(!newlayouts) {
-		Serial.println("Init from file: FAILED, using static layouts");
-		layouts = staticLayouts;
+		Serial.println("Init from file: FAILED, not updating layouts");
 		return;
 	}
 	memset(newlayouts, 0, MAXSCREENS * sizeof(DispInfo));
@@ -674,6 +733,7 @@ void Display::initFromFile() {
 	int entrysize;
 	Serial.printf("Reading from /screens.txt. available=%d\n",d.available());
 	while(d.available()) {
+		Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 		const char *ptr;
 		String line = d.readStringUntil('\n');
 		line.trim();
@@ -737,17 +797,21 @@ void Display::initFromFile() {
 					colbg = (bg>>19) << 11 | ((bg>>10)&0x3F) << 5 | ((bg>>3)&0x1F);
 				}
 			} else if( (ptr=strchr(s, '=')) ) {  // one line with some data...
-				int x,y,w,n;
-				char text[30];
-				n=sscanf(s, "%d,%d,%d", &y, &x, &w);
-				sscanf(ptr+1, "%30[^\r\n]", text);
+				float x,y,w;
+				int n;
+				char text[61];
+				n=sscanf(s, "%f,%f,%f", &y, &x, &w);
+				sscanf(ptr+1, "%60[^\r\n]", text);
 				if(sonde.config.disptype==1) { x*=xscale; y*=yscale; w*=xscale; }
 				newlayouts[idx].de[what].x = x;
 				newlayouts[idx].de[what].y = y;
 				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
 				parseDispElement(text, newlayouts[idx].de+what);
-				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", x, y, newlayouts[idx].de[what].width, newlayouts[idx].de[what].fmt,
+				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", (int)x, (int)y, newlayouts[idx].de[what].width, newlayouts[idx].de[what].fmt,
 					newlayouts[idx].de[what].fg, newlayouts[idx].de[what].bg);
+				if(newlayouts[idx].de[what].func == disp.drawGPS) {
+					newlayouts[idx].usegps = GPSUSE_BASE|GPSUSE_DIST|GPSUSE_BEARING; // just all for now
+				}
 				what++;
 				newlayouts[idx].de[what].func = NULL;
 			} else {
@@ -759,9 +823,7 @@ void Display::initFromFile() {
 			break;
 		}
 	}
-	layouts = newlayouts;
-	nLayouts = idx+1;
-	/// DONE by caller setLayout(0);
+	replaceLayouts(newlayouts, idx+1);
 }
 
 void Display::circ(uint16_t *bm, int16_t size, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg) {
@@ -835,7 +897,9 @@ void Display::drawAlt(DispEntry *de) {
 	   drawString(de,"     ");
 	   return;
 	}
-	snprintf(buf, 16, sonde.si()->alt>=1000?"   %5.0fm":"   %3.1fm", sonde.si()->alt);
+	float alt = sonde.si()->alt;
+	//testing only....   alt += 30000-454;
+	snprintf(buf, 16, alt>=1000?"   %5.0fm":"   %3.1fm", alt);
 	drawString(de,buf+strlen(buf)-6);
 }
 void Display::drawHS(DispEntry *de) {
@@ -925,8 +989,9 @@ void Display::drawFreq(DispEntry *de) {
 void Display::drawAFC(DispEntry *de) {
  	if(!sonde.config.showafc) return;
 	rdis->setFont(de->fmt);
-	if(sonde.si()->afc==0) { strcpy(buf, "        "); }
-	else { snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001); }
+	//if(sonde.si()->afc==0) { strcpy(buf, "        "); }
+	//else
+	{ snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001); }
         drawString(de, buf+strlen(buf)-8);
 }
 void Display::drawIP(DispEntry *de) {
@@ -944,6 +1009,69 @@ void Display::drawTelemetry(DispEntry *de) {
 #define  PI  (3.1415926535897932384626433832795)
 #endif
 // defined by Arduino.h   #define radians(x) ( (x)*180.0F/PI )
+#define FAKEGPS 0
+
+extern int lastCourse; // from RX_FSK.ino
+void Display::calcGPS() {
+	// base data
+#if FAKEGPS
+	gpsValid = true;
+	gpsLat = 48.9;
+	gpsLon = 13.3;
+	gpsAlt = 33000;
+static int tmpc=0;
+	tmpc = (tmpc+5)%360;
+	gpsCourse = tmpc;
+#else
+	gpsValid = nmea.isValid();
+	gpsLon = nmea.getLongitude()*0.000001;
+	gpsLat = nmea.getLatitude()*0.000001;
+	long alt;
+	nmea.getAltitude(alt); gpsAlt=(int)(alt/1000);
+	gpsCourse = (int)(nmea.getCourse()/1000);
+	gpsCourseOld = false;
+	if(gpsCourse==0) {
+		// either north or not new
+		if(lastCourse!=0) // use old value...
+		{
+			gpsCourseOld = true;
+			gpsCourse = lastCourse;
+		}
+	}
+#endif
+	// distance
+	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
+        	float lat1 = nmea.getLatitude()*0.000001;
+        	float lat2 = sonde.si()->lat;
+        	float x = radians(nmea.getLongitude()*0.000001-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
+        	float y = radians(lat2-lat1);
+        	float d = sqrt(x*x+y*y)*EARTH_RADIUS;
+		gpsDist = (int)d;
+	} else {
+		gpsDist = -1;
+	}
+	// bearing
+	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
+                float lat1 = radians(gpsLat);
+                float lat2 = radians(sonde.si()->lat);
+                float lon1 = radians(gpsLon);
+                float lon2 = radians(sonde.si()->lon);
+                float y = sin(lon2-lon1)*cos(lat2);
+                float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
+                float dir = atan2(y, x)/PI*180;
+                if(dir<0) dir+=360;
+		gpsDir = (int)dir;
+		gpsBear = gpsDir - gpsCourse;
+		if(gpsBear < 0) gpsBear += 360;
+		if(gpsBear >= 360) gpsBear -= 360;
+	} else {
+		gpsDir = -1;
+		gpsBear = -1;
+	}
+	
+	Serial.printf("GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsValid?1:0,
+		gpsLat, gpsLon, gpsAlt, gpsCourse, gpsDist, gpsDir, gpsBear);
+}
 
 void Display::drawGPS(DispEntry *de) {
 	if(sonde.config.gps_rxd<0) return;
@@ -952,40 +1080,28 @@ void Display::drawGPS(DispEntry *de) {
 	case 'V':
 		{
 		// show if GPS location is valid
-		uint8_t *tile = nmea.isValid()?gps_tile:nogps_tile;
+		uint8_t *tile = disp.gpsValid?gps_tile:nogps_tile;
 		rdis->drawTile(de->x, de->y, 1, tile);
 		}
 		break;
 	case 'O':
 		// GPS long
-		{
-		float lon = nmea.getLongitude()*0.000001;
-		Serial.print("lon: "); Serial.println(lon);
-		snprintf(buf, 16, "%2.5f", lon);
+		snprintf(buf, 16, "%2.5f", disp.gpsLon);
 		drawString(de,buf);
-		}
 		break;
 	case 'A':
 		// GPS lat
-		{
-		float lat = nmea.getLatitude()*0.000001;
-		Serial.print("lat: "); Serial.println(lat);
-		snprintf(buf, 16, "%2.5f", lat);
+		snprintf(buf, 16, "%2.5f", disp.gpsLat);
 		drawString(de,buf);
-		}
 		break;
 	case 'H':
 		// GPS alt
-		{
-		long alt = -1;
-		nmea.getAltitude(alt);
-		snprintf(buf, 16, "%4.0fm", alt*0.001);
+		snprintf(buf, 16, "%4dm", disp.gpsAlt);
 		drawString(de,buf);
-		}
 		break;
 	case 'C':
 		// GPS Course over ground
-		snprintf(buf, 4, "%3d", (int)(nmea.getCourse()/1000));
+		snprintf(buf, 4, "%3d", disp.gpsCourse);
 		drawString(de, buf);
 		break;
 	case 'D':
@@ -995,23 +1111,18 @@ void Display::drawGPS(DispEntry *de) {
 		if( (sonde.si()->validPos&0x03)!=0x03 ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
-		} else if(!nmea.isValid()) {
+		} else if(!disp.gpsValid) {
 			snprintf(buf, 16, "no gps ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else {
-			float lat1 = nmea.getLatitude()*0.000001;
-			float lat2 = sonde.si()->lat;
-			float x = radians(nmea.getLongitude()*0.000001-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
-			float y = radians(lat2-lat1);
-			float d = sqrt(x*x+y*y)*EARTH_RADIUS;
 			if(de->extra && *de->extra=='5') { // 5-character version: ****m / ***km / **e6m
-				if(d>999999) snprintf(buf, 16, "%de6m  ", (int)(d/1000000));
-				if(d>9999) snprintf(buf, 16, "%dkm   ", (int)(d/1000));
-				else snprintf(buf, 16, "%dm    ", (int)d);
+				if(disp.gpsDist>999999) snprintf(buf, 16, "%de6m  ", (int)(disp.gpsDist/1000000));
+				if(disp.gpsDist>9999) snprintf(buf, 16, "%dkm   ", (int)(disp.gpsDist/1000));
+				else snprintf(buf, 16, "%dm    ", (int)disp.gpsDist);
 				buf[5]=0;
 			} else { // 6-character version: *****m / ****km)
-				if(d>99999) snprintf(buf, 16, "%dkm    ", (int)(d/1000));
-				else snprintf(buf, 16, "%dm     ", (int)d);
+				if(disp.gpsDist>99999) snprintf(buf, 16, "%dkm    ", (int)(disp.gpsDist/1000));
+				else snprintf(buf, 16, "%dm     ", (int)disp.gpsDist);
 				buf[6]=0;
 			}
 		}
@@ -1020,59 +1131,37 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'I':
 		// dIrection
-		if( (!nmea.isValid()) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
-		{
-		float lat1 = radians(nmea.getLatitude()*0.000001);
-                float lat2 = radians(sonde.si()->lat);
-		float lon1 = radians(nmea.getLongitude()*0.000001);
-                float lon2 = radians(sonde.si()->lon);
-		float y = sin(lon2-lon1)*cos(lat2);
-		float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
-		float dir = atan2(y, x)/PI*180;
-		if(dir<0) dir+=360;
-		Serial.printf("direction is %.2f\n", dir);
-		snprintf(buf, 16, "%3d", (int)dir);
+		snprintf(buf, 16, "%3d", disp.gpsDir);
 		buf[3]=0;
 		drawString(de, buf);
 		if(de->extra[1]==(char)176)
 			rdis->drawTile(de->x+3, de->y, 1, deg_tile);
-		}
 		break;
 	case 'B':
 		// relative bearing
-		if( (!nmea.isValid()) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
-		{
-		float lat1 = radians(nmea.getLatitude()*0.000001);
-                float lat2 = radians(sonde.si()->lat);
-		float lon1 = radians(nmea.getLongitude()*0.000001);
-                float lon2 = radians(sonde.si()->lon);
-		float y = sin(lon2-lon1)*cos(lat2);
-		float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
-		float dir = atan2(y, x)/PI*180;
-		if(dir<0) dir+=360;
-		Serial.printf("direction is %.2f\n", dir);
-		float course = nmea.getCourse()*0.001;
-		float bearing = dir - course;
-		if(bearing<0) bearing += 360;
-		if(bearing>=360) bearing -= 360;
-		snprintf(buf, 16, "%3d", (int)bearing);
+		snprintf(buf, 16, "%3d", disp.gpsBear);
 		buf[3]=0;
 		drawString(de, buf);
 		if(de->extra[1]==(char)176)
 			rdis->drawTile(de->x+3, de->y, 1, deg_tile);
-		}
 		break;
 	case '0':
 		// diagram
 		{
+		static int alpha = 0;
+		alpha = (alpha+5)%360;
 		struct CircleInfo *circinfo = (struct CircleInfo *)de->extra;
-		int size = 1 + 2*circinfo->radius + 2*circinfo->brad;
+		int border = circinfo->brad;
+		if(border<7) border=7; // space for "N" label
+		int size = 1 + 2*circinfo->radius + 2*border;
 		uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * size * size);
 		Serial.printf("Drawing circle with size %d at %d,%d\n",size,de->x, de->y);
 		for(int i=0; i<size*size; i++) { bitmap[i] = 0; }
@@ -1080,8 +1169,47 @@ void Display::drawGPS(DispEntry *de) {
 		int x0=size/2;
 		int y0=x0;
 		circ(bitmap, size, x0, y0, circinfo->radius, de->fg, true, de->bg);
-		circ(bitmap, size, x0+circinfo->radius, y0, circinfo->brad, 0xff00, true, 0xff00);
+		// 
+		bool rxgood = (sonde.si()->rxStat[0]==0);
+		int angN, angA, angB;   // angle of north, array, bullet
+		int validA, validB;     // 0: no, 1: yes, -1: old
+		if(circinfo->arr=='C') {  angA=disp.gpsCourse; validA=disp.gpsCourseOld?-1:1; }
+		else { angA=disp.gpsDir; validA=sonde.si()->validPos?(rxgood?1:-1):0; }
+		if(circinfo->bul=='C') {  angB=disp.gpsCourse; validB=disp.gpsCourseOld?-1:1; }
+		else { angB=disp.gpsDir; validB=sonde.si()->validPos?(rxgood?1:-1):0; }
+		if(circinfo->top=='N') {
+			angN = 0;
+		} else {
+			//if (circinfo->top=='C') {
+			angN = 360-disp.gpsCourse;
+			angA += angN; if(angA>=360) angA-=360;
+			angB += angN; if(angB>=360) angB-=360;
+		}
+		Serial.printf("GPS0: %c%c%c N=%d, A=%d, B=%d\n", circinfo->top, circinfo->arr, circinfo->bul, angN, angA, angB);
+		// "N" in direction angN
+		static_cast<ILI9225Display *>(rdis)->tft->drawGFXcharBM(x0 + circinfo->radius*sin(angN*PI/180)-6, y0 - circinfo->radius*cos(angN*PI/180)+7, 'N', 0xffff, bitmap, size);
+
+		// small circle in direction angB
+		if(validB) {
+			circ(bitmap, size, x0+circinfo->radius*sin(angB*PI/180), y0-circinfo->radius*cos(angB*PI/180), circinfo->brad,
+				circinfo->bcol, true, validB==1?circinfo->bcol:0);
+		}
 		rdis->drawBitmap(de->x, de->y, bitmap, size, size);
+		// triangle in direction angA
+		uint16_t xa,ya,xb,yb,xc,yc;
+		float xf=sin(angA*PI/180);
+		float yf=cos(angA*PI/180);
+		xa = de->x + x0 + xf*circinfo->radius;
+		ya = de->y + y0 - yf*circinfo->radius;
+		xb = de->x + x0 + yf*circinfo->awidth;
+		yb = de->y + y0 + xf*circinfo->awidth;
+		xc = de->x + x0 - yf*circinfo->awidth;
+		yc = de->y + y0 - xf*circinfo->awidth;
+		Serial.printf("%d: %d,%d\n", alpha, xa, ya);
+		if(validA==-1)
+			rdis->drawTriangle(xa,ya,xb,yb,xc,yc,circinfo->acol, false);
+		else if(validA==1)
+			rdis->drawTriangle(xa,ya,xb,yb,xc,yc,circinfo->acol, true);
 		free(bitmap);
 		}
 		break;
@@ -1089,6 +1217,49 @@ void Display::drawGPS(DispEntry *de) {
 		// elevation
 		break;
 	}
+}
+
+void Display::drawBatt(DispEntry *de) {
+	float val;
+	char buf[30];
+	if(!axp192_found) return;
+	switch(de->extra[0]) {
+	case 'S':
+		if(!axp.isBatteryConnect()) { 
+			if(axp.isVBUSPlug()) { strcpy(buf, "U"); }
+			else { strcpy(buf, "N"); } // no battary
+		}
+		else if (axp.isChargeing()) { strcpy(buf, "C"); } // charging
+		else { strcpy(buf, "B"); }  // battery, but not charging
+		break;
+	case 'V':
+		val = axp.getBattVoltage();
+		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+		break;
+	case 'C':
+		val = axp.getBattChargeCurrent();
+		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		break;
+	case 'D':
+		val = axp.getBattDischargeCurrent();
+		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		break;
+	case 'U':
+		val = axp.getVbusVoltage();
+		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+		break;
+	case 'I':
+		val = axp.getVbusCurrent();
+		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		break;
+	case 'T':
+		val = axp.getTemp()-144.7;  // WTF... library returns temperatur in K above -144.7°C!??
+		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		break;
+	default:
+		*buf=0;
+	}
+	drawString(de, buf);
 }
 
 void Display::drawText(DispEntry *de) {
@@ -1143,6 +1314,7 @@ void Display::updateDisplayIP() {
 }
 
 void Display::updateDisplay() {
+	calcGPS();
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		di->func(di);
 	}
