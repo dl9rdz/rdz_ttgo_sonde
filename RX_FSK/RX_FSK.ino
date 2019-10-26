@@ -1064,6 +1064,38 @@ void IRAM_ATTR buttonISR() {
   }
 }
 
+void IRAM_ATTR button2ISR() {
+  if (digitalRead(button2.pin) == 0) { // Button down
+    unsigned long now = my_millis();
+    if (now - button2.keydownTime > 50 && now - button2.keydownTime < 500) {
+      // Double press
+      button2.doublepress = 1;
+      //bdd1 = now; bdd2 = button1.keydownTime;
+    } else {
+      button2.doublepress = 0;
+    }
+    button2.numberKeyPresses += 1;
+    button2.keydownTime = now;
+  } else { //Button up
+    unsigned long now = my_millis();
+    if (button2.doublepress == -1) return;   // key was never pressed before, ignore button up
+    unsigned int elapsed = now - button2.keydownTime;
+    if (elapsed > 1500) {
+      if (elapsed < 4000) {
+        button2.pressed = KP_MID;
+      }
+      else {
+        button2.pressed = KP_LONG;
+      }
+    } else {
+      if (button2.doublepress) button2.pressed = KP_DOUBLE;
+      else button2.pressed = KP_SHORT;
+    }
+    button2.numberKeyPresses += 1;
+    button2.keydownTime = now;
+  }
+}
+
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
@@ -1237,12 +1269,18 @@ void setup()
     pinMode(button1.pin, INPUT);  // configure as input if not disabled
   if (button2.pin != 0xff)
     pinMode(button2.pin, INPUT);  // configure as input if not disabled
+    //pinMode(button2.pin, INPUT);  // configure as input if not disabled
 
   // Handle button press
   if ( (button1.pin & 0x80) == 0) {
     attachInterrupt( button1.pin, buttonISR, CHANGE);
     Serial.printf("button1.pin is %d, attaching interrupt\n", button1.pin);
   }
+  // Handle button press
+  if ( (button2.pin & 0x80) == 0) {
+    attachInterrupt( button2.pin, button2ISR, CHANGE);
+    Serial.printf("button2.pin is %d, attaching interrupt\n", button2.pin);
+  }  
   initTouch();
 
   disp.init();
