@@ -425,10 +425,16 @@ void ILI9225Display::welcome() {
         setFont(6);
         drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);
-        drawString(0, 1*22, "RS41,RS92,DFM6/9");
-        drawString(0, 3*22, version_id);
-        drawString(0, 5*22, "by Hansi, DL9RDZ");
-
+	int l=3*22;
+	if(sonde.config.tft_orient&1) {
+        	drawString(0, 1*22, "RS41,RS92,DFM6/9");
+	} else {
+        	drawString(0, 1*22, "RS41,RS92,");
+        	drawString(0, 2*22, "DFM6/9");
+		l+=22;
+	}
+       	drawString(0, l, version_id);
+       	drawString(0, l+2*22, "by Hansi, DL9RDZ");
 }
 
 void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
