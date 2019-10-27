@@ -431,6 +431,7 @@ struct st_configitems config_list[] = {
   {"oled_rst", "OLED RST/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
   {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
   {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
+  {"tft_orient", "TFT orientation (0/1/2/3)", 0, &sonde.config.tft_orient},
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
   {"touch_thresh", "Touch button threshold", 0, &sonde.config.touch_thresh},

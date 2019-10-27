@@ -75,6 +75,7 @@ void Sonde::defaultConfig() {
 	config.gps_txd = -1;
 	config.oled_rst = 16;
 	config.disptype = 0;
+	config.tft_orient = 1;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -89,7 +90,7 @@ void Sonde::defaultConfig() {
 			if(initlevels[12]==0) {  // T-Beam v1.0
 				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
 				config.button_pin = 38;
-				config.button2_pin = -1; //T4 + 128;  // T4 = GPIO13
+				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
 				config.gps_rxd = 34;
 				// Check for I2C-Display@21,22
 #define SSD1306_ADDRESS 0x3c
@@ -213,6 +214,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.tft_rs = atoi(val);
 	} else if(strcmp(cfg,"tft_cs")==0) {
 		config.tft_cs = atoi(val);
+	} else if(strcmp(cfg,"tft_orient")==0) {
+		config.tft_orient = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {

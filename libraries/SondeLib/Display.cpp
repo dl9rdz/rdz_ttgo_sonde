@@ -318,7 +318,7 @@ void ILI9225Display::begin() {
 	tft = new MY_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
 			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
         tft->begin(spiDisp);
-	tft->setOrientation(1);
+	tft->setOrientation(sonde.config.tft_orient);
 }
 
 void ILI9225Display::clear() {
