@@ -47,8 +47,9 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92 };
-extern const char *sondeTypeStr[5];
+#define NSondeTypes 5
+enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92, STYPE_M10 };
+extern const char *sondeTypeStr[NSondeTypes];
 
 // Used for interacting with the RX background task
 typedef struct st_RXTask {

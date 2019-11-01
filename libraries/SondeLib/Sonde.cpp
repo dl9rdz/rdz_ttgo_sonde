@@ -5,6 +5,7 @@
 #include "RS41.h"
 #include "RS92.h"
 #include "DFM.h"
+#include "M10.h"
 #include "SX1278FSK.h"
 #include "Display.h"
 #include <Wire.h>
@@ -366,6 +367,10 @@ void Sonde::setup() {
 		break;
 	case STYPE_RS92:
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+		break;
+	case STYPE_M10:
+		m10.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+		break;
 	}
 	// debug
 	float afcbw = sx1278.getAFCBandwidth();
@@ -382,6 +387,9 @@ void Sonde::receive() {
 		break;
 	case STYPE_RS92:
 		res = rs92.receive();
+		break;
+	case STYPE_M10:
+		res = m10.receive();
 		break;
 	case STYPE_DFM06:
 	case STYPE_DFM09:
@@ -458,6 +466,9 @@ rxloop:
 		break;
 	case STYPE_RS92:
 		rs92.waitRXcomplete();
+		break;
+	case STYPE_M10:
+		m10.waitRXcomplete();
 		break;
 	case STYPE_DFM06:
 	case STYPE_DFM09:

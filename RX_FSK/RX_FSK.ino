@@ -98,7 +98,7 @@ String processor(const String& var) {
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < NSondeTypes; i++) {
     sts += "<option value=\"";
     sts += sondeTypeStr[i];
     sts += "\"";
@@ -151,6 +151,9 @@ void setupChannelList() {
     }
     else if (space[1] == '6') {
       type = STYPE_DFM06;
+    }
+    else if (space[1] == 'M') {
+      type = STYPE_M10;
     }
     else continue;
     int active = space[3] == '+' ? 1 : 0;
@@ -224,7 +227,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[3]);   // a bit ugly
+    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0]=='M' ? 'M' : tstr[3]);   // a bit ugly
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
@@ -902,7 +905,7 @@ void initTouch() {
 char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
-int lastCourse=0;
+int lastCourse = 0;
 void unkHandler(const MicroNMEA& nmea) {
   if (strcmp(nmea.getMessageID(), "VTG") == 0) {
     const char *s = nmea.getSentence();
@@ -1121,7 +1124,7 @@ int getKeyPressEvent() {
     p = getKey2Press();
     if (p == KP_NONE)
       return EVT_NONE;
-    Serial.printf("Key 2 was pressed [%d]\n", p+4);
+    Serial.printf("Key 2 was pressed [%d]\n", p + 4);
     return p + 4;
   }
   Serial.printf("Key 1 was pressed [%d]\n", p);
@@ -1270,7 +1273,7 @@ void setup()
     pinMode(button1.pin, INPUT);  // configure as input if not disabled
   if (button2.pin != 0xff)
     pinMode(button2.pin, INPUT);  // configure as input if not disabled
-    //pinMode(button2.pin, INPUT);  // configure as input if not disabled
+  //pinMode(button2.pin, INPUT);  // configure as input if not disabled
 
   // Handle button press
   if ( (button1.pin & 0x80) == 0) {
@@ -1281,7 +1284,7 @@ void setup()
   if ( (button2.pin & 0x80) == 0) {
     attachInterrupt( button2.pin, button2ISR, CHANGE);
     Serial.printf("button2.pin is %d, attaching interrupt\n", button2.pin);
-  }  
+  }
   initTouch();
 
   disp.init();
