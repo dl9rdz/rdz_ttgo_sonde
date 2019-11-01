@@ -296,6 +296,7 @@ bool M10::decodeframeM10(uint8_t *data) {
 		strncpy(sonde.si()->id, ids, 10);
 		sonde.si()->validID = true;
 		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
+		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 		// position data
 		sonde.si()->lat = getint32(data+14) * DEGMUL;
 		sonde.si()->lon = getint32(data+18) * DEGMUL;
@@ -308,6 +309,16 @@ bool M10::decodeframeM10(uint8_t *data) {
 		if(dir<0) dir+=360;
 		sonde.si()->dir = dir;
 		sonde.si()->validPos = 0x3f;
+
+ 		uint32_t gpstime = getint32(data+10);
+                uint16_t gpsweek = getint16(data+32);
+                        // UTC is GPSTIME - 18s (24*60*60-18 = 86382)
+                        // one week = 7*24*60*60 = 604800 seconds
+                        // unix epoch starts jan 1st 1970 0:00
+                        // gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
+                        // subtracting 86400 yields 315878400UL
+                sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+                sonde.si()->validTime = true;
 	} else {
 		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
 	}

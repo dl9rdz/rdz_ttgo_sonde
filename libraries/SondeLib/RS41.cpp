@@ -360,8 +360,10 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print((float)vu);
    sonde.si()->vs = vu;
    Serial.print("m/s ");
-   Serial.print(getcard16(b, b_len, p+18UL)&255UL);
+   uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
+   Serial.print(sats);
    Serial.print("Sats");
+   sonde.si()->sats = sats;
    sonde.si()->alt = heig;
    if( 0==(int)(lat*10000) && 0==(int)(long0*10000) )
       sonde.si()->validPos = 0;
@@ -418,6 +420,7 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print("#");
 			uint16_t fnr = data[p]+(data[p+1]<<8);
 			Serial.print(fnr);
+			sonde.si()->frame = fnr;
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
@@ -429,6 +432,17 @@ int RS41::decode41(byte *data, int maxlen)
 			// TODO: some more data
 			break;
 		case '|': // date
+			{
+			uint32_t gpstime = getint32(data, 560, p+2);
+			uint16_t gpsweek = getint16(data, 560, p);
+			// UTC is GPSTIME - 18s (24*60*60-18 = 86382)
+			// one week = 7*24*60*60 = 604800 seconds
+			// unix epoch starts jan 1st 1970 0:00
+			// gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
+			// subtracting 86400 yields 315878400UL
+			sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+			sonde.si()->validTime = true;
+			}
 			break;
 		case '{': // pos
 			posrs41(data+p, len, 0);

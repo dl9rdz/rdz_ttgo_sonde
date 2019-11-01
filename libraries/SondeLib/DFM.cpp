@@ -189,17 +189,31 @@ void DFM::decodeCFG(uint8_t *cfg)
 	}
 }
 
+static int bitCount(int x) {
+    int m4 = 0x1 | (0x1<<8) | (0x1<<16) | (0x1<<24);
+    int m1 = 0xFF; 
+    int s4 = (x&m4) + ((x>>1)&m4) + ((x>>2)&m4) + ((x>>3)&m4) + ((x>>4)&m4) + ((x>>5)&m4) + ((x>>6)&m4) + ((x>>7)&m4);
+    int s1 = (s4&m1) + ((s4>>8)&m1) + ((s4>>16)&m1) + ((s4>>24)&m1);
+    return s1;
+}
+
+static uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
+
 void DFM::decodeDAT(uint8_t *dat)
 {
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
 	switch(dat[6]) {
 	case 0:
-		Serial.print("Packet counter: "); Serial.print(dat[3]);
+		Serial.print("Packet counter: "); Serial.print(dat[3]);	
+		sonde.si()->frame = dat[3];
 		break;
 	case 1:
 		{
 		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
 		Serial.print("UTC-msec: "); Serial.print(val);
+		sonde.si()->sec = val/1000;
+		uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
+		sonde.si()->sats = bitCount(tmp); // maybe!?!?!?
 		}
 		break;
 	case 2:
@@ -248,6 +262,11 @@ void DFM::decodeDAT(uint8_t *dat)
 		char buf[100];
 		snprintf(buf, 100, "%04d-%02d-%02d %02d:%02dz", y, m, d, h, mi);
 		Serial.print("Date: "); Serial.print(buf);
+		// convert to unix time
+		int tt = (y-1970)*365 + (y-1969)/4; // days since 1970
+		if(m<=12) { tt += MON[m]; if((y%4)==0 && m>2) tt++; }
+		tt = (tt+d-1)*(60*60*24) + h*3600 + mi*60;
+		sonde.si()->time = tt;
 		}
 		break;
 	default:

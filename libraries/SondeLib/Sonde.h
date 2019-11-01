@@ -143,7 +143,13 @@ typedef struct st_sondeinfo {
         float vs;			// vertical speed
         float hs;			// horizontal speed
 	float dir; 			// 0..360
+	uint8_t sats;			// number of sats
         uint8_t validPos;   // bit pattern for validity of above 6 fields
+	// decoded GPS time
+	uint32_t time;
+	uint16_t sec;
+	uint32_t frame;
+	bool validTime;
         // RSSI from receiver
         int rssi;			// signal strength
 	int32_t afc;			// afc correction value

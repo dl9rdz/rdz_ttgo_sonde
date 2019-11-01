@@ -1362,6 +1362,7 @@ int print_position() {  // GPS-Hoehe ueber Ellipsoid
 
     if (!err2 && (almanac || ephem)) {
         k = get_pseudorange();
+	gpx.k = k;
 	Serial.printf("k=%d\n", k);
         if (k >= 4) {
             n = get_GPSkoord(k);

@@ -8,6 +8,7 @@ typedef struct {
     int std; int min; float sek;
     double lat; double lon; double alt;
     double vH; double vD; double vU;
+    int k;
     int sats[4];
     double dop;
     int freq;
