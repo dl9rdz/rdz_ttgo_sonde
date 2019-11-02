@@ -183,6 +183,8 @@ int RS92::setup(float frequency)
 	Serial.print("RS92: setting RX frequency to ");
         Serial.println(frequency);
         int res = sx1278.setFrequency(frequency);
+        sx1278.clearIRQFlags();
+
         // enable RX
         sx1278.setPayloadLength(0);  // infinite for now...
 	//sx1278.setPayloadLength(292);

@@ -143,9 +143,11 @@ int RS41::setup(float frequency)
 #if RS41_DEBUG
 	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
 #endif
-	// go go go
-        sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+        sx1278.clearIRQFlags();
+
+	// the following is already done in receivePacketTimeout()
+	// sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
+        // sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	return retval;
 }
 

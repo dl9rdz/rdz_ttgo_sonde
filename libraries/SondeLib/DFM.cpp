@@ -72,6 +72,7 @@ int DFM::setup(float frequency, int inv)
         Serial.println(frequency);
 
 	int retval = sx1278.setFrequency(frequency);
+        sx1278.clearIRQFlags();
 	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
 	return retval;
 }
