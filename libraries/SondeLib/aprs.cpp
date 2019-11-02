@@ -8,7 +8,7 @@
  */
 
 #include <stdio.h>
-#include <string.h>
+#include <WString.h>
 #include <stdlib.h>
 //#include <arpa/inet.h>
 //#include <sys/socket.h>
@@ -274,8 +274,8 @@ static uint32_t dao91(double x)
 char b[201];
 char raw[201];
 
-char * aprs_senddata(float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym)
-{
+char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
+// float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym, const char *comm)
 	*b=0;
 	aprsstr_append(b, usercall);
 	aprsstr_append(b, ">");
@@ -284,39 +284,43 @@ char * aprs_senddata(float lat, float lon, float alt, float speed, float dir, fl
 	// uncompressed
 	aprsstr_append(b, ":;");
 	char tmp[10];
-	snprintf(tmp,10,"%s         ",objname);
+	snprintf(tmp,10,"%s         ",s->id);
 	aprsstr_append(b, tmp);
 	aprsstr_append(b, "*");
-	// TODO: time
-	//aprsstr_append_data(time, ds);
-	aprsstr_append(b, "121212z");
+	// time
 	int i = strlen(b);
-	int lati = abs((int)lat);
-	int latm = (fabs(lat)-lati)*6000;
-	snprintf(b+i, APRS_MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, lat<0?'S':'N', sym[0]);
+	int sec = s->time % 86400;
+	snprintf(b+i, APRS_MAXLEN-1, "%02d%02d%02dz", sec/(60*60), (sec%(60*60))/60, sec%60);
 	i = strlen(b);
-	int loni = abs((int)lon);
-	int lonm = (fabs(lon)-loni)*6000;
-	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, lon<0?'W':'E', sym[1]);
-#if 1
-	if(speed>0.5) {
+	//aprsstr_append_data(time, ds);
+	int lati = abs((int)s->lat);
+	int latm = (fabs(s->lat)-lati)*6000;
+	snprintf(b+i, APRS_MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, s->lat<0?'S':'N', sym[0]);
+	i = strlen(b);
+	int loni = abs((int)s->lon);
+	int lonm = (fabs(s->lon)-loni)*6000;
+	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, s->lon<0?'W':'E', sym[1]);
+	if(s->hs>0.5) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(dir+1.5), realcard(speed*1.0/KNOTS+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(s->dir+1.5), realcard(s->hs*1.0/KNOTS+0.5));
 	}
-#endif
-	if(alt>0.5) {
+	if(s->alt>0.5) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(alt*FEET+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(s->alt*FEET+0.5));
 	}
-#if 1
 	int dao=1;
 	if(dao) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(lat), 33+dao91(lon));
+		snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(s->lat), 33+dao91(s->lon));
 	}
-#endif
-	const char *comm="&test";
+	strcat(b, "&");
+	char comm[100];
+        snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, s->freq, sondeTypeStr[s->type]);
 	strcat(b, comm);
+	if(s->type==STYPE_M10||s->type==STYPE_DFM06||s->type==STYPE_DFM09) {
+		snprintf(comm, 100, " ser=%s", s->ser);
+		strcat(b, comm);
+	}
 	return b;
 }
 

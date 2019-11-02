@@ -427,6 +427,8 @@ int RS41::decode41(byte *data, int maxlen)
 			sonde.si()->type=STYPE_RS41;
 			strncpy(sonde.si()->id, (const char *)(data+p+2), 8);
 			sonde.si()->id[8]=0;
+			strncpy(sonde.si()->ser, (const char *)(data+p+2), 8);
+			sonde.si()->ser[8]=0;
 			sonde.si()->validID=true;
 			}
 			// TODO: some more data

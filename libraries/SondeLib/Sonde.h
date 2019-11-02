@@ -2,8 +2,6 @@
 #ifndef Sonde_h
 #define Sonde_h
 
-#include "aprs.h"
-
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
@@ -51,6 +49,42 @@ extern const char *RXstr[];
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92, STYPE_M10 };
 extern const char *sondeTypeStr[NSondeTypes];
 
+typedef struct st_sondeinfo {
+        // receiver configuration
+	bool active;
+        SondeType type;
+        float freq;
+        // decoded ID
+        char id[10];
+	char ser[12];
+        bool validID;
+	char launchsite[18];		
+        // decoded position
+        float lat;			// latitude
+        float lon;			// longitude
+        float alt;			// altitude
+        float vs;			// vertical speed
+        float hs;			// horizontal speed
+	float dir; 			// 0..360
+	uint8_t sats;			// number of sats
+        uint8_t validPos;   // bit pattern for validity of above 6 fields
+	// decoded GPS time
+	uint32_t time;
+	uint16_t sec;
+	uint32_t frame;
+	bool validTime;
+        // RSSI from receiver
+        int rssi;			// signal strength
+	int32_t afc;			// afc correction value
+	// statistics
+	uint8_t rxStat[20];
+	uint32_t rxStart;    		// millis() timestamp of continuous rx start
+	uint32_t norxStart;		// millis() timestamp of continuous no rx start
+	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
+	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
+} SondeInfo;
+// rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1] 5=no valid position[°]
+
 // Used for interacting with the RX background task
 typedef struct st_RXTask {
 	// Variables set by Arduino main loop to value >=0 for requesting
@@ -83,6 +117,29 @@ struct st_dfmconfig {
 	int agcbw;
 	int rxbw;
 };
+
+
+enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
+
+struct st_feedinfo {
+        bool active;
+        int type;       // 0:UDP(axudp), 1:TCP(aprs.fi)
+        char host[64];
+        int port;
+        char symbol[3];
+        int lowrate;
+        int highrate;
+        int lowlimit;
+        int idformat;   // 0: dxl  1: real  2: auto
+};
+
+// maybe extend for external Bluetooth interface?
+// internal bluetooth consumes too much memory
+struct st_kisstnc {
+        bool active;
+        int idformat;
+};
+
 
 typedef struct st_rdzconfig {
 	// hardware configuration
@@ -120,47 +177,12 @@ typedef struct st_rdzconfig {
 	struct st_dfmconfig dfm;
 	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
-	char call[9];			// APRS callsign
+	char call[10];			// APRS callsign
 	char passcode[9];		// APRS passcode
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 } RDZConfig;
-
-typedef struct st_sondeinfo {
-        // receiver configuration
-	bool active;
-        SondeType type;
-        float freq;
-        // decoded ID
-        char id[10];
-        bool validID;
-	char launchsite[18];		
-        // decoded position
-        float lat;			// latitude
-        float lon;			// longitude
-        float alt;			// altitude
-        float vs;			// vertical speed
-        float hs;			// horizontal speed
-	float dir; 			// 0..360
-	uint8_t sats;			// number of sats
-        uint8_t validPos;   // bit pattern for validity of above 6 fields
-	// decoded GPS time
-	uint32_t time;
-	uint16_t sec;
-	uint32_t frame;
-	bool validTime;
-        // RSSI from receiver
-        int rssi;			// signal strength
-	int32_t afc;			// afc correction value
-	// statistics
-	uint8_t rxStat[20];
-	uint32_t rxStart;    		// millis() timestamp of continuous rx start
-	uint32_t norxStart;		// millis() timestamp of continuous no rx start
-	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
-	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
-} SondeInfo;
-// rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1] 5=no valid position[°]
 
 
 #define MAXSONDE 99

@@ -622,6 +622,7 @@ int RS92::waitRXcomplete() {
 	si->dir = gpx.vD;
 	si->validPos = 0x3f;
 	memcpy(si->id, gpx.id, 9);
+	memcpy(si->ser, gpx.id, 9);
 	si->validID = true;
 	si->frame = gpx.frnr;
 	si->sats = gpx.k;

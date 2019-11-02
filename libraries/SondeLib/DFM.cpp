@@ -183,7 +183,9 @@ void DFM::decodeCFG(uint8_t *cfg)
 		if(idgood==3) {
 			uint32_t dfmid = (highid<<16) | lowid;
 			Serial.print("DFM-09 ID: "); Serial.print(dfmid); 
-			snprintf(sonde.si()->id, 10, "%d", dfmid);
+			snprintf(sonde.si()->ser, 10, "%d", dfmid);
+	                // dxlAPRS sonde number (DF6 (why??) and 5 last digits of serial number as hex number
+			snprintf(sonde.si()->id, 9, "DF6%05X", dfmid&0xfffff);
 			sonde.si()->validID = true;
 		}
 	}

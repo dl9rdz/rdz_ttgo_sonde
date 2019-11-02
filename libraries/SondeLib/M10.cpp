@@ -18,33 +18,10 @@
 #endif
 
 
-#if 0
-static double atang2(double x, double y)
-{
-   double w;
-   if (fabs(x)>fabs(y)) {
-      w = (double)atan((float)(X2C_DIVL(y,x)));
-      if (x<0.0) {
-         if (y>0.0) w = 3.1415926535898+w;
-         else w = w-3.1415926535898;
-      }
-   }
-   else if (y!=0.0) {
-      w = (double)(1.5707963267949f-atan((float)(X2C_DIVL(x,
-                y))));
-      if (y<0.0) w = w-3.1415926535898;
-   }
-   else w = 0.0;
-   return w;
-} /* end atang2() */
-#endif
-
-static byte data1[512]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
-static byte data2[512]={0x2A, 0x2A, 0x2A, 0x2A, 0x2A, 0x10};
+static byte data1[512];
 static byte *dataptr=data1;
 
 static uint8_t rxbitc;
-static int32_t asynst[10]={0};
 static uint16_t rxbyte;
 static int rxp=0;
 static int haveNewFrame = 0;
@@ -239,6 +216,10 @@ static int16_t getint16(uint8_t *data) {
 	return (int16_t)(data[1]|((uint16_t)data[0]<<8));
 }
 
+static char dez(uint8_t nr) {
+	nr = nr%10;
+	return '0'+nr;
+}
 static char hex(uint8_t nr) {
 	nr = nr&0x0f;
 	if(nr<10) return '0'+nr;
@@ -294,6 +275,17 @@ bool M10::decodeframeM10(uint8_t *data) {
 		ids[8] = hex(id);
 		ids[9] = 0;
 		strncpy(sonde.si()->id, ids, 10);
+		ids[0] = hex(data[95]/16);
+		ids[1] = dez((data[95]&0x0f)/10);
+		ids[2] = dez((data[95]&0x0f));
+		ids[3] = dez(data[93]);
+		ids[4] = dez(id>>13);
+		id &= 0x1fff;
+		ids[5] = dez(id/1000); 
+		ids[6] = dez((id/100)%10);
+		ids[7] = dez((id/10)%10);
+		ids[8] = dez(id%10);
+		strncpy(sonde.si()->ser, ids, 10);
 		sonde.si()->validID = true;
 		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal

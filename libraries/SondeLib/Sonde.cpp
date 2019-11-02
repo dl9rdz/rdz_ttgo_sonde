@@ -70,6 +70,7 @@ void Sonde::defaultConfig() {
 	config.touch_thresh = 70;
 	config.led_pout = 9;	
 	config.power_pout = -1;
+	config.spectrum=10;
 	// Try autodetecting board type
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
@@ -112,6 +113,7 @@ void Sonde::defaultConfig() {
 					config.oled_rst = 14;
 					config.tft_rs = 2;
 					config.tft_cs = 0;
+					config.spectrum = -1; // no spectrum for now on large display
 				} else {
 					// OLED display, pins 21,22 ok...
 					config.disptype = 0;
@@ -131,6 +133,7 @@ void Sonde::defaultConfig() {
 					config.oled_rst = 22;
 					config.tft_rs = 2;
 					config.tft_cs = 0;
+					config.spectrum = -1; // no spectrum for now on large display
 				}
 			}
 		} else {
@@ -151,7 +154,6 @@ void Sonde::defaultConfig() {
 	config.display[2]=-1;
 	config.startfreq=400;
 	config.channelbw=10;
-	config.spectrum=10;
 	config.marker=0;
 	config.showafc=0;
 	config.freqofs=0;
@@ -191,6 +193,7 @@ void Sonde::setConfig(const char *cfg) {
 		if(config.noisefloor==0) config.noisefloor=-130;
 	} else if(strcmp(cfg,"call")==0) {
 		strncpy(config.call, val, 9);
+		config.call[9]=0;
 	} else if(strcmp(cfg,"passcode")==0) {
 		strncpy(config.passcode, val, 9);
 	} else if(strcmp(cfg,"button_pin")==0) {
