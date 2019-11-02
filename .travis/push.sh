@@ -26,9 +26,9 @@ generate_website_index() {
   done
   echo "</ul>
   <br>
-  <p>Last two letters of version number indicate SPIFFS file system version. If the first (upper-case)
+  <p>Last latter/number of version number indicate SPIFFS file system version. If the first (upper-case)
    letter has changed, then this version is incompabible with prevision versions and you have to flash
-   the full image. If the second (lower-case) letter has changed, then this version has some changes
+   the full image. If the second part (number) has changed, then this version has some changes
    (e.g. internal web page layout, LCD/TFT display layout) in the file system which you will not get with
    a code-only (OTA or flashing update.bin) update, but it should not break anything.</p>
    </section></body></html>" >> download.html
