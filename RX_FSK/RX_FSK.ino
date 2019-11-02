@@ -1040,8 +1040,10 @@ void ledOffCallback() {
   digitalWrite(sonde.config.led_pout, LOW);
 }
 void flashLed(int ms) {
-  digitalWrite(sonde.config.led_pout, HIGH);
-  ledFlasher.once_ms(ms, ledOffCallback);
+  if(sonde.config.led_pout>=0) {
+    digitalWrite(sonde.config.led_pout, HIGH);
+    ledFlasher.once_ms(ms, ledOffCallback);
+  }
 }
 
 int doTouch = 0;
@@ -1279,9 +1281,10 @@ void setup()
     digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
   }
 
-  pinMode(sonde.config.led_pout, OUTPUT);
-  digitalWrite(sonde.config.led_pout, HIGH);
-  flashLed(1000); // testing
+  if(sonde.config.led_pout>=0) {
+    pinMode(sonde.config.led_pout, OUTPUT);
+    flashLed(1000); // testing
+  }
 
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;
