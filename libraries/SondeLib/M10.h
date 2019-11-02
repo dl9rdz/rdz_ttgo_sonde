@@ -54,7 +54,7 @@ class M10
 private:
 	void printRaw(uint8_t *data, int len);
 	void processM10data(uint8_t data);
-        bool decodeframeM10(uint8_t *data);
+        int decodeframeM10(uint8_t *data);
 #if 0
 	void stobyte92(uint8_t byte);
 	void dogps(const uint8_t *sf, int sf_len,

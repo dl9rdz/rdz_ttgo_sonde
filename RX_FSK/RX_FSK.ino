@@ -21,7 +21,6 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
-int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
@@ -883,12 +882,14 @@ void touchISR2();
 // Instead create a tast...
 
 Ticker ticker;
+Ticker ledFlasher;
 
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
+  // also used for LED
+  ticker.attach_ms(300, checkTouchStatus);
+
   if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttons configured
-
-
   /*
    *  ** no. readTouch is not safe to use in ISR!
       so now using Ticker
@@ -897,8 +898,6 @@ void initTouch() {
     timerAlarmWrite(timer, 300000, true);
     timerAlarmEnable(timer);
   */
-  ticker.attach_ms(300, checkTouchStatus);
-
   if ( IS_TOUCH(sonde.config.button_pin) ) {
     touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 60);
     Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
@@ -1037,6 +1036,15 @@ void checkTouchButton(Button & button) {
   }
 }
 
+void ledOffCallback() {
+  digitalWrite(sonde.config.led_pout, LOW);
+}
+void flashLed(int ms) {
+  digitalWrite(sonde.config.led_pout, HIGH);
+  ledFlasher.once_ms(ms, ledOffCallback);
+}
+
+int doTouch = 0;
 void checkTouchStatus() {
   checkTouchButton(button1);
   checkTouchButton(button2);
@@ -1271,8 +1279,9 @@ void setup()
     digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
   }
 
-  LORA_LED = sonde.config.led_pout;
-  pinMode(LORA_LED, OUTPUT);
+  pinMode(sonde.config.led_pout, OUTPUT);
+  digitalWrite(sonde.config.led_pout, HIGH);
+  flashLed(1000); // testing
 
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;

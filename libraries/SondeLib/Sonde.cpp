@@ -84,6 +84,7 @@ void Sonde::defaultConfig() {
 		config.button_pin = 0;
 		config.button2_pin = T4 + 128;     // T4 == GPIO13
 		config.power_pout = 21;		   // for Heltec v2
+		config.led_pout = 2;	
 		Serial.println("Autoconfig: looks like TTGO v1 / Heltec v1/V2 board");
 	} else {
 		config.oled_sda = 21;
@@ -139,6 +140,7 @@ void Sonde::defaultConfig() {
 		} else {
 			config.button_pin = 2 + 128;     // GPIO2 / T2
 			config.button2_pin = 14 + 128;   // GPIO14 / T6
+			config.led_pout = 25;
 		}
 	}
 	//
@@ -381,6 +383,8 @@ void Sonde::setup() {
 	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
 }
 
+extern void flashLed(int ms);
+
 void Sonde::receive() {
 	uint16_t res = 0;
 	SondeInfo *si = &sondeList[rxtask.currentSonde];
@@ -402,11 +406,13 @@ void Sonde::receive() {
 
 	// state information for RX_TIMER / NORX_TIMER events
         if(res==0) {  // RX OK
+		flashLed(700);
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
                 }
         } else { // RX not ok
+		if(res==RX_ERROR) flashLed(100);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
                         si->lastState = 0;

@@ -233,7 +233,8 @@ const static float DEGMUL = 1.0/0xB60B60;
 #define RAD (PI/180)
 
 
-bool M10::decodeframeM10(uint8_t *data) {
+// ret: 1=frame ok; 2=frame with errors; 0=ignored frame (m10dop-alternativ)
+int M10::decodeframeM10(uint8_t *data) {
 	int repairstep = 16;
 	int repl = 0;
 	bool crcok;
@@ -313,8 +314,9 @@ bool M10::decodeframeM10(uint8_t *data) {
                 sonde.si()->validTime = true;
 	} else {
 		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
+		return 0;
 	}
-	return crcok;
+	return crcok?1:2;
 }
 
 static uint32_t rxdata;
@@ -369,8 +371,7 @@ void M10::processM10data(uint8_t dt)
 #endif
 				if(rxp>=M10_FRAMELEN) {
 					rxsearching = true;
-					bool ok = decodeframeM10(dataptr);
-					haveNewFrame = ok ? 1 : 2;
+					haveNewFrame = decodeframeM10(dataptr);
 				}
 			}
 		}
