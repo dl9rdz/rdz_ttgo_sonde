@@ -26,6 +26,10 @@ led_pout=9
 tft_orient=1
 #gps_rxd=-1
 gps_txd=-1
+# Show AFC value (for RS41 only, maybe also DFM, but useful for RS92 or M10)
+# showafc=1
+# Frequency correction, in Hz
+# freqofs=0
 #-------------------------------#
 # General config settings
 #-------------------------------#
