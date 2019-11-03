@@ -6,6 +6,8 @@
 #include "Display.h"
 #include "Sonde.h"
 
+extern String readLine(Stream &stream); 
+
 extern const char *version_name;
 extern const char *version_id;
 
@@ -703,11 +705,12 @@ static uint8_t ACTION(char c) {
 	return ACT_NONE;
 }
 
+
 int Display::countEntries(File f) {
 	int pos = f.position();
 	int n = 0;
 	while(1) {
-		String line = f.readStringUntil('\n');
+		String line = readLine(f);  //f.readStringUntil('\n');
 		line.trim();
 		const char *c=line.c_str();
 		if(*c=='#') continue;
@@ -741,7 +744,7 @@ void Display::initFromFile() {
 	while(d.available()) {
 		Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 		const char *ptr;
-		String line = d.readStringUntil('\n');
+		String line = readLine(d);  // d.readStringUntil('\n');
 		line.trim();
 		const char *s = line.c_str();
 		Serial.printf("Line: '%s'\n", s);

@@ -70,6 +70,15 @@ static int currentDisplay = 1;
 // timestamp when spectrum display was activated
 static unsigned long specTimer;
 
+// Read line from file, independent of line termination (LF or CR LF)
+String readLine(Stream &stream) {
+  String s = stream.readStringUntil('\n');
+  int len = s.length();
+  if(len==0) return s;
+  if(s.charAt(len-1)=='\r') s.remove(len-1);
+  return s;
+}
+
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
@@ -131,7 +140,7 @@ void setupChannelList() {
   sonde.clearSonde();
   Serial.println("Reading channel config:");
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);   //file.readStringUntil('\n');
     String sitename;
     if (!file.available()) break;
     if (line[0] == '#') continue;
@@ -261,10 +270,10 @@ void setupWifiList() {
   int i = 0;
 
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     if (!file.available()) break;
     networks[i].id = line;
-    networks[i].pw = file.readStringUntil('\n');
+    networks[i].pw = readLine(file); // file.readStringUntil('\n');
     i++;
   }
   nNetworks = i;
@@ -377,7 +386,7 @@ void setupConfigData() {
     return;
   }
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
 }
@@ -657,7 +666,7 @@ const char *createEditForm(String filename) {
   strcat(ptr, "\" method=\"post\">");
   strcat(ptr, "<textarea name=\"text\" cols=\"80\" rows=\"40\">");
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     strcat(ptr, line.c_str()); strcat(ptr, "\n");
   }
   strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
