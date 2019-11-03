@@ -212,6 +212,7 @@ void U8x8Display::begin() {
 		u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(/* reset=*/ sonde.config.oled_rst, /* clock=*/ sonde.config.oled_scl, /* data=*/ sonde.config.oled_sda); // Unbuffered, basic graphics, software I2C
 	} 
 	u8x8->begin();
+	if(sonde.config.tft_orient==3) u8x8->setFlipMode(true);
 
 	fontlist = fl;
 	nfonts = sizeof(fl)/sizeof(uint8_t *);
