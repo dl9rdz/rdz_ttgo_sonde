@@ -701,7 +701,10 @@ static uint8_t ACTION(char c) {
 		return ACT_DISPLAY_NEXT;
 	default:
 		if(c>='0'&&c<='9')
-		return ACT_DISPLAY(c-'0');
+			return ACT_DISPLAY(c-'0');
+		// Hack, will change later to better syntax
+		if(c>='a'&&c<='z')
+			return ACT_ADDFREQ(c-'a'+2);
 	}
 	return ACT_NONE;
 }

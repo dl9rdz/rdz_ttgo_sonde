@@ -39,6 +39,7 @@ extern const char *RXstr[];
 #define ACT_DISPLAY_WIFI 61
 #define ACT_NEXTSONDE 65
 #define ACT_PREVSONDE 66
+#define ACT_ADDFREQ(n) ((n)+64)
 #define ACT_SONDE(n) ((n)+128)
 
 // 0000nnnn => goto display nnnn
@@ -212,6 +213,7 @@ public:
 	void addSonde(float frequency, SondeType type, int active, char *launchsite);
 	void nextConfig();
 	void nextRxSonde();
+	void nextRxFreq(int addkhz);
 
 	/* new interface */
 	void setup();

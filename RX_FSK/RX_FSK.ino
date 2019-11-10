@@ -23,7 +23,7 @@
 
 int e;
 
-enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
+enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
@@ -74,8 +74,8 @@ static unsigned long specTimer;
 String readLine(Stream &stream) {
   String s = stream.readStringUntil('\n');
   int len = s.length();
-  if(len==0) return s;
-  if(s.charAt(len-1)=='\r') s.remove(len-1);
+  if (len == 0) return s;
+  if (s.charAt(len - 1) == '\r') s.remove(len - 1);
   return s;
 }
 
@@ -452,7 +452,7 @@ struct st_configitems config_list[] = {
   {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
-  {"touch_thresh", "Touch button threshold", 0, &sonde.config.touch_thresh},
+  {"touch_thresh", "Touch button threshold<br>(0 for calib mode)", 0, &sonde.config.touch_thresh},
   {"power_pout", "Power control port", 0, &sonde.config.power_pout},
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
@@ -908,11 +908,11 @@ void initTouch() {
     timerAlarmEnable(timer);
   */
   if ( IS_TOUCH(sonde.config.button_pin) ) {
-    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 60);
+    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, sonde.config.touch_thresh);
     Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
   }
   if ( IS_TOUCH(sonde.config.button2_pin) ) {
-    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, 60);
+    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, sonde.config.touch_thresh);
     Serial.printf("Initializing touch 2 on pin %d\n", sonde.config.button2_pin & 0x7f);
   }
 }
@@ -1025,8 +1025,8 @@ void IRAM_ATTR touchISR2() {
 void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
-    Serial.printf("touch read %d: value is %d\n", button.pin, tmp);
-    if (tmp > sonde.config.touch_thresh) {
+    Serial.printf("touch read %d: value is %d\n", button.pin & 0x7f, tmp);
+    if (tmp > sonde.config.touch_thresh + 5) {
       button.isTouched = false;
       unsigned long elapsed = my_millis() - button.keydownTime;
       if (elapsed > 1500) {
@@ -1049,7 +1049,7 @@ void ledOffCallback() {
   digitalWrite(sonde.config.led_pout, LOW);
 }
 void flashLed(int ms) {
-  if(sonde.config.led_pout>=0) {
+  if (sonde.config.led_pout >= 0) {
     digitalWrite(sonde.config.led_pout, HIGH);
     ledFlasher.once_ms(ms, ledOffCallback);
   }
@@ -1067,7 +1067,8 @@ void IRAM_ATTR buttonISR() {
     unsigned long now = my_millis();
     if (now - button1.keydownTime < 500) {
       // Double press
-      button1.doublepress = 1;
+      if (now - button1.keydownTime > 100)
+        button1.doublepress = 1;
       bdd1 = now; bdd2 = button1.keydownTime;
     } else {
       button1.doublepress = 0;
@@ -1097,9 +1098,10 @@ void IRAM_ATTR buttonISR() {
 void IRAM_ATTR button2ISR() {
   if (digitalRead(button2.pin) == 0) { // Button down
     unsigned long now = my_millis();
-    if (now - button2.keydownTime > 50 && now - button2.keydownTime < 500) {
+    if (now - button2.keydownTime < 500) {
       // Double press
-      button2.doublepress = 1;
+      if (now - button2.keydownTime > 100)
+        button2.doublepress = 1;
       //bdd1 = now; bdd2 = button1.keydownTime;
     } else {
       button2.doublepress = 0;
@@ -1282,7 +1284,7 @@ void setup()
       axp.clearIRQ();
       int ndevices = scanI2Cdevice();
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-      sleep(500);
+      delay(500);
     }
   }
   if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
@@ -1290,19 +1292,27 @@ void setup()
     digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
   }
 
-  if(sonde.config.led_pout>=0) {
+  if (sonde.config.led_pout >= 0) {
     pinMode(sonde.config.led_pout, OUTPUT);
     flashLed(1000); // testing
   }
 
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;
-  if (button1.pin != 0xff)
-    pinMode(button1.pin, INPUT);  // configure as input if not disabled
-  if (button2.pin != 0xff)
-    pinMode(button2.pin, INPUT);  // configure as input if not disabled
-  //pinMode(button2.pin, INPUT);  // configure as input if not disabled
-
+  if (button1.pin != 0xff) {
+    if ( (button1.pin & 0x80) == 0 && button1.pin < 34 ) {
+      Serial.println("Button 1 configured as input with pullup");
+      pinMode(button1.pin, INPUT_PULLUP);
+    } else
+      pinMode(button1.pin, INPUT);  // configure as input if not disabled
+  }
+  if (button2.pin != 0xff) {
+    if ( (button2.pin & 0x80) == 0 && button2.pin < 34 ) {
+      Serial.println("Button 2 configured as input with pullup");
+      pinMode(button2.pin, INPUT_PULLUP);
+    } else
+      pinMode(button2.pin, INPUT);  // configure as input if not disabled
+  }
   // Handle button press
   if ( (button1.pin & 0x80) == 0) {
     attachInterrupt( button1.pin, buttonISR, CHANGE);
@@ -1843,11 +1853,36 @@ void startAP() {
 }
 
 void initialMode() {
+  if (sonde.config.touch_thresh == 0) {
+    enterMode(ST_TOUCHCALIB);
+    return;
+  }
   if (sonde.config.spectrum != -1) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
     startSpectrumDisplay();
   } else {
     setCurrentDisplay(0);
     enterMode(ST_DECODER);
+  }
+}
+
+void loopTouchCalib() {
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->clear();
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  char num[10];
+
+  while (1) {
+    int t1 = touchRead(button1.pin & 0x7f);
+    int t2 = touchRead(button2.pin & 0x7f);
+    disp.rdis->setFont(FONT_LARGE);
+    disp.rdis->drawString(0, 0, "Touch calib.");
+    disp.rdis->drawString(0, 3 * dispys, "Touch1: ");
+    snprintf(num, 10, "%d  ", t1);
+    disp.rdis->drawString(8 * dispxs, 3 * dispys, num);
+    disp.rdis->drawString(0, 6 * dispys, "Touch2: ");
+    snprintf(num, 10, "%d  ", t2);
+    disp.rdis->drawString(8 * dispxs, 6 * dispys, num);
+    delay(300);
   }
 }
 
@@ -2145,6 +2180,7 @@ void loop() {
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
+    case ST_TOUCHCALIB: loopTouchCalib(); break;
   }
 #if 0
   int rssi = sx1278.getRSSI();

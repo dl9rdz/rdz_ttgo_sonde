@@ -348,6 +348,15 @@ void Sonde::nextRxSonde() {
 	}
 	Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
 }
+void Sonde::nextRxFreq(int addkhz) {
+	// last entry is for the variable frequency
+        rxtask.currentSonde = nSonde - 1;
+	sondeList[rxtask.currentSonde].active = 1;
+	sondeList[rxtask.currentSonde].freq += addkhz*0.001;
+	if(sondeList[rxtask.currentSonde].freq>406)
+		sondeList[rxtask.currentSonde].freq = 400;
+        Serial.printf("nextRxFreq: %d\n", rxtask.currentSonde);
+}
 SondeInfo *Sonde::si() {
 	return &sondeList[currentSonde];
 }
@@ -432,9 +441,12 @@ void Sonde::receive() {
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
-	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE) {
+	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE || (action>64&&action<128) ) {
 		// handled here...
-		nextRxSonde();
+		if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
+			nextRxSonde();
+		else
+			nextRxFreq( action-64 );
 		action = ACT_SONDE(rxtask.currentSonde);
 		if(rxtask.activate==-1) {
 			// race condition here. maybe better use mutex. TODO
