@@ -162,6 +162,8 @@ void setupChannelList() {
     }
     else if (space[1] == 'M') {
       type = STYPE_M10;
+    } else if (space[1] == 'I') {
+      type = STYPE_IMS100;
     }
     else continue;
     int active = space[3] == '+' ? 1 : 0;
@@ -235,7 +237,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3]); // a bit ugly
+    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[0] == 'i' ? 'I' : tstr[3]); // a bit ugly
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
@@ -1525,7 +1527,7 @@ void loopDecoder() {
     Serial.println("");
   }
   // wifi (axudp) or bluetooth (bttnc) active => send packet
-  if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
+  if (((res & 0xff) == 0 )&& (connected || tncclient.connected() )) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
