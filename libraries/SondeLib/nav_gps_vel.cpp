@@ -1,6 +1,7 @@
-
-/*
-  Quellen:
+/* SPDX-License-Identifier:        GPL-3.0
+ * based on https://github.com/rs1729/RS/blob/master/rs92/nav_gps_vel.c
+ *
+ Quellen:
            - IS-GPS-200H  (bis C: ICD-GPS-200):
              http://www.gps.gov/technical/icwg/
            - Borre: http://kom.aau.dk/~borre

@@ -1,5 +1,6 @@
-
-/*
+/*  SPDX-License-Identifier:        GPL-3.0
+ *  based on https://github.com/rs1729/RS/blob/master/rs92/rs92gps.c
+ * 
  *  radiosonde RS92
  *
  *
