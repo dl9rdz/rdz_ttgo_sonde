@@ -729,6 +729,33 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
 }
 
 
+const char *sendGPX(AsyncWebServerRequest * request) {
+  Serial.println("\n\n\n********GPX request\n\n");
+  String url = request->url();
+  int index = atoi(url.c_str() + 1);
+  char *ptr = message;
+  if (index < 0 || index >= MAXSONDE) {
+    return "ERROR";
+  }
+  SondeInfo *si = &sonde.sondeList[index];
+  strcpy(si->id, "test");
+  si->lat=48; si->lon=11; si->alt=500;
+  snprintf(ptr, 10240, "<?xml version='1.0' encoding='UTF-8'?>\n"
+           "<gpx version=\"1.1\" creator=\"http://rdzsonde.local\" xmlns=\"http://www.topografix.com/GPX/1/1\" "
+           "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+           "xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n"
+           "<metadata>"
+           "<name>Sonde #%d (%s)</name>\n"
+           "<author>rdzTTGOsonde</author>\n"
+           "</metadata>\n"
+           "<wpt lat=\"%f\" lon=\"%f\">\n  <ele>%f</ele>\n  <name>%s</name>\n  <sym>Radio Beacon</sym><type>Sonde</type>\n"
+           "</wpt></gpx>\n", index, si->id, si->lat, si->lon, si->alt, si->id);
+  Serial.println(message);
+  return message;
+}
+
+
+
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
   server.reset();
@@ -804,6 +831,18 @@ void SetupAsyncServer() {
   // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+  server.onNotFound([](AsyncWebServerRequest * request) {
+    if (request->method() == HTTP_OPTIONS) {
+      request->send(200);
+    } else {
+      String url = request->url();
+      if (url.endsWith(".gpx"))
+        request->send(200, "application/gpx+xml", sendGPX(request));
+      else
+        request->send(404);
+    }
   });
 
   // Start server
