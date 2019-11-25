@@ -68,7 +68,7 @@ typedef struct st_sondeinfo {
         float hs;			// horizontal speed
 	float dir; 			// 0..360
 	uint8_t sats;			// number of sats
-        uint8_t validPos;   // bit pattern for validity of above 6 fields
+        uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old
 	// decoded GPS time
 	uint32_t time;
 	uint16_t sec;

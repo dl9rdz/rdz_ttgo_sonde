@@ -306,6 +306,8 @@ static void wgs84r(double x, double y, double z,
 /*  lat:=atan(z/(rh*(1.0 - E2))); */
 /*  heig:=sqrt(h + z*z) - EARTHA; */
 } /* end wgs84r() */
+
+// returns: 0=ok, -1=error
 static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
 {
    double dir;
@@ -367,10 +369,14 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print("Sats");
    sonde.si()->sats = sats;
    sonde.si()->alt = heig;
-   if( 0==(int)(lat*10000) && 0==(int)(long0*10000) )
-      sonde.si()->validPos = 0;
+   if( 0==(int)(lat*10000) && 0==(int)(long0*10000) ) {
+      if(sonde.si()->validPos) {
+	// we have an old position, so keep previous position and mark it as old
+	sonde.si()->validPos |= 0x80;
+      }
+   }
    else
-      sonde.si()->validPos = 0x3f;
+      sonde.si()->validPos = 0x7f;
 } /* end posrs41() */
 
 
