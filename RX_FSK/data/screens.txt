@@ -293,3 +293,23 @@ timeaction=#,#,#
 5.4,0,10=bImA
 6.4,0=xTemp:
 6.4,5,5=bT C
+
+############
+@BatteryOLED
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+fonts=0,1
+0,0=xBat.Status:
+0,12=bS
+1,0=xBatt:
+1,6=bVV
+2,0=bCmA (charge) 
+3,0=bDmA (disch.) 
+4,0=xUSB:
+4,5=bUV
+5,5=bImA
+6,0=xTemp:
+6,5=bT C
+
