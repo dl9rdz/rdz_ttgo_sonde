@@ -427,8 +427,8 @@ struct st_configitems config_list[] = {
   {"call", "Call", 8, sonde.config.call},
   {"passcode", "Passcode", 8, sonde.config.passcode},
   /* KISS tnc settings */
-  {"kisstnc", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
-  {"kisstnc.idformat", "DFM ID Format", -2, &sonde.config.kisstnc.idformat},
+  {"kisstnc.active", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
+  {"kisstnc.idformat", "KISS TNC ID Format", -2, &sonde.config.kisstnc.idformat},
   /* AXUDP settings */
   {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
   {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},

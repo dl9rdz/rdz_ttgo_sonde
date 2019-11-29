@@ -179,6 +179,7 @@ void Sonde::defaultConfig() {
 	config.tcpfeed.port = 12345;
 	config.tcpfeed.highrate = 10;
 	config.tcpfeed.idformat = ID_DFMDXL;
+	config.kisstnc.active = 0;
 }
 
 void Sonde::setConfig(const char *cfg) {
@@ -268,6 +269,10 @@ void Sonde::setConfig(const char *cfg) {
 		config.dfm.rxbw = atoi(val);
 	} else if(strcmp(cfg,"rs92.alt2d")==0) {
 		config.rs92.alt2d= atoi(val);
+	} else if(strcmp(cfg,"kisstnc.active")==0) {
+		config.kisstnc.active = atoi(val);
+	} else if(strcmp(cfg,"kisstnc.idformat")==0) {
+		config.kisstnc.idformat = atoi(val);
 	} else if(strcmp(cfg,"rs92.rxbw")==0) {
 		config.rs92.rxbw = atoi(val);
 	} else if(strcmp(cfg,"axudp.active")==0) {
