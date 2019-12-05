@@ -1275,6 +1275,7 @@ void Display::drawBatt(DispEntry *de) {
 	default:
 		*buf=0;
 	}
+        rdis->setFont(de->fmt);
 	drawString(de, buf);
 }
 
