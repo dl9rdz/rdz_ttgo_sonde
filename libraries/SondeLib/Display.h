@@ -31,6 +31,11 @@ struct DispInfo {
 	uint8_t usegps;
 };
 
+struct StatInfo {
+	uint8_t len;
+	uint8_t size;
+};
+
 struct CircleInfo {  // 3,5=g0NCS,50,ff0000,000033,5,ffff00,4,ffffff
 	char type;
 	char top,bul,arr; // what to point to with top, bullet, array
@@ -55,7 +60,7 @@ public:
 	virtual void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) = 0;
 	virtual void welcome() = 0;
 	virtual void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
-
+	virtual void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat) = 0;
 };
 
 class U8x8Display : public RawDisplay {
@@ -77,6 +82,7 @@ public:
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat);
 };
 
 class MY_ILI9225 : public TFT22_ILI9225 {
@@ -103,6 +109,7 @@ public:
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
 	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat);
 };
 
 class Display {

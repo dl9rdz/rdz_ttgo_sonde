@@ -56,6 +56,12 @@ static unsigned char stattiles[5][4] =  {
    0x1F, 0x15, 0x15, 0x00 ,   // E == decode error
    0x00, 0x00, 0x00, 0x00 ,   // ' ' == unknown/unassigned
    0x07, 0x05, 0x07, 0x00 };  // ° = rx ok, but no valid position
+static unsigned char stattilesXL[5][5] =  {
+   0x00, 0x7F, 0x00, 0x00, 0x00,  // | == ok
+   0x00, 0x40, 0x40, 0x00, 0x00,  // . == no header found
+   0x7F, 0x49, 0x49, 0x49, 0x00,  // E == decode error
+   0x00, 0x00, 0x00, 0x00, 0x00,   // ' ' == unknown/unassigned
+   0x07, 0x05, 0x07, 0x00, 0x00 };  // ° = rx ok, but no valid position (not yet used?)
 
 
 //static uint8_t halfdb_tile[8]={0x80, 0x27, 0x45, 0x45, 0x45, 0x39, 0x00, 0x00};
@@ -290,6 +296,16 @@ void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint1
 	u8x8->drawTile(x, y, 11, myIP_tiles);
 }
 
+// len must be multiple of 2, size is fixed for u8x8 display
+void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat) {
+	for(int i=0; i<len; i+=2) {
+	        uint8_t tile[8];
+	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
+	        *(uint32_t *)(&tile[4]) = *(uint32_t *)(&(stattiles[stat[i+1]]));
+	        drawTile(x+i/2, y, 1, tile);
+	}
+}
+
 
 const GFXfont *gfl[] = {
 	&FreeMono9pt7b,		// 3
@@ -445,6 +461,27 @@ void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, ui
 	char buf[20];
 	snprintf(buf, 20, "%c %s", sonde.isAP?'A':' ', sonde.ipaddr.c_str());
 	drawString(x, y, buf, width, fg, bg);		
+}
+
+// size: 3=> 3x5 symbols; 4=> 4x7 symbols
+void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat) {
+	if(size<3) size=3;
+	if(size>4) size=4;
+	const uint16_t width = len*(size+1);
+	const uint16_t height = (size+3);
+	uint16_t bitmap[width*height];
+	for(int i=0; i<len; i++) {
+		for(int xx=0; xx<size+1; xx++) {
+			for(int yy=0; yy<size+3; yy++) {
+				if(size==3) {
+					bitmap[ yy*width + i*(size+1) + xx ] = ((stattiles[stat[i]][xx]>>yy)&0x01) ?0xffff:0x0000;
+				} else {
+					bitmap[ yy*width + i*(size+1) + xx ] = ((stattilesXL[stat[i]][xx]>>yy)&0x01) ?0xffff:0x0000;
+				}
+			}
+		}
+	}
+	drawBitmap(x, y, bitmap, len*(size+1), (size+3));
 }
 
 #include <pgmspace.h>
@@ -614,7 +651,17 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->extra = strdup(text+1);
 		break;
 	case 'q':
-		de->func = disp.drawQS; break;
+		{
+		struct StatInfo *statinfo = (struct StatInfo *)malloc(sizeof(struct StatInfo));
+		// maybe enable more flexible configuration?
+		statinfo->size=3;
+		statinfo->len=18;
+		if(text[1]=='4') statinfo->size = 4;
+
+		de->extra = (const char *)statinfo;
+		de->func = disp.drawQS;
+		}
+		break;
 	case 't':
 		de->func = disp.drawType; break;
 	case 'c':
@@ -986,13 +1033,10 @@ void Display::drawRSSI(DispEntry *de) {
 }
 void Display::drawQS(DispEntry *de) {
 	uint8_t *stat = sonde.si()->rxStat;
-	for(int i=0; i<18; i+=2) {
-	        uint8_t tile[8];
-	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
-	        *(uint32_t *)(&tile[4]) = *(uint32_t *)(&(stattiles[stat[i+1]]));
-	        rdis->drawTile(de->x+i/2, de->y, 1, tile);
-	}
+	struct StatInfo *statinfo = (struct StatInfo *)de->extra;
+	rdis->drawQS(de->x, de->y, statinfo->len, statinfo->size, stat);
 }
+
 void Display::drawType(DispEntry *de) {
 	rdis->setFont(de->fmt);
         drawString(de, sondeTypeStr[sonde.si()->type]);
