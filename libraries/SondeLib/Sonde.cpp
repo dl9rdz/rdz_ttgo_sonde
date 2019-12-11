@@ -427,6 +427,7 @@ void Sonde::receive() {
                 }
         } else { // RX not ok
 		if(res==RX_ERROR) flashLed(100);
+		Serial.printf("RX result %d, laststate was %d\n", res, si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
                         si->lastState = 0;
@@ -471,8 +472,8 @@ uint16_t Sonde::waitRXcomplete() {
 rxloop:
         while( rxtask.receiveResult==0xFFFF && millis()-t0 < 2000) { delay(50); }
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
-		Serial.print("RSSI update: ");
 		rxtask.receiveResult = 0xFFFF;
+		Serial.print("RSSI update: ");
 		disp.updateDisplayRSSI();
 		goto rxloop;
 	}
