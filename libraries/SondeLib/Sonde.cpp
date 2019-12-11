@@ -470,7 +470,7 @@ uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
 rxloop:
-        while( rxtask.receiveResult==0xFFFF && millis()-t0 < 2000) { delay(50); }
+        while( rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
 		Serial.print("RSSI update: ");
@@ -479,6 +479,7 @@ rxloop:
 	}
 
 	if( rxtask.receiveResult==0xFFFF) {
+		Serial.println("TIMEOUT in waitRXcomplete. Should never happen!\n");
 		res = RX_TIMEOUT;
 	} else {
 		res = rxtask.receiveResult;
