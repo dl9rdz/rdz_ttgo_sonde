@@ -464,6 +464,7 @@ struct st_configitems config_list[] = {
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
+  {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -1726,7 +1727,7 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
 
 void enableNetwork(bool enable) {
   if (enable) {
-    MDNS.begin("rdzsonde");
+    MDNS.begin(sonde.config.mdnsname);
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);

@@ -147,6 +147,7 @@ void Sonde::defaultConfig() {
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
 	strcpy(config.passcode, "---");
+	strcpy(config.mdnsname, "rdzsonde");
 	config.maxsonde=15;
 	config.debug=0;
 	config.wifi=1;
@@ -236,6 +237,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.wifi = atoi(val);			
 	} else if(strcmp(cfg,"wifiap")==0) {
 		config.wifiap = atoi(val);
+	} else if(strcmp(cfg,"mdnsname")==0) {
+		strncpy(config.mdnsname, val, 14);
 	} else if(strcmp(cfg,"display")==0) {
 		int i = 0;
 		char *ptr;
