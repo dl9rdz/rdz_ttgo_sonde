@@ -438,6 +438,25 @@ int RS41::decode41(byte *data, int maxlen)
 			strncpy(sonde.si()->ser, (const char *)(data+p+2), 8);
 			sonde.si()->ser[8]=0;
 			sonde.si()->validID=true;
+			int calnr = data[p+23];
+			// not sure about this
+			if(calnr==0x31) {
+				uint16_t bt = data[p+30] + 256*data[p+31];
+				sonde.si()->burstKT = bt;
+			}
+			// this should be right...
+			if(calnr==0x02) {
+				uint16_t kt = data[p+31] + 256*data[p+32];
+				sonde.si()->launchKT = kt;
+			}
+			// and this seems fine as well...
+			if(calnr==0x32) {
+				uint16_t cntdown = data[p+24] + (data[p+25]<<8);
+				uint16_t min = cntdown - (cntdown/3600)*3600;
+				Serial.printf("Countdown value: %d\n [%2d:%02d:%02d]", cntdown, cntdown/3600, min/60, min-(min/60)*60);
+				sonde.si()->countKT = cntdown;
+				sonde.si()->crefKT = fnr;
+			}
 			}
 			// TODO: some more data
 			break;

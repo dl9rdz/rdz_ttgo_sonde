@@ -1064,6 +1064,40 @@ void Display::drawSite(DispEntry *de) {
 void Display::drawTelemetry(DispEntry *de) {
 }
 
+void Display::drawKilltimer(DispEntry *de) {
+	rdis->setFont(de->fmt);
+	uint16_t value;
+	switch(de->extra[0]) {
+	case 'l': value = sonde.si()->launchKT; break;
+	case 'b': value = sonde.si()->burstKT; break;
+	case 'c':
+		value = sonde.si()->countKT;
+		if(value!=0xffff) {
+			value += ((uint16_t)sonde.si()->frame)-sonde.si()->crefKT;
+		}
+		break;
+	}
+	// format: 4=h:mm; 6=h:mm:ss; s=sssss
+	uint16_t h=value/3600;
+	uint16_t m=(value-h*3600)/60;
+	uint16_t s=value%60;
+	switch(de->extra[1]) {
+	case '4':
+		if(value!=0xffff) snprintf(buf, 5, "%d:%02d", h, m);
+		else strcpy(buf, "    ");
+		break;
+	case '6':
+		if(value!=0xffff) snprintf(buf, 7, "%d:%02d:%02d", h, m, s);
+		else strcpy(buf, "       ");
+		break;
+	default:
+		if(value!=0xffff) snprintf(buf, 6, "%5d", value);
+		else strcpy(buf, "     ");
+		break;
+	}
+	strcat(buf, de->extra[2]);
+	drawString(de, buf);
+}
 #define EARTH_RADIUS (6371000.0F)
 #ifndef PI
 #define  PI  (3.1415926535897932384626433832795)

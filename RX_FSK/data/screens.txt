@@ -38,7 +38,9 @@
 # C afC value
 # N ip address (only tiny font)
 # S launch site
-# Mx telemetry value x (t temp p preassure h hyg)
+# K RS41 kill timer values: Kl launch timer, Kb burst timer, Kc kill countdown
+#   format: K_4: h:mm k_6: h:mm:ss k_s: sssss,  nothing shown for other sonde
+# Mx telemetry value x (t temp p preassure h hyg) [not yet implemented, maybe some day in future]
 # Gx  GPS-related data
 #     raw data from GPS:  GA, GO, GH, GC: LAtitude, lOngitude, Altutide(Height), Course over ground
 #     relative to sonde:  GD, GI, GB: Distance, dIrection (absolute), relative Bearing

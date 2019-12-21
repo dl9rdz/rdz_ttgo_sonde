@@ -83,8 +83,11 @@ typedef struct st_sondeinfo {
 	uint32_t norxStart;		// millis() timestamp of continuous no rx start
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
+	// shut down timers, currently only for RS41; -1=disabled
+	int16_t launchKT, burstKT, countKT;
+	uint16_t crefKT; // frame number in which countKT was last sent
 } SondeInfo;
-// rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 3=ok[1] 5=no valid position[°]
+// rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 
 // Used for interacting with the RX background task
 typedef struct st_RXTask {
