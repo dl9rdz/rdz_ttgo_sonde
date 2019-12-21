@@ -457,9 +457,9 @@ void ILI9225Display::welcome() {
 }
 
 void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
-	setFont(0);
 	char buf[20];
-	snprintf(buf, 20, "%c %s", sonde.isAP?'A':' ', sonde.ipaddr.c_str());
+	if(sonde.isAP) strcpy(buf, "A "); else *buf=0;   
+	strncat(buf, sonde.ipaddr.c_str(), 16);
 	drawString(x, y, buf, width, fg, bg);		
 }
 
@@ -672,6 +672,9 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		Serial.printf("parsing 'f' entry: extra is '%s'\n", de->extra);
 		break;
 	case 'n':
+		// IP address / small always uses tiny font on TFT for backward compatibility
+		// Large font can be used arbitrarily
+		if(de->fmt==fontsma) de->fmt=0;
 		de->func = disp.drawIP; break;
 	case 's':
 		de->func = disp.drawSite;
@@ -1061,6 +1064,7 @@ void Display::drawAFC(DispEntry *de) {
         drawString(de, buf+strlen(buf)-8);
 }
 void Display::drawIP(DispEntry *de) {
+	rdis->setFont(de->fmt);
 	rdis->drawIP(de->x, de->y, de->width, de->fg, de->bg);
 }
 void Display::drawSite(DispEntry *de) {
@@ -1070,9 +1074,11 @@ void Display::drawSite(DispEntry *de) {
 		// currentSonde is index in array starting with 0;
 		// but we draw "1" for the first entrie and so on...
 		snprintf(buf, 3, "%2d", sonde.currentSonde+1);
+		buf[2]=0;
 		break;
 	case 't':
 		snprintf(buf, 3, "%d", sonde.config.maxsonde);
+		buf[2]=0;
 		break;
 	case 'a':
 		{
@@ -1081,13 +1087,17 @@ void Display::drawSite(DispEntry *de) {
 	                if(sonde.sondeList[i].active) active++;
 		}
  		snprintf(buf, 3, "%d", active);
+		buf[2]=0;
 		}
+		break;
+	case '/':
+		snprintf(buf, 6, "%d/%d  ", sonde.currentSonde+1, sonde.config.maxsonde);
+		buf[5]=0;
 		break;
 	case 0: case 'l': default: // launch site
 		drawString(de, sonde.si()->launchsite);
 		return;
 	}
-	buf[2]=0;
 	if(de->extra[0]) strcat(buf, de->extra+1);
 	drawString(de, buf);
 }

@@ -37,7 +37,7 @@
 # T type string (RS41/DFM9/DFM6/RS92)
 # C afC value
 # N ip address (only tiny font)
-# S scan list entry info:  l/empty: launch site name, #=entry nr, t=total entries, a=active entries
+# S scan list entry info:  l/empty: launch site name, #=entry nr, t=total entries, a=active entries, /: #/t  
 # K RS41 kill timer values: Kl launch timer, Kb burst timer, Kc kill countdown
 #   format: K_4: h:mm k_6: h:mm:ss k_s: sssss,  nothing shown for other sonde
 # Mx telemetry value x (t temp p preassure h hyg) [not yet implemented, maybe some day in future]
@@ -316,4 +316,35 @@ fonts=0,1
 5,5=bImA
 6,0=xTemp:
 6,5=bT C
+
+### Alternative display layouts based on https://gist.github.com/bazjo 
+# Scan display for large 2" TFT dispaly
+@Scan.TFT.Bazjo
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+scale=11,10
+fonts=0,2
+color=e0e0e0
+#Row 1
+0.5,0=XScanning...
+#Row 2
+3,0=xIndex
+4,0=S/
+3,9=xSite
+4,9=S
+#Row 3
+6,0=xType
+7,0=T
+6,9=xFrequency
+7,9=F
+#Row 4
+9,0=xWeb UI IP
+10,0=N
+#Row 5
+#Footer
+color=6C757D
+15,0=xScan Mode
+15,18=bVV
 
