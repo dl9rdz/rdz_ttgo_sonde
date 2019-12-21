@@ -675,6 +675,10 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->func = disp.drawIP; break;
 	case 's':
 		de->func = disp.drawSite; break;
+	case 'k':
+		de->func = disp.drawKilltimer;
+		de->extra = strdup(text+1);
+		break;
 	case 'g':
 		de->func = disp.drawGPS;
 		if(text[1]=='0') {  
@@ -1070,12 +1074,7 @@ void Display::drawKilltimer(DispEntry *de) {
 	switch(de->extra[0]) {
 	case 'l': value = sonde.si()->launchKT; break;
 	case 'b': value = sonde.si()->burstKT; break;
-	case 'c':
-		value = sonde.si()->countKT;
-		if(value!=0xffff) {
-			value += ((uint16_t)sonde.si()->frame)-sonde.si()->crefKT;
-		}
-		break;
+	case 'c': value = sonde.si()->countKT; break;
 	}
 	// format: 4=h:mm; 6=h:mm:ss; s=sssss
 	uint16_t h=value/3600;
@@ -1095,7 +1094,8 @@ void Display::drawKilltimer(DispEntry *de) {
 		else strcpy(buf, "     ");
 		break;
 	}
-	strcat(buf, de->extra[2]);
+	if(de->extra[1])
+		strcat(buf, de->extra+2);
 	drawString(de, buf);
 }
 #define EARTH_RADIUS (6371000.0F)

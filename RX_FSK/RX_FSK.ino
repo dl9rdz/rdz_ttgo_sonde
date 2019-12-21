@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
+
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
 //#include <U8g2lib.h>
@@ -27,6 +28,8 @@ enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB 
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
 AXP20X_Class axp;
 #define PMU_IRQ             35
 
@@ -356,6 +359,10 @@ void addSondeStatus(char *ptr, int i)
   ts = *gmtime(&t);
   sprintf(ptr + strlen(ptr), "<tr><td>Frame# %d, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
           s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec);
+  if(s->type == STYPE_RS41) {
+     sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
+          s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame-s->crefKT));
+  }
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wx.dl2mf.de/?%s\">WX.DL2MF.de</a> - ", s->id);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a></td></tr>", s->lat, s->lon);
@@ -754,6 +761,40 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   return message;
 }
 
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
+  if(type == WS_EVT_CONNECT){
+    Serial.println("Websocket client connection received");
+    client->text("Hello from ESP32 Server");
+  } else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
+  } 
+}
+#if 0
+void onWebSocketEvent(uint8_t clientNum, WStype_t type, uint8_t *payload, size_t length) {
+  switch(type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[%u] WS client disconnected\n", clientNum);
+      break;
+    case WStype_CONNECTED:
+      {
+        IPAddress ip = webSocket.remoteIP(clientNum);
+        Serial.printf("[%u] WS client connection from %s\n", clientNum, ip.toString().c_str());
+      }
+      break;
+    case WStype_TEXT:
+      //
+      {
+        char msg[80];
+        Serial.printf("[%u] WS client sent me some text: %s\n", clientNum, payload);
+        snprintf(msg, 80, "You sent me: %s\n", payload);
+        webSocket.sendTXT(clientNum, msg);
+      }
+      break;
+    default:
+      break;
+  }
+}
+#endif
 
 
 const char* PARAM_MESSAGE = "message";
@@ -840,10 +881,17 @@ void SetupAsyncServer() {
       String url = request->url();
       if (url.endsWith(".gpx"))
         request->send(200, "application/gpx+xml", sendGPX(request));
-      else
-        request->send(404);
+      else {
+        request->send(SPIFFS, url, "text/html");
+        Serial.printf("URL is %s\n", url.c_str());
+        //request->send(404);
+      }
     }
   });
+
+  // Set up web socket
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
 
   // Start server
   server.begin();
