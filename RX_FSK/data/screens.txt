@@ -348,3 +348,63 @@ color=6C757D
 15,0=xScan Mode
 15,18=bVV
 
+############
+@Decode/General.TFT.Bazjo
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=11,10
+fonts=0,2
+#Row 1
+color=996A06
+0,0=xSerial
+0,5=t
+color=FFB10B
+1,0=Is
+color=996A06
+0,11=xFreq.
+0,16=c
+color=FFB10B
+1,11=F
+#Row 2
+color=3C5C99
+3,0=xLatitude
+color=639AFF
+4,0=L
+color=3C5C99
+3,11=xLongitude
+color=639AFF
+4,11=O
+#Row 3
+color=3C5C99
+6,0=xHoriz. Speed
+color=639AFF
+7,0=Hkkm/h
+color=3C5C99
+6,11=xVert. Speed
+color=639AFF
+7,11=Vm/s
+#Row 4
+color=99004A
+9,0=xDistance
+color=FF007B
+10,0=GD
+color=99004A
+9,11=xBearing
+color=FF007B
+10,11=GB
+#Row 5
+color=06998E
+12,0=xRSSI
+color=0AFFEF
+13,0=R
+color=06998E
+12,11=xHistory
+color=0AFFEF
+13.5,11=Q4
+#Footer
+color=6C757D
+15,0=xDecode Mode / General View
+15,18=bVV
+

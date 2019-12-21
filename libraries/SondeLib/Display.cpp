@@ -297,7 +297,7 @@ void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint1
 }
 
 // len must be multiple of 2, size is fixed for u8x8 display
-void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat) {
+void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	for(int i=0; i<len; i+=2) {
 	        uint8_t tile[8];
 	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
@@ -464,7 +464,7 @@ void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, ui
 }
 
 // size: 3=> 3x5 symbols; 4=> 4x7 symbols
-void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat) {
+void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	if(size<3) size=3;
 	if(size>4) size=4;
 	const uint16_t width = len*(size+1);
@@ -474,9 +474,9 @@ void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uin
 		for(int xx=0; xx<size+1; xx++) {
 			for(int yy=0; yy<size+3; yy++) {
 				if(size==3) {
-					bitmap[ yy*width + i*(size+1) + xx ] = ((stattiles[stat[i]][xx]>>yy)&0x01) ?0xffff:0x0000;
+					bitmap[ yy*width + i*(size+1) + xx ] = ((stattiles[stat[i]][xx]>>yy)&0x01) ?fg:bg;
 				} else {
-					bitmap[ yy*width + i*(size+1) + xx ] = ((stattilesXL[stat[i]][xx]>>yy)&0x01) ?0xffff:0x0000;
+					bitmap[ yy*width + i*(size+1) + xx ] = ((stattilesXL[stat[i]][xx]>>yy)&0x01) ?fg:bg;
 				}
 			}
 		}
@@ -1043,7 +1043,7 @@ void Display::drawRSSI(DispEntry *de) {
 void Display::drawQS(DispEntry *de) {
 	uint8_t *stat = sonde.si()->rxStat;
 	struct StatInfo *statinfo = (struct StatInfo *)de->extra;
-	rdis->drawQS(de->x, de->y, statinfo->len, statinfo->size, stat);
+	rdis->drawQS(de->x, de->y, statinfo->len, statinfo->size, stat, de->fg, de->bg);
 }
 
 void Display::drawType(DispEntry *de) {
