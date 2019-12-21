@@ -408,3 +408,50 @@ color=6C757D
 15,0=xDecode Mode / General View
 15,18=bVV
 
+
+############
+@Decode/Battery.TFT.Bazjo
+timer=-1,-1,20000
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=11,10
+fonts=0,2
+#Row 1
+color=99001F
+0,0=xBattery Status
+0,11=xBattery Voltage
+color=FF0035
+1,0=BS
+1,11=BVV
+#Row 2
+color=99001F
+3,0=xCharge Current
+3,11=xDischarge Current
+color=FF0035
+4,0=BCmA
+4,11=BDmA
+#Row 3
+color=99001F
+6,0=xUSB Voltage
+6,11=xUSB Current
+color=FF0035
+7,0=BUV
+7,11=BImA
+#Row 4
+color=99001F
+9,0=xIC Temperature
+#9,11=xKey
+color=FF0035
+10,0=BTC
+#10,11=XValue
+#Row 5
+#12,0=xKey
+#12,11=xKey
+#13,0=XValue
+#13,11=XValue
+#Footer
+color=99001F
+15,0=xDecode Mode/Battery View
+15,18=bVV
+
