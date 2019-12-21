@@ -156,6 +156,7 @@ public:
 	static void drawIP(DispEntry *de);
 	static void drawSite(DispEntry *de);
 	static void drawTelemetry(DispEntry *de);
+	static void drawKilltimer(DispEntry *de);
 	static void drawGPS(DispEntry *de);
 	static void drawText(DispEntry *de);
 	static void drawBatt(DispEntry *de);

@@ -91,7 +91,7 @@ DispEntry searchLayout[] = {
 	{0, 0, FONT_LARGE, -1, 0xFFFF, 0, disp.drawText, "Scan:"},
 	{0, 8, FONT_LARGE, -1, 0xFFFF, 0, disp.drawType, NULL},
 	{3, 0, FONT_LARGE, -1, 0xFFFF, 0, disp.drawFreq, " MHz"},
-	{5, 0, FONT_LARGE, -1, 0xFFFF, 0, disp.drawSite, NULL},
+	{5, 0, FONT_LARGE, -1, 0xFFFF, 0, disp.drawSite, "l"},
 	{7, 5, 0, -1, 0xFFFF, 0, disp.drawIP, NULL},	
 	{-1, -1, -1, 0, 0, 0, NULL, NULL},
 };
@@ -674,7 +674,9 @@ void Display::parseDispElement(char *text, DispEntry *de)
 	case 'n':
 		de->func = disp.drawIP; break;
 	case 's':
-		de->func = disp.drawSite; break;
+		de->func = disp.drawSite;
+		de->extra = strdup(text+1);
+		break;
 	case 'k':
 		de->func = disp.drawKilltimer;
 		de->extra = strdup(text+1);
@@ -1063,7 +1065,31 @@ void Display::drawIP(DispEntry *de) {
 }
 void Display::drawSite(DispEntry *de) {
         rdis->setFont(de->fmt);
-	drawString(de, sonde.si()->launchsite);
+	switch(de->extra[0]) {
+	case '#':
+		// currentSonde is index in array starting with 0;
+		// but we draw "1" for the first entrie and so on...
+		snprintf(buf, 3, "%2d", sonde.currentSonde+1);
+		break;
+	case 't':
+		snprintf(buf, 3, "%d", sonde.config.maxsonde);
+		break;
+	case 'a':
+		{
+		uint8_t active = 0;
+ 		for(int i=0; i<sonde.config.maxsonde; i++) {
+	                if(sonde.sondeList[i].active) active++;
+		}
+ 		snprintf(buf, 3, "%d", active);
+		}
+		break;
+	case 0: case 'l': default: // launch site
+		drawString(de, sonde.si()->launchsite);
+		return;
+	}
+	buf[2]=0;
+	if(de->extra[0]) strcat(buf, de->extra+1);
+	drawString(de, buf);
 }
 void Display::drawTelemetry(DispEntry *de) {
 }
