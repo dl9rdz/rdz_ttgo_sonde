@@ -800,6 +800,7 @@ void onWebSocketEvent(uint8_t clientNum, WStype_t type, uint8_t *payload, size_t
 
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
+  Serial.println("SetupAsyncServer()\n");
   server.reset();
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -1636,6 +1637,8 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
+    // also send to web socket
+    //TODO
   }
   Serial.println("updateDisplay started");
   if (forceReloadScreenConfig) {
@@ -1937,7 +1940,7 @@ void startAP() {
   String myIPstr = myIP.toString();
   sonde.setIP(myIPstr.c_str(), true);
   sonde.updateDisplayIP();
-  enableNetwork(true);
+  // enableNetwork(true); done later in WifiLoop.
 }
 
 void initialMode() {

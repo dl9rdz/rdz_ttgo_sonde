@@ -1,4 +1,4 @@
 const char *version_name = "rdzTTGOsonde";
-const char *version_id = "devel20191221";
+const char *version_id = "devel20191222";
 const int SPIFFS_MAJOR=2;
-const int SPIFFS_MINOR=2;
+const int SPIFFS_MINOR=3;
