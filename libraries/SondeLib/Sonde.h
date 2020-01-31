@@ -149,6 +149,7 @@ typedef struct st_rdzconfig {
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
+	int button2_axp;		// Use AXP192 power button as button2
 	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
 	int power_pout;			// Power control pin (for Heltec v2)

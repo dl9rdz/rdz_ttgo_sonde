@@ -679,9 +679,6 @@ uint8_t SX1278FSK::receive()
 	return state;
 }
 
-// ugly. shouldn't be here in a nice software design
-extern int hasKeyPress();
-
 /*
 Function: Configures the module to receive a packet
 Returns: Integer that determines if there has been any error

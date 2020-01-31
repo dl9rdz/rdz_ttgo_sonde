@@ -7,6 +7,7 @@
 # No specification in config file: try autodetection (gpio4 pin level at startup)
 #button_pin=0
 #button2_pin=255
+#button2_axp=0
 # LED port
 led_pout=9
 # OLED Setup is depending on hardware of LoRa board

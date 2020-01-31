@@ -23,6 +23,8 @@ extern MicroNMEA nmea;
 
 extern AXP20X_Class axp;
 extern bool axp192_found;
+extern SemaphoreHandle_t axpSemaphore;
+
 
 SPIClass spiDisp(HSPI);
 
@@ -1353,6 +1355,8 @@ void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
 	if(!axp192_found) return;
+
+	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
 		if(!axp.isBatteryConnect()) { 
@@ -1389,6 +1393,7 @@ void Display::drawBatt(DispEntry *de) {
 	default:
 		*buf=0;
 	}
+	xSemaphoreGive( axpSemaphore );
         rdis->setFont(de->fmt);
 	drawString(de, buf);
 }

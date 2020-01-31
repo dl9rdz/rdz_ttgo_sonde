@@ -32,7 +32,8 @@ AsyncWebSocket ws("/ws");
 
 AXP20X_Class axp;
 #define PMU_IRQ             35
-
+SemaphoreHandle_t axpSemaphore;
+bool pmu_irq = false;
 
 String updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -359,9 +360,9 @@ void addSondeStatus(char *ptr, int i)
   ts = *gmtime(&t);
   sprintf(ptr + strlen(ptr), "<tr><td>Frame# %d, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
           s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec);
-  if(s->type == STYPE_RS41) {
-     sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
-          s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame-s->crefKT));
+  if (s->type == STYPE_RS41) {
+    sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
+            s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame - s->crefKT));
   }
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wx.dl2mf.de/?%s\">WX.DL2MF.de</a> - ", s->id);
@@ -459,6 +460,7 @@ struct st_configitems config_list[] = {
   {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
+  {"button2_axp", "Use AXP192 PWR as Button 2", 0, &sonde.config.button2_axp},
   {"touch_thresh", "Touch button threshold<br>(0 for calib mode)", 0, &sonde.config.touch_thresh},
   {"power_pout", "Power control port", 0, &sonde.config.power_pout},
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
@@ -477,9 +479,16 @@ void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
           label, idx, *value);
 }
 void addConfigButtonEntry(char *ptr, int idx, const char *label, int *value) {
+  int v = *value, ck = 0;
+  if (v == 255) v = -1;
+  if (v != -1) {
+    if (v & 128) ck = 1;
+    v = v & 127;
+  }
+
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" size=\"3\" value=\"%d\"/>",
-          label, idx, 127 & *value);
-  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, 128 & *value ? " checked" : "");
+          label, idx, v);
+  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, ck ? " checked" : "");
 }
 void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
   // TODO
@@ -583,7 +592,8 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
       snprintf(tmp, 10, "TO%d", idx);
       AsyncWebParameter *touch = request->getParam(tmp, true);
       if (touch) {
-        int i = atoi(strvalue.c_str()) + 128;
+        int i = atoi(strvalue.c_str());
+        if (i != -1 && i != 255) i += 128;
         strvalue = String(i);
       }
     }
@@ -747,7 +757,7 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   }
   SondeInfo *si = &sonde.sondeList[index];
   strcpy(si->id, "test");
-  si->lat=48; si->lon=11; si->alt=500;
+  si->lat = 48; si->lon = 11; si->alt = 500;
   snprintf(ptr, 10240, "<?xml version='1.0' encoding='UTF-8'?>\n"
            "<gpx version=\"1.1\" creator=\"http://rdzsonde.local\" xmlns=\"http://www.topografix.com/GPX/1/1\" "
            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
@@ -762,17 +772,17 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   return message;
 }
 
-void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len){
-  if(type == WS_EVT_CONNECT){
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
     Serial.println("Websocket client connection received");
     client->text("Hello from ESP32 Server");
-  } else if(type == WS_EVT_DISCONNECT){
+  } else if (type == WS_EVT_DISCONNECT) {
     Serial.println("Client disconnected");
-  } 
+  }
 }
 #if 0
 void onWebSocketEvent(uint8_t clientNum, WStype_t type, uint8_t *payload, size_t length) {
-  switch(type) {
+  switch (type) {
     case WStype_DISCONNECTED:
       Serial.printf("[%u] WS client disconnected\n", clientNum);
       break;
@@ -1227,14 +1237,31 @@ int getKeyPress() {
 }
 
 int getKey2Press() {
+  if (sonde.config.button2_axp) {
+    // Use AXP power button as second button
+    if (pmu_irq) {
+      Serial.println("PMU_IRQ is set\n");
+      xSemaphoreTake( axpSemaphore, portMAX_DELAY );
+      axp.readIRQ();
+      if (axp.isPEKShortPressIRQ()) {
+        button2.pressed = KP_SHORT;
+        button2.keydownTime = my_millis();
+      }
+      if (axp.isPEKLongtPressIRQ()) {
+        button2.pressed = KP_MID;
+        button2.keydownTime = my_millis();
+      }
+      pmu_irq = false;
+      axp.clearIRQ();
+      xSemaphoreGive( axpSemaphore );
+    }
+  }
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
   //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
   return p;
 }
-int hasKeyPress() {
-  return button1.pressed || button2.pressed;
-}
+
 int getKeyPressEvent() {
   int p = getKeyPress();
   if (p == KP_NONE) {
@@ -1290,8 +1317,6 @@ int scanI2Cdevice(void)
 }
 
 extern int initlevels[40];
-bool pmu_irq = false;
-
 
 void setup()
 {
@@ -1303,6 +1328,9 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
+  axpSemaphore = xSemaphoreCreateBinary();
+  xSemaphoreGive(axpSemaphore);
+
 #if 0
   delay(2000);
   // temporary test
@@ -1369,7 +1397,8 @@ void setup()
         pmu_irq = true;
       }, FALLING);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+      //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+      axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
       axp.clearIRQ();
       int ndevices = scanI2Cdevice();
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)

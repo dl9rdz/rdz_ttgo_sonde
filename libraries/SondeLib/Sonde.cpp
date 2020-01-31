@@ -78,6 +78,7 @@ void Sonde::defaultConfig() {
 	config.oled_rst = 16;
 	config.disptype = 0;
 	config.tft_orient = 1;
+	config.button2_axp = 0;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -94,6 +95,9 @@ void Sonde::defaultConfig() {
 				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
 				config.button_pin = 38;
 				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
+				// Maybe in future use as default only PWR as button2?
+				//config.button2_pin = 255;
+				config.button2_axp = 1;
 				config.gps_rxd = 34;
 				// Check for I2C-Display@21,22
 #define SSD1306_ADDRESS 0x3c
@@ -204,6 +208,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.button_pin = atoi(val);
 	} else if(strcmp(cfg,"button2_pin")==0) {
 		config.button2_pin = atoi(val);
+	} else if(strcmp(cfg,"button2_axp")==0) {
+		config.button2_axp = atoi(val);
 	} else if(strcmp(cfg,"touch_thresh")==0) {
 		config.touch_thresh = atoi(val);
 	} else if(strcmp(cfg,"led_pout")==0) {
