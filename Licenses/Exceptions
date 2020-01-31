@@ -4,3 +4,8 @@ GPL License Exceptions:
    https://github.com/pdelmo/lora_shield_arduino.git
   and licensed under 
    GNU Lesser General Public License, version 2.1 (SPDX short identifier: LGPL-2.1)
+
+- Leaflet sidebar v2 plugin is (c) 2013 Tobias Bieniek based on
+  https://github.com/Turbo87/sidebar-v2/
+  and licensed under
+   MIT License
