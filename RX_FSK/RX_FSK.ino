@@ -22,6 +22,9 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
+#define DISABLE_SX1278
+#define DISABLE_MAINRX
+
 int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
@@ -562,6 +565,7 @@ const char *createConfigForm() {
 
 const char *handleConfigPost(AsyncWebServerRequest *request) {
   // parameters: a_i, f_1, t_i  (active/frequency/type)
+  Serial.println("Handling post request");
 #if 1
   File f = SPIFFS.open("/config.txt", "w");
   if (!f) {
@@ -569,7 +573,7 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
     return "Error while opening '/config.txt' for writing";
   }
 #endif
-  Serial.println("Handling post request");
+  Serial.println("File open for writing.");
 #if 1
   int params = request->params();
   for (int i = 0; i < params; i++) {
@@ -598,9 +602,14 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
       }
     }
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
-    f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    Serial.printf("Written bytes: %d\n", wlen);
   }
+  Serial.printf("Flushing file\n");
+  f.flush();
+  Serial.printf("Closing file\n");
   f.close();
+  Serial.printf("Re-reading file file\n");
   setupConfigData();
   return "";
 }
@@ -1544,12 +1553,13 @@ void setup()
 #endif
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
-
+#ifndef DISABLE_SX1278 
   xTaskCreate( sx1278Task, "sx1278Task",
                10000, /* stack size */
                NULL, /* paramter */
                1, /* priority */
                NULL);  /* task handle*/
+#endif              
   sonde.setup();
   initGPS();
 
@@ -2296,7 +2306,13 @@ void loop() {
   Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
   Serial.printf("currentDisp:%d lastDisp:%d\n", currentDisplay, lastDisplay);
   switch (mainState) {
-    case ST_DECODER: loopDecoder(); break;
+    case ST_DECODER: 
+#ifndef DISABLE_MAINRX    
+      loopDecoder();
+#else
+      delay(1000);
+#endif      
+      break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
