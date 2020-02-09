@@ -46,7 +46,7 @@ kisstnc.active = 1
 # second entry: default "Receiver" display
 # additional entries: alternative receiver display, activated by button
 display=0,1,2,3,4
-# set to -1 to disable (used for "N" values in timers in screens.txt)
+# set to -1 to disable (used for "N" values in timers in screens.txt). Value in seconds
 norx_timeout=20
 #-------------------------------#
 # Spectrum display settings

@@ -116,7 +116,7 @@ timeaction=#,D,+
 
 ############
 # Default configuration for "Legacy" display:
-# - view timer=-1, rx timer=-1 (disabled); norx timer=20000 (or -1 for "old" behaviour)
+# - view timer=-1, rx timer=-1 (disabled); norx timer=20 (or -1 for "old" behaviour)
 #    => norx timer fires after not receiving a singla for 20 seconds
 # - key1 actions: +,0,F,W
 #    => Button1 press: next sonde; double press => @Scanner display

@@ -835,9 +835,13 @@ void Display::initFromFile() {
 				char t1[10],t2[10],t3[10];
 				sscanf(s+6, "%5[0-9a-zA-Z-] , %5[0-9a-zA-Z-] , %5[0-9a-zA-Z-]", t1, t2, t3);
 				Serial.printf("timers are %s, %s, %s\n", t1, t2, t3);
-				newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout*1000:atoi(t1);
-				newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N')?sonde.config.norx_timeout*1000:atoi(t2);
-				newlayouts[idx].timeouts[2] = (*t3=='n'||*t3=='N')?sonde.config.norx_timeout*1000:atoi(t3);
+				newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout:atoi(t1);
+				newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N')?sonde.config.norx_timeout:atoi(t2);
+				newlayouts[idx].timeouts[2] = (*t3=='n'||*t3=='N')?sonde.config.norx_timeout:atoi(t3);
+				// Code later assumes milliseconds, but config.txt and screens.txt use values in seconds
+				if(newlayouts[idx].timeouts[0]>0) newlayouts[idx].timeouts[0]*=1000;
+				if(newlayouts[idx].timeouts[1]>0) newlayouts[idx].timeouts[1]*=1000;
+				if(newlayouts[idx].timeouts[2]>0) newlayouts[idx].timeouts[2]*=1000;
 				//sscanf(s+6, "%hd,%hd,%hd", newlayouts[idx].timeouts, newlayouts[idx].timeouts+1, newlayouts[idx].timeouts+2);
 				Serial.printf("timer values: %d, %d, %d\n", newlayouts[idx].timeouts[0], newlayouts[idx].timeouts[1], newlayouts[idx].timeouts[2]);
 			} else if(strncmp(s, "key1action=",11)==0) { // key 1 actions
