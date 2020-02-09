@@ -9,7 +9,7 @@
 #button2_pin=255
 #button2_axp=0
 # LED port
-led_pout=9
+#led_pout=-1
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
@@ -46,12 +46,14 @@ kisstnc.active = 1
 # second entry: default "Receiver" display
 # additional entries: alternative receiver display, activated by button
 display=0,1,2,3,4
+# set to -1 to disable (used for "N" values in timers in screens.txt)
+norx_timeout=20
 #-------------------------------#
 # Spectrum display settings
 #-------------------------------#
 startfreq=400
 channelbw=10
-spectrum=10
+spectrum=-1 #10
 noisefloor=-125
 marker=1
 #-------------------------------#

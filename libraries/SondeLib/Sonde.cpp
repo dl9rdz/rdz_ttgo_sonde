@@ -68,7 +68,7 @@ void Sonde::defaultConfig() {
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	config.touch_thresh = 70;
-	config.led_pout = 9;	
+	config.led_pout = -1;
 	config.power_pout = -1;
 	config.spectrum=10;
 	// Try autodetecting board type
@@ -79,6 +79,7 @@ void Sonde::defaultConfig() {
 	config.disptype = 0;
 	config.tft_orient = 1;
 	config.button2_axp = 0;
+	config.norx_timeout = 20;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -256,6 +257,8 @@ void Sonde::setConfig(const char *cfg) {
 			Serial.printf("appending value %d  next is %s\n", config.display[i-1], val?val:"");
 		}
 		config.display[i] = -1;
+	} else if (strcmp(cfg, "norx_timeout")==0) {
+		config.norx_timeout = atoi(val);
 	} else if(strcmp(cfg,"startfreq")==0) {
 		config.startfreq = atoi(val);
 	} else if(strcmp(cfg,"channelbw")==0) {

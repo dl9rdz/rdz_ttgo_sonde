@@ -127,7 +127,7 @@ timeaction=#,D,+
 #   (norx timer: if no signal for >20 seconds: go back to scanner mode)
 #
 @Legacy
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
@@ -147,7 +147,7 @@ timeaction=#,#,0
 # Configuratoon for "Field" display (display 2)
 # similar to @Legacy, but no norx timer, and Key2 goes to display 4
 @Field
-timer=-1,-1,-1
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -163,7 +163,7 @@ timeaction=#,#,#
 # Configuration for "Field2" display (display 3)
 # similar to @Field
 @Field2
-timer=-1,-1,-1
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -218,7 +218,7 @@ fonts=5,6
 
 ############
 @MainTFT
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
@@ -244,7 +244,7 @@ color=FFFFFF
 
 ############
 @PeilungTFT
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -266,7 +266,7 @@ color=ffffff,000000
 
 ############
 @GPSdataTFT
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -282,7 +282,7 @@ timeaction=#,#,#
 
 ############
 @BatteryTFT
-timer=-1,-1,20000
+timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -300,7 +300,7 @@ timeaction=#,#,#
 
 ############
 @BatteryOLED
-timer=-1,-1,20000
+timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
@@ -350,10 +350,10 @@ color=6C757D
 
 ############
 @Decode/General.TFT.Bazjo
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
-timeaction=#,#,#
+timeaction=#,#,0
 scale=11,10
 fonts=0,2
 #Row 1
@@ -387,9 +387,9 @@ color=639AFF
 7,11=Vm/s
 #Row 4
 color=99004A
-9,0=xDistance
+9,0=xAltitude
 color=FF007B
-10,0=GD
+10,0=A
 color=99004A
 9,11=xBearing
 color=FF007B
@@ -411,7 +411,7 @@ color=6C757D
 
 ############
 @Decode/Battery.TFT.Bazjo
-timer=-1,-1,20000
+timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#

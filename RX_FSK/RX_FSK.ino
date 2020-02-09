@@ -22,9 +22,6 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
-#define DISABLE_SX1278
-#define DISABLE_MAINRX
-
 int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
@@ -455,6 +452,7 @@ struct st_configitems config_list[] = {
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
   {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
+  {"norx_timeout", "No-RX-Timeout (-1=disabled)", 0, &sonde.config.norx_timeout},
   {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
   {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
   {"oled_rst", "OLED RST/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
