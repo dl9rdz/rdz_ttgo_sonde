@@ -6,7 +6,7 @@
 #include "Display.h"
 #include "Sonde.h"
 
-extern String readLine(Stream &stream); 
+int readLine(Stream &stream, char *buffer, int maxlen);
 
 extern const char *version_name;
 extern const char *version_id;
@@ -28,7 +28,7 @@ extern SemaphoreHandle_t axpSemaphore;
 
 SPIClass spiDisp(HSPI);
 
-const char *sondeTypeStr[NSondeTypes] = { "DFM6", "DFM9", "RS41", "RS92", "M10" };
+const char *sondeTypeStr[NSondeTypes] = { "DFM6", "DFM9", "RS41", "RS92", "M10 " };
 
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
@@ -541,6 +541,7 @@ uint16_t MY_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t
 
 
 char Display::buf[17];
+char Display::lineBuf[Display::LINEBUFLEN];
 
 RawDisplay *Display::rdis = NULL;
 
@@ -772,9 +773,11 @@ int Display::countEntries(File f) {
 	int pos = f.position();
 	int n = 0;
 	while(1) {
-		String line = readLine(f);  //f.readStringUntil('\n');
-		line.trim();
-		const char *c=line.c_str();
+		//String line = readLine(f);  //f.readStringUntil('\n');
+		//line.trim();
+		//const char *c=line.c_str();
+		readLine(f, lineBuf, LINEBUFLEN);
+		const char *c = trim(lineBuf);
 		if(*c=='#') continue;
 		if(*c>='0'&&*c<='9') n++;
 		if(strchr(c,'=')) continue;
@@ -804,11 +807,13 @@ void Display::initFromFile() {
 	int entrysize;
 	Serial.printf("Reading from /screens.txt. available=%d\n",d.available());
 	while(d.available()) {
-		Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
+		//Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 		const char *ptr;
-		String line = readLine(d);  // d.readStringUntil('\n');
-		line.trim();
-		const char *s = line.c_str();
+		readLine(d, lineBuf, LINEBUFLEN);
+		const char *s = trim(lineBuf);
+		// String line = readLine(d);  
+		// line.trim();
+		// const char *s = line.c_str();
 		Serial.printf("Line: '%s'\n", s);
 		if(*s == '#') continue;  // ignore comments
 		switch(what) {
@@ -818,10 +823,11 @@ void Display::initFromFile() {
 				Serial.printf("Illegal start of screen: %s\n", s);
 				continue;
 			}
+			char *label = strdup(s+1);
 			entrysize = countEntries(d);
 			Serial.printf("Reading entry with %d elements\n", entrysize);
 			idx++;
-			int res = allocDispInfo(entrysize, &newlayouts[idx], strdup(s+1));
+			int res = allocDispInfo(entrysize, &newlayouts[idx], label);
 			Serial.printf("allocDispInfo: idx %d: label is %p - %s\n",idx,newlayouts[idx].label, newlayouts[idx].label);
 			if(res<0) {
 				Serial.println("Error allocating memory for disp info");

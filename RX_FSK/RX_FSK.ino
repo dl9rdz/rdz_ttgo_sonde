@@ -83,6 +83,16 @@ String readLine(Stream &stream) {
   return s;
 }
 
+// Read line from file, without using dynamic memory allocation (String class)
+// returns length line.
+int readLine(Stream &stream, char *buffer, int maxlen) {
+  int n = stream.readBytesUntil('\n', buffer, maxlen);
+  buffer[n] = 0;
+  if(n <= 0) return 0;
+  if(buffer[n-1]=='\r') { buffer[n-1]=0; n--; }
+  return n;
+}
+
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
@@ -200,6 +210,7 @@ const char *createQRGForm() {
             i + 1, s.c_str());
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
+  Serial.printf("QRG form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -303,6 +314,7 @@ const char *createWIFIForm() {
             i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  Serial.printf("WIFI form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -381,6 +393,7 @@ const char *createStatusForm() {
     }
   }
   strcat(ptr, "</body></html>");
+  Serial.printf("Status form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -557,6 +570,7 @@ const char *createConfigForm() {
     }
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  Serial.printf("Config form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -629,6 +643,7 @@ const char *createControlForm() {
     strcat(ptr, "\"></input><br>");
   }
   strcat(ptr, "</form></body></html>");
+  Serial.printf("Control form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -688,32 +703,60 @@ const char *createEditForm(String filename) {
   strcat(ptr, filename.c_str());
   strcat(ptr, "</title></head><body><form action=\"edit.html?file=");
   strcat(ptr, filename.c_str());
-  strcat(ptr, "\" method=\"post\">");
+  strcat(ptr, "\" method=\"post\" enctype=\"multipart/form-data\">");
   strcat(ptr, "<textarea name=\"text\" cols=\"80\" rows=\"40\">");
   while (file.available()) {
     String line = readLine(file);  //file.readStringUntil('\n');
     strcat(ptr, line.c_str()); strcat(ptr, "\n");
   }
   strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
+  Serial.printf("Edit form: size=%d bytes\n",strlen(message));
   return message;
 }
 
 
 const char *handleEditPost(AsyncWebServerRequest *request) {
   Serial.println("Handling post request");
+    int params = request->params();
+    Serial.printf("Post:, %d params\n", params);
+    for(int i = 0; i < params; i++) {
+      AsyncWebParameter* p = request->getParam(i);
+      String name = p->name();
+      String value = p->value();
+      if(name.c_str()==NULL) { name=String("NULL"); }
+      if(value.c_str()==NULL) { value=String("NULL"); }
+      if(p->isFile()){
+        Serial.printf("_FILE[%s]: %s, size: %u\n", name.c_str(), value.c_str(), p->size());
+      } else if(p->isPost()){
+        Serial.printf("_POST[%s]: %s\n", name.c_str(), value.c_str());
+      } else {
+        Serial.printf("_GET[%s]: %s\n", name.c_str(), value.c_str());
+      }
+    }
+
   AsyncWebParameter *filep = request->getParam("file");
   if (!filep) return NULL;
   String filename = filep->value();
+  Serial.printf("Writing file <%s>\n",filename.c_str());
   AsyncWebParameter *textp = request->getParam("text", true);
   if (!textp) return NULL;
+  Serial.printf("Parameter size is %d\n", textp->size());
+  Serial.printf("Multipart: %d  contentlen=%d  \n",
+    request->multipart(), request->contentLength());
   String content = textp->value();
+  if(content.length()==0) {
+    Serial.println("File is empty. Not written.");
+    return NULL;
+  }
   File file = SPIFFS.open("/" + filename, "w");
   if (!file) {
     Serial.println("There was an error opening the file '/" + filename + "'for writing");
     return "";
   }
-  file.print(content);
+  Serial.printf("File is open for writing, content is %d bytes\n", content.length());
+  int len = file.print(content);
   file.close();
+  Serial.printf("Written: %d bytes\n", len);
   if (strcmp(filename.c_str(), "screens.txt") == 0) {
     // screens update => reload
     forceReloadScreenConfig = true;
@@ -730,6 +773,7 @@ const char *createUpdateForm(boolean run) {
     strcat(ptr, "<input type=\"submit\" name=\"master\" value=\"Master-Update\"></input><br><input type=\"submit\" name=\"devel\" value=\"Devel-Update\">");
   }
   strcat(ptr, "</form></body></html>");
+  Serial.printf("Update form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -879,8 +923,15 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
   });
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    handleEditPost(request);
-    request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    const char *ret = handleEditPost(request);
+    if(ret==NULL)
+       request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
+    else
+       request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+  },
+  NULL,
+  [](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+      Serial.printf("post data: index=%d len=%d total=%d\n", index, len, total);
   });
 
   // Route to load style.css file
