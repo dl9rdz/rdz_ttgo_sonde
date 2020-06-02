@@ -29,7 +29,7 @@ similar on other OS) and restart IDE
 
 ## Additional libraries
 
-Select Tools -> Library Manager
+Select Tools -> Manage Libraries...
 
 Install "U8g2"
 
