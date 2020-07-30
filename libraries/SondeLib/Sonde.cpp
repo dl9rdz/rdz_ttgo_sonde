@@ -345,7 +345,7 @@ void Sonde::nextConfig() {
 		currentSonde=0;
 	}
 	// Skip non-active entries (but don't loop forever if there are no active ones)
-	for(int i=0; i<config.maxsonde; i++) {
+	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[currentSonde].active) {
 			currentSonde++;
 			if(currentSonde>=nSonde) currentSonde=0;
@@ -357,7 +357,7 @@ void Sonde::nextRxSonde() {
 	if(rxtask.currentSonde>=nSonde) {
 		rxtask.currentSonde=0;
 	}
-	for(int i=0; i<config.maxsonde; i++) {
+	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[rxtask.currentSonde].active) {
 			rxtask.currentSonde++;
 			if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
