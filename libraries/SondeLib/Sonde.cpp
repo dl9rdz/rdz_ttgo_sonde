@@ -383,7 +383,14 @@ void Sonde::setup() {
 		Serial.print("Invalid rxtask.currentSonde: ");
 		Serial.println(rxtask.currentSonde);
 		rxtask.currentSonde = 0;
-	}
+    for(int i=0; i<config.maxsonde - 1; i++) {
+      if(!sondeList[rxtask.currentSonde].active) {
+        rxtask.currentSonde++;
+        if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+      }
+    }
+    sonde.currentSonde = rxtask.currentSonde;
+  }
 
 	// update receiver config
 	Serial.print("\nSonde::setup() on sonde index ");
