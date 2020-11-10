@@ -399,7 +399,14 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	}
 	if(width==WIDTH_AUTO || alignright) {
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
-		if(width==WIDTH_AUTO) width=w;
+		if(width==WIDTH_AUTO) { 
+			width=w;
+			if(alignright) {
+				x -= w;
+				Serial.print("reducing x by widht, its now ");
+				Serial.println(x);
+			}
+		}
 	}
 
 	if(findex-3>=ngfx) findex=3;
@@ -413,7 +420,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
-	tft->drawTile(x, 2*y, cnt, tile_ptr);
+	tft->drawTile(x, y, cnt, tile_ptr);
 #if 0
 	int i,j;
 	tft->startWrite();

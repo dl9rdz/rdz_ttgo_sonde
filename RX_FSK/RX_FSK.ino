@@ -1766,13 +1766,7 @@ void loopSpectrum() {
 
   scanner.scan();
   scanner.plotResult();
-  if (sonde.config.marker != 0) {
-    itoa((sonde.config.startfreq), buf, 10);
-    disp.rdis->drawString(0, 1, buf);
-    disp.rdis->drawString(7, 1, "MHz");
-    itoa((sonde.config.startfreq + 6), buf, 10);
-    disp.rdis->drawString(13, 1, buf);
-  }
+
   if (sonde.config.spectrum > 0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
     itoa(remaining, buf, 10);
