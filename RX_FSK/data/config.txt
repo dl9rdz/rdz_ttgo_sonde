@@ -7,8 +7,9 @@
 # No specification in config file: try autodetection (gpio4 pin level at startup)
 #button_pin=0
 #button2_pin=255
+#button2_axp=0
 # LED port
-led_pout=9
+#led_pout=-1
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16
@@ -23,8 +24,13 @@ led_pout=9
 #oled_rst=16
 #tft_rs=2
 #tft_cs=0
+tft_orient=1
 #gps_rxd=-1
 gps_txd=-1
+# Show AFC value (for RS41 only, maybe also DFM, but useful for RS92 or M10)
+# showafc=1
+# Frequency correction, in Hz
+# freqofs=0
 #-------------------------------#
 # General config settings
 #-------------------------------#
@@ -35,15 +41,19 @@ wifi=3
 # TCP/IP KISS TNC in port 14590 for APRSdroid (0=disabled, 1=enabled)
 kisstnc.active = 1
 
-# display mode: 1=standard 2=fieldmode 3=field w/sondetype
-display=1
+# display configuration. List of "displays"
+# first entry: "Scanner" display
+# second entry: default "Receiver" display
+# additional entries: alternative receiver display, activated by button
+display=0,1,2,3,4
+# set to -1 to disable (used for "N" values in timers in screens.txt). Value in seconds
+norx_timeout=20
 #-------------------------------#
 # Spectrum display settings
 #-------------------------------#
 startfreq=400
 channelbw=10
-spectrum=10
-timer=1
+spectrum=-1 #10
 noisefloor=-125
 marker=1
 #-------------------------------#

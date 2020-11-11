@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
+
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
 //#include <U8g2lib.h>
@@ -21,16 +22,18 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
-int LORA_LED = 9;                             // default POUT for LORA LED used as serial monitor
 int e;
 
-enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE };
+enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 
 AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
+
 AXP20X_Class axp;
 #define PMU_IRQ             35
-
+SemaphoreHandle_t axpSemaphore;
+bool pmu_irq = false;
 
 String updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -47,6 +50,8 @@ WiFiClient client;
 // KISS over TCP für communicating with APRSdroid
 WiFiServer tncserver(14580);
 WiFiClient tncclient;
+
+boolean forceReloadScreenConfig = false;
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
@@ -66,39 +71,56 @@ Button button2 = {0, 0, KP_NONE, 0, -1, false};
 static int lastDisplay = 1;
 static int currentDisplay = 1;
 
-// Set LED GPIO
-int ledPin = 1;
-// Stores LED state
-String ledState;
-
 // timestamp when spectrum display was activated
 static unsigned long specTimer;
+
+// Read line from file, independent of line termination (LF or CR LF)
+String readLine(Stream &stream) {
+  String s = stream.readStringUntil('\n');
+  int len = s.length();
+  if (len == 0) return s;
+  if (s.charAt(len - 1) == '\r') s.remove(len - 1);
+  return s;
+}
+
+// Read line from file, without using dynamic memory allocation (String class)
+// returns length line.
+int readLine(Stream &stream, char *buffer, int maxlen) {
+  int n = stream.readBytesUntil('\n', buffer, maxlen);
+  buffer[n] = 0;
+  if(n <= 0) return 0;
+  if(buffer[n-1]=='\r') { buffer[n-1]=0; n--; }
+  return n;
+}
 
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
-  if (var == "STATE") {
-    if (digitalRead(ledPin)) {
-      ledState = "ON";
-    }
-    else {
-      ledState = "OFF";
-    }
-    Serial.print(ledState);
-    return ledState;
-  }
   if (var == "VERSION_NAME") {
     return String(version_name);
   }
   if (var == "VERSION_ID") {
     return String(version_id);
   }
+  if (var == "AUTODETECT_INFO") {
+    char tmpstr[128];
+    const char *fpstr;
+    int i = 0;
+    while (fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i] != -1) i++;
+    if (fingerprintValue[i] == -1) {
+      fpstr = "Unknown board";
+    } else {
+      fpstr = fingerprintText[i];
+    }
+    snprintf(tmpstr, 128, "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
+    return String(tmpstr);
+  }
   return String();
 }
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < NSondeTypes; i++) {
     sts += "<option value=\"";
     sts += sondeTypeStr[i];
     sts += "\"";
@@ -132,7 +154,7 @@ void setupChannelList() {
   sonde.clearSonde();
   Serial.println("Reading channel config:");
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);   //file.readStringUntil('\n');
     String sitename;
     if (!file.available()) break;
     if (line[0] == '#') continue;
@@ -151,6 +173,9 @@ void setupChannelList() {
     }
     else if (space[1] == '6') {
       type = STYPE_DFM06;
+    }
+    else if (space[1] == 'M') {
+      type = STYPE_M10;
     }
     else continue;
     int active = space[3] == '+' ? 1 : 0;
@@ -185,6 +210,7 @@ const char *createQRGForm() {
             i + 1, s.c_str());
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
+  Serial.printf("QRG form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -224,7 +250,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[3]);   // a bit ugly
+    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3]); // a bit ugly
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
@@ -259,10 +285,10 @@ void setupWifiList() {
   int i = 0;
 
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     if (!file.available()) break;
     networks[i].id = line;
-    networks[i].pw = file.readStringUntil('\n');
+    networks[i].pw = readLine(file); // file.readStringUntil('\n');
     i++;
   }
   nNetworks = i;
@@ -288,6 +314,7 @@ const char *createWIFIForm() {
             i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  Serial.printf("WIFI form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -332,12 +359,23 @@ const char *handleWIFIPost(AsyncWebServerRequest *request) {
 // Show current status
 void addSondeStatus(char *ptr, int i)
 {
+  struct tm ts;
   SondeInfo *s = &sonde.sondeList[i];
   strcat(ptr, "<table>");
-  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n",
-          s->freq, sondeTypeStr[s->type],
-          s->validID ? s->id : "<?""?>",
-          s->lat, s->lon, s->alt);
+  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeStr[s->type],
+          s->validID ? s->id : "<?""?>");
+  if (s->validID && (s->type == STYPE_DFM06 || s->type == STYPE_DFM09 || s->type == STYPE_M10)) {
+    sprintf(ptr + strlen(ptr), " (ser: %s)", s->ser);
+  }
+  sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->lat, s->lon, s->alt);
+  const time_t t = s->time;
+  ts = *gmtime(&t);
+  sprintf(ptr + strlen(ptr), "<tr><td>Frame# %d, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
+          s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec);
+  if (s->type == STYPE_RS41) {
+    sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
+            s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame - s->crefKT));
+  }
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wx.dl2mf.de/?%s\">WX.DL2MF.de</a> - ", s->id);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a></td></tr>", s->lat, s->lon);
@@ -355,6 +393,7 @@ const char *createStatusForm() {
     }
   }
   strcat(ptr, "</body></html>");
+  Serial.printf("Status form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -368,7 +407,7 @@ void setupConfigData() {
     return;
   }
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
 }
@@ -383,63 +422,65 @@ struct st_configitems {
 
 struct st_configitems config_list[] = {
   /* General config settings */
+  {"", "Software configuration", -5, NULL},
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
-  {"display", "Display mode (1/2/3)", 0, &sonde.config.display},
-  {"---", "---", -1, NULL},
+  {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
   /* Spectrum display settings */
-  {"spectrum", "ShowSpectrum (s)", 0, &sonde.config.spectrum},
+  {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
   {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"timer", "Spectrum Timer", 0, &sonde.config.timer},
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
   {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  /* decoder settings */
+  {"", "Receiver configuration", -5, NULL},
   {"showafc", "Show AFC value", 0, &sonde.config.showafc},
   {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
-  {"---", "---", -1, NULL},
-  /* APRS settings */
-  {"call", "Call", 8, sonde.config.call},
-  {"passcode", "Passcode", 8, sonde.config.passcode},
-  {"---", "---", -1, NULL},
-  /* KISS tnc settings */
-  {"kisstnc", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
-  {"kisstnc.idformat", "DFM ID Format", -2, &sonde.config.kisstnc.idformat},
-  /* AXUDP settings */
-  {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
-  {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},
-  {"axudp.port", "AXUDP Port", 0, &sonde.config.udpfeed.port},
-  {"axudp.idformat", "DFM ID Format", -2, &sonde.config.udpfeed.idformat},
-  {"axudp.highrate", "Rate limit", 0, &sonde.config.udpfeed.highrate},
-  {"---", "---", -1, NULL},
-  /* APRS TCP settings, current not used */
-  {"tcp.active", "APRS TCP active", -3, &sonde.config.tcpfeed.active},
-  {"tcp.host", "ARPS TCP Host", 63, sonde.config.tcpfeed.host},
-  {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
-  {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
-  {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
-  {"---", "---", -1, NULL},
-  /* decoder settings */
   {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
   {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
   {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
   {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
-  {"---", "---", -1, NULL},
+  {"", "Data feed configuration", -5, NULL},
+  /* APRS settings */
+  {"call", "Call", 8, sonde.config.call},
+  {"passcode", "Passcode", 8, sonde.config.passcode},
+  /* KISS tnc settings */
+  {"kisstnc.active", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
+  {"kisstnc.idformat", "KISS TNC ID Format", -2, &sonde.config.kisstnc.idformat},
+  /* AXUDP settings */
+  {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},
+  {"axudp.port", "AXUDP Port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat", "DFM ID Format", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate", "Rate limit", 0, &sonde.config.udpfeed.highrate},
+  /* APRS TCP settings, current not used */
+  {"tcp.active", "APRS TCP active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host", "ARPS TCP Host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
   /* Hardware dependeing settings */
+  {"", "Hardware configuration (requires reboot)", -5, NULL},
   {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
-  {"oled_sda", "OLED/TFT SDA (needs reboot)", 0, &sonde.config.oled_sda},
-  {"oled_scl", "OLED SCL/TFT CLK (needs reboot)", 0, &sonde.config.oled_scl},
-  {"oled_rst", "OLED/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
-  {"tft_rs", "TFT RS (needs reboot)", 0, &sonde.config.tft_rs},
-  {"tft_cs", "TFT CS (needs reboot)", 0, &sonde.config.tft_cs},
-  {"button_pin", "Button input port (needs reboot)", -4, &sonde.config.button_pin},
-  {"button2_pin", "Button 2 input port (needs reboot)", -4, &sonde.config.button2_pin},
-  {"touch_thresh", "Touch button threshold (needs reboot)", 0, &sonde.config.touch_thresh},
-  {"led_pout", "LED output port (needs reboot)", 0, &sonde.config.led_pout},
+  {"norx_timeout", "No-RX-Timeout in seconds (-1=disabled)", 0, &sonde.config.norx_timeout},
+  {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
+  {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
+  {"oled_rst", "OLED RST/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
+  {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
+  {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
+  {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
+  {"button_pin", "Button input port", -4, &sonde.config.button_pin},
+  {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
+  {"button2_axp", "Use AXP192 PWR as Button 2", 0, &sonde.config.button2_axp},
+  {"touch_thresh", "Touch button threshold<br>(0 for calib mode)", 0, &sonde.config.touch_thresh},
+  {"power_pout", "Power control port", 0, &sonde.config.power_pout},
+  {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
+  {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -452,9 +493,16 @@ void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
           label, idx, *value);
 }
 void addConfigButtonEntry(char *ptr, int idx, const char *label, int *value) {
+  int v = *value, ck = 0;
+  if (v == 255) v = -1;
+  if (v != -1) {
+    if (v & 128) ck = 1;
+    v = v & 127;
+  }
+
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" size=\"3\" value=\"%d\"/>",
-          label, idx, 127 & *value);
-  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, 128 & *value ? " checked" : "");
+          label, idx, v);
+  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, ck ? " checked" : "");
 }
 void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
   // TODO
@@ -465,12 +513,42 @@ void addConfigOnOffEntry(char *ptr, int idx, const char *label, int *value) {
 void addConfigSeparatorEntry(char *ptr) {
   strcat(ptr, "<tr><td colspan=\"2\" class=\"divider\"><hr /></td></tr>\n");
 }
+void addConfigHeading(char *ptr, const char *label) {
+  strcat(ptr, "<tr><th colspan=\"2\">");
+  strcat(ptr, label);
+  strcat(ptr, "</th></tr>\n");
+}
+void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
+  sprintf(ptr + strlen(ptr), "<tr><td>%s", label);
+  for (int i = 0; i < disp.nLayouts; i++) {
+    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label);
+  }
+  sprintf(ptr + strlen(ptr), "</td><td><input name=\"CFG%d\" type=\"text\" value=\"", idx);
+  if (*list == -1) {
+    strcat(ptr, "0");
+  }
+  else {
+    sprintf(ptr + strlen(ptr), "%d", list[0]);
+    list++;
+  }
+  while (*list != -1) {
+    sprintf(ptr + strlen(ptr), ",%d", *list);
+    list++;
+  }
+  strcat(ptr, "\"/></td></tr>\n");
+}
 
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"config.html\" method=\"post\"><table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     switch (config_list[i].type) {
+      case -5: // Heading
+        addConfigHeading(ptr, config_list[i].label);
+        break;
+      case -6: // List of int8 values
+        addConfigInt8List(ptr, i, config_list[i].label, (int8_t *)config_list[i].data);
+        break;
       case -3: // in/offt
         addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
         break;
@@ -492,12 +570,14 @@ const char *createConfigForm() {
     }
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
+  Serial.printf("Config form: size=%d bytes\n",strlen(message));
   return message;
 }
 
 
 const char *handleConfigPost(AsyncWebServerRequest *request) {
   // parameters: a_i, f_1, t_i  (active/frequency/type)
+  Serial.println("Handling post request");
 #if 1
   File f = SPIFFS.open("/config.txt", "w");
   if (!f) {
@@ -505,7 +585,7 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
     return "Error while opening '/config.txt' for writing";
   }
 #endif
-  Serial.println("Handling post request");
+  Serial.println("File open for writing.");
 #if 1
   int params = request->params();
   for (int i = 0; i < params; i++) {
@@ -528,14 +608,20 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
       snprintf(tmp, 10, "TO%d", idx);
       AsyncWebParameter *touch = request->getParam(tmp, true);
       if (touch) {
-        int i = atoi(strvalue.c_str()) + 128;
+        int i = atoi(strvalue.c_str());
+        if (i != -1 && i != 255) i += 128;
         strvalue = String(i);
       }
     }
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
-    f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    Serial.printf("Written bytes: %d\n", wlen);
   }
+  Serial.printf("Flushing file\n");
+  f.flush();
+  Serial.printf("Closing file\n");
   f.close();
+  Serial.printf("Re-reading file file\n");
   setupConfigData();
   return "";
 }
@@ -557,6 +643,7 @@ const char *createControlForm() {
     strcat(ptr, "\"></input><br>");
   }
   strcat(ptr, "</form></body></html>");
+  Serial.printf("Control form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -616,35 +703,63 @@ const char *createEditForm(String filename) {
   strcat(ptr, filename.c_str());
   strcat(ptr, "</title></head><body><form action=\"edit.html?file=");
   strcat(ptr, filename.c_str());
-  strcat(ptr, "\" method=\"post\">");
+  strcat(ptr, "\" method=\"post\" enctype=\"multipart/form-data\">");
   strcat(ptr, "<textarea name=\"text\" cols=\"80\" rows=\"40\">");
   while (file.available()) {
-    String line = file.readStringUntil('\n');
+    String line = readLine(file);  //file.readStringUntil('\n');
     strcat(ptr, line.c_str()); strcat(ptr, "\n");
   }
   strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
+  Serial.printf("Edit form: size=%d bytes\n",strlen(message));
   return message;
 }
 
 
 const char *handleEditPost(AsyncWebServerRequest *request) {
   Serial.println("Handling post request");
+    int params = request->params();
+    Serial.printf("Post:, %d params\n", params);
+    for(int i = 0; i < params; i++) {
+      AsyncWebParameter* p = request->getParam(i);
+      String name = p->name();
+      String value = p->value();
+      if(name.c_str()==NULL) { name=String("NULL"); }
+      if(value.c_str()==NULL) { value=String("NULL"); }
+      if(p->isFile()){
+        Serial.printf("_FILE[%s]: %s, size: %u\n", name.c_str(), value.c_str(), p->size());
+      } else if(p->isPost()){
+        Serial.printf("_POST[%s]: %s\n", name.c_str(), value.c_str());
+      } else {
+        Serial.printf("_GET[%s]: %s\n", name.c_str(), value.c_str());
+      }
+    }
+
   AsyncWebParameter *filep = request->getParam("file");
   if (!filep) return NULL;
   String filename = filep->value();
+  Serial.printf("Writing file <%s>\n",filename.c_str());
   AsyncWebParameter *textp = request->getParam("text", true);
   if (!textp) return NULL;
+  Serial.printf("Parameter size is %d\n", textp->size());
+  Serial.printf("Multipart: %d  contentlen=%d  \n",
+    request->multipart(), request->contentLength());
   String content = textp->value();
+  if(content.length()==0) {
+    Serial.println("File is empty. Not written.");
+    return NULL;
+  }
   File file = SPIFFS.open("/" + filename, "w");
   if (!file) {
     Serial.println("There was an error opening the file '/" + filename + "'for writing");
     return "";
   }
-  file.print(content);
+  Serial.printf("File is open for writing, content is %d bytes\n", content.length());
+  int len = file.print(content);
   file.close();
+  Serial.printf("Written: %d bytes\n", len);
   if (strcmp(filename.c_str(), "screens.txt") == 0) {
     // screens update => reload
-    disp.initFromFile();
+    forceReloadScreenConfig = true;
   }
   return "";
 }
@@ -658,6 +773,7 @@ const char *createUpdateForm(boolean run) {
     strcat(ptr, "<input type=\"submit\" name=\"master\" value=\"Master-Update\"></input><br><input type=\"submit\" name=\"devel\" value=\"Devel-Update\">");
   }
   strcat(ptr, "</form></body></html>");
+  Serial.printf("Update form: size=%d bytes\n",strlen(message));
   return message;
 }
 
@@ -682,8 +798,70 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
 }
 
 
+const char *sendGPX(AsyncWebServerRequest * request) {
+  Serial.println("\n\n\n********GPX request\n\n");
+  String url = request->url();
+  int index = atoi(url.c_str() + 1);
+  char *ptr = message;
+  if (index < 0 || index >= MAXSONDE) {
+    return "ERROR";
+  }
+  SondeInfo *si = &sonde.sondeList[index];
+  strcpy(si->id, "test");
+  si->lat = 48; si->lon = 11; si->alt = 500;
+  snprintf(ptr, 10240, "<?xml version='1.0' encoding='UTF-8'?>\n"
+           "<gpx version=\"1.1\" creator=\"http://rdzsonde.local\" xmlns=\"http://www.topografix.com/GPX/1/1\" "
+           "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+           "xsi:schemaLocation=\"http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd\">\n"
+           "<metadata>"
+           "<name>Sonde #%d (%s)</name>\n"
+           "<author>rdzTTGOsonde</author>\n"
+           "</metadata>\n"
+           "<wpt lat=\"%f\" lon=\"%f\">\n  <ele>%f</ele>\n  <name>%s</name>\n  <sym>Radio Beacon</sym><type>Sonde</type>\n"
+           "</wpt></gpx>\n", index, si->id, si->lat, si->lon, si->alt, si->id);
+  Serial.println(message);
+  return message;
+}
+
+void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
+    Serial.println("Websocket client connection received");
+    client->text("Hello from ESP32 Server");
+  } else if (type == WS_EVT_DISCONNECT) {
+    Serial.println("Client disconnected");
+  }
+}
+#if 0
+void onWebSocketEvent(uint8_t clientNum, WStype_t type, uint8_t *payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      Serial.printf("[%u] WS client disconnected\n", clientNum);
+      break;
+    case WStype_CONNECTED:
+      {
+        IPAddress ip = webSocket.remoteIP(clientNum);
+        Serial.printf("[%u] WS client connection from %s\n", clientNum, ip.toString().c_str());
+      }
+      break;
+    case WStype_TEXT:
+      //
+      {
+        char msg[80];
+        Serial.printf("[%u] WS client sent me some text: %s\n", clientNum, payload);
+        snprintf(msg, 80, "You sent me: %s\n", payload);
+        webSocket.sendTXT(clientNum, msg);
+      }
+      break;
+    default:
+      break;
+  }
+}
+#endif
+
+
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
+  Serial.println("SetupAsyncServer()\n");
   server.reset();
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -745,8 +923,15 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
   });
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    handleEditPost(request);
-    request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    const char *ret = handleEditPost(request);
+    if(ret==NULL)
+       request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
+    else
+       request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+  },
+  NULL,
+  [](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
+      Serial.printf("post data: index=%d len=%d total=%d\n", index, len, total);
   });
 
   // Route to load style.css file
@@ -756,9 +941,27 @@ void SetupAsyncServer() {
 
   // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
-    //digitalWrite(ledPin, HIGH);
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
+
+  server.onNotFound([](AsyncWebServerRequest * request) {
+    if (request->method() == HTTP_OPTIONS) {
+      request->send(200);
+    } else {
+      String url = request->url();
+      if (url.endsWith(".gpx"))
+        request->send(200, "application/gpx+xml", sendGPX(request));
+      else {
+        request->send(SPIFFS, url, "text/html");
+        Serial.printf("URL is %s\n", url.c_str());
+        //request->send(404);
+      }
+    }
+  });
+
+  // Set up web socket
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
 
   // Start server
   server.begin();
@@ -845,12 +1048,14 @@ void touchISR2();
 // Instead create a tast...
 
 Ticker ticker;
+Ticker ledFlasher;
 
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
+  // also used for LED
+  ticker.attach_ms(300, checkTouchStatus);
+
   if ( !(IS_TOUCH(sonde.config.button_pin) || IS_TOUCH(sonde.config.button2_pin)) ) return; // no touch buttons configured
-
-
   /*
    *  ** no. readTouch is not safe to use in ISR!
       so now using Ticker
@@ -859,14 +1064,12 @@ void initTouch() {
     timerAlarmWrite(timer, 300000, true);
     timerAlarmEnable(timer);
   */
-  ticker.attach_ms(300, checkTouchStatus);
-
   if ( IS_TOUCH(sonde.config.button_pin) ) {
-    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, 60);
+    touchAttachInterrupt(sonde.config.button_pin & 0x7f, touchISR, sonde.config.touch_thresh);
     Serial.printf("Initializing touch 1 on pin %d\n", sonde.config.button_pin & 0x7f);
   }
   if ( IS_TOUCH(sonde.config.button2_pin) ) {
-    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, 60);
+    touchAttachInterrupt(sonde.config.button2_pin & 0x7f, touchISR2, sonde.config.touch_thresh);
     Serial.printf("Initializing touch 2 on pin %d\n", sonde.config.button2_pin & 0x7f);
   }
 }
@@ -874,19 +1077,34 @@ void initTouch() {
 char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
+int lastCourse = 0;
+void unkHandler(const MicroNMEA& nmea) {
+  if (strcmp(nmea.getMessageID(), "VTG") == 0) {
+    const char *s = nmea.getSentence();
+    while (*s && *s != ',') s++;
+    if (*s == ',') s++; else return;
+    if (*s == ',') return; /// no new course data
+    lastCourse = nmea.parseFloat(s, 0, NULL);
+    Serial.printf("Course update: %d\n", lastCourse);
+  }
+}
 void gpsTask(void *parameter) {
+  nmea.setUnknownSentenceHandler(unkHandler);
+
   while (1) {
     while (Serial2.available()) {
       char c = Serial2.read();
       //Serial.print(c);
       if (nmea.process(c)) {
+        //Serial.println(nmea.getSentence());
         long lat = nmea.getLatitude();
         long lon = nmea.getLongitude();
         long alt = -1;
         bool b = nmea.getAltitude(alt);
         bool valid = nmea.isValid();
+        int course = nmea.getCourse() / 1000;
         uint8_t hdop = nmea.getHDOP();
-        Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d) dop:%d", valid ? 1 : 0, lat, lon, alt, b, hdop);
+        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
       }
     }
     delay(50);
@@ -964,8 +1182,8 @@ void IRAM_ATTR touchISR2() {
 void checkTouchButton(Button & button) {
   if (button.isTouched) {
     int tmp = touchRead(button.pin & 0x7f);
-    Serial.printf("touch read %d: value is %d\n", button.pin,tmp);
-    if (tmp > sonde.config.touch_thresh) {
+    Serial.printf("touch read %d: value is %d\n", button.pin & 0x7f, tmp);
+    if (tmp > sonde.config.touch_thresh + 5) {
       button.isTouched = false;
       unsigned long elapsed = my_millis() - button.keydownTime;
       if (elapsed > 1500) {
@@ -984,6 +1202,17 @@ void checkTouchButton(Button & button) {
   }
 }
 
+void ledOffCallback() {
+  digitalWrite(sonde.config.led_pout, LOW);
+}
+void flashLed(int ms) {
+  if (sonde.config.led_pout >= 0) {
+    digitalWrite(sonde.config.led_pout, HIGH);
+    ledFlasher.once_ms(ms, ledOffCallback);
+  }
+}
+
+int doTouch = 0;
 void checkTouchStatus() {
   checkTouchButton(button1);
   checkTouchButton(button2);
@@ -995,7 +1224,8 @@ void IRAM_ATTR buttonISR() {
     unsigned long now = my_millis();
     if (now - button1.keydownTime < 500) {
       // Double press
-      button1.doublepress = 1;
+      if (now - button1.keydownTime > 100)
+        button1.doublepress = 1;
       bdd1 = now; bdd2 = button1.keydownTime;
     } else {
       button1.doublepress = 0;
@@ -1022,42 +1252,92 @@ void IRAM_ATTR buttonISR() {
   }
 }
 
+void IRAM_ATTR button2ISR() {
+  if (digitalRead(button2.pin) == 0) { // Button down
+    unsigned long now = my_millis();
+    if (now - button2.keydownTime < 500) {
+      // Double press
+      if (now - button2.keydownTime > 100)
+        button2.doublepress = 1;
+      //bdd1 = now; bdd2 = button1.keydownTime;
+    } else {
+      button2.doublepress = 0;
+    }
+    button2.numberKeyPresses += 1;
+    button2.keydownTime = now;
+  } else { //Button up
+    unsigned long now = my_millis();
+    if (button2.doublepress == -1) return;   // key was never pressed before, ignore button up
+    unsigned int elapsed = now - button2.keydownTime;
+    if (elapsed > 1500) {
+      if (elapsed < 4000) {
+        button2.pressed = KP_MID;
+      }
+      else {
+        button2.pressed = KP_LONG;
+      }
+    } else {
+      if (button2.doublepress) button2.pressed = KP_DOUBLE;
+      else button2.pressed = KP_SHORT;
+    }
+    button2.numberKeyPresses += 1;
+    button2.keydownTime = now;
+  }
+}
+
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
   int x = digitalRead(button1.pin);
-  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
-
-  Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
+  //Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+  //Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
 }
 
 int getKey2Press() {
+  if (sonde.config.button2_axp) {
+    // Use AXP power button as second button
+    if (pmu_irq) {
+      Serial.println("PMU_IRQ is set\n");
+      xSemaphoreTake( axpSemaphore, portMAX_DELAY );
+      axp.readIRQ();
+      if (axp.isPEKShortPressIRQ()) {
+        button2.pressed = KP_SHORT;
+        button2.keydownTime = my_millis();
+      }
+      if (axp.isPEKLongtPressIRQ()) {
+        button2.pressed = KP_MID;
+        button2.keydownTime = my_millis();
+      }
+      pmu_irq = false;
+      axp.clearIRQ();
+      xSemaphoreGive( axpSemaphore );
+    }
+  }
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
-  Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
+  //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);
   return p;
 }
-int hasKeyPress() {
-  return button1.pressed || button2.pressed;
-}
+
 int getKeyPressEvent() {
   int p = getKeyPress();
   if (p == KP_NONE) {
     p = getKey2Press();
     if (p == KP_NONE)
       return EVT_NONE;
+    Serial.printf("Key 2 was pressed [%d]\n", p + 4);
     return p + 4;
   }
+  Serial.printf("Key 1 was pressed [%d]\n", p);
   return p;  /* map KP_x to EVT_KEY1_x / EVT_KEY2_x*/
 }
 
 #define SSD1306_ADDRESS 0x3c
-#define AXP192_SLAVE_ADDRESS    0x34
 bool ssd1306_found = false;
 bool axp192_found = false;
 
-void scanI2Cdevice(void)
+int scanI2Cdevice(void)
 {
   byte err, addr;
   int nDevices = 0;
@@ -1091,12 +1371,10 @@ void scanI2Cdevice(void)
     Serial.println("No I2C devices found\n");
   else
     Serial.println("done\n");
+  return nDevices;
 }
 
 extern int initlevels[40];
-extern DispInfo *layouts;
-bool pmu_irq = false;
-
 
 void setup()
 {
@@ -1108,13 +1386,35 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
-  delay(2000);
+  axpSemaphore = xSemaphoreCreateBinary();
+  xSemaphoreGive(axpSemaphore);
 
+#if 0
+  delay(2000);
+  // temporary test
+  volatile uint32_t *ioport = portOutputRegister(digitalPinToPort(4));
+  uint32_t portmask = digitalPinToBitMask(4);
+  int t = millis();
+  for (int i = 0; i < 10000000; i++) {
+    digitalWrite(4, LOW);
+    digitalWrite(4, HIGH);
+  }
+  int res = millis() - t;
+  Serial.printf("Duration w/ digitalWriteo: %d\n", res);
+
+  t = millis();
+  for (int i = 0; i < 10000000; i++) {
+    *ioport |=  portmask;
+    *ioport &= ~portmask;
+  }
+  res = millis() - t;
+  Serial.printf("Duration w/ fast io: %d\n", res);
+#endif
   for (int i = 0; i < 39; i++) {
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
   Serial.println(" (before setup)");
-
+  sonde.defaultConfig();  // including autoconfiguration
   aprs_gencrctab();
 
   Serial.println("Initializing SPIFFS");
@@ -1127,54 +1427,77 @@ void setup()
   Serial.println("Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
 
-  // FOr T-Beam 1.0
-  Wire.begin(21, 22);
-  // Make sure the whole thing powers up!?!?!?!?!?
-  U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
-  u8x8->initDisplay(); 
-  delay(500);
-  
-  scanI2Cdevice();
+  if ((sonde.fingerprint & 16) == 16) { // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
+    // FOr T-Beam 1.0
+    for (int i = 0; i < 10; i++) { // try multiple times
+      Wire.begin(21, 22);
+      // Make sure the whole thing powers up!?!?!?!?!?
+      U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
+      u8x8->initDisplay();
+      delay(500);
 
-  if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-    Serial.println("AXP192 Begin PASS");
-  } else {
-    Serial.println("AXP192 Begin FAIL");
+      scanI2Cdevice();
+      if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
+        Serial.println("AXP192 Begin PASS");
+      } else {
+        Serial.println("AXP192 Begin FAIL");
+      }
+      axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
+      axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+      axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
+      axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+      axp.setDCDC1Voltage(3300);
+      axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
+      axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
+      pinMode(PMU_IRQ, INPUT_PULLUP);
+      attachInterrupt(PMU_IRQ, [] {
+        pmu_irq = true;
+      }, FALLING);
+      axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+      //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+      axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
+      axp.clearIRQ();
+      int ndevices = scanI2Cdevice();
+      if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
+      delay(500);
+    }
   }
-  axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-  axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-  axp.setDCDC1Voltage(3300);
+  if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
+    pinMode(sonde.config.power_pout & 127, OUTPUT);
+    digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
+  }
 
-  pinMode(PMU_IRQ, INPUT_PULLUP);
-  attachInterrupt(PMU_IRQ, [] {
-    pmu_irq = true;
-  }, FALLING);
-
-  axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-  axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-  axp.clearIRQ();
-
-  delay(500);
-  scanI2Cdevice();
-
-
-  LORA_LED = sonde.config.led_pout;
-  pinMode(LORA_LED, OUTPUT);
+  if (sonde.config.led_pout >= 0) {
+    pinMode(sonde.config.led_pout, OUTPUT);
+    flashLed(1000); // testing
+  }
 
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;
-  if (button1.pin != 0xff)
-    pinMode(button1.pin, INPUT);  // configure as input if not disabled
-  if (button2.pin != 0xff)
-    pinMode(button2.pin, INPUT);  // configure as input if not disabled
-
+  if (button1.pin != 0xff) {
+    if ( (button1.pin & 0x80) == 0 && button1.pin < 34 ) {
+      Serial.println("Button 1 configured as input with pullup");
+      pinMode(button1.pin, INPUT_PULLUP);
+    } else
+      pinMode(button1.pin, INPUT);  // configure as input if not disabled
+  }
+  if (button2.pin != 0xff) {
+    if ( (button2.pin & 0x80) == 0 && button2.pin < 34 ) {
+      Serial.println("Button 2 configured as input with pullup");
+      pinMode(button2.pin, INPUT_PULLUP);
+    } else
+      pinMode(button2.pin, INPUT);  // configure as input if not disabled
+  }
   // Handle button press
   if ( (button1.pin & 0x80) == 0) {
     attachInterrupt( button1.pin, buttonISR, CHANGE);
     Serial.printf("button1.pin is %d, attaching interrupt\n", button1.pin);
+  }
+  // Handle button press
+  if ( (button2.pin & 0x80) == 0) {
+    attachInterrupt( button2.pin, button2ISR, CHANGE);
+    Serial.printf("button2.pin is %d, attaching interrupt\n", button2.pin);
   }
   initTouch();
 
@@ -1187,10 +1510,10 @@ void setup()
   sonde.clearDisplay();
 
   setupWifiList();
-  Serial.printf("before disp.initFromFile... layouts is %p", layouts);
+  Serial.printf("before disp.initFromFile... layouts is %p", disp.layouts);
 
   disp.initFromFile();
-  Serial.printf("disp.initFromFile... layouts is %p", layouts);
+  Serial.printf("disp.initFromFile... layouts is %p", disp.layouts);
 
 
   // == show initial values from config.txt ========================= //
@@ -1279,18 +1602,16 @@ void setup()
 #endif
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
-
+#ifndef DISABLE_SX1278 
   xTaskCreate( sx1278Task, "sx1278Task",
                10000, /* stack size */
                NULL, /* paramter */
                1, /* priority */
                NULL);  /* task handle*/
+#endif              
   sonde.setup();
   initGPS();
 
-  if (sonde.config.kisstnc.active) {
-    tncserver.begin();
-  }
   WiFi.onEvent(WiFiEvent);
   getKeyPress();    // clear key buffer
 }
@@ -1342,7 +1663,8 @@ static const char *action2text(uint8_t action) {
 void loopDecoder() {
   // sonde knows the current type and frequency, and delegates to the right decoder
   uint16_t res = sonde.waitRXcomplete();
-  int action, event = 0;
+  int action;
+  Serial.printf("waitRX result is %x\n", (int)res);
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
@@ -1385,8 +1707,7 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
     if (s->validID && ((s->validPos & 0x03) == 0x03)) {
-      const char *str = aprs_senddata(s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, sondeTypeStr[s->type], s->id, "TE0ST",
-                                      sonde.config.udpfeed.symbol);
+      const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -1404,12 +1725,23 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
+    // also send to web socket
+    //TODO
   }
   Serial.println("updateDisplay started");
+  if (forceReloadScreenConfig) {
+    disp.initFromFile();
+    sonde.clearDisplay();
+    forceReloadScreenConfig = false;
+  }
   sonde.updateDisplay();
   Serial.println("updateDisplay done");
 }
 
+void setCurrentDisplay(int value) {
+  Serial.printf("setCurrentDisplay: setting index %d, entry %d\b", value, sonde.config.display[value]);
+  currentDisplay = sonde.config.display[value];
+}
 
 void loopSpectrum() {
   int marker = 0;
@@ -1426,7 +1758,7 @@ void loopSpectrum() {
       enterMode(ST_WIFISCAN);
       return;
     case KP_DOUBLE:
-      currentDisplay = 0;
+      setCurrentDisplay(0);
       enterMode(ST_DECODER);
       return;
     default: break;
@@ -1434,24 +1766,18 @@ void loopSpectrum() {
 
   scanner.scan();
   scanner.plotResult();
-  if (sonde.config.marker != 0) {
-    itoa((sonde.config.startfreq), buf, 10);
-    disp.rdis->drawString(0, 1, buf);
-    disp.rdis->drawString(7, 1, "MHz");
-    itoa((sonde.config.startfreq + 6), buf, 10);
-    disp.rdis->drawString(13, 1, buf);
-  }
-  if (sonde.config.timer) {
+
+  if (sonde.config.spectrum > 0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
     itoa(remaining, buf, 10);
-    Serial.printf("timer:%d config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.timer, sonde.config.spectrum, specTimer, millis(), remaining);
+    Serial.printf("config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
     disp.rdis->drawString(0, 1 + marker, buf);
     disp.rdis->drawString(2, 1 + marker, "Sec.");
     if (remaining <= 0) {
-      currentDisplay = 0;
+      setCurrentDisplay(0);
       enterMode(ST_DECODER);
     }
   }
@@ -1486,11 +1812,13 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
 
 void enableNetwork(bool enable) {
   if (enable) {
-    MDNS.begin("rdzsonde");
+    MDNS.begin(sonde.config.mdnsname);
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
-    tncserver.begin();
+    if (sonde.config.kisstnc.active) {
+      tncserver.begin();
+    }
     connected = true;
   } else {
     MDNS.end();
@@ -1598,7 +1926,7 @@ void WiFiEvent(WiFiEvent_t event)
 
 
 void wifiConnect(int16_t res) {
-  Serial.printf("WLAN scan result: found %d networks\n", res);
+  Serial.printf("WiFi scan result: found %d networks\n", res);
 
   // pick best network
   int bestEntry = -1;
@@ -1643,13 +1971,13 @@ void loopWifiBackground() {
 
   if (wifi_state == WIFI_DISABLED) {  // stopped => start can
     wifi_state = WIFI_SCAN;
-    Serial.println("WLAN start scan");
+    Serial.println("WiFi start scan");
     WiFi.scanNetworks(true); // scan in async mode
   } else if (wifi_state == WIFI_SCAN) {
     int16_t res = WiFi.scanComplete();
     if (res == 0 || res == WIFI_SCAN_FAILED) {
       // retry
-      Serial.println("WLAN restart scan");
+      Serial.println("WiFi restart scan");
       WiFi.disconnect(true);
       wifi_state = WIFI_DISABLED;
       return;
@@ -1676,8 +2004,9 @@ void loopWifiBackground() {
     }
   } else if (wifi_state == WIFI_CONNECTED) {
     if (!WiFi.isConnected()) {
-      sonde.clearIP();
+      sonde.setIP("", false);
       sonde.updateDisplayIP();
+
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);
@@ -1689,20 +2018,49 @@ void startAP() {
   Serial.println("Activating access point mode");
   wifi_state = WIFI_APMODE;
   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
+  
+  Serial.println("Wait 100 ms for AP_START...");
+  delay(100);
+  Serial.println(WiFi.softAPConfig(IPAddress (192,168,4,1), IPAddress (0,0,0,0), IPAddress (255,255,255,0)) ? "Ready" : "Failed!");
+  
   IPAddress myIP = WiFi.softAPIP();
   String myIPstr = myIP.toString();
   sonde.setIP(myIPstr.c_str(), true);
   sonde.updateDisplayIP();
-  enableNetwork(true);
+  // enableNetwork(true); done later in WifiLoop.
 }
 
 void initialMode() {
-  if (sonde.config.spectrum != 0) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
+  if (sonde.config.touch_thresh == 0) {
+    enterMode(ST_TOUCHCALIB);
+    return;
+  }
+  if (sonde.config.spectrum != -1) {    // enable Spectrum in config.txt: spectrum=number_of_seconds
     startSpectrumDisplay();
-    //done in startSpectrumScan(): enterMode(ST_SPECTRUM);
   } else {
-    currentDisplay = 0;
+    setCurrentDisplay(0);
     enterMode(ST_DECODER);
+  }
+}
+
+void loopTouchCalib() {
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->clear();
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  char num[10];
+
+  while (1) {
+    int t1 = touchRead(button1.pin & 0x7f);
+    int t2 = touchRead(button2.pin & 0x7f);
+    disp.rdis->setFont(FONT_LARGE);
+    disp.rdis->drawString(0, 0, "Touch calib.");
+    disp.rdis->drawString(0, 3 * dispys, "Touch1: ");
+    snprintf(num, 10, "%d  ", t1);
+    disp.rdis->drawString(8 * dispxs, 3 * dispys, num);
+    disp.rdis->drawString(0, 6 * dispys, "Touch2: ");
+    snprintf(num, 10, "%d  ", t2);
+    disp.rdis->drawString(8 * dispxs, 6 * dispys, num);
+    delay(300);
   }
 }
 
@@ -1733,6 +2091,8 @@ void loopWifiScan() {
   // wifi==3 => original mode with non-async wifi setup
   disp.rdis->setFont(FONT_SMALL);
   disp.rdis->drawString(0, 0, "WiFi Scan...");
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
 
   int line = 0;
   int cnt = 0;
@@ -1745,8 +2105,8 @@ void loopWifiScan() {
     Serial.print("Network name: ");
     String ssid = WiFi.SSID(i);
     Serial.println(ssid);
-    disp.rdis->drawString(0, 1 + line, ssid.c_str());
-    line = (line + 1) % 5;
+    disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
+    line = (line + 1) % (disph / dispys);
     Serial.print("Signal strength: ");
     Serial.println(WiFi.RSSI(i));
     Serial.print("MAC address: ");
@@ -1761,12 +2121,13 @@ void loopWifiScan() {
       Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
     }
   }
+  int lastl = (disph / dispys - 2) * dispys;
   if (index >= 0) { // some network was found
     Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
     Serial.print(" with password "); Serial.println(fetchWifiPw(index));
 
-    disp.rdis->drawString(0, 6, "Conn:");
-    disp.rdis->drawString(6, 6, fetchWifiSSID(index));
+    disp.rdis->drawString(0, lastl, "Conn:");
+    disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
     WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
     while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
@@ -1780,7 +2141,7 @@ void loopWifiScan() {
         Serial.print(" with password "); Serial.println(fetchWifiPw(index));
         delay(500);
       }
-      disp.rdis->drawString(15, 7, _scan[cnt & 1]);
+      disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
       cnt++;
     }
   }
@@ -1791,8 +2152,8 @@ void loopWifiScan() {
     IPAddress myIP = WiFi.softAPIP();
     Serial.print("AP IP address: ");
     Serial.println(myIP);
-    disp.rdis->drawString(0, 6, "AP:             ");
-    disp.rdis->drawString(6, 6, networks[0].id.c_str());
+    disp.rdis->drawString(0, lastl, "AP:             ");
+    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
     delay(3000);
   } else {
     Serial.println("");
@@ -1815,14 +2176,6 @@ void loopWifiScan() {
   }
   enableNetwork(true);
   initialMode();
-
-  if (sonde.config.spectrum != 0) {     // enable Spectrum in config.txt: spectrum=number_of_seconds
-    //startSpectrumDisplay();
-    enterMode(ST_SPECTRUM);
-  } else {
-    currentDisplay = 0;
-    enterMode(ST_DECODER);
-  }
 }
 
 
@@ -2001,10 +2354,17 @@ void loop() {
   Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
   Serial.printf("currentDisp:%d lastDisp:%d\n", currentDisplay, lastDisplay);
   switch (mainState) {
-    case ST_DECODER: loopDecoder(); break;
+    case ST_DECODER: 
+#ifndef DISABLE_MAINRX    
+      loopDecoder();
+#else
+      delay(1000);
+#endif      
+      break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
+    case ST_TOUCHCALIB: loopTouchCalib(); break;
   }
 #if 0
   int rssi = sx1278.getRSSI();
@@ -2022,4 +2382,5 @@ void loop() {
     sonde.updateDisplay();
     lastDisplay = currentDisplay;
   }
+  Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 }

@@ -24,13 +24,24 @@ generate_website_index() {
     if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"devel/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
-  echo "</ul></section></body></html>" >> download.html
+  echo "</ul>
+  <br>
+  <p>Last latter/number of version number indicate SPIFFS file system version. If the first (upper-case)
+   letter has changed, then this version is incompabible with prevision versions and you have to flash
+   the full image. If the second part (number) has changed, then this version has some changes
+   (e.g. internal web page layout, LCD/TFT display layout) in the file system which you will not get with
+   a code-only (OTA or flashing update.bin) update, but it should not break anything.</p>
+   </section></body></html>" >> download.html
   git add download.html
   git commit --amend --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 commit_website_files() {
   BRANCH=$TRAVIS_BRANCH
-  VERSION=`cat RX_FSK/version.h |  tail -1 |  egrep -o '".*"' | sed 's/"//g' | sed 's/ /_/g'`
+  VERSION=`cat RX_FSK/version.h | grep version_id | egrep -o '".*"' | sed 's/"//g' | sed 's/ /_/g'`
+  FSMAJOR=`cat RX_FSK/version.h | grep SPIFFS_MAJOR | perl -e '$_=<>;print /=(.*);/?chr($1+64):""'`
+  FSMINOR=`cat RX_FSK/version.h | grep SPIFFS_MINOR | perl -e '$_=<>;print /=(.*);/?$1:""'`
+  VERSION=$VERSION-$FSMAJOR$FSMINOR
+
   MYPATH=$PWD
   echo "On branch $BRANCH"
   echo "Version $VERSION"

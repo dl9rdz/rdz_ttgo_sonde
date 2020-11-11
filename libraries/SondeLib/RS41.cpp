@@ -143,9 +143,11 @@ int RS41::setup(float frequency)
 #if RS41_DEBUG
 	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
 #endif
-	// go go go
-        sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+        sx1278.clearIRQFlags();
+
+	// the following is already done in receivePacketTimeout()
+	// sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
+        // sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	return retval;
 }
 
@@ -304,6 +306,8 @@ static void wgs84r(double x, double y, double z,
 /*  lat:=atan(z/(rh*(1.0 - E2))); */
 /*  heig:=sqrt(h + z*z) - EARTHA; */
 } /* end wgs84r() */
+
+// returns: 0=ok, -1=error
 static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
 {
    double dir;
@@ -360,13 +364,19 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print((float)vu);
    sonde.si()->vs = vu;
    Serial.print("m/s ");
-   Serial.print(getcard16(b, b_len, p+18UL)&255UL);
+   uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
+   Serial.print(sats);
    Serial.print("Sats");
+   sonde.si()->sats = sats;
    sonde.si()->alt = heig;
-   if( 0==(int)(lat*10000) && 0==(int)(long0*10000) )
-      sonde.si()->validPos = 0;
+   if( 0==(int)(lat*10000) && 0==(int)(long0*10000) ) {
+      if(sonde.si()->validPos) {
+	// we have an old position, so keep previous position and mark it as old
+	sonde.si()->validPos |= 0x80;
+      }
+   }
    else
-      sonde.si()->validPos = 0x3f;
+      sonde.si()->validPos = 0x7f;
 } /* end posrs41() */
 
 
@@ -381,16 +391,18 @@ int RS41::decode41(byte *data, int maxlen)
 	if(corr<0) {
 		corr = reedsolomon41(data, 560, 230);  // try long frame
 	}
+#if 0
 	Serial.print("RS result:");
 	Serial.print(corr);
 	Serial.println();
+#endif
 	int p = 57; // 8 byte header, 48 byte RS 
 	while(p<maxlen) {  /* why 555? */
 		uint8_t typ = data[p++];
 		uint32_t len = data[p++]+2UL;
 		if(p+len>maxlen) break;
 
-#if 1
+#if 0
 		// DEBUG OUTPUT
 		Serial.print("@");
 		Serial.print(p-2);
@@ -416,17 +428,50 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print("#");
 			uint16_t fnr = data[p]+(data[p+1]<<8);
 			Serial.print(fnr);
+			sonde.si()->frame = fnr;
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
 			sonde.si()->type=STYPE_RS41;
 			strncpy(sonde.si()->id, (const char *)(data+p+2), 8);
 			sonde.si()->id[8]=0;
+			strncpy(sonde.si()->ser, (const char *)(data+p+2), 8);
+			sonde.si()->ser[8]=0;
 			sonde.si()->validID=true;
+			int calnr = data[p+23];
+			// not sure about this
+			if(calnr==0x31) {
+				uint16_t bt = data[p+30] + 256*data[p+31];
+				sonde.si()->burstKT = bt;
+			}
+			// this should be right...
+			if(calnr==0x02) {
+				uint16_t kt = data[p+31] + 256*data[p+32];
+				sonde.si()->launchKT = kt;
+			}
+			// and this seems fine as well...
+			if(calnr==0x32) {
+				uint16_t cntdown = data[p+24] + (data[p+25]<<8);
+				uint16_t min = cntdown - (cntdown/3600)*3600;
+				Serial.printf("Countdown value: %d\n [%2d:%02d:%02d]", cntdown, cntdown/3600, min/60, min-(min/60)*60);
+				sonde.si()->countKT = cntdown;
+				sonde.si()->crefKT = fnr;
+			}
 			}
 			// TODO: some more data
 			break;
 		case '|': // date
+			{
+			uint32_t gpstime = getint32(data, 560, p+2);
+			uint16_t gpsweek = getint16(data, 560, p);
+			// UTC is GPSTIME - 18s (24*60*60-18 = 86382)
+			// one week = 7*24*60*60 = 604800 seconds
+			// unix epoch starts jan 1st 1970 0:00
+			// gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
+			// subtracting 86400 yields 315878400UL
+			sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+			sonde.si()->validTime = true;
+			}
 			break;
 		case '{': // pos
 			posrs41(data+p, len, 0);

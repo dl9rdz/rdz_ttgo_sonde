@@ -12,30 +12,86 @@
 # - W: activate WiFi scan
 # - F: activate frequency spectrum display
 # - 0: activate "Scan:" display (this is basically just display mode 0)
-# - x: (1..N): activate display mode x
+# - x: (1..N): activate display mode x [deprecated]
+# - >: activate next display mode 
 # - D: activate default receiver display (display mode specified in config)
 # - +: advance to next active sonde from QRG config
 # - #: no action
 #
 # Display content (lower/upper case: small/large font)
 #    line,column=content
+# for ILI9225 its also possible to indicate
+#    line,column,width=content          for text within a box of width 'width'
+#    line,column,-width=content         for right-justified text
 #
 # XText : Text
 # F(suffix): frequency (with suffix, e.g., " MHz")
 # L latitade
 # O lOngitute
 # A altitude
-# H hor. speed
-# V vert. speef
+# Hm(suffix) hor. speed m/s (suffix: e.g. "m/s"; no suffix=>m/s as 16x8 bitmap for SSD1306 display only)
+# Hk(suffix) hor. speed km/h (suffix: e.g. "km/h"; no suffix=>km/h as 16x8 bitmap for SSD1306 display only)
+# V(suffix) vert. speef (suffix: e.g. "m/s"; no suffix=>m/s  as 16x8 bitmap for SSD1306 display only)
 # Ix sonde ID (dfm format by x: d=>dxlaprs, a=>autorx, s=>real serial number)
 # Q signal quality statistics bar
 # T type string (RS41/DFM9/DFM6/RS92)
 # C afC value
 # N ip address (only tiny font)
-# S launch site
-# Mx telemetry value x (t temp p preassure h hyg)
-# Gx value relativ to GPS reference point (x: D dist, I direction)  GV. GPS valid symbol;  GL, GO, GA: ref lat long alt
+# S scan list entry info:  l/empty: launch site name, #=entry nr, t=total entries, a=active entries, /: #/t  
+# K RS41 kill timer values: Kl launch timer, Kb burst timer, Kc kill countdown
+#   format: K_4: h:mm k_6: h:mm:ss k_s: sssss,  nothing shown for other sonde
+# Mx telemetry value x (t temp p preassure h hyg) [not yet implemented, maybe some day in future]
+# Gx  GPS-related data
+#     raw data from GPS:  GA, GO, GH, GC: LAtitude, lOngitude, Altutide(Height), Course over ground
+#     relative to sonde:  GD, GI, GB: Distance, dIrection (absolute), relative Bearing
+# G0  GPS circle diagram e.g.  3,5=g0NCS,50,ff0000,000033,5,ffff00,4,ffffff
+#     "N" (what is on top: N=north C=course)
+#     "C" (where does the arrow point to: C=course, S=sonde)
+#     "S" (what is shown by the bullet: C=course, S=sonde)
+#     50: circle radius, followed by fg and bg color
+#     5: bullet radius, followed by fg color
+#     4: arrow width, followed by fg color
 # R RSSI
+# B battery(T-Beam 1.0) S=status V=Batt.Volt C=charge current D=discharge current
+#                       U=USB volt I=USB current  T=IC temp
+#
+# fonts=x,y can be used to select font (x=small, y=large) for all items below
+# for SSD1306, x and y can be used to select one of those fonts:
+# (y should be a 1x2 font (1,5,6,7), x a small font)
+#                u8x8_font_chroma48medium8_r,        // 0 ** default small
+#                u8x8_font_7x14_1x2_f,               // 1 ** default large
+#                u8x8_font_amstrad_cpc_extended_f,   // 2
+#                u8x8_font_5x7_f,                    // 3
+#                u8x8_font_5x8_f,                    // 4
+#                u8x8_font_8x13_1x2_f,               // 5
+#                u8x8_font_8x13B_1x2_f,              // 6
+#                u8x8_font_7x14B_1x2_f,              // 7
+#                u8x8_font_artossans8_r,             // 8
+#                u8x8_font_artosserif8_r,            // 9
+#                u8x8_font_torussansbold8_r,         // 10 
+#                u8x8_font_victoriabold8_r,          // 11
+#                u8x8_font_victoriamedium8_r,        // 12
+#                u8x8_font_pressstart2p_f,           // 13
+#                u8x8_font_pcsenior_f,               // 14
+#                u8x8_font_pxplusibmcgathin_f,       // 15
+#                u8x8_font_pxplusibmcga_f,           // 16
+#                u8x8_font_pxplustandynewtv_f,       // 17
+#
+# for ILI9225, these fonts are available:
+# 	Terminal6x8		// 0
+#       Terminal11x16		// 1
+#       Terminal12x16		// 2
+#	FreeMono9pt7b,          // 3
+#       FreeMono12pt7b,         // 4
+#       FreeSans9pt7b,          // 5
+#       FreeSans12pt7b,         // 6
+#       Picopixel,  		// 7
+#
+# color=rrggbb,rrggbb  can be used to select color (foreground, background)
+# see https://github.com/Nkawu/TFT_22_ILI9225/wiki#color-reference for example (use without "#"-sign)
+#
+# for TFT display, coordinates and width are multiplied by xscale,yscale and later used in pixels
+# with scale=1,1 you can directly use pixel coordinates.  (default: xscale=13,yscale=22 => 8 lines, 16 columns)
 ###########
 # 
 # Default configuration for "Scanner" display:
@@ -46,20 +102,21 @@
 #   => Button press activates default receiver view, double press does nothing
 #      Mid press activates Spectrum display, long press activates Wifi scan
 # - key2 has no function
-@Scanner:5
+@Scanner
 timer=-1,0,0
 key1action=D,#,F,W
 key2action=#,#,#,#
 timeaction=#,D,+
-0,0=XScan:
-0,8=T
+0,0=XScan
+0,5=S#:
+0,9=T
 3,0=F MHz
 5,0=S
 7,5=n
 
 ############
 # Default configuration for "Legacy" display:
-# - view timer=-1, rx timer=-1 (disabled); norx timer=20000 (or -1 for "old" behaviour)
+# - view timer=-1, rx timer=-1 (disabled); norx timer=20 (or -1 for "old" behaviour)
 #    => norx timer fires after not receiving a singla for 20 seconds
 # - key1 actions: +,0,F,W
 #    => Button1 press: next sonde; double press => @Scanner display
@@ -69,10 +126,10 @@ timeaction=#,D,+
 # - timer actions: #,#,0
 #   (norx timer: if no signal for >20 seconds: go back to scanner mode)
 #
-@Legacy:11
-timer=-1,-1,20000
+@Legacy
+timer=-1,-1,N
 key1action=+,0,F,W
-key2action=2,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,0
 0,5=f MHz
 1,8=c
@@ -89,10 +146,10 @@ timeaction=#,#,0
 ############
 # Configuratoon for "Field" display (display 2)
 # similar to @Legacy, but no norx timer, and Key2 goes to display 4
-@Field:7
-timer=-1,-1,-1
+@Field
+timer=-1,-1,N
 key1action=+,0,F,W
-key2action=3,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 2,0=L
 4,0=O
@@ -105,10 +162,10 @@ timeaction=#,#,#
 ############
 # Configuration for "Field2" display (display 3)
 # similar to @Field
-@Field2:9
-timer=-1,-1,-1
+@Field2
+timer=-1,-1,N
 key1action=+,0,F,W
-key2action=4,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 2,0=L
 4,0=O
@@ -123,10 +180,10 @@ timeaction=#,#,#
 #############
 # Configuration for "GPS" display
 # not yet the final version, just for testing
-@GPSDIST:14
+@GPSDIST
 timer=-1,-1,-1
 key1action=+,0,F,W
-key2action=1,#,#,#
+key2action=>,#,#,#
 timeaction=#,#,#
 0,0=Is
 0,9=f
@@ -136,8 +193,265 @@ timeaction=#,#,#
 2,10=a
 3,10=h
 4,9=v
+5,9=gC
+5,13=gB
 6,7=Q
 7,0=gV
 7,2=xd=
 7,4=gD
 7,12=gI°
+
+############
+# Scan display for large 2" TFT dispaly
+@ScannerTFT
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+fonts=5,6
+0,0=XScan
+0,5,-3=S#:
+0,9,5=T
+3,0=F MHz
+5,0,16=S
+7,5=n
+
+############
+@MainTFT
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,0
+color=FFD700
+0,0=Id
+color=0000FF
+0,11,-5.5=f
+1,1,6=c
+1,12.5,-4=t
+color=00ff00
+2,0=L
+4,0=O
+color=FFA500
+2,9.5,-7=A
+3,9.5,-7=vm/s
+color=AA5522
+4,9.5,-7=hkkm/h
+color=FFFFFF
+6,2=r
+7,0=xd=
+7,2,6=gD
+7,12=gI
+
+############
+@PeilungTFT
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+color=ffff00,000033
+color=bbbbbb,000000
+0,2=xN Top:
+0,8=xCourse Top:
+color=ffff00,000033
+1,0=g0NCS,48,ffff00,000044,6,33ff33,5,eeaa00
+1,8=g0CCS,48,ffff00,000044,6,55ff55,5,eeaa00
+color=ffffff,000000
+6,0=xDirection:
+6,8,4=gI
+7,0=xCOG:
+7,4,4=gC
+7,8=xturn:
+7,12,4=gB
+
+
+############
+@GPSdataTFT
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+0,0=xOn-board GPS:
+1,0,8=gA
+2,0,8=gO
+3,0,8=gH
+4,0,8=gC
+5,0=xGPS vs Sonde:
+6,0,8=gD
+7,0,8=gI
+7,8,8=gB
+
+############
+@BatteryTFT
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+0,0=xBattery status:
+0,14=bS
+1,0=xBatt:
+1,5,5=bVV
+2,0,16=bCmA(charging)
+3,0,16=bDmA(discharging)
+4.4,0=xUSB:
+4.4,5,5=bUV
+5.4,0,10=bImA
+6.4,0=xTemp:
+6.4,5,5=bT C
+
+############
+@BatteryOLED
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+fonts=0,1
+0,0=xBat.Status:
+0,12=bS
+1,0=xBatt:
+1,6=bVV
+2,0=bCmA (charge) 
+3,0=bDmA (disch.) 
+4,0=xUSB:
+4,5=bUV
+5,5=bImA
+6,0=xTemp:
+6,5=bT C
+
+### Alternative display layouts based on https://gist.github.com/bazjo 
+# Scan display for large 2" TFT dispaly
+@Scan.TFT.Bazjo
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+scale=11,10
+fonts=0,2
+color=e0e0e0
+#Row 1
+0.5,0=XScanning...
+#Row 2
+3,0=xIndex
+4,0=S/
+3,9=xSite
+4,9=S
+#Row 3
+6,0=xType
+7,0=T
+6,9=xFrequency
+7,9=F
+#Row 4
+9,0=xWeb UI IP
+10,0=N
+#Row 5
+#Footer
+color=6C757D
+15,0=xScan Mode
+15,18=bVV
+
+############
+@Decode/General.TFT.Bazjo
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,0
+scale=11,10
+fonts=0,2
+#Row 1
+color=996A06
+0,0=xSerial
+0,5=t
+color=FFB10B
+1,0=Is
+color=996A06
+0,11=xFreq.
+0,16=c
+color=FFB10B
+1,11=F
+#Row 2
+color=3C5C99
+3,0=xLatitude
+color=639AFF
+4,0=L
+color=3C5C99
+3,11=xLongitude
+color=639AFF
+4,11=O
+#Row 3
+color=3C5C99
+6,0=xHoriz. Speed
+color=639AFF
+7,0=Hkkm/h
+color=3C5C99
+6,11=xVert. Speed
+color=639AFF
+7,11=Vm/s
+#Row 4
+color=99004A
+9,0=xAltitude
+color=FF007B
+10,0=A
+color=99004A
+9,11=xBearing
+color=FF007B
+10,11=GB
+#Row 5
+color=06998E
+12,0=xRSSI
+color=0AFFEF
+13,0=R
+color=06998E
+12,11=xHistory
+color=0AFFEF
+13.5,11=Q4
+#Footer
+color=6C757D
+15,0=xDecode Mode / General View
+15,18=bVV
+
+
+############
+@Decode/Battery.TFT.Bazjo
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=11,10
+fonts=0,2
+#Row 1
+color=99001F
+0,0=xBattery Status
+0,11=xBattery Voltage
+color=FF0035
+1,0=BS
+1,11=BVV
+#Row 2
+color=99001F
+3,0=xCharge Current
+3,11=xDischarge Current
+color=FF0035
+4,0=BCmA
+4,11=BDmA
+#Row 3
+color=99001F
+6,0=xUSB Voltage
+6,11=xUSB Current
+color=FF0035
+7,0=BUV
+7,11=BImA
+#Row 4
+color=99001F
+9,0=xIC Temperature
+#9,11=xKey
+color=FF0035
+10,0=BTC
+#10,11=XValue
+#Row 5
+#12,0=xKey
+#12,11=xKey
+#13,0=XValue
+#13,11=XValue
+#Footer
+color=99001F
+15,0=xDecode Mode/Battery View
+15,18=bVV
+

@@ -10,6 +10,12 @@ table, th, td {
 	background-color: #ddd
 }
 
+td#caption {
+	text-align: center;
+	background-color: #aaa;
+	font-weight: bold;
+}
+
 td#sfreq {
 	background-color: #ccc;
 }

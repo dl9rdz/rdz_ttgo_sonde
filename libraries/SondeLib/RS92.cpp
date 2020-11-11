@@ -183,6 +183,8 @@ int RS92::setup(float frequency)
 	Serial.print("RS92: setting RX frequency to ");
         Serial.println(frequency);
         int res = sx1278.setFrequency(frequency);
+        sx1278.clearIRQFlags();
+
         // enable RX
         sx1278.setPayloadLength(0);  // infinite for now...
 	//sx1278.setPayloadLength(292);
@@ -622,7 +624,12 @@ int RS92::waitRXcomplete() {
 	si->dir = gpx.vD;
 	si->validPos = 0x3f;
 	memcpy(si->id, gpx.id, 9);
+	memcpy(si->ser, gpx.id, 9);
 	si->validID = true;
+	si->frame = gpx.frnr;
+	si->sats = gpx.k;
+        si->time = (gpx.gpssec/1000) + 86382 + gpx.week*604800 + 315878400UL;
+        si->validTime = true;	
 
 #if 0
 	int res=0;
