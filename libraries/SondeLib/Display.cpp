@@ -1131,7 +1131,7 @@ void Display::drawTelemetry(DispEntry *de) {
 
 void Display::drawKilltimer(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	uint16_t value;
+	uint16_t value=0;
 	switch(de->extra[0]) {
 	case 'l': value = sonde.si()->launchKT; break;
 	case 'b': value = sonde.si()->burstKT; break;
@@ -1181,7 +1181,7 @@ static int tmpc=0;
 	gpsValid = nmea.isValid();
 	gpsLon = nmea.getLongitude()*0.000001;
 	gpsLat = nmea.getLatitude()*0.000001;
-	long alt;
+	long alt = 0;
 	nmea.getAltitude(alt); gpsAlt=(int)(alt/1000);
 	gpsCourse = (int)(nmea.getCourse()/1000);
 	gpsCourseOld = false;

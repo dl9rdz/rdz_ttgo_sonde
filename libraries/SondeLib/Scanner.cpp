@@ -128,7 +128,7 @@ void Scanner::scan()
 
 	unsigned long start = millis();
 	uint32_t lastfrf= STARTF * (1<<19) / SX127X_CRYSTAL_FREQ;
-	float freq;
+	float freq = STARTF;
 	int wait = 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
 	for(int iter=0; iter<3; iter++) {   // two interations, to catch all RS41 transmissions
 	    delayMicroseconds(20000);

@@ -1288,7 +1288,7 @@ void IRAM_ATTR button2ISR() {
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
-  int x = digitalRead(button1.pin);
+  //int x = digitalRead(button1.pin);
   //Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
   //Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
