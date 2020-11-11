@@ -1294,7 +1294,8 @@ int getKeyPress() {
   return p;
 }
 
-int getKey2Press() {
+// called by arduino main loop (from Sonde::waitRXcomplete) as soon as pmu_irq is set
+void handlePMUirq() {
   if (sonde.config.button2_axp) {
     // Use AXP power button as second button
     if (pmu_irq) {
@@ -1314,6 +1315,10 @@ int getKey2Press() {
       xSemaphoreGive( axpSemaphore );
     }
   }
+}
+
+int getKey2Press() {
+  // TODO: Should be atomic
   KeyPress p = button2.pressed;
   button2.pressed = KP_NONE;
   //Serial.printf("button2 press: %d at %ld (%d)\n", p, button2.keydownTime, button2.numberKeyPresses);

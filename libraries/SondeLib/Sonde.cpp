@@ -10,7 +10,6 @@
 #include "Display.h"
 #include <Wire.h>
 
-extern SX1278FSK sx1278;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -31,7 +30,11 @@ const char *fingerprintText[]={
   "TTGO T-Beam (new version 1.0), SPI TFT@4,13,14",
 };
 
-int getKeyPressEvent(); /* in RX_FSK.ino */
+/* global variables from RX_FSK.ino */
+int getKeyPressEvent(); 
+int handlePMUirq();
+extern bool pmu_irq;
+extern SX1278FSK sx1278;
 
 /* Task model:
  * There is a background task for all SX1278 interaction.
@@ -489,7 +492,11 @@ uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
 rxloop:
-        while( rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+        while( !pmu_irq && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+	if( pmu_irq ) {
+		handlePMUirq();
+		goto rxloop;
+	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
 		Serial.print("RSSI update: ");
