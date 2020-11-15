@@ -23,7 +23,7 @@ generate_website_index() {
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     VERS=`basename $i -full.bin`
-    CL=`cat $VERS-changelog.txt 2>/dev/null`
+    CL=`cat devel/${VERS}-changelog.txt 2>/dev/null`
     echo "VERS $VERS: CL $CL"
     echo "<li><a href=\"devel/$i\">$i</a> ($TS)" >> download.html
     if [ -n "${CL}" ]; then echo "<br>${CL}" >> download.html; fi
