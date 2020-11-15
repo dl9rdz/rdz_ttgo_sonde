@@ -22,7 +22,11 @@ generate_website_index() {
   for i in `ls devel`; do
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
-    echo "<li><a href=\"devel/$i\">$i</a> ($TS)</li>\n" >> download.html;
+    VERS=`basename $i -full.bin`
+    CL=`cat $VERS-changelog.txt 2>/dev/null`
+    echo "<li><a href=\"devel/$i\">$i</a> ($TS)" >> download.html
+    if [ -n "${CL}" ]; then echo "<br>${CL}" >> download.html; fi
+    echo "</li>\n" >> download.html
   done
   echo "</ul>
   <br>
@@ -54,6 +58,7 @@ commit_website_files() {
   git add ${BRANCH}/${VERSION}-full.bin
   cp ${MYPATH}/build/RX_FSK.ino.bin ${BRANCH}/update.ino.bin
   git add ${BRANCH}/update.ino.bin
+  echo "${TRAVIS_COMMIT_MESSAGE}" > ${BRANCH}/${VERSION}-changelog.txt
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
