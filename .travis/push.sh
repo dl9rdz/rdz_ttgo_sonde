@@ -19,7 +19,7 @@ generate_website_index() {
     echo "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul><h2>Development repository</h2><ul>" >> download.html
-  for i in `ls devel/*.bin`; do
+  for i in `ls devel|grep "\.bin"`; do
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     VERS=`basename $i -full.bin`
