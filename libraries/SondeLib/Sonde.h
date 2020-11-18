@@ -64,8 +64,8 @@ typedef struct st_sondeinfo {
         float lat;			// latitude
         float lon;			// longitude
         float alt;			// altitude
-        float vs;			// vertical speed
-        float hs;			// horizontal speed
+        float vs;			// vertical speed in m/s
+        float hs;			// horizontal speed in m/s
 	float dir; 			// 0..360
 	uint8_t sats;			// number of sats
         uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old

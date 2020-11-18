@@ -1004,7 +1004,7 @@ void Display::drawHS(DispEntry *de) {
 	}
 	boolean is_ms = (de->extra && de->extra[0]=='m')?true:false;  // m/s or km/h
 	float hs = sonde.si()->hs;
-	if(is_ms) hs = hs / 3.6;
+	if(!is_ms) hs = hs * 3.6;
 	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
 	snprintf(buf, 16, hs>99?" %3.0f":" %2.1f", hs);
 	if(has_extra) { strcat(buf, de->extra+1); }
