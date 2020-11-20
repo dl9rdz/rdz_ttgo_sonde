@@ -3,7 +3,6 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
-#include <WebSockets.h>
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
 //#include <U8g2lib.h>
@@ -838,33 +837,6 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
     Serial.println("Client disconnected");
   }
 }
-#if 0
-void onWebSocketEvent(uint8_t clientNum, WStype_t type, uint8_t *payload, size_t length) {
-  switch (type) {
-    case WStype_DISCONNECTED:
-      Serial.printf("[%u] WS client disconnected\n", clientNum);
-      break;
-    case WStype_CONNECTED:
-      {
-        IPAddress ip = webSocket.remoteIP(clientNum);
-        Serial.printf("[%u] WS client connection from %s\n", clientNum, ip.toString().c_str());
-      }
-      break;
-    case WStype_TEXT:
-      //
-      {
-        char msg[80];
-        Serial.printf("[%u] WS client sent me some text: %s\n", clientNum, payload);
-        snprintf(msg, 80, "You sent me: %s\n", payload);
-        webSocket.sendTXT(clientNum, msg);
-      }
-      break;
-    default:
-      break;
-  }
-}
-#endif
-
 
 const char* PARAM_MESSAGE = "message";
 void SetupAsyncServer() {
