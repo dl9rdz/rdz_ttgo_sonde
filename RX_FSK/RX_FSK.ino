@@ -3,7 +3,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
-
+#include <WebSockets.h>
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
 //#include <U8g2lib.h>
@@ -21,6 +21,13 @@
 #include "version.h"
 #include "geteph.h"
 #include "rs92gps.h"
+
+#ifdef TTGO_V2
+// platformio currently fails to build with board v2 so ve override v1 pins instead
+#define OLED_SDA 4
+#define OLED_SCL 15
+#define OLED_RST 16
+#endif
 
 int e;
 
