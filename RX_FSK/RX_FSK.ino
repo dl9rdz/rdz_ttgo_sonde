@@ -21,13 +21,6 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
-#ifdef TTGO_V2
-// platformio currently fails to build with board v2 so ve override v1 pins instead
-#define OLED_SDA 4
-#define OLED_SCL 15
-#define OLED_RST 16
-#endif
-
 int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
