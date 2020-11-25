@@ -22,6 +22,11 @@ before_install:
   - wget https://github.com/lewisxhe/AXP202X_Library/archive/v1.0.zip
   - unzip v1.0.zip
   - sudo mv AXP202X_Library-1.0 /usr/local/share/arduino/libraries/
+
+  - wget https://github.com/dx168b/async-mqtt-client/archive/master.zip
+  - unzip master.zip
+  - sudo mv async-mqtt-client-master /usr/local/share/arduino/libraries/
+
   # Trying to get rid of mDNS warnings (1000s of them...)
   # as suggested by https://forum.arduino.cc/index.php?topic=469428.0
   # Arduino IDE adds a lot of noise caused by network traffic, trying to firewall it off

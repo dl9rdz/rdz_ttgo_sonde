@@ -144,6 +144,15 @@ struct st_kisstnc {
         int idformat;
 };
 
+struct st_mqtt {
+	bool active;
+	char id[64];
+	char host[64];
+	int port;
+	char username[64];
+	char password[64];
+	char prefix[64];
+};
 
 typedef struct st_rdzconfig {
 	// hardware configuration
@@ -188,6 +197,7 @@ typedef struct st_rdzconfig {
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
+	struct st_mqtt mqtt;
 } RDZConfig;
 
 

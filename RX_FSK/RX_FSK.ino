@@ -21,6 +21,8 @@
 #include "geteph.h"
 #include "rs92gps.h"
 
+#include "mqtt.h"
+
 #ifdef TTGO_V2
 // platformio currently fails to build with board v2 so ve override v1 pins instead
 #define OLED_SDA 4
@@ -56,6 +58,10 @@ WiFiClient client;
 // KISS over TCP für communicating with APRSdroid
 WiFiServer tncserver(14580);
 WiFiClient tncclient;
+
+unsigned long lastMqttUptime = 0;
+boolean mqttEnabled;
+MQTT mqttclient;
 
 boolean forceReloadScreenConfig = false;
 
@@ -468,6 +474,16 @@ struct st_configitems config_list[] = {
   {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
+  
+  /* MQTT */
+  {"mqtt.active", "MQTT Active (needs reboot)", 0, &sonde.config.mqtt.active},
+  {"mqtt.id", "MQTT client ID", 63, &sonde.config.mqtt.id},
+  {"mqtt.host", "MQTT server IP address", 63, &sonde.config.mqtt.host},
+  {"mqtt.port", "MQTT Port", 0, &sonde.config.mqtt.port},
+  {"mqtt.username", "MQTT Username", 63, &sonde.config.mqtt.username},
+  {"mqtt.password", "MQTT Password", 63, &sonde.config.mqtt.password},
+  {"mqtt.prefix", "MQTT Prefix", 63, &sonde.config.mqtt.prefix},
+
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
   {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
@@ -487,6 +503,7 @@ struct st_configitems config_list[] = {
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
   {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
+
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -1691,6 +1708,7 @@ void loopDecoder() {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
+
     if (s->validID && ((s->validPos & 0x03) == 0x03)) {
       const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
       if (connected)  {
@@ -1710,6 +1728,13 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
+
+    // send to MQTT if enabled
+    if (connected && mqttEnabled) {
+      Serial.println("Sending sonde info via MQTT");
+      mqttclient.publishPacket(s);
+    }
+
     // also send to web socket
     //TODO
   }
@@ -1795,6 +1820,7 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
+
 void enableNetwork(bool enable) {
   if (enable) {
     MDNS.begin(sonde.config.mdnsname);
@@ -1804,6 +1830,12 @@ void enableNetwork(bool enable) {
     if (sonde.config.kisstnc.active) {
       tncserver.begin();
     }
+    
+    if (sonde.config.mqtt.active && strlen(sonde.config.mqtt.host) > 0) {
+      mqttEnabled = true;
+      mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
+    }
+
     connected = true;
   } else {
     MDNS.end();
@@ -2367,5 +2399,12 @@ void loop() {
     sonde.updateDisplay();
     lastDisplay = currentDisplay;
   }
+
+  int now = millis();
+  if (mqttEnabled && (lastMqttUptime == 0 || (lastMqttUptime + 60000 < now) || (lastMqttUptime > now))) {
+    mqttclient.publishUptime();
+    lastMqttUptime = now;
+  }
+
   Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 }

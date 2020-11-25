@@ -189,6 +189,13 @@ void Sonde::defaultConfig() {
 	config.tcpfeed.highrate = 10;
 	config.tcpfeed.idformat = ID_DFMDXL;
 	config.kisstnc.active = 0;
+
+	config.mqtt.active = 0;
+	strcpy(config.mqtt.id, "rdz_sonde_server");
+	config.mqtt.port = 1883;
+	strcpy(config.mqtt.username, "/0");
+	strcpy(config.mqtt.password, "/0");
+	strcpy(config.mqtt.prefix, "rdz_sonde_server/");
 }
 
 void Sonde::setConfig(const char *cfg) {
@@ -314,6 +321,22 @@ void Sonde::setConfig(const char *cfg) {
 		config.tcpfeed.highrate = atoi(val);
 	} else if(strcmp(cfg,"tcp.idformat")==0) {
 		config.tcpfeed.idformat = atoi(val);
+	
+	} else if(strcmp(cfg,"mqtt.active")==0) {
+		config.mqtt.active = atoi(val)>0;
+	} else if(strcmp(cfg,"mqtt.id")==0) {
+		strncpy(config.mqtt.id, val, 63);
+	} else if(strcmp(cfg,"mqtt.host")==0) {
+		strncpy(config.mqtt.host, val, 63);
+	} else if(strcmp(cfg,"mqtt.port")==0) {
+		config.mqtt.port = atoi(val);
+	} else if(strcmp(cfg,"mqtt.username")==0) {
+		strncpy(config.mqtt.username, val, 63);
+	} else if(strcmp(cfg,"mqtt.password")==0) {
+		strncpy(config.mqtt.password, val, 63);
+	} else if(strcmp(cfg,"mqtt.prefix")==0) {
+		strncpy(config.mqtt.prefix, val, 63);
+
 	} else {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
