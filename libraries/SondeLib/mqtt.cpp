@@ -28,6 +28,7 @@ void MQTT::init(const char* ip, uint16_t port, const char* id, const char *usern
 
     Serial.println("[MQTT] pubsub client");
     mqttClient.setServer(ip, port);
+    mqttClient.setClientId(id);
     if (strlen(password) > 0) {
         mqttClient.setCredentials(username, password);
     }
