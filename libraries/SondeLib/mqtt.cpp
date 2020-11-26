@@ -23,7 +23,7 @@ void MQTT::init(const char* ip, uint16_t port, const char* id, const char *usern
     this->prefix = prefix;
     
     char buffer[20];
-    snprintf(buffer, 20, "%s%d", id, random(0, 1000));
+    snprintf(buffer, 20, "%s%6ld", id, random(0, 1000));
     this->id = buffer;
 
     Serial.println("[MQTT] pubsub client");

@@ -145,7 +145,7 @@ struct st_kisstnc {
 };
 
 struct st_mqtt {
-	bool active;
+	int active;
 	char id[64];
 	char host[64];
 	int port;
