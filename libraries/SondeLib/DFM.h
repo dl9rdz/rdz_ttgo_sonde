@@ -30,6 +30,7 @@ private:
 	int check(uint8_t code[8]);
 	int hamming(uint8_t *ham, int L, uint8_t *sym);
 	void printRaw(const char *prefix, int len, int ret, const uint8_t* data);
+	void finddfname(uint8_t *cfg);
 	void decodeCFG(uint8_t *cfg);
 	void decodeDAT(uint8_t *dat);
 	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);

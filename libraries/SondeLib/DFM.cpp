@@ -163,8 +163,139 @@ void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 	Serial.print(" ");
 }
 
+// single data structure, search restarts after decoder change
+static struct st_dfmstat {
+	int idcnt0;
+	int idcnt1;
+	int lastfrid;
+	int lastfrcnt;
+	uint8_t start[50];
+	uint16_t dat[50*2];
+	uint8_t cnt[50*2];
+	uint8_t nameregok;
+	uint8_t nameregtop;
+} dfmstate;
+
+
+#define DFMIDTHRESHOLD 2
+/* inspired by oe5dxl's finddnmae in sondeudp.c of dxlaprs */
+void DFM::finddfname(uint8_t *b)
+{
+	uint8_t st;
+	uint32_t thres;
+	uint32_t i;
+	uint8_t ix;
+	uint16_t d;
+
+	st = b[0];    /* frame start byte */
+	ix = b[3];    /* hi/lo part of ser;  (LSB due to our bitsToBytes...) */
+	d = (b[1]<<8) + b[2];  /* data byte */
+	i = 0;
+        /* find highest channel number single frame serial,
+           (2 frame serial will make a single serial too) */
+	if(dfmstate.idcnt0 < DFMIDTHRESHOLD && dfmstate.idcnt1 < DFMIDTHRESHOLD) {
+		uint32_t v = (st<<20) | (d<<4) | ix;
+		if ( st > (dfmstate.lastfrid>>20) ) {
+			dfmstate.lastfrid = v;
+			Serial.print("MAXCH: "); Serial.println(st>>20);
+			dfmstate.lastfrcnt = 0;
+		} else if ( st == (dfmstate.lastfrid>>20) ) {
+			/* same id found */
+            		if (v == dfmstate.lastfrid) {
+				++dfmstate.lastfrcnt;
+               			thres = DFMIDTHRESHOLD * 2;
+ 				/* may be a 2 frame serial so increase safety level */
+               			if (ix <= 1) thres *= 2; 
+                		/* may be not a dfm6 so increase safety level */
+               			if ( (st>>4) != 6) thres *= 2;
+               			if (dfmstate.lastfrcnt >= thres) {
+                  			/* id found */
+                  			if (dfmstate.lastfrcnt == thres) {
+						uint32_t id = ((st&0x0F)<<20) | (d<<4) | ix;
+						uint32_t chkid = id;
+						int i;
+						/* check validity */
+						for(i=0; i<6; i++) {
+							if((chkid&0x0f)>9)  { break; /* not ok */ }
+							chkid >>= 4;
+						}
+						if(i==6) {
+							snprintf(sonde.si()->id, 10, "D%x ", id);
+							sonde.si()->validID = true;
+							return;
+						}
+						dfmstate.lastfrcnt = 0;
+						Serial.println(" NOT NUMERIC SERIAL");
+                     			}
+                  			//anonym->idtime = osic_time();
+       			         } else {
+					Serial.print(" MAXCHCNT/SECURITYLEVEL:");
+					Serial.print(dfmstate.lastfrcnt);
+					Serial.print("/");
+					Serial.println(thres);
+				}
+			} else {
+               			dfmstate.lastfrid = v; /* not stable ser */
+               			dfmstate.lastfrcnt = 0UL;
+            		}
+		}
+      } /*find highest channel number single frame serial */
+
+	while (i<dfmstate.nameregtop && dfmstate.start[i]!=st) i++;
+	if (i<dfmstate.nameregtop) {
+        	if (ix<=1UL && (dfmstate.cnt[2*i+ix]==0 || dfmstate.dat[2*i+ix]==d)) {
+        		dfmstate.dat[2*i+ix] = d;
+			if(dfmstate.cnt[2*i+ix] < 255) dfmstate.cnt[2*i+ix]++;
+			Serial.print(" ID:");
+			Serial.print(st, HEX);
+			Serial.print("[");
+			Serial.print(ix);
+			Serial.print("] CNT:");
+			Serial.print(dfmstate.cnt[2*i]);
+			Serial.print(",");
+			Serial.println(dfmstate.cnt[2*i+1]);
+			if(dfmstate.cnt[2*i]>DFMIDTHRESHOLD && dfmstate.cnt[2*i+1]>DFMIDTHRESHOLD) {
+				if(dfmstate.idcnt0 == 0) {
+					dfmstate.idcnt0 = dfmstate.cnt[2*i];
+					dfmstate.idcnt1 = dfmstate.cnt[2*i+1];
+					dfmstate.nameregok = i;
+					// generate id.....
+					snprintf(sonde.si()->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
+					Serial.print(" NEW AUTOID:");
+					Serial.println(sonde.si()->id);
+					sonde.si()->validID = true;
+				}
+				if(dfmstate.nameregok==i) {
+					Serial.println("ID OK");
+					// idtime = .... /* TODO */
+				}
+			}
+		} else {
+               		/* data changed so not ser */
+			dfmstate.cnt[2*i] = 0;
+			dfmstate.cnt[2*i+1] = 0;
+			if(dfmstate.nameregok == i) { /* found id wrong */
+				dfmstate.idcnt0 = 0;
+				dfmstate.idcnt1 = 0;
+			}
+		}
+      	} else if (ix<=1) {  /* add new entry for possible ID */
+	    dfmstate.start[dfmstate.nameregtop] = st;
+	    dfmstate.cnt[2*dfmstate.nameregtop] = 0;
+	    dfmstate.cnt[2*dfmstate.nameregtop+1] = 0;
+	    dfmstate.cnt[2*dfmstate.nameregtop+ix] = 1;
+	    dfmstate.dat[2*dfmstate.nameregtop+ix] = d;
+	    if(dfmstate.nameregtop<49) dfmstate.nameregtop++;
+      	}
+}
+
 void DFM::decodeCFG(uint8_t *cfg)
 {
+#if 1
+	// new ID
+	finddfname(cfg);
+#else
+	// old ID
 	static int lowid, highid, idgood=0, type=0;
 	if((cfg[0]>>4)==0x06 && type==0) {   // DFM-6 ID
 		lowid = ((cfg[0]&0x0F)<<20) | (cfg[1]<<12) | (cfg[2]<<4) | (cfg[3]&0x0f);
@@ -190,6 +321,7 @@ void DFM::decodeCFG(uint8_t *cfg)
 			sonde.si()->validID = true;
 		}
 	}
+#endif
 }
 
 static int bitCount(int x) {
