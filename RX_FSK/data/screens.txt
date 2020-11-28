@@ -32,7 +32,10 @@
 # Hm(suffix) hor. speed m/s (suffix: e.g. "m/s"; no suffix=>m/s as 16x8 bitmap for SSD1306 display only)
 # Hk(suffix) hor. speed km/h (suffix: e.g. "km/h"; no suffix=>km/h as 16x8 bitmap for SSD1306 display only)
 # V(suffix) vert. speef (suffix: e.g. "m/s"; no suffix=>m/s  as 16x8 bitmap for SSD1306 display only)
-# Ix sonde ID (dfm format by x: d=>dxlaprs, a=>autorx, s=>real serial number)
+# Ix sonde ID (default/d: dxlaprs; s: short id, n: real serial number)
+#    RS41,RS92: all identical R1234567
+#    DFMx: ID M12345678; short ID and serial 12345678
+#    M10: ID ME95231F0; short ID: M95231F0; serial 9062104592
 # Q signal quality statistics bar
 # T type string (RS41/DFM9/DFM6/RS92)
 # C afC value
@@ -223,7 +226,7 @@ key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
 color=FFD700
-0,0=Id
+0,0=Is
 color=0000FF
 0,11,-5.5=f
 1,1,6=c

@@ -12,6 +12,19 @@
 #define DFM_DBG(x)
 #endif
 
+// single data structure, search restarts after decoder change
+static struct st_dfmstat {
+	int idcnt0;
+	int idcnt1;
+	int lastfrid;
+	int lastfrcnt;
+	uint8_t start[50];
+	uint16_t dat[50*2];
+	uint8_t cnt[50*2];
+	uint8_t nameregok;
+	uint8_t nameregtop;
+} dfmstate;
+
 int DFM::setup(float frequency, int inv) 
 {
 	inverse = inv;
@@ -57,7 +70,8 @@ int DFM::setup(float frequency, int inv)
 		DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
 		return 1;
 	}
-	if(sx1278.setPreambleDetect(0xA8)!=0) {
+	//if(sx1278.setPreambleDetect(0xA8)!=0) {
+	if(sx1278.setPreambleDetect(0xAA)!=0) {
 		DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
@@ -73,6 +87,7 @@ int DFM::setup(float frequency, int inv)
 
 	int retval = sx1278.setFrequency(frequency);
         sx1278.clearIRQFlags();
+	memset((void *)&dfmstate, 0, sizeof(dfmstate));
 	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
 	return retval;
 }
@@ -163,18 +178,6 @@ void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 	Serial.print(" ");
 }
 
-// single data structure, search restarts after decoder change
-static struct st_dfmstat {
-	int idcnt0;
-	int idcnt1;
-	int lastfrid;
-	int lastfrcnt;
-	uint8_t start[50];
-	uint16_t dat[50*2];
-	uint8_t cnt[50*2];
-	uint8_t nameregok;
-	uint8_t nameregtop;
-} dfmstate;
 
 
 #define DFMIDTHRESHOLD 2
@@ -197,7 +200,7 @@ void DFM::finddfname(uint8_t *b)
 		uint32_t v = (st<<20) | (d<<4) | ix;
 		if ( st > (dfmstate.lastfrid>>20) ) {
 			dfmstate.lastfrid = v;
-			Serial.print("MAXCH: "); Serial.println(st>>20);
+			Serial.print("MAXCH: "); Serial.println(st);
 			dfmstate.lastfrcnt = 0;
 		} else if ( st == (dfmstate.lastfrid>>20) ) {
 			/* same id found */
@@ -253,9 +256,14 @@ void DFM::finddfname(uint8_t *b)
 			Serial.print("] CNT:");
 			Serial.print(dfmstate.cnt[2*i]);
 			Serial.print(",");
-			Serial.println(dfmstate.cnt[2*i+1]);
-			if(dfmstate.cnt[2*i]>DFMIDTHRESHOLD && dfmstate.cnt[2*i+1]>DFMIDTHRESHOLD) {
-				if(dfmstate.idcnt0 == 0) {
+			Serial.print(dfmstate.cnt[2*i+1]);
+			Serial.print(",st=");
+			Serial.print(st);
+			Serial.print(",lastfrid=");
+			Serial.println(dfmstate.lastfrid>>20);
+			if( (dfmstate.cnt[2*i]>DFMIDTHRESHOLD && dfmstate.cnt[2*i+1]>DFMIDTHRESHOLD) ||
+			    (dfmstate.cnt[2*1]>0 && dfmstate.cnt[2*i+1]>0 &&  st == (dfmstate.lastfrid>>20) && (st>>4)>6) ) {
+				if(dfmstate.idcnt0 <= 1) {
 					dfmstate.idcnt0 = dfmstate.cnt[2*i];
 					dfmstate.idcnt1 = dfmstate.cnt[2*i+1];
 					dfmstate.nameregok = i;
@@ -294,6 +302,8 @@ void DFM::decodeCFG(uint8_t *cfg)
 #if 1
 	// new ID
 	finddfname(cfg);
+	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
+	memcpy(sonde.si()->ser, sonde.si()->id+1, 9);
 #else
 	// old ID
 	static int lowid, highid, idgood=0, type=0;

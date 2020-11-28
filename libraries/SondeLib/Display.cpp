@@ -30,6 +30,9 @@ SPIClass spiDisp(HSPI);
 
 const char *sondeTypeStr[NSondeTypes] = { "DFM6", "DFM9", "RS41", "RS92", "M10 " };
 
+#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM06 || (t)==STYPE_DFM09 )
+#define TYPE_IS_METEO(t) ( (t)==STYPE_M10 )
+
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
 
@@ -455,10 +458,10 @@ void ILI9225Display::welcome() {
         setFont(5);
 	int l=3*22;
 	if(sonde.config.tft_orient&1) {
-        	drawString(0, 1*22, "RS41/92,DFM6/9,M10");
+        	drawString(0, 1*22, "RS41/92,DFM,M10");
 	} else {
         	drawString(0, 1*22, "RS41,RS92,");
-        	drawString(0, 2*22, "DFM6/9,M10");
+        	drawString(0, 2*22, "DFM,M10");
 		l+=22;
 	}
        	drawString(0, l, version_id);
@@ -1029,24 +1032,24 @@ void Display::drawID(DispEntry *de) {
 		drawString(de, "nnnnnnnn ");
 		return;
 	}
-	// TODO: handle DFM6 IDs
-
-	if(!de->extra || de->extra[0]=='s') {
-		// real serial number, as printed on sonde
+	if(de->extra && de->extra[0]=='n') {
+		// real serial number, as printed on sonde, can be up to 11 digits long
 		drawString(de, sonde.si()->ser);
-	} else if (de->extra[0]=='a') {
-		// autorx sonde number ("DF9" and last 6 digits of real serial number)
-		if(sonde.si()->type == STYPE_DFM09) {
-			int n = strlen(sonde.si()->ser) - 6;
-			if(n<0) n=0;
-			memcpy(buf, "DF9", 3);
-			memcpy(buf+3, sonde.si()->ser+n, 6);
-			drawString(de, buf);
+	} else if (de->extra && de->extra[0]=='s') {
+		// short ID, max 8 digits (no initial "D" for DFM, "M" instead of "ME" for M10)
+		if( TYPE_IS_DFM(sonde.si()->type) ) {
+			drawString(de, sonde.si()->id+1);
+		} else if (TYPE_IS_METEO(sonde.si()->type)) {
+			char sid[9];
+			sid[0]='M';
+			memcpy(sid+1, sonde.si()->id+2, 8);
+			sid[8] = 0;
+			drawString(de, sid);
 		} else {
-			drawString(de, sonde.si()->ser);
+			drawString(de, sonde.si()->id);
 		}
 	} else {
-		// dxlAPRS sonde number (DF6 (why??) and 5 last digits of serial number as hex number
+		// dxlAPRS sonde number, max 9 digits, as used on aprs.fi and radiosondy.info
 		drawString(de, sonde.si()->id);
 	}
 }
