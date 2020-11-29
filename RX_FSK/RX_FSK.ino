@@ -128,13 +128,13 @@ const String sondeTypeSelect(int activeType) {
   String sts = "";
   for (int i = 0; i < NSondeTypes; i++) {
     sts += "<option value=\"";
-    sts += sondeTypeStr[i];
+    sts += sondeTypeLongStr[i];
     sts += "\"";
     if (activeType == i) {
       sts += " selected";
     }
     sts += ">";
-    sts += sondeTypeStr[i];
+    sts += sondeTypeLongStr[i];
     sts += "</option>";
   }
   return sts;
@@ -368,7 +368,7 @@ void addSondeStatus(char *ptr, int i)
   struct tm ts;
   SondeInfo *s = &sonde.sondeList[i];
   strcat(ptr, "<table>");
-  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeStr[s->type],
+  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[s->type],
           s->validID ? s->id : "<?""?>");
   if (s->validID && (s->type == STYPE_DFM06 || s->type == STYPE_DFM09 || s->type == STYPE_M10)) {
     sprintf(ptr + strlen(ptr), " (ser: %s)", s->ser);
@@ -447,8 +447,8 @@ struct st_configitems config_list[] = {
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
   {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
-  {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
-  {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
+  {"dfm.agcbw", "DFM AGC bandwidth", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", "DFM RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -1649,7 +1649,7 @@ void loopDecoder() {
   // sonde knows the current type and frequency, and delegates to the right decoder
   uint16_t res = sonde.waitRXcomplete();
   int action;
-  Serial.printf("waitRX result is %x\n", (int)res);
+  //Serial.printf("waitRX result is %x\n", (int)res);
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
@@ -1673,7 +1673,7 @@ void loopDecoder() {
   }
 
   if (!tncclient.connected()) {
-    Serial.println("TNC client not connected");
+    //Serial.println("TNC client not connected");
     tncclient = tncserver.available();
     if (tncclient.connected()) {
       Serial.println("new TCP KISS connection");
@@ -1696,8 +1696,8 @@ void loopDecoder() {
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-        Serial.println("Sending position via UDP");
-        Serial.print("Sending: "); Serial.println(raw);
+        Serial.print("Sending UDP:");
+        Serial.println(raw);
         udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
         udp.write((const uint8_t *)raw, rawlen);
         udp.endPacket();
@@ -1713,14 +1713,15 @@ void loopDecoder() {
     // also send to web socket
     //TODO
   }
-  Serial.println("updateDisplay started");
+  Serial.print("updateDisplay started... ");
   if (forceReloadScreenConfig) {
     disp.initFromFile();
     sonde.clearDisplay();
     forceReloadScreenConfig = false;
   }
+  int t = millis();
   sonde.updateDisplay();
-  Serial.println("updateDisplay done");
+  Serial.printf("updateDisplay done (after %d ms)\n", (int)(millis()-t));
 }
 
 void setCurrentDisplay(int value) {
@@ -2336,8 +2337,8 @@ void execOTA() {
 
 
 void loop() {
-  Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
-  Serial.printf("currentDisp:%d lastDisp:%d\n", currentDisplay, lastDisplay);
+  Serial.printf("\nRunning main loop in state %d [currentDisp:%d, lastDiso:%d]. free heap: %d;\n",
+    mainState, currentDisplay, lastDisplay, ESP.getFreeHeap());
   switch (mainState) {
     case ST_DECODER: 
 #ifndef DISABLE_MAINRX    

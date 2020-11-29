@@ -193,14 +193,13 @@ void DFM::finddfname(uint8_t *b)
 	st = b[0];    /* frame start byte */
 	ix = b[3];    /* hi/lo part of ser;  (LSB due to our bitsToBytes...) */
 	d = (b[1]<<8) + b[2];  /* data byte */
-	i = 0;
         /* find highest channel number single frame serial,
            (2 frame serial will make a single serial too) */
 	if(dfmstate.idcnt0 < DFMIDTHRESHOLD && dfmstate.idcnt1 < DFMIDTHRESHOLD) {
 		uint32_t v = (st<<20) | (d<<4) | ix;
 		if ( st > (dfmstate.lastfrid>>20) ) {
 			dfmstate.lastfrid = v;
-			Serial.print("MAXCH: "); Serial.println(st);
+			Serial.print(" MAXCH:"); Serial.print(st);
 			dfmstate.lastfrcnt = 0;
 		} else if ( st == (dfmstate.lastfrid>>20) ) {
 			/* same id found */
@@ -228,14 +227,14 @@ void DFM::finddfname(uint8_t *b)
 							return;
 						}
 						dfmstate.lastfrcnt = 0;
-						Serial.println(" NOT NUMERIC SERIAL");
+						Serial.print(" NOT NUMERIC SERIAL");
                      			}
                   			//anonym->idtime = osic_time();
        			         } else {
-					Serial.print(" MAXCHCNT/SECURITYLEVEL:");
+					Serial.print(" MAXCHCNT/SECLVL:");
 					Serial.print(dfmstate.lastfrcnt);
 					Serial.print("/");
-					Serial.println(thres);
+					Serial.print(thres);
 				}
 			} else {
                			dfmstate.lastfrid = v; /* not stable ser */
@@ -244,7 +243,9 @@ void DFM::finddfname(uint8_t *b)
 		}
       } /*find highest channel number single frame serial */
 
+	i = 0;
 	while (i<dfmstate.nameregtop && dfmstate.start[i]!=st) i++;
+	Serial.printf(" %02x:i=%d,top=%d", st, i, dfmstate.nameregtop);
 	if (i<dfmstate.nameregtop) {
         	if (ix<=1UL && (dfmstate.cnt[2*i+ix]==0 || dfmstate.dat[2*i+ix]==d)) {
         		dfmstate.dat[2*i+ix] = d;
@@ -260,21 +261,21 @@ void DFM::finddfname(uint8_t *b)
 			Serial.print(",st=");
 			Serial.print(st);
 			Serial.print(",lastfrid=");
-			Serial.println(dfmstate.lastfrid>>20);
+			Serial.print(dfmstate.lastfrid>>20);
 			if( (dfmstate.cnt[2*i]>DFMIDTHRESHOLD && dfmstate.cnt[2*i+1]>DFMIDTHRESHOLD) ||
-			    (dfmstate.cnt[2*1]>0 && dfmstate.cnt[2*i+1]>0 &&  st == (dfmstate.lastfrid>>20) && (st>>4)>6) ) {
+			    (dfmstate.cnt[2*i]>0 && dfmstate.cnt[2*i+1]>0 &&  st == (dfmstate.lastfrid>>20) && (st>>4)>6) ) {
 				if(dfmstate.idcnt0 <= 1) {
 					dfmstate.idcnt0 = dfmstate.cnt[2*i];
 					dfmstate.idcnt1 = dfmstate.cnt[2*i+1];
 					dfmstate.nameregok = i;
 					// generate id.....
 					snprintf(sonde.si()->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
-					Serial.print(" NEW AUTOID:");
+					Serial.print("\nNEW AUTOID:");
 					Serial.println(sonde.si()->id);
 					sonde.si()->validID = true;
 				}
 				if(dfmstate.nameregok==i) {
-					Serial.println("ID OK");
+					Serial.print(" ID OK");
 					// idtime = .... /* TODO */
 				}
 			}
@@ -439,7 +440,6 @@ int DFM::receive() {
 	int e = sx1278.receivePacketTimeout(1000, data);
 	if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
-	Serial.printf("inverse is %d\b", inverse);
 	if(!inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
@@ -460,6 +460,7 @@ int DFM::receive() {
 	decodeCFG(byte_conf);
 	decodeDAT(byte_dat1);
 	decodeDAT(byte_dat2);
+	Serial.println("");
 	}
 	return RX_OK;
 }

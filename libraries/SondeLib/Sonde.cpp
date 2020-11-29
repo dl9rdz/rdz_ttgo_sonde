@@ -10,6 +10,7 @@
 #include "Display.h"
 #include <Wire.h>
 
+uint8_t debug = 255-8;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -465,7 +466,7 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
-	Serial.printf("event %x: action is %x\n", event, action);
+	if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -482,7 +483,7 @@ void Sonde::receive() {
 		}
 	}
 	res = (action<<8) | (res&0xff);
-	Serial.printf("receive Result is %04x\n", res);
+	Serial.printf("receive(): Result is %04x (action %d, res %d)\n", res, action, res&0xff);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -499,7 +500,7 @@ rxloop:
 	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
-		Serial.print("RSSI update: ");
+		Serial.printf("RSSI update: %d/2\n", sonde.si()->rssi);
 		disp.updateDisplayRSSI();
 		goto rxloop;
 	}
@@ -537,12 +538,11 @@ rxloop:
 uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 	uint32_t now = millis();
 #if 1
-	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d\n",
+	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d; lastState: %d\n",
 		now, si->viewStart, disp.layout->timeouts[0],
 		now, si->rxStart, disp.layout->timeouts[1],
-		now, si->norxStart, disp.layout->timeouts[2]);
+		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
-	Serial.printf("lastState is %d\n", si->lastState);
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
 		Serial.println("View timer expired");
 		return EVT_VIEWTO;
@@ -650,9 +650,7 @@ void Sonde::updateDisplayIP() {
 
 void Sonde::updateDisplay()
 {
-	int t = millis();
 	disp.updateDisplay();
-	Serial.printf("updateDisplay took %d ms\n", (int)(millis()-t));
 }
 
 void Sonde::clearDisplay() {

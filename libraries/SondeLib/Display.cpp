@@ -29,6 +29,7 @@ extern SemaphoreHandle_t axpSemaphore;
 SPIClass spiDisp(HSPI);
 
 const char *sondeTypeStr[NSondeTypes] = { "DFM6", "DFM9", "RS41", "RS92", "M10 " };
+const char *sondeTypeLongStr[NSondeTypes] = { "DFM6/17", "DFM9", "RS41", "RS92", "M10 " };
 
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM06 || (t)==STYPE_DFM09 )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 )
@@ -391,7 +392,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	int16_t w,h;
 	boolean alignright=false;
 	if(findex<3) {  // standard font
-		Serial.printf("Simple Text %s at %d,%d [%d]\n", s, x, y, width);
+		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
 		tft->drawText(x, y, s, fg);
 		return;
 	}
@@ -406,7 +407,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 			width=w;
 			if(alignright) {
 				x -= w;
-				Serial.print("reducing x by widht, its now ");
+				DebugPrint(DEBUG_DISPLAY, "reducing x by widht, its now "); 
 				Serial.println(x);
 			}
 		}
@@ -414,7 +415,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 
 	if(findex-3>=ngfx) findex=3;
 	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-3].yclear, bg);
-	Serial.printf("GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
+	DebugPrintf(DEBUG_DISPLAY,"GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
 	if(alignright) {
         	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-3].yofs, s, fg);
 	} else {
@@ -1021,7 +1022,7 @@ void Display::drawVS(DispEntry *de) {
 	   return;
 	}
 	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
-	Serial.printf("drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
+	DebugPrintf(DEBUG_DISPLAY, "drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
 	if(de->extra) { strcat(buf, de->extra); }
 	drawString(de, buf+strlen(buf)-5- (de->extra?strlen(de->extra):0) );
 	if(!de->extra) rdis->drawTile(de->x+5,de->y,2,ms_tiles);
@@ -1227,7 +1228,7 @@ static int tmpc=0;
 		gpsBear = -1;
 	}
 	
-	Serial.printf("GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsValid?1:0,
+	DebugPrintf(DEBUG_DISPLAY, "GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsValid?1:0,
 		gpsLat, gpsLon, gpsAlt, gpsCourse, gpsDist, gpsDir, gpsBear);
 }
 

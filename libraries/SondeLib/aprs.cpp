@@ -204,7 +204,7 @@ extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
       --n;
    }
    aprsstr_appcrc(raw, raw_len, p);
-   fprintf(stderr,"results in %s\n",raw);
+   //fprintf(stderr,"results in %s\n",raw);
    return p+2;
 } /* end mon2raw() */
 

@@ -2,6 +2,13 @@
 #ifndef Sonde_h
 #define Sonde_h
 
+enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
+extern uint8_t debug;
+
+#define DebugPrint(l,x) if(debug&l) { Serial.print(x); }
+#define DebugPrintln(l,x) if(debug&l) { Serial.println(x); }
+#define DebugPrintf(l,...) if(debug&l) { Serial.printf(__VA_ARGS__); }
+
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
@@ -49,6 +56,7 @@ extern const char *RXstr[];
 #define NSondeTypes 5
 enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92, STYPE_M10 };
 extern const char *sondeTypeStr[NSondeTypes];
+extern const char *sondeTypeLongStr[NSondeTypes];
 
 typedef struct st_sondeinfo {
         // receiver configuration
