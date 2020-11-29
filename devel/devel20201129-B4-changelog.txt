@@ -1,1 +1,1 @@
-Removing unnecessary pin defines
+arduino 1.8.13 upgrade for travis
