@@ -2,7 +2,7 @@
 #ifndef Sonde_h
 #define Sonde_h
 
-enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
+enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
 extern uint8_t debug;
 
 #define DebugPrint(l,x) if(debug&l) { Serial.print(x); }
@@ -53,10 +53,13 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 5
-enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92, STYPE_M10 };
+#define NSondeTypes 6
+enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_DFM06_OLD };
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
+
+#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM || (t)==STYPE_DFM09_OLD || (t)==STYPE_DFM06_OLD )
+#define TYPE_IS_METEO(t) ( (t)==STYPE_M10 )
 
 typedef struct st_sondeinfo {
         // receiver configuration
@@ -64,6 +67,7 @@ typedef struct st_sondeinfo {
         SondeType type;
         float freq;
         // decoded ID
+	char typestr[5];			// decoded type (use type if *typestr==0)
         char id[10];
 	char ser[12];
         bool validID;
@@ -174,6 +178,7 @@ typedef struct st_rdzconfig {
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
+	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	

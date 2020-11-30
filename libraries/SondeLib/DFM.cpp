@@ -12,6 +12,8 @@
 #define DFM_DBG(x)
 #endif
 
+#define DFM_FRAMELEN 33
+
 // single data structure, search restarts after decoder change
 static struct st_dfmstat {
 	int idcnt0;
@@ -25,11 +27,11 @@ static struct st_dfmstat {
 	uint8_t nameregtop;
 } dfmstate;
 
-int DFM::setup(float frequency, int inv) 
+int DFM::setup(float frequency, int type) 
 {
-	inverse = inv;
+	stype = type;
 #if DFM_DEBUG
-	Serial.printf("Setup sx1278 for DFM sonde (inv=%d)\n",inv);
+	Serial.printf("Setup sx1278 for DFM sonde (type=%d)\n", stype);
 #endif
 	if(sx1278.ON()!=0) {
 		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
@@ -57,36 +59,69 @@ int DFM::setup(float frequency, int inv)
                 DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
                 return 1;
         }
-	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	if(sx1278.setRxConf(0x1E)!=0) {
-		DFM_DBG(Serial.println("Setting RX Config FAILED"));
-		return 1;
-	}
-	// Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
-	//char header[] = "0110.0101 0110.0110 1010.0101 1010.1010";
 
-	const char *SYNC=inverse?"\x9A\x99\x5A\x55":"\x65\x66\xA5\xAA";
-	if(sx1278.setSyncConf(0x53, 4, (const uint8_t *)SYNC)!=0) {
-		DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
-		return 1;
-	}
-	//if(sx1278.setPreambleDetect(0xA8)!=0) {
-	if(sx1278.setPreambleDetect(0xAA)!=0) {
-		DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
-		return 1;
-	}
+	if(type == STYPE_DFM09_OLD || type == STYPE_DFM06_OLD) {
+        	// packet mode, old version, misses some frames because chip enables rx too late after
+		// one frame was recevied.  TODO: check if this can be fixed by changing parameters
+        	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
+        	if(sx1278.setRxConf(0x1E)!=0) {
+        		DFM_DBG(Serial.println("Setting RX Config FAILED"));
+        		return 1;
+        	}
+        	// Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
+        	//char header[] = "0110.0101 0110.0110 1010.0101 1010.1010";
+        
+        	const char *SYNC=(stype==STYPE_DFM09_OLD)?"\x9A\x99\x5A\x55":"\x65\x66\xA5\xAA";
+        	if(sx1278.setSyncConf(0x53, 4, (const uint8_t *)SYNC)!=0) {
+        		DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
+        		return 1;
+        	}
+        	//if(sx1278.setPreambleDetect(0xA8)!=0) {
+        	if(sx1278.setPreambleDetect(0xAA)!=0) {
+        		DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
+        		return 1;
+        	}
 
-	// Packet config 1: fixed len, mancecer, no crc, no address filter
-	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-	if(sx1278.setPacketConfig(0x28, 0x40)!=0) {
-		DFM_DBG(Serial.println("Setting Packet config FAILED"));
-		return 1;
+        	// Packet config 1: fixed len, mancecer, no crc, no address filter
+        	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
+        	if(sx1278.setPacketConfig(0x28, 0x40)!=0) {
+        		DFM_DBG(Serial.println("Setting Packet config FAILED"));
+		        return 1;
+	        }
+                sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
+	} else {
+	        // continuous mode
+	        // Enable auto-AFC, auto-AGC, RX Trigger by preamble  ????
+                if(sx1278.setRxConf(0x1E)!=0) {
+                        DFM_DBG(Serial.println("Setting RX Config FAILED"));
+                        return 1;
+                }
+                // working with continuous RX
+                const char *SYNC="\xAA\xAA";
+                if(sx1278.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
+                        DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
+                        return 1;
+                }
+                if(sx1278.setPreambleDetect(0xA8)!=0) {
+                //if(sx1278.setPreambleDetect(0x9F)!=0) {
+                        DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
+                        return 1;
+                }
+                if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+                        DFM_DBG(Serial.println("Setting Packet config FAILED"));
+                        return 1;
+                }
+                sx1278.setPayloadLength(0);  // infinite for now...
 	}
         Serial.print("DFM: setting RX frequency to ");
         Serial.println(frequency);
 
 	int retval = sx1278.setFrequency(frequency);
         sx1278.clearIRQFlags();
+
+	// Do this only once in setup in continous mode
+        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+
 	memset((void *)&dfmstate, 0, sizeof(dfmstate));
 	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
 	return retval;
@@ -178,7 +213,17 @@ void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
 	Serial.print(" ");
 }
 
-
+const char* typestr[16]={
+  "", "", "", "", "", "",   // 00..05
+  "DFM6",                   // 06 => DFM6
+  "PS15",		    // 07 => PS15 (untested)
+  "", "",
+  "DFM9",		    // 0A => DFM9
+  "DF17",		    // 0B => DFM17?
+  "DF9P",		    // 0C => DFM9P or DFM17 test
+  "DF17",		    // 0D => DFM17
+  "", ""
+};
 
 #define DFMIDTHRESHOLD 2
 /* inspired by oe5dxl's finddnmae in sondeudp.c of dxlaprs */
@@ -224,6 +269,7 @@ void DFM::finddfname(uint8_t *b)
 						if(i==6) {
 							snprintf(sonde.si()->id, 10, "D%x ", id);
 							sonde.si()->validID = true;
+							strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 							return;
 						}
 						dfmstate.lastfrcnt = 0;
@@ -273,6 +319,7 @@ void DFM::finddfname(uint8_t *b)
 					Serial.print("\nNEW AUTOID:");
 					Serial.println(sonde.si()->id);
 					sonde.si()->validID = true;
+					strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 				}
 				if(dfmstate.nameregok==i) {
 					Serial.print(" ID OK");
@@ -431,19 +478,140 @@ void DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 	bytes[(i-1)/8] &= 0x0F;
 }
 
+static int haveNewFrame = 0;
+
+int DFM::processDFMdata(uint8_t dt) {
+	static uint8_t data[1024];
+	static uint32_t rxdata = 0;
+	static uint8_t rxbitc = 0;
+	static uint8_t rxbyte = 0;
+	static uint8_t rxsearching = 1;
+	static uint8_t rxp;
+	static int rssi=0, fei=0, afc=0;
+	static uint8_t invers = 0;
+	
+       	for(int i=0; i<8; i++) {
+                uint8_t d = (dt&0x80)?1:0;
+                dt <<= 1;
+                rxdata = (rxdata<<1) | d;
+                if( (rxbitc&1)==0 ) {
+                        // "bit1"
+                        rxbyte = (rxbyte<<1) | d;
+                } else {
+                        // "bit2" ==> 01 or 10 => 1, otherweise => 0
+                        // not here: (10=>1, 01=>0)!!! rxbyte = rxbyte ^ d;
+                }
+                //
+                if(rxsearching) {
+                        if( rxdata == 0x6566A5AA || rxdata == 0x9A995A55 ) {
+                                rxsearching = false;
+                                rxbitc = 0;
+                                rxp = 0;
+				rxbyte = 0;
+                                rssi=sx1278.getRSSI();
+                                fei=sx1278.getFEI();
+                                afc=sx1278.getAFC();
+                                sonde.si()->rssi = rssi;
+                                sonde.si()->afc = afc;
+				invers = (rxdata == 0x6566A5AA)?1:0;
+                        }
+                } else {
+                        rxbitc = (rxbitc+1)%16; // 16;
+                        if(rxbitc == 0) { // got 8 data bit
+				if(invers) rxbyte=~rxbyte;
+                                data[rxp++] = rxbyte&0xff; // (rxbyte>>1)&0xff;
+                                if(rxp>=DFM_FRAMELEN) {
+                                        rxsearching = true;
+					//Serial.println("Got a DFM frame!");
+                                	Serial.print("[RSSI="); Serial.print(rssi);
+                                	Serial.print(" FEI="); Serial.print(fei);
+                                	Serial.print(" AFC="); Serial.print(afc); Serial.print("] ");
+                                        decodeFrameDFM(data);
+					haveNewFrame = 1;
+                                }
+                        }
+                }
+        }
+	return 0;
+}
+
 int DFM::receive() {
+	if( stype == STYPE_DFM ) {
+		return receiveNew();
+	} else {
+		return receiveOld();
+	}
+}
+
+
+int DFM::receiveNew() {
+	int rxframes = 4;
+	// tentative continuous RX version...
+	unsigned long t0 = millis();
+	while( ( millis() - t0 ) < 1000 ) {
+		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);	
+                if ( bitRead(value, 7) ) {
+                        Serial.println("FIFO full");
+                }
+                if ( bitRead(value, 4) ) {
+                        Serial.println("FIFO overflow");
+			// new: (maybe clear only overflow??) TODO
+                        sx1278.clearIRQFlags();
+                }
+                if ( bitRead(value, 2) == 1 ) {
+                        Serial.println("FIFO: payload ready()");
+			// does not make much sence? (from m10): TODO
+                        // ???????  sx1278.clearIRQFlags();
+                }
+		if(bitRead(value, 6) == 0) { // while FIFO not empty
+                        byte data = sx1278.readRegister(REG_FIFO);
+                        processDFMdata(data);
+                        value = sx1278.readRegister(REG_IRQ_FLAGS2);
+                } else {
+#if 0
+                        if(headerDetected) {
+                                t0 = millis(); // restart timer... don't time out if header detected...
+                                headerDetected = 0;
+                        }
+#endif
+                        if(haveNewFrame) {
+                                //Serial.printf("DFM::receive(): new frame complete after %ldms\n", millis()-t0);
+                                haveNewFrame = 0;
+				rxframes--;
+                                if(rxframes==0) return RX_OK;
+                        }
+                        delay(2);
+                }
+	}
+	return RX_TIMEOUT;
+}
+
+int DFM::receiveOld() {
 	byte data[1000];  // pending data from previous mode may write more than 33 bytes. TODO. 
 	for(int i=0; i<2; i++) {
-	sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
+		sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
+		sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+                int t = millis();
+	        int e = sx1278.receivePacketTimeout(1000, data);
+	        //Serial.printf("rxPTO done after %d ms", (int)(millis()-t));
+	        if(e) { return RX_TIMEOUT; } //if timeout... return 1
 
-	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-	int e = sx1278.receivePacketTimeout(1000, data);
-	if(e) { return RX_TIMEOUT; } //if timeout... return 1
+	        if(!(stype==STYPE_DFM09_OLD)) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
+	        decodeFrameDFM(data);
+	}
+	return RX_OK;
+}
 
-	if(!inverse) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
+int DFM::decodeFrameDFM(uint8_t *data) {
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
 	deinterleave(data+20, 13, hamming_dat2);
+#if 0
+	Serial.print("RAWCFG:");
+	for(int i=0; i<7*8; i++) {
+		Serial.print(hamming_conf[i]?"1":"0");
+	}
+#endif
   
 	int ret0 = hamming(hamming_conf,  7, block_conf);
 	int ret1 = hamming(hamming_dat1, 13, block_dat1);
@@ -461,7 +629,6 @@ int DFM::receive() {
 	decodeDAT(byte_dat1);
 	decodeDAT(byte_dat2);
 	Serial.println("");
-	}
 	return RX_OK;
 }
 

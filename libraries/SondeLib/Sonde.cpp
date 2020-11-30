@@ -10,7 +10,7 @@
 #include "Display.h"
 #include <Wire.h>
 
-uint8_t debug = 255-8;
+uint8_t debug = 255-8-16;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -45,7 +45,7 @@ extern SX1278FSK sx1278;
  *  - Periodically it calls Sonde::receive(), which calls the current decoder's receive()
  *    function. It should return control to the SX1278 main loop at least once per second.
  *    It will also set the internal variable receiveResult.  The decoder's receive function
- *    must make sure that there are no FIFI overflows in the SX1278.
+ *    must make sure that there are no FIFO overflows in the SX1278.
  *  - the Arduino main loop will call the waitRXcomplete function, which should return as
  *    soon as there is some new data to display, or no later than after 1s, returning the
  *    value of receiveResult (or timeout, if receiveResult was not set within 1s). It
@@ -250,6 +250,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.wifiap = atoi(val);
 	} else if(strcmp(cfg,"mdnsname")==0) {
 		strncpy(config.mdnsname, val, 14);
+	} else if(strcmp(cfg,"screenfile")==0) {
+		config.screenfile = atoi(val);
 	} else if(strcmp(cfg,"display")==0) {
 		int i = 0;
 		char *ptr;
@@ -335,6 +337,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	}
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	sondeList[nSonde].type = type;
+	sondeList[nSonde].typestr[0] = 0;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
@@ -403,9 +406,10 @@ void Sonde::setup() {
 	case STYPE_RS41:
 		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
-		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type==STYPE_DFM06?0:1 );
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
+		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
 	case STYPE_RS92:
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
@@ -435,8 +439,9 @@ void Sonde::receive() {
 	case STYPE_M10:
 		res = m10.receive();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		res = dfm.receive();
 		break;
 	}
@@ -525,8 +530,9 @@ rxloop:
 	case STYPE_M10:
 		m10.waitRXcomplete();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		dfm.waitRXcomplete();
 		break;
 	}

@@ -145,7 +145,7 @@ private:
 		return ret;
 	}
 public:
-	void initFromFile();
+	void initFromFile(int index);
 
 	int layoutIdx;
 	DispInfo *layout;
