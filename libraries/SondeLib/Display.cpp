@@ -388,25 +388,39 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
-	if(findex<3) {  // standard font
-		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
-		tft->drawText(x, y, s, fg);
-		return;
-	}
-	// GFX font
 	if(width<0) {
 		width = -width;
 		alignright = true;
 	}
+	// Standard font
+	if(findex<3) {
+		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
+		tft->setBackgroundColor(bg);
+		int h = tft->getFont().height;
+		if( alignright ) {
+			w = tft->getTextWidth(s);
+			if( width==WIDTH_AUTO ) { width = w; }
+			if( width > w ) {
+				tft->fillRectangle(x - width, y, x - w, y + h - 1, bg);
+			}
+			tft->drawText(x - w, y, s, fg);
+		} else {
+			int curx = tft->drawText(x, y, s, fg);
+			if( width==WIDTH_AUTO ) { return; }
+			if(curx < x + width) {
+        			tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
+			}
+		}
+		return;
+	}
+	// GFX font
 	if(width==WIDTH_AUTO || alignright) {
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
-		if(width==WIDTH_AUTO) { 
-			width=w;
-			if(alignright) {
-				x -= w;
-				DebugPrint(DEBUG_DISPLAY, "reducing x by widht, its now "); 
-				Serial.println(x);
-			}
+		if(width==WIDTH_AUTO) { width=w; }
+		if(alignright) {
+			if(w > width) width = w;
+			x -= width;
+			DebugPrintf(DEBUG_DISPLAY, "Reducing x by width %d, its now %d\n", width, x); 
 		}
 	}
 
@@ -424,14 +438,22 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	// Text by drawing bitmap.... => less "flicker"
 	uint16_t height = gfxoffsets[findex-3].yclear;
         uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * width * height);
+	if(!bitmap) {
+		Serial.println("FATAL: OUT OF MEMORY when allocating bitmap");
+		Serial.printf("w=%d, h=%d, s==%d\n",width, height, 2*width*height);
+		heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
+		return;
+	}
         for(int i=0; i<width*height; i++) { bitmap[i] = bg; }   // fill with background
 	int x0 = 0;
+	if(alignright) { x0 = width - w; }
 	int y0 = gfxoffsets[findex-3].yofs;
 	DebugPrintf(DEBUG_DISPLAY,"GFX: w=%d h=%d\n", width, height);
 	for (uint8_t k = 0; k < strlen(s); k++) {	
             x0 += tft->drawGFXcharBM(x0, y0, s[k], fg, bitmap, width, height) + 1;
 	    DebugPrintf(DEBUG_DISPLAY,"[%c->%d]",s[k],x0);
 	}
+	// TODO: if x+width exceeds display width, garbage is generated....
         drawBitmap(x, y, bitmap, width, height);
 	free(bitmap);
 #endif
@@ -704,6 +726,7 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		// Large font can be used arbitrarily
 		if(de->fmt==fontsma) de->fmt=0;
 		de->func = disp.drawIP; break;
+		de->extra = strdup(text+1);
 	case 's':
 		de->func = disp.drawSite;
 		de->extra = strdup(text+1);

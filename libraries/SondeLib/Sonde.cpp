@@ -445,6 +445,9 @@ void Sonde::setup() {
 	float afcbw = sx1278.getAFCBandwidth();
 	float rxbw = sx1278.getRxBandwidth();
 	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
+
+	// reset rxtimer / norxtimer state
+	sonde.sondeList[sonde.currentSonde].lastState = -1;
 }
 
 extern void flashLed(int ms);

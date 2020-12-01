@@ -349,20 +349,20 @@ color=00FF00
 3,0=xMEMORY
 3,9=xLAUNCH SITE
 color=639AFF
-4,0=S/
+4,0,9=S/
 4,9=S
 #Row 3
 color=00FF00
 6,0=xTYPE
 6,9=xFREQUENCY
 color=639AFF
-7,0=T
+7,0,9=T
 7,9=F MHz
 #Row 4
 fonts=0,5
 color=285454
 11.5,0=xIP ADDRESS:
-10.9,8.8=N
+10.9,22,-15=N
 #Footer
 color=FF0000
 12.7,18=bVV

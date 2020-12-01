@@ -18,7 +18,7 @@
 	  <button class="tablinks" onclick="selTab(event,'QRG')" id="defaultTab">QRG</button>
 	  <button class="tablinks" onclick="selTab(event,'WiFi')">WiFi</button>
 	  <button class="tablinks" onclick="selTab(event,'Data')">Data</button>
-	  <button class="tablinks" onclick="selTab(event,'SondeMap')">SondeMap</button>	  
+	  <!-- <button class="tablinks" onclick="selTab(event,'SondeMap')">SondeMap</button>	   -->
 	  <button class="tablinks" onclick="selTab(event,'Config')">Config</button>
 	  <button class="tablinks" onclick="selTab(event,'Control')">Control</button>
 	  <button class="tablinks" onclick="selTab(event,'About')">About</button>
@@ -39,9 +39,11 @@
 	<iframe src="status.html" style="border:none;" width="100%%" height="100%%"></iframe>
 </div>
 
-<div id="SondeMap" class="tabcontent" data-src="https://wx.dl2mf.de/#?">
+<!--
+<div id="SondeMap" class="tabcontent" data-src="https://wetterson.de/karte/">
 	<iframe src="" style="border:none;" width="98%%" height="98%%"></iframe>
 </div>
+-->
 
 <div id="Config" class="tabcontent">
 	<h3>Configuration</h3>
@@ -57,8 +59,12 @@
 	<h3>About</h3>
    %VERSION_NAME%<br>
    Copyright &copy; 2019 by Hansi Reiser, DL9RDZ<br>
-   (version %VERSION_ID%)<br>
-   with mods by <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a><br>
+   (version %VERSION_ID%)<br><br>
+   with contributions by <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
+   <a href="https://github.com/bazjo">Johannes</a>, <a href="http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden">Robert Stefanowicz</a>,
+   <a href="https://github.com/puspis">Josema</a>, and probably some more people I forgot to mention here.
+
+<br>
    <br>
    Autodetect info: %AUTODETECT_INFO%<br>
    <br>
