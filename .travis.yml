@@ -13,10 +13,11 @@ before_install:
   - sudo ln -s /usr/local/share/arduino/arduino /usr/local/bin/arduino
   - wget https://github.com/me-no-dev/ESPAsyncWebServer/archive/master.zip
   - unzip master.zip
-  - sudo mv ESPAsyncWebServer-master /usr/local/share/arduino/libraries/ESPAsyncWebServer
   - rm master.zip
+  - sudo mv ESPAsyncWebServer-master /usr/local/share/arduino/libraries/ESPAsyncWebServer
   - wget https://github.com/me-no-dev/AsyncTCP/archive/master.zip
   - unzip master.zip
+  - rm master.zip
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
   - wget https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
   - wget https://github.com/lewisxhe/AXP202X_Library/archive/v1.0.zip
@@ -25,6 +26,7 @@ before_install:
 
   - wget https://github.com/dx168b/async-mqtt-client/archive/master.zip
   - unzip master.zip
+  - rm master.zip
   - sudo mv async-mqtt-client-master /usr/local/share/arduino/libraries/
 
   # Trying to get rid of mDNS warnings (1000s of them...)
