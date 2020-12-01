@@ -23,16 +23,23 @@
 class DFM
 {
 private:
-	int inverse=0;
+	int stype;
+	char *stypename=NULL;
 
 	void deinterleave(uint8_t *str, int L, uint8_t *block);
 	uint32_t bits2val(const uint8_t *bits, int len);
 	int check(uint8_t code[8]);
 	int hamming(uint8_t *ham, int L, uint8_t *sym);
 	void printRaw(const char *prefix, int len, int ret, const uint8_t* data);
+	void finddfname(uint8_t *cfg);
 	void decodeCFG(uint8_t *cfg);
 	void decodeDAT(uint8_t *dat);
 	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
+	int processDFMdata(uint8_t dt);
+        int decodeFrameDFM(uint8_t *data);
+	int receiveOld();
+	int receiveNew();
+
 
 #define B 8
 #define S 4
@@ -55,7 +62,7 @@ private:
 public:
 	DFM();
 	// main decoder API
-	int setup(float frequency, int inverse);
+	int setup(float frequency, int type);
 	int receive();
 	int waitRXcomplete();
 

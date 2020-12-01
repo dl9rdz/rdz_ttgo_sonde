@@ -204,7 +204,7 @@ extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
       --n;
    }
    aprsstr_appcrc(raw, raw_len, p);
-   fprintf(stderr,"results in %s\n",raw);
+   //fprintf(stderr,"results in %s\n",raw);
    return p+2;
 } /* end mon2raw() */
 
@@ -317,7 +317,7 @@ char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 	char comm[100];
         snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, s->freq, sondeTypeStr[s->type]);
 	strcat(b, comm);
-	if(s->type==STYPE_M10||s->type==STYPE_DFM06||s->type==STYPE_DFM09) {
+	if( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) ) {
 		snprintf(comm, 100, " ser=%s", s->ser);
 		strcat(b, comm);
 	}

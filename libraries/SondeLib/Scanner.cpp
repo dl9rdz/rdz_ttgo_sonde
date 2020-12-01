@@ -138,7 +138,7 @@ void Scanner::scan()
 	int wait = scanconfig.ADDWAIT + 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
 	Serial.print("wait time (us) is: "); Serial.println(wait);
 	for(int iter=0; iter<3; iter++) {   // three interations, to catch all RS41 transmissions
-	    delayMicroseconds(20000);
+	    delayMicroseconds(20000); yield();
 	    for(int i=0; i<scanconfig.PLOT_W*scanconfig.SMPL_PIX; i++) {
 		freq = STARTF + 1000.0*i*scanconfig.CHANSTEP;
 		//freq = 404000000 + 100*i*scanconfig.CHANSTEP;
@@ -159,6 +159,7 @@ void Scanner::scan()
 		}
 	    }
 	}
+	yield();
 	unsigned long duration = millis()-start;
 	Serial.print("wait: ");
 	Serial.println(wait);

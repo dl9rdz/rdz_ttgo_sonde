@@ -10,6 +10,7 @@
 #include "Display.h"
 #include <Wire.h>
 
+uint8_t debug = 255-8-16;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -44,7 +45,7 @@ extern SX1278FSK sx1278;
  *  - Periodically it calls Sonde::receive(), which calls the current decoder's receive()
  *    function. It should return control to the SX1278 main loop at least once per second.
  *    It will also set the internal variable receiveResult.  The decoder's receive function
- *    must make sure that there are no FIFI overflows in the SX1278.
+ *    must make sure that there are no FIFO overflows in the SX1278.
  *  - the Arduino main loop will call the waitRXcomplete function, which should return as
  *    soon as there is some new data to display, or no later than after 1s, returning the
  *    value of receiveResult (or timeout, if receiveResult was not set within 1s). It
@@ -256,6 +257,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.wifiap = atoi(val);
 	} else if(strcmp(cfg,"mdnsname")==0) {
 		strncpy(config.mdnsname, val, 14);
+	} else if(strcmp(cfg,"screenfile")==0) {
+		config.screenfile = atoi(val);
 	} else if(strcmp(cfg,"display")==0) {
 		int i = 0;
 		char *ptr;
@@ -357,6 +360,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	}
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	sondeList[nSonde].type = type;
+	sondeList[nSonde].typestr[0] = 0;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
@@ -425,9 +429,10 @@ void Sonde::setup() {
 	case STYPE_RS41:
 		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
-		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type==STYPE_DFM06?0:1 );
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
+		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
 	case STYPE_RS92:
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
@@ -457,8 +462,9 @@ void Sonde::receive() {
 	case STYPE_M10:
 		res = m10.receive();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		res = dfm.receive();
 		break;
 	}
@@ -488,7 +494,7 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
-	Serial.printf("event %x: action is %x\n", event, action);
+	if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -505,7 +511,7 @@ void Sonde::receive() {
 		}
 	}
 	res = (action<<8) | (res&0xff);
-	Serial.printf("receive Result is %04x\n", res);
+	Serial.printf("receive(): Result is %04x (action %d, res %d)\n", res, action, res&0xff);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -522,7 +528,7 @@ rxloop:
 	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
-		Serial.print("RSSI update: ");
+		Serial.printf("RSSI update: %d/2\n", sonde.si()->rssi);
 		disp.updateDisplayRSSI();
 		goto rxloop;
 	}
@@ -547,8 +553,9 @@ rxloop:
 	case STYPE_M10:
 		m10.waitRXcomplete();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		dfm.waitRXcomplete();
 		break;
 	}
@@ -560,12 +567,11 @@ rxloop:
 uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 	uint32_t now = millis();
 #if 1
-	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d\n",
+	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d; lastState: %d\n",
 		now, si->viewStart, disp.layout->timeouts[0],
 		now, si->rxStart, disp.layout->timeouts[1],
-		now, si->norxStart, disp.layout->timeouts[2]);
+		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
-	Serial.printf("lastState is %d\n", si->lastState);
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
 		Serial.println("View timer expired");
 		return EVT_VIEWTO;
@@ -673,9 +679,7 @@ void Sonde::updateDisplayIP() {
 
 void Sonde::updateDisplay()
 {
-	int t = millis();
 	disp.updateDisplay();
-	Serial.printf("updateDisplay took %d ms\n", (int)(millis()-t));
 }
 
 void Sonde::clearDisplay() {

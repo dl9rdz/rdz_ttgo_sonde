@@ -1344,7 +1344,7 @@ uint16_t TFT22_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint1
 }
 
 // Write a character to a bitmap
-uint16_t TFT22_ILI9225::drawGFXcharBM(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t *bm, int bmwd) {
+uint16_t TFT22_ILI9225::drawGFXcharBM(int16_t x, int16_t y, unsigned char c, uint16_t color, uint16_t *bm, int bmwidth, int bmheight) {
     c -= (uint8_t)pgm_read_byte(&gfxFont->first);
     GFXglyph *glyph  = &(((GFXglyph *)pgm_read_pointer(&gfxFont->glyph))[c]);
     uint8_t  *bitmap = (uint8_t *)pgm_read_pointer(&gfxFont->bitmap);
@@ -1356,17 +1356,15 @@ uint16_t TFT22_ILI9225::drawGFXcharBM(int16_t x, int16_t y, unsigned char c, uin
     int8_t   xo = pgm_read_byte(&glyph->xOffset),
              yo = pgm_read_byte(&glyph->yOffset);
     uint8_t  xx, yy, bits = 0, bit = 0;
-
     for(yy=0; yy<h; yy++) {
-	if(y+yo+yy>=bmwd) continue;
+	if(y+yo+yy>=bmheight) continue;
 	if(y+yo+yy<0) continue;		// yo can be negative
         for(xx=0; xx<w; xx++) {
-	    if(x+xo+xx>=bmwd) continue;
             if(!(bit++ & 7)) {
                 bits = pgm_read_byte(&bitmap[bo++]);
             }
-            if(bits & 0x80) {
-		bm[x+xo+xx + bmwd*(y+yo+yy)] = color;
+            if( (bits & 0x80) && (x+xo+xx<bmwidth) ) {
+		bm[x+xo+xx + bmwidth*(y+yo+yy)] = color;
             }
             bits <<= 1;
         }

@@ -41,6 +41,8 @@ wifi=3
 # TCP/IP KISS TNC in port 14590 for APRSdroid (0=disabled, 1=enabled)
 kisstnc.active = 1
 
+# which screens file to use (0: screens.txt, i>0: screens${i}.txt
+screenfile=0
 # display configuration. List of "displays"
 # first entry: "Scanner" display
 # second entry: default "Receiver" display

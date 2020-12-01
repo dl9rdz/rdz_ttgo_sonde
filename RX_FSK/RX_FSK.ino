@@ -20,15 +20,7 @@
 #include "version.h"
 #include "geteph.h"
 #include "rs92gps.h"
-
 #include "mqtt.h"
-
-#ifdef TTGO_V2
-// platformio currently fails to build with board v2 so ve override v1 pins instead
-#define OLED_SDA 4
-#define OLED_SCL 15
-#define OLED_RST 16
-#endif
 
 int e;
 
@@ -100,8 +92,11 @@ String readLine(Stream &stream) {
 int readLine(Stream &stream, char *buffer, int maxlen) {
   int n = stream.readBytesUntil('\n', buffer, maxlen);
   buffer[n] = 0;
-  if(n <= 0) return 0;
-  if(buffer[n-1]=='\r') { buffer[n-1]=0; n--; }
+  if (n <= 0) return 0;
+  if (buffer[n - 1] == '\r') {
+    buffer[n - 1] = 0;
+    n--;
+  }
   return n;
 }
 
@@ -134,13 +129,13 @@ const String sondeTypeSelect(int activeType) {
   String sts = "";
   for (int i = 0; i < NSondeTypes; i++) {
     sts += "<option value=\"";
-    sts += sondeTypeStr[i];
+    sts += sondeTypeLongStr[i];
     sts += "\"";
     if (activeType == i) {
       sts += " selected";
     }
     sts += ">";
-    sts += sondeTypeStr[i];
+    sts += sondeTypeLongStr[i];
     sts += "</option>";
   }
   return sts;
@@ -181,10 +176,13 @@ void setupChannelList() {
       type = STYPE_RS92;
     }
     else if (space[1] == '9') {
-      type = STYPE_DFM09;
+      type = STYPE_DFM09_OLD;
     }
     else if (space[1] == '6') {
-      type = STYPE_DFM06;
+      type = STYPE_DFM06_OLD;
+    }
+    else if (space[1] == 'D') {
+      type = STYPE_DFM;
     }
     else if (space[1] == 'M') {
       type = STYPE_M10;
@@ -222,7 +220,7 @@ const char *createQRGForm() {
             i + 1, s.c_str());
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
-  Serial.printf("QRG form: size=%d bytes\n",strlen(message));
+  Serial.printf("QRG form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -262,7 +260,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3]); // a bit ugly
+    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3] == ' ' ? 'D' : tstr[3]); // a bit ugly
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
@@ -326,7 +324,7 @@ const char *createWIFIForm() {
             i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
-  Serial.printf("WIFI form: size=%d bytes\n",strlen(message));
+  Serial.printf("WIFI form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -374,9 +372,9 @@ void addSondeStatus(char *ptr, int i)
   struct tm ts;
   SondeInfo *s = &sonde.sondeList[i];
   strcat(ptr, "<table>");
-  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeStr[s->type],
+  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[s->type],
           s->validID ? s->id : "<?""?>");
-  if (s->validID && (s->type == STYPE_DFM06 || s->type == STYPE_DFM09 || s->type == STYPE_M10)) {
+  if (s->validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type)) ) {
     sprintf(ptr + strlen(ptr), " (ser: %s)", s->ser);
   }
   sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->lat, s->lon, s->alt);
@@ -405,7 +403,7 @@ const char *createStatusForm() {
     }
   }
   strcat(ptr, "</body></html>");
-  Serial.printf("Status form: size=%d bytes\n",strlen(message));
+  Serial.printf("Status form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -438,6 +436,7 @@ struct st_configitems config_list[] = {
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
+  {"screenfile", "Screen config (0=old, 1=OLED, 2=TFT, 3=TFT[port])", 0, &sonde.config.screenfile},
   {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
   /* Spectrum display settings */
   {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
@@ -453,8 +452,8 @@ struct st_configitems config_list[] = {
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
   {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
-  {"dfm.agcbw", "DFM6/9 AGC bandwidth", 0, &sonde.config.dfm.agcbw},
-  {"dfm.rxbw", "DFM6/9 RX bandwidth", 0, &sonde.config.dfm.rxbw},
+  {"dfm.agcbw", "DFM AGC bandwidth", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", "DFM RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -593,7 +592,7 @@ const char *createConfigForm() {
     }
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"></input></form></body></html>");
-  Serial.printf("Config form: size=%d bytes\n",strlen(message));
+  Serial.printf("Config form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -666,7 +665,7 @@ const char *createControlForm() {
     strcat(ptr, "\"></input><br>");
   }
   strcat(ptr, "</form></body></html>");
-  Serial.printf("Control form: size=%d bytes\n",strlen(message));
+  Serial.printf("Control form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -715,6 +714,7 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
 
 // bad idea. prone to buffer overflow. use at your own risk...
 const char *createEditForm(String filename) {
+  Serial.println("Creating edit form");
   char *ptr = message;
   File file = SPIFFS.open("/" + filename, "r");
   if (!file) {
@@ -733,41 +733,45 @@ const char *createEditForm(String filename) {
     strcat(ptr, line.c_str()); strcat(ptr, "\n");
   }
   strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
-  Serial.printf("Edit form: size=%d bytes\n",strlen(message));
+  Serial.printf("Edit form: size=%d bytes\n", strlen(message));
   return message;
 }
 
 
 const char *handleEditPost(AsyncWebServerRequest *request) {
   Serial.println("Handling post request");
-    int params = request->params();
-    Serial.printf("Post:, %d params\n", params);
-    for(int i = 0; i < params; i++) {
-      AsyncWebParameter* p = request->getParam(i);
-      String name = p->name();
-      String value = p->value();
-      if(name.c_str()==NULL) { name=String("NULL"); }
-      if(value.c_str()==NULL) { value=String("NULL"); }
-      if(p->isFile()){
-        Serial.printf("_FILE[%s]: %s, size: %u\n", name.c_str(), value.c_str(), p->size());
-      } else if(p->isPost()){
-        Serial.printf("_POST[%s]: %s\n", name.c_str(), value.c_str());
-      } else {
-        Serial.printf("_GET[%s]: %s\n", name.c_str(), value.c_str());
-      }
+  int params = request->params();
+  Serial.printf("Post:, %d params\n", params);
+  for (int i = 0; i < params; i++) {
+    AsyncWebParameter* p = request->getParam(i);
+    String name = p->name();
+    String value = p->value();
+    if (name.c_str() == NULL) {
+      name = String("NULL");
     }
+    if (value.c_str() == NULL) {
+      value = String("NULL");
+    }
+    if (p->isFile()) {
+      Serial.printf("_FILE[%s]: %s, size: %u\n", name.c_str(), value.c_str(), p->size());
+    } else if (p->isPost()) {
+      Serial.printf("_POST[%s]: %s\n", name.c_str(), value.c_str());
+    } else {
+      Serial.printf("_GET[%s]: %s\n", name.c_str(), value.c_str());
+    }
+  }
 
   AsyncWebParameter *filep = request->getParam("file");
   if (!filep) return NULL;
   String filename = filep->value();
-  Serial.printf("Writing file <%s>\n",filename.c_str());
+  Serial.printf("Writing file <%s>\n", filename.c_str());
   AsyncWebParameter *textp = request->getParam("text", true);
   if (!textp) return NULL;
   Serial.printf("Parameter size is %d\n", textp->size());
   Serial.printf("Multipart: %d  contentlen=%d  \n",
-    request->multipart(), request->contentLength());
+                request->multipart(), request->contentLength());
   String content = textp->value();
-  if(content.length()==0) {
+  if (content.length() == 0) {
     Serial.println("File is empty. Not written.");
     return NULL;
   }
@@ -780,7 +784,7 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   int len = file.print(content);
   file.close();
   Serial.printf("Written: %d bytes\n", len);
-  if (strcmp(filename.c_str(), "screens.txt") == 0) {
+  if (strncmp(filename.c_str(), "screens", 7) == 0) {
     // screens update => reload
     forceReloadScreenConfig = true;
   }
@@ -796,7 +800,7 @@ const char *createUpdateForm(boolean run) {
     strcat(ptr, "<input type=\"submit\" name=\"master\" value=\"Master-Update\"></input><br><input type=\"submit\" name=\"devel\" value=\"Devel-Update\">");
   }
   strcat(ptr, "</form></body></html>");
-  Serial.printf("Update form: size=%d bytes\n",strlen(message));
+  Serial.printf("Update form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -921,14 +925,14 @@ void SetupAsyncServer() {
   });
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     const char *ret = handleEditPost(request);
-    if(ret==NULL)
-       request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
+    if (ret == NULL)
+      request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
     else
-       request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+      request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
   },
   NULL,
   [](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
-      Serial.printf("post data: index=%d len=%d total=%d\n", index, len, total);
+    Serial.printf("post data: index=%d len=%d total=%d\n", index, len, total);
   });
 
   // Route to load style.css file
@@ -1311,6 +1315,9 @@ void handlePMUirq() {
       axp.clearIRQ();
       xSemaphoreGive( axpSemaphore );
     }
+  } else {
+    Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
+    pmu_irq = false;   // prevent main loop blocking
   }
 }
 
@@ -1429,7 +1436,9 @@ void setup()
   Serial.println("Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
 
-  if ((sonde.fingerprint & 16) == 16) { // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
+  // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
+  // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31)
+  if ( (sonde.fingerprint != 31) && ((sonde.fingerprint & 16) == 16) ) {
     // FOr T-Beam 1.0
     for (int i = 0; i < 10; i++) { // try multiple times
       Wire.begin(21, 22);
@@ -1514,7 +1523,7 @@ void setup()
   setupWifiList();
   Serial.printf("before disp.initFromFile... layouts is %p", disp.layouts);
 
-  disp.initFromFile();
+  disp.initFromFile(sonde.config.screenfile);
   Serial.printf("disp.initFromFile... layouts is %p", disp.layouts);
 
 
@@ -1604,13 +1613,13 @@ void setup()
 #endif
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
-#ifndef DISABLE_SX1278 
+#ifndef DISABLE_SX1278
   xTaskCreate( sx1278Task, "sx1278Task",
                10000, /* stack size */
                NULL, /* paramter */
                1, /* priority */
                NULL);  /* task handle*/
-#endif              
+#endif
   sonde.setup();
   initGPS();
 
@@ -1666,7 +1675,7 @@ void loopDecoder() {
   // sonde knows the current type and frequency, and delegates to the right decoder
   uint16_t res = sonde.waitRXcomplete();
   int action;
-  Serial.printf("waitRX result is %x\n", (int)res);
+  //Serial.printf("waitRX result is %x\n", (int)res);
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
@@ -1690,7 +1699,7 @@ void loopDecoder() {
   }
 
   if (!tncclient.connected()) {
-    Serial.println("TNC client not connected");
+    //Serial.println("TNC client not connected");
     tncclient = tncserver.available();
     if (tncclient.connected()) {
       Serial.println("new TCP KISS connection");
@@ -1714,8 +1723,8 @@ void loopDecoder() {
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-        Serial.println("Sending position via UDP");
-        Serial.print("Sending: "); Serial.println(raw);
+        Serial.println("Sending AXUDP");
+        //Serial.println(raw);
         udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
         udp.write((const uint8_t *)raw, rawlen);
         udp.endPacket();
@@ -1738,14 +1747,15 @@ void loopDecoder() {
     // also send to web socket
     //TODO
   }
-  Serial.println("updateDisplay started");
+  Serial.print("updateDisplay started... ");
   if (forceReloadScreenConfig) {
-    disp.initFromFile();
+    disp.initFromFile(sonde.config.screenfile);
     sonde.clearDisplay();
     forceReloadScreenConfig = false;
   }
+  int t = millis();
   sonde.updateDisplay();
-  Serial.println("updateDisplay done");
+  Serial.printf("updateDisplay done (after %d ms)\n", (int)(millis() - t));
 }
 
 void setCurrentDisplay(int value) {
@@ -2035,11 +2045,11 @@ void startAP() {
   Serial.println("Activating access point mode");
   wifi_state = WIFI_APMODE;
   WiFi.softAP(networks[0].id.c_str(), networks[0].pw.c_str());
-  
+
   Serial.println("Wait 100 ms for AP_START...");
   delay(100);
-  Serial.println(WiFi.softAPConfig(IPAddress (192,168,4,1), IPAddress (0,0,0,0), IPAddress (255,255,255,0)) ? "Ready" : "Failed!");
-  
+  Serial.println(WiFi.softAPConfig(IPAddress (192, 168, 4, 1), IPAddress (0, 0, 0, 0), IPAddress (255, 255, 255, 0)) ? "Ready" : "Failed!");
+
   IPAddress myIP = WiFi.softAPIP();
   String myIPstr = myIP.toString();
   sonde.setIP(myIPstr.c_str(), true);
@@ -2368,15 +2378,15 @@ void execOTA() {
 
 
 void loop() {
-  Serial.printf("\nRunning main loop in state %d. free heap: %d;\n", mainState, ESP.getFreeHeap());
-  Serial.printf("currentDisp:%d lastDisp:%d\n", currentDisplay, lastDisplay);
+  Serial.printf("\nRunning main loop in state %d [currentDisp:%d, lastDiso:%d]. free heap: %d;\n",
+                mainState, currentDisplay, lastDisplay, ESP.getFreeHeap());
   switch (mainState) {
-    case ST_DECODER: 
-#ifndef DISABLE_MAINRX    
+    case ST_DECODER:
+#ifndef DISABLE_MAINRX
       loopDecoder();
 #else
       delay(1000);
-#endif      
+#endif
       break;
     case ST_SPECTRUM: loopSpectrum(); break;
     case ST_WIFISCAN: loopWifiScan(); break;
