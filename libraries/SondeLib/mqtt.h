@@ -18,7 +18,7 @@ public:
     const char *password;
     const char *prefix;
 
-    void init(const char *ip, uint16_t port, const char *id, const char *username, const char *password, const char *prefix);
+    void init(const char *host, uint16_t port, const char *id, const char *username, const char *password, const char *prefix);
     void publishPacket(SondeInfo *s);
     void publishUptime();
 private:

@@ -101,10 +101,10 @@ tcp.idformat=0
 # data not sanitized / quality checked, outliers not filtered out
 mqtt.active=0
 mqtt.id=rdz_sonde_server
-mqtt.ip=/0
+mqtt.ip=
 mqtt.port=1883
-mqtt.username=/0
-mqtt.password=/0
+mqtt.username=
+mqtt.password=
 mqtt.prefix=rdz_sonde_server/
 #-------------------------------#
 # EOF

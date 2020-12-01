@@ -478,7 +478,7 @@ struct st_configitems config_list[] = {
   /* MQTT */
   {"mqtt.active", "MQTT Active (needs reboot)", 0, &sonde.config.mqtt.active},
   {"mqtt.id", "MQTT client ID", 63, &sonde.config.mqtt.id},
-  {"mqtt.host", "MQTT server IP address", 63, &sonde.config.mqtt.host},
+  {"mqtt.host", "MQTT server hostname", 63, &sonde.config.mqtt.host},
   {"mqtt.port", "MQTT Port", 0, &sonde.config.mqtt.port},
   {"mqtt.username", "MQTT Username", 63, &sonde.config.mqtt.username},
   {"mqtt.password", "MQTT Password", 63, &sonde.config.mqtt.password},

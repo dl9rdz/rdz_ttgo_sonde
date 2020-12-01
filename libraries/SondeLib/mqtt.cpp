@@ -2,6 +2,9 @@
 #include "mqtt.h"
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
+#include <ESPmDNS.h>
+
+TimerHandle_t mqttReconnectTimer;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -13,10 +16,9 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
-
-void MQTT::init(const char* ip, uint16_t port, const char* id, const char *username, const char *password, const char *prefix)
+void MQTT::init(const char* host, uint16_t port, const char* id, const char *username, const char *password, const char *prefix)
 {
-    this->ip = this->ip.fromString(ip);
+    WiFi.hostByName(host, this->ip);
     this->port = port;
     this->username = username;
     this->password = password;
@@ -32,9 +34,6 @@ void MQTT::init(const char* ip, uint16_t port, const char* id, const char *usern
     if (strlen(password) > 0) {
         mqttClient.setCredentials(username, password);
     }
-    mqttClient.connect();
-    
-    //mqttReconnectTimer = xTimerCreate("mqttTimer", pdMS_TO_TICKS(2000), pdFALSE, (void*)0, connectToMqtt);
 }
 
 void MQTT::connectToMqtt() {
@@ -44,6 +43,8 @@ void MQTT::connectToMqtt() {
 
 void MQTT::publishUptime()
 {
+    mqttClient.connect(); // ensure we've got connection
+
     Serial.println("[MQTT] writing");
     char payload[12];
     snprintf(payload, 12, "%lu", millis());
@@ -54,6 +55,8 @@ void MQTT::publishUptime()
 
 void MQTT::publishPacket(SondeInfo *s)
 {
+    mqttClient.connect(); // ensure we've got connection
+
     char payload[1024];
     snprintf(payload, 1024, "{"
         "\"active\": %d,"
