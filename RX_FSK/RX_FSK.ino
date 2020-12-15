@@ -187,6 +187,10 @@ void setupChannelList() {
     else if (space[1] == 'M') {
       type = STYPE_M10;
     }
+    else if (space[1] == '2') {
+      type = STYPE_M10;
+    }
+  
     else continue;
     int active = space[3] == '+' ? 1 : 0;
     if (space[4] == ' ') {
@@ -205,19 +209,46 @@ void setupChannelList() {
 
 const char *createQRGForm() {
   char *ptr = message;
-  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
+  strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\">");
+  strcat(ptr, "<script type=\"text/javascript\">"
+     "let stypes=new Map();"
+     "stypes.set('4', 'RS41');"
+     "stypes.set('R', 'RS92');"
+     "stypes.set('9', 'DFM9 (old)');"
+     "stypes.set('6', 'DFM6 (old)');"
+     "stypes.set('D', 'DFM');"
+     "stypes.set('M', 'M10');"
+     "function prep() {"
+     " var stlist=document.querySelectorAll(\"input.stype\");"
+     " for(txt of stlist){"
+     "  var val=txt.getAttribute('value'); var nam=txt.getAttribute('name'); "
+     "  var sel=document.createElement('select');"
+     "  sel.setAttribute('name',nam);"
+     "  for(stype of stypes) { "
+     "   var opt=document.createElement('option');"
+     "   opt.value=stype[0];"
+     "   opt.innerHTML=stype[1];"
+     "   if(stype[0]==val) { opt.setAttribute('selected','selected'); }"
+     "   sel.appendChild(opt);"
+     "  } txt.replaceWith(sel); } } "
+     "  window.onload = prep; "
+     "</script>");
+     
+  strcat(ptr, "</head><body><form action=\"qrg.html\" method=\"post\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
   for (int i = 0; i < sonde.config.maxsonde; i++) {
-    String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
+    //String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
     String site = sonde.sondeList[i].launchsite;
     sprintf(ptr + strlen(ptr), "<tr><td>%d</td><td><input name=\"A%d\" type=\"checkbox\" %s/></td>"
             "<td><input name=\"F%d\" type=\"text\" value=\"%3.3f\"></td>"
             "<td><input name=\"S%d\" type=\"text\" value=\"%s\"></td>"
-            "<td><select name=\"T%d\">%s</select></td>",
+            //"<td><select name=\"T%d\">%s</select></td>",
+            "<td><input class='stype' name='T%d' value='%c'>",
             i + 1,
             i + 1, (i < sonde.nSonde && sonde.sondeList[i].active) ? "checked" : "",
             i + 1, i >= sonde.nSonde ? 400.000 : sonde.sondeList[i].freq,
             i + 1, i >= sonde.nSonde ? "                " : sonde.sondeList[i].launchsite,
-            i + 1, s.c_str());
+            i + 1, i >= sonde.nSonde ? 2 : sondeTypeChar[sonde.sondeList[i].type] );
+            //i + 1, s.c_str());
   }
   strcat(ptr, "</table><input type=\"submit\" value=\"Update\"/></form></body></html>");
   Serial.printf("QRG form: size=%d bytes\n", strlen(message));
@@ -260,7 +291,8 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3] == ' ' ? 'D' : tstr[3]); // a bit ugly
+    //char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3] == ' ' ? 'D' : tstr[3]); // a bit ugly
+    char typech = tstr[0];
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
   file.close();
