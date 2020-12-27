@@ -6,6 +6,7 @@
 #include "RS92.h"
 #include "DFM.h"
 #include "M10.h"
+#include "M20.h"
 #include "SX1278FSK.h"
 #include "Display.h"
 #include <Wire.h>
@@ -438,8 +439,10 @@ void Sonde::setup() {
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_M10:
-	case STYPE_M20:
 		m10.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+		break;
+	case STYPE_M20:
+		m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	}
 	// debug
@@ -464,8 +467,10 @@ void Sonde::receive() {
 		res = rs92.receive();
 		break;
 	case STYPE_M10:
-	case STYPE_M20:
 		res = m10.receive();
+		break;
+	case STYPE_M20:
+		res = m20.receive();
 		break;
 	case STYPE_DFM06_OLD:
 	case STYPE_DFM09_OLD:
@@ -556,8 +561,10 @@ rxloop:
 		rs92.waitRXcomplete();
 		break;
 	case STYPE_M10:
-	case STYPE_M20:
 		m10.waitRXcomplete();
+		break;
+	case STYPE_M20:
+		m20.waitRXcomplete();
 		break;
 	case STYPE_DFM06_OLD:
 	case STYPE_DFM09_OLD:

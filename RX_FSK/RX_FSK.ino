@@ -21,6 +21,7 @@
 #include "geteph.h"
 #include "rs92gps.h"
 #include "mqtt.h"
+#include "esp_heap_caps.h"
 
 int e;
 
@@ -188,9 +189,8 @@ void setupChannelList() {
       type = STYPE_M10;
     }
     else if (space[1] == '2') {
-      type = STYPE_M10;
+      type = STYPE_M20;
     }
-  
     else continue;
     int active = space[3] == '+' ? 1 : 0;
     if (space[4] == ' ') {
@@ -218,6 +218,7 @@ const char *createQRGForm() {
      "stypes.set('6', 'DFM6 (old)');"
      "stypes.set('D', 'DFM');"
      "stypes.set('M', 'M10');"
+     "stypes.set('2', 'M20');"
      "function prep() {"
      " var stlist=document.querySelectorAll(\"input.stype\");"
      " for(txt of stlist){"
@@ -291,7 +292,6 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
-    //char typech = (tstr[2] == '4' ? '4' : tstr[2] == '9' ? 'R' : tstr[0] == 'M' ? 'M' : tstr[3] == ' ' ? 'D' : tstr[3]); // a bit ugly
     char typech = tstr[0];
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
   }
@@ -1418,6 +1418,18 @@ int scanI2Cdevice(void)
 
 extern int initlevels[40];
 
+
+#ifdef ESP_MEM_DEBUG
+typedef void (*esp_alloc_failed_hook_t) (size_t size, uint32_t caps, const char * function_name);
+extern esp_err_t heap_caps_register_failed_alloc_callback(esp_alloc_failed_hook_t callback);
+
+void heap_caps_alloc_failed_hook(size_t requested_size, uint32_t caps, const char *function_name)
+{
+  printf("%s was called but failed to allocate %d bytes with 0x%X capabilities. \n",function_name, requested_size, caps);
+}
+#endif
+
+
 void setup()
 {
   char buf[12];
@@ -1428,6 +1440,9 @@ void setup()
     Serial.printf("%d:%d ", i, v);
   }
   Serial.println("");
+#ifdef ESP_MEM_DEBUG
+  esp_err_t error = heap_caps_register_failed_alloc_callback(heap_caps_alloc_failed_hook);
+#endif
   axpSemaphore = xSemaphoreCreateBinary();
   xSemaphoreGive(axpSemaphore);
 
@@ -2407,6 +2422,7 @@ void execOTA() {
   // Back to some normal state
   enterMode(ST_DECODER);
 }
+
 
 
 
