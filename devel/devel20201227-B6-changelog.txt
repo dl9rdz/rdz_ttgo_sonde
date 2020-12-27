@@ -1,0 +1,1 @@
+mqtt compatibility enhanced: remove trailing comma
