@@ -87,7 +87,7 @@ void MQTT::publishPacket(SondeInfo *s)
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"
         "\"countKT\": %d,"
-        "\"crefKT\": %d,"
+        "\"crefKT\": %d"
         "}",
         (int)s->active,
         s->freq,
