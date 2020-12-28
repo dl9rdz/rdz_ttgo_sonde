@@ -22,7 +22,7 @@
 #include "rs92gps.h"
 #include "mqtt.h"
 #include "esp_heap_caps.h"
-
+//#define ESP_MEM_DEBUG 1
 int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
@@ -476,7 +476,7 @@ struct st_configitems config_list[] = {
   {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
   {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
   {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
-  {"noisefloor", "Sepctrum noisefloor", 0, &sonde.config.noisefloor},
+  {"noisefloor", "Spectrum noisefloor", 0, &sonde.config.noisefloor},
   /* decoder settings */
   {"", "Receiver configuration", -5, NULL},
   {"showafc", "Show AFC value", 0, &sonde.config.showafc},
@@ -970,7 +970,9 @@ void SetupAsyncServer() {
 
   // Route to load style.css file
   server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/style.css", "text/css");
+    AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/style.css", "text/css");
+    response->addHeader("Cache-Control","max-age=86400");
+    request->send(response);
   });
 
   // Route to set GPIO to HIGH
