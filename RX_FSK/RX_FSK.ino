@@ -489,6 +489,8 @@ struct st_configitems config_list[] = {
   {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
   {"dfm.agcbw", "DFM AGC bandwidth", 0, &sonde.config.dfm.agcbw},
   {"dfm.rxbw", "DFM RX bandwidth", 0, &sonde.config.dfm.rxbw},
+  {"m10m20.agcbw", "M10/M20 AGC bandwidth", 0, &sonde.config.m10m20.agcbw},
+  {"m10m20.rxbw", "M10/M20 RX bandwidth", 0, &sonde.config.m10m20.rxbw},
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},

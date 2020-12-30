@@ -134,6 +134,10 @@ struct st_dfmconfig {
 	int agcbw;
 	int rxbw;
 };
+struct st_m10m20config {
+	int agcbw;
+	int rxbw;
+};
 
 
 enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
@@ -204,6 +208,7 @@ typedef struct st_rdzconfig {
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	struct st_rs92config rs92;
 	struct st_dfmconfig dfm;
+	struct st_m10m20config m10m20;
 	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign

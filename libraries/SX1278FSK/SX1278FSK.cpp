@@ -566,6 +566,13 @@ int32_t SX1278FSK::getAFC()
 	AFC = (int32_t)(regval * SX127X_FSTEP);
 	return AFC;
 }
+uint16_t SX1278FSK::getRawAFC() {
+	return (readRegister(REG_AFC_MSB)<<8) | readRegister(REG_AFC_LSB);
+}
+void SX1278FSK::setRawAFC(uint16_t afc) {
+	writeRegister(REG_AFC_MSB, afc>>8);
+	writeRegister(REG_AFC_LSB, afc&0xFF);
+}
 
 /*
 Function: Gets the current supply limit of the power amplifier, protecting battery chemistries.

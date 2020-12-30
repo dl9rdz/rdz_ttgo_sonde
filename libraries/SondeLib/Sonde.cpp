@@ -5,8 +5,7 @@
 #include "RS41.h"
 #include "RS92.h"
 #include "DFM.h"
-#include "M10.h"
-#include "M20.h"
+#include "M10M20.h"
 #include "SX1278FSK.h"
 #include "Display.h"
 #include <Wire.h>
@@ -176,6 +175,8 @@ void Sonde::defaultConfig() {
 	config.rs92.alt2d=480;
 	config.dfm.agcbw=20800;
 	config.dfm.rxbw=10400;
+	config.m10m20.agcbw=20800;
+	config.m10m20.rxbw=12500;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -289,6 +290,10 @@ void Sonde::setConfig(const char *cfg) {
 		config.rs41.agcbw = atoi(val);
 	} else if(strcmp(cfg,"rs41.rxbw")==0) {
 		config.rs41.rxbw = atoi(val);
+	} else if(strcmp(cfg,"m10m20.agcbw")==0) {
+		config.m10m20.agcbw = atoi(val);
+	} else if(strcmp(cfg,"m10m20.rxbw")==0) {
+		config.m10m20.rxbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.agcbw")==0) {
 		config.dfm.agcbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.rxbw")==0) {
@@ -439,10 +444,8 @@ void Sonde::setup() {
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_M10:
-		m10.setup( sondeList[rxtask.currentSonde].freq * 1000000);
-		break;
 	case STYPE_M20:
-		m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+		m10m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	}
 	// debug
@@ -467,10 +470,8 @@ void Sonde::receive() {
 		res = rs92.receive();
 		break;
 	case STYPE_M10:
-		res = m10.receive();
-		break;
 	case STYPE_M20:
-		res = m20.receive();
+		res = m10m20.receive();
 		break;
 	case STYPE_DFM06_OLD:
 	case STYPE_DFM09_OLD:
@@ -561,10 +562,8 @@ rxloop:
 		rs92.waitRXcomplete();
 		break;
 	case STYPE_M10:
-		m10.waitRXcomplete();
-		break;
 	case STYPE_M20:
-		m20.waitRXcomplete();
+		m10m20.waitRXcomplete();
 		break;
 	case STYPE_DFM06_OLD:
 	case STYPE_DFM09_OLD:
