@@ -136,9 +136,13 @@ void geteph() {
 	int len=0;
 	while(dclient.connected()) {
 		while(dclient.available()) {
-			char c = dclient.read();
-			fh.write(c);
-			len++;
+			int c = dclient.read();
+			if(c==-1) {
+				Serial.println("dclient.read() returned -1 inspite of available() being true?!");
+			} else {
+				fh.write(c);
+				len++;
+			}
 		}
 	}
 	Serial.printf("fetched %d bytes\n", len);

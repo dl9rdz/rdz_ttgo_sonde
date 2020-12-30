@@ -591,7 +591,7 @@ int DFM::receiveOld() {
 	for(int i=0; i<2; i++) {
 		sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
 		sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-                int t = millis();
+                //int t = millis();
 	        int e = sx1278.receivePacketTimeout(1000, data);
 	        //Serial.printf("rxPTO done after %d ms", (int)(millis()-t));
 	        if(e) { return RX_TIMEOUT; } //if timeout... return 1

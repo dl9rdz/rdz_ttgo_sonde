@@ -11,11 +11,11 @@ int readLine(Stream &stream, char *buffer, int maxlen);
 extern const char *version_name;
 extern const char *version_id;
 
-#include <../fonts/FreeMono9pt7b.h>
-#include <../fonts/FreeMono12pt7b.h>
-#include <../fonts/FreeSans9pt7b.h>
-#include <../fonts/FreeSans12pt7b.h>
-#include <../fonts/Picopixel.h>
+#include <fonts/FreeMono9pt7b.h>
+#include <fonts/FreeMono12pt7b.h>
+#include <fonts/FreeSans9pt7b.h>
+#include <fonts/FreeSans12pt7b.h>
+#include <fonts/Picopixel.h>
 
 extern Sonde sonde;
 

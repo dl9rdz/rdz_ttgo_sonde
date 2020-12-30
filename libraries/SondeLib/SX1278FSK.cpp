@@ -164,8 +164,8 @@ void SX1278FSK::writeRegister(byte address, byte data)
  */
 void SX1278FSK::clearIRQFlags()
 {
-	byte st0;
 #if 0
+	byte st0;
 	// Save the previous status
 	st0 = readRegister(REG_OP_MODE);		
 	// Stdby mode to write in registers
@@ -197,7 +197,7 @@ uint8_t SX1278FSK::setFSK()
 {
 	uint8_t state = 2;
 	byte st0;
-	byte config1;
+	//byte config1;
 
 #if (SX1278FSK_debug_mode > 1)
 	Serial.println();

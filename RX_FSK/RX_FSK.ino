@@ -79,6 +79,10 @@ static int currentDisplay = 1;
 // timestamp when spectrum display was activated
 static unsigned long specTimer;
 
+void enterMode(int mode);
+void WiFiEvent(WiFiEvent_t event);
+
+
 // Read line from file, independent of line termination (LF or CR LF)
 String readLine(Stream &stream) {
   String s = stream.readStringUntil('\n');
@@ -1134,6 +1138,7 @@ void unkHandler(T nmea) {
     Serial.printf("Course update: %d\n", lastCourse);
   }
 }
+//#define DEBUG_GPS 1
 void gpsTask(void *parameter) {
   nmea.setUnknownSentenceHandler(unkHandler);
 
@@ -1142,7 +1147,8 @@ void gpsTask(void *parameter) {
       char c = Serial2.read();
       //Serial.print(c);
       if (nmea.process(c)) {
-        //Serial.println(nmea.getSentence());
+#ifdef DEBUG_GPS
+        Serial.print(nmea.getSentence());
         long lat = nmea.getLatitude();
         long lon = nmea.getLongitude();
         long alt = -1;
@@ -1150,17 +1156,38 @@ void gpsTask(void *parameter) {
         bool valid = nmea.isValid();
         int course = nmea.getCourse() / 1000;
         uint8_t hdop = nmea.getHDOP();
-        //Serial.printf("\nDecode: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
+        Serial.printf(" =>: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d\n", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
+#endif
       }
     }
     delay(50);
   }
 }
 
+#define UBX_SYNCH_1 0xB5
+#define UBX_SYNCH_2 0x62
+uint8_t ubx_set9k6[]={UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8D, 0x8F};
+uint8_t ubx_factorydef[]={UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x09, 13, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0x17, 0x8A };
+
 void initGPS() {
   if (sonde.config.gps_rxd < 0) return; // GPS disabled
-  Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-
+  if (sonde.config.gps_txd >= 0) {  // TX enable, thus try setting baud to 9600 and do a factory reset
+    Serial.println("Trying to reset GPS...");
+    Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+    Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
+    delay(100);
+    Serial2.begin(38400, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+    Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
+    delay(100);
+    Serial2.begin(19200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+    Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
+    delay(100);
+    Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+    Serial2.write(ubx_factorydef, sizeof(ubx_factorydef));
+    delay(1000);
+  } else {
+    Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+  }
   xTaskCreate( gpsTask, "gpsTask",
                5000, /* stack size */
                NULL, /* paramter */

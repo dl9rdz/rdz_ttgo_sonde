@@ -47,7 +47,6 @@ install:
   - arduino --pref "build.path=$PWD/build" --save-prefs
   - arduino --install-boards esp32:esp32 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
-  - ln -s $PWD/libraries/SX1278FSK /usr/local/share/arduino/libraries/SX1278FSK
   - arduino --install-library "U8g2"
   - arduino --install-library "MicroNMEA"
 script:

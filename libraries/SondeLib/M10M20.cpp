@@ -23,7 +23,7 @@ static uint8_t rxbitc;
 static uint16_t rxbyte;
 static int rxp=0;
 static int haveNewFrame = 0;
-static int lastFrame = 0;
+//static int lastFrame = 0;
 static int headerDetected = 0;
 
 int M10M20::setup(float frequency) 
@@ -195,7 +195,6 @@ static uint16_t crc_M10M20(int len, uint8_t *msg) {
 	return cs;
 }
 static bool checkM10M20crc(int crcpos, uint8_t *msg) {
-	int i;
 	uint16_t cs, cs1;
 	cs = crc_M10M20(crcpos, msg);
 	cs1 = (msg[crcpos] << 8) | msg[crcpos+1];
