@@ -1117,8 +1117,14 @@ void initTouch() {
 char buffer[85];
 MicroNMEA nmea(buffer, sizeof(buffer));
 
+
+
 int lastCourse = 0;
-void unkHandler(const MicroNMEA& nmea) {
+
+/// Arrg. MicroNMEA changes type definition... so lets auto-infer type
+template<typename T>
+//void unkHandler(const MicroNMEA& nmea) {
+void unkHandler(T nmea) {
   if (strcmp(nmea.getMessageID(), "VTG") == 0) {
     const char *s = nmea.getSentence();
     while (*s && *s != ',') s++;
