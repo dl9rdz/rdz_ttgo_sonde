@@ -421,7 +421,7 @@ int M10M20::receive() {
       		}
 		if(bitRead(value, 6) == 0) { // while FIFO not empty
       			byte data = sx1278.readRegister(REG_FIFO);
-			Serial.printf("%02x:",data);
+			//Serial.printf("%02x:",data);
       			processM10data(data);
       			value = sx1278.readRegister(REG_IRQ_FLAGS2);
     		} else {
