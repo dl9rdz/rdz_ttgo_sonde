@@ -27,8 +27,8 @@
 tft_orient=1
 #gps_rxd=-1
 gps_txd=-1
-# Show AFC value (for RS41 only, maybe also DFM, but useful for RS92 or M10)
-# showafc=1
+# Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
+showafc=1
 # Frequency correction, in Hz
 # freqofs=0
 #-------------------------------#
@@ -42,7 +42,8 @@ wifi=3
 kisstnc.active = 1
 
 # which screens file to use (0: screens.txt, i>0: screens${i}.txt
-screenfile=0
+# 0: old version; 1: for OLED, 2: for TFT; 3: for TFT (portrait mode)
+# screenfile=2
 # display configuration. List of "displays"
 # first entry: "Scanner" display
 # second entry: default "Receiver" display

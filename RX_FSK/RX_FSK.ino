@@ -1497,8 +1497,8 @@ void setup()
   setupConfigData();    // configuration must be read first due to OLED ports!!!
 
   // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
-  // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31)
-  if ( (sonde.fingerprint != 31) && ((sonde.fingerprint & 16) == 16) ) {
+  // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31/63)
+  if ( ( (sonde.fingerprint&(64+31)) != 31) && ((sonde.fingerprint & 16) == 16) ) {
     // FOr T-Beam 1.0
     for (int i = 0; i < 10; i++) { // try multiple times
       Wire.begin(21, 22);

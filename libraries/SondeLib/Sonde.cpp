@@ -84,6 +84,7 @@ void Sonde::defaultConfig() {
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
+	config.screenfile = 1;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -124,6 +125,7 @@ void Sonde::defaultConfig() {
 					config.tft_rs = 2;
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
+					config.screenfile = 2;
 				} else {
 					// OLED display, pins 21,22 ok...
 					config.disptype = 0;
@@ -144,6 +146,7 @@ void Sonde::defaultConfig() {
 					config.tft_rs = 2;
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
+					config.screenfile = 2;
 				}
 			}
 		} else {
@@ -509,16 +512,21 @@ void Sonde::receive() {
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
-	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE || (action>64&&action<128) ) {
+	if(action == ACT_DISPLAY_SCANNER || action == ACT_NEXTSONDE || action==ACT_PREVSONDE || (action>64&&action<128) ) {
 		// handled here...
-		if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
-			nextRxSonde();
-		else
-			nextRxFreq( action-64 );
-		action = ACT_SONDE(rxtask.currentSonde);
+		if(action==ACT_DISPLAY_SCANNER) {
+			// nothing to do here, be re-call setup() for M10/M20 for repeating AFC
+		}
+		else {
+			if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
+				nextRxSonde();
+			else
+				nextRxFreq( action-64 );
+			action = ACT_SONDE(rxtask.currentSonde);
+		}
 		if(rxtask.activate==-1) {
 			// race condition here. maybe better use mutex. TODO
-			rxtask.activate = action;
+			rxtask.activate = ACT_SONDE(rxtask.currentSonde);
 		}
 	}
 	res = (action<<8) | (res&0xff);

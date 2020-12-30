@@ -107,7 +107,7 @@ key2action=#,#,#,#
 timeaction=#,D,+
 fonts=5,6
 0,0=XScan
-0,8,-3=S#:
+0,5,-3=S#:
 0,9,5.5=T
 3,0=F MHz
 5,0,16=S
@@ -120,11 +120,11 @@ key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
 color=FFD700
-0,0=Is
+0,0,10.5=Is
 color=0000FF
 0,11,-5.5=f
-1,1,6=c
-1,12.5,-4=t
+1,0,4=t
+1,10.5,-6=c
 color=00ff00
 2,0,7=L
 4,0,7=O
@@ -209,12 +209,12 @@ color=e0e0e0
 0.5,0=XScanning...
 #Row 2
 3,0=xIndex
-4,0=S/
+4,0,8=S/
 3,9=xSite
 4,9=S
 #Row 3
 6,0=xType
-7,0=T
+7,0,6=T
 6,9=xFrequency
 7,9=F
 #Row 4
@@ -362,7 +362,7 @@ color=639AFF
 fonts=0,5
 color=285454
 11.5,0=xIP ADDRESS:
-10.9,22,-15=N
+10.9,7,-15=N
 #Footer
 color=FF0000
 12.7,18=bVV

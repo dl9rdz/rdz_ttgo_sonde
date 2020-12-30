@@ -269,7 +269,7 @@ void U8x8Display::welcome() {
   	drawString(8 - strlen(version_name) / 2, 0, version_name);
   	drawString(8 - strlen(version_id) / 2, 2, version_id);
   	setFont(FONT_SMALL);
-	drawString(0, 4, "RS41/92,DFM,M10");
+	drawString(0, 4, "RS41/92,DFM,Mx0");
   	drawString(0, 6, "by Hansi, DL9RDZ");
 }
 
@@ -386,6 +386,8 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 	}
 }
 
+// Note: alignright means that there is a box from x to x+(-width), with text right-justified
+//       x is the *left* corner! not the right...
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
@@ -402,9 +404,9 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 			w = tft->getTextWidth(s);
 			if( width==WIDTH_AUTO ) { width = w; }
 			if( width > w ) {
-				tft->fillRectangle(x - width, y, x - w, y + h - 1, bg);
+				tft->fillRectangle(x, y, x + width - w, y + h - 1, bg);
 			}
-			tft->drawText(x - w, y, s, fg);
+			tft->drawText(x + width - w, y, s, fg);
 		} else {
 			int curx = tft->drawText(x, y, s, fg);
 			if( width==WIDTH_AUTO ) { return; }
@@ -419,9 +421,14 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
 		if(width==WIDTH_AUTO) { width=w; }
 		if(alignright) {
-			if(w > width) width = w;
-			x -= width;
-			DebugPrintf(DEBUG_DISPLAY, "Reducing x by width %d, its now %d\n", width, x); 
+			if(w > width) {
+				// fast drawBitmap does bad things if not within viewport
+				// Maybe better truncate on the right? (TODO)
+				x = x - w + width; if(x<0) x=0;
+				width = w;
+			}
+			//x -= width;
+			//DebugPrintf(DEBUG_DISPLAY, "Reducing x by width %d, its now %d\n", width, x); 
 		}
 	}
 
@@ -496,10 +503,10 @@ void ILI9225Display::welcome() {
         setFont(5);
 	int l=3*22;
 	if(sonde.config.tft_orient&1) {
-        	drawString(0, 1*22, "RS41/92,DFM,M10");
+        	drawString(0, 1*22, "RS41/92,DFM,M10/20");
 	} else {
         	drawString(0, 1*22, "RS41,RS92,");
-        	drawString(0, 2*22, "DFM,M10");
+        	drawString(0, 2*22, "DFM,M10/20");
 		l+=22;
 	}
        	drawString(0, l, version_id);
