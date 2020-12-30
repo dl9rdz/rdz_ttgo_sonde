@@ -1521,14 +1521,16 @@ void setup()
       axp.setDCDC1Voltage(3300);
       axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
       axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
-      pinMode(PMU_IRQ, INPUT_PULLUP);
-      attachInterrupt(PMU_IRQ, [] {
-        pmu_irq = true;
-      }, FALLING);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+      if(sonde.config.button2_axp) {
+        pinMode(PMU_IRQ, INPUT_PULLUP);
+        attachInterrupt(PMU_IRQ, [] {
+          pmu_irq = true;
+        }, FALLING);
       //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-      axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-      axp.clearIRQ();
+        axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
+        axp.clearIRQ();
+      }
       int ndevices = scanI2Cdevice();
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
       delay(500);
