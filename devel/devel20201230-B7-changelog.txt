@@ -1,0 +1,1 @@
+MicroNMEA update compatibility by type inference
