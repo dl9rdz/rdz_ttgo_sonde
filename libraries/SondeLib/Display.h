@@ -10,6 +10,15 @@
 #include <U8x8lib.h>
 #include <SPIFFS.h>
 
+struct GpsPos {
+	double lat;
+	double lon;
+	int alt;
+	int course;
+	int valid;
+};
+extern struct GpsPos gpsPos;
+
 #define WIDTH_AUTO 9999
 struct DispEntry {
 	int16_t y;
@@ -123,11 +132,8 @@ private:
 	static void circ(uint16_t *bm, int16_t w, int16_t x0, int16_t y0, int16_t r, uint16_t fg, boolean fill, uint16_t bg);
 	static int countEntries(File f);
 	void calcGPS();
-	boolean gpsValid;
-	float gpsLat, gpsLon;
-	int gpsAlt;
 	int gpsDist; // -1: invalid
-	int gpsCourse, gpsDir, gpsBear;   // 0..360; -1: invalid
+	int gpsDir, gpsBear;   // 0..360; -1: invalid
 	boolean gpsCourseOld;
 	static const int LINEBUFLEN{ 255 };
 	static char lineBuf[LINEBUFLEN];
