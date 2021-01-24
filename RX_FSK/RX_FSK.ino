@@ -48,9 +48,12 @@ boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
 
-// KISS over TCP für communicating with APRSdroid
+// KISS over TCP for communicating with APRSdroid
 WiFiServer tncserver(14580);
 WiFiClient tncclient;
+// JSON over TCP for communicating with my kotlin andoird test stuff
+WiFiServer rdzserver(14570);
+WiFiClient rdzclient;
 
 unsigned long lastMqttUptime = 0;
 boolean mqttEnabled;
@@ -1123,8 +1126,6 @@ MicroNMEA nmea(buffer, sizeof(buffer));
 
 
 
-int lastCourse = 0;
-
 /// Arrg. MicroNMEA changes type definition... so lets auto-infer type
 template<typename T>
 //void unkHandler(const MicroNMEA& nmea) {
@@ -1134,11 +1135,14 @@ void unkHandler(T nmea) {
     while (*s && *s != ',') s++;
     if (*s == ',') s++; else return;
     if (*s == ',') return; /// no new course data
-    lastCourse = nmea.parseFloat(s, 0, NULL);
+    int lastCourse = nmea.parseFloat(s, 0, NULL);
     Serial.printf("Course update: %d\n", lastCourse);
   }
 }
-//#define DEBUG_GPS 1
+
+#define DEBUG_GPS 1
+static bool gpsCourseOld;
+static int lastCourse;
 void gpsTask(void *parameter) {
   nmea.setUnknownSentenceHandler(unkHandler);
 
@@ -1147,16 +1151,27 @@ void gpsTask(void *parameter) {
       char c = Serial2.read();
       //Serial.print(c);
       if (nmea.process(c)) {
+        gpsPos.valid = nmea.isValid();
+	if(gpsPos.valid) {
+            gpsPos.lon = nmea.getLongitude()*0.000001;
+            gpsPos.lat = nmea.getLatitude()*0.000001;
+            long alt = 0;
+            nmea.getAltitude(alt);
+	    gpsPos.alt=(int)(alt/1000);
+            gpsPos.course = (int)(nmea.getCourse()/1000);
+            gpsCourseOld = false;
+            if(gpsPos.course==0) {
+                // either north or not new
+                if(lastCourse!=0) // use old value...
+                {
+                        gpsCourseOld = true;
+                        gpsPos.course = lastCourse;
+                }
+	    }
+        }
 #ifdef DEBUG_GPS
-        Serial.print(nmea.getSentence());
-        long lat = nmea.getLatitude();
-        long lon = nmea.getLongitude();
-        long alt = -1;
-        bool b = nmea.getAltitude(alt);
-        bool valid = nmea.isValid();
-        int course = nmea.getCourse() / 1000;
         uint8_t hdop = nmea.getHDOP();
-        Serial.printf(" =>: valid: %d  N %ld  E %ld  alt %ld (%d)  course:%d dop:%d\n", valid ? 1 : 0, lat, lon, alt, b, c, hdop);
+        Serial.printf(" =>: valid: %d  N %f  E %f  alt %d  course:%d dop:%d\n", gpsPos.valid ? 1 : 0, gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, hdop);
 #endif
       }
     }
@@ -1760,6 +1775,48 @@ static const char *action2text(uint8_t action) {
   }
   return text;
 }
+
+#define RDZ_DATA_LEN 128
+
+void parseGpsJson(char *data) {
+    char *key = NULL;
+    char *value = NULL;
+    // very simple json parser: look for ", then key, then ", then :, then number, then , or } or \0
+    for(int i=0; i<RDZ_DATA_LEN; i++) {
+	if(key==NULL) {
+	     if(data[i]!='"') continue;
+	     key=data+i+1;
+	     i+=2;
+	     continue;
+	} 
+	if(value==NULL) {
+	     if(data[i]!=':') continue;
+	     value = data+i+1;
+	     i += 2;
+	     continue;
+	}
+	if(data[i]==',' || data[i]=='}' || data[i]==0) {
+	     // get value
+	     double val = strtod(value,NULL);
+	     // get data
+	     if(strncmp(key,"lat",3)==0) { gpsPos.lat = val; }
+	     else if(strncmp(key,"lon",3)==0) { gpsPos.lon = val; }
+	     else if(strncmp(key,"alt",3)==0) { gpsPos.alt = (int)val; }
+	     else if(strncmp(key,"course",6)==0) { gpsPos.course = (int)val; }
+	     gpsPos.valid = true;
+
+	     // next item:
+	     if(data[i]!=',') break;
+	     key = NULL;
+	     value = NULL;
+	}
+    }
+    Serial.printf("Parse result: lat=%f, lon=%f, alt=%d, valid=%d\n", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.valid);
+}
+
+static char rdzData[RDZ_DATA_LEN];
+static int rdzDataPos = 0;
+
 void loopDecoder() {
   // sonde knows the current type and frequency, and delegates to the right decoder
   uint16_t res = sonde.waitRXcomplete();
@@ -1801,8 +1858,31 @@ void loopDecoder() {
     }
     Serial.println("");
   }
+  if (!rdzclient.connected()) {
+    rdzclient = rdzserver.available();
+    if(rdzclient.connected()) {
+      Serial.println("RDZ JSON socket: new connection");
+    }
+  }
+  if(rdzclient.available()) {
+    Serial.print("RDZ JSON socket: received ");
+    while(rdzclient.available()) {
+      char c = (char)rdzclient.read();
+      Serial.print(c);
+      if(c=='\n'||c=='}'||rdzDataPos>=RDZ_DATA_LEN) {
+        // parse GPS position from phone
+	rdzData[rdzDataPos] = c;
+	if(rdzDataPos>2) parseGpsJson(rdzData);
+	rdzDataPos = 0;
+      }
+      else {
+         rdzData[rdzDataPos++] = c;
+      }
+    }
+    Serial.println("");
+  }
   // wifi (axudp) or bluetooth (bttnc) active => send packet
-  if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
+  if ((res & 0xff) == 0 && (connected || tncclient.connected() || rdzclient.connected() )) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
     SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
@@ -1824,6 +1904,65 @@ void loopDecoder() {
         int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
+      }
+      if (rdzclient.connected()) {
+        Serial.println("Sending position via TCP as rdzJSON");
+        char raw[1024];
+        int len = snprintf(raw, 1024, "{"
+        "\"active\": %d,"
+        "\"freq\": %.2f,"
+        "\"id\": \"%s\","
+        "\"ser\": \"%s\","
+        "\"validId\": %d,"
+        "\"launchsite\": \"%s\","
+        "\"lat\": %.5f,"
+        "\"lon\": %.5f,"
+        "\"alt\": %.1f,"
+        "\"vs\": %.1f,"
+        "\"hs\": %.1f,"
+        "\"dir\": %.1f,"
+        "\"sats\": %d,"
+        "\"validPos\": %d,"
+        "\"time\": %d,"
+        "\"sec\": %d,"
+        "\"frame\": %d,"
+        "\"validTime\": %d,"
+        "\"rssi\": %d,"
+        "\"afc\": %d,"
+        "\"rxStat\": \"%s\","
+        "\"launchKT\": %d,"
+        "\"burstKT\": %d,"
+        "\"countKT\": %d,"
+        "\"crefKT\": %d"
+        "}\n",
+        (int)s->active,
+        s->freq,
+        s->id,
+        s->ser,
+        (int)s->validID,
+        s->launchsite,
+        s->lat,
+        s->lon,
+        s->alt,
+        s->vs,
+        s->hs,
+        s->dir,
+        s->sats,
+        s->validPos,
+        s->time,
+        s->sec,
+        s->frame,
+        (int)s->validTime,
+        s->rssi,
+        s->afc,
+        s->rxStat,
+        s->launchKT,
+        s->burstKT,
+        s->countKT,
+        s->crefKT
+        );
+
+        rdzclient.write(raw, len>1024?1024:len);
       }
     }
 
@@ -1926,8 +2065,11 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
+    MDNS.addService("kisstnc", "tcp", 14580);
+    MDNS.addService("jsonrdz", "tcp", 14570);
     if (sonde.config.kisstnc.active) {
       tncserver.begin();
+      rdzserver.begin();
     }
     
     if (sonde.config.mqtt.active && strlen(sonde.config.mqtt.host) > 0) {

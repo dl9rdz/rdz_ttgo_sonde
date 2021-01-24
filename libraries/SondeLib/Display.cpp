@@ -19,12 +19,11 @@ extern const char *version_id;
 
 extern Sonde sonde;
 
-extern MicroNMEA nmea;
-
 extern AXP20X_Class axp;
 extern bool axp192_found;
 extern SemaphoreHandle_t axpSemaphore;
 
+struct GpsPos gpsPos;
 
 SPIClass spiDisp(HSPI);
 
@@ -1233,6 +1232,7 @@ void Display::drawKilltimer(DispEntry *de) {
 extern int lastCourse; // from RX_FSK.ino
 void Display::calcGPS() {
 	// base data
+#if 0
 #if FAKEGPS
 	gpsValid = true;
 	gpsLat = 48.9;
@@ -1258,11 +1258,12 @@ static int tmpc=0;
 		}
 	}
 #endif
+#endif
 	// distance
-	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-        	float lat1 = nmea.getLatitude()*0.000001;
+	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
+        	float lat1 = gpsPos.lat;
         	float lat2 = sonde.si()->lat;
-        	float x = radians(nmea.getLongitude()*0.000001-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
+        	float x = radians(gpsPos.lon-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
         	float y = radians(lat2-lat1);
         	float d = sqrt(x*x+y*y)*EARTH_RADIUS;
 		gpsDist = (int)d;
@@ -1270,17 +1271,17 @@ static int tmpc=0;
 		gpsDist = -1;
 	}
 	// bearing
-	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
-                float lat1 = radians(gpsLat);
+	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
+                float lat1 = radians(gpsPos.lat);
                 float lat2 = radians(sonde.si()->lat);
-                float lon1 = radians(gpsLon);
+                float lon1 = radians(gpsPos.lon);
                 float lon2 = radians(sonde.si()->lon);
                 float y = sin(lon2-lon1)*cos(lat2);
                 float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
                 float dir = atan2(y, x)/PI*180;
                 if(dir<0) dir+=360;
 		gpsDir = (int)dir;
-		gpsBear = gpsDir - gpsCourse;
+		gpsBear = gpsDir - gpsPos.course;
 		if(gpsBear < 0) gpsBear += 360;
 		if(gpsBear >= 360) gpsBear -= 360;
 	} else {
@@ -1288,39 +1289,39 @@ static int tmpc=0;
 		gpsBear = -1;
 	}
 	
-	DebugPrintf(DEBUG_DISPLAY, "GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsValid?1:0,
-		gpsLat, gpsLon, gpsAlt, gpsCourse, gpsDist, gpsDir, gpsBear);
+	DebugPrintf(DEBUG_DISPLAY, "GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsPos.valid?1:0,
+		gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, gpsDist, gpsDir, gpsBear);
 }
 
 void Display::drawGPS(DispEntry *de) {
-	if(sonde.config.gps_rxd<0) return;
+	// TODO: FIXME: ??? if(sonde.config.gps_rxd<0) return;
 	rdis->setFont(de->fmt);
 	switch(de->extra[0]) {
 	case 'V':
 		{
 		// show if GPS location is valid
-		uint8_t *tile = disp.gpsValid?gps_tile:nogps_tile;
+		uint8_t *tile = gpsPos.valid?gps_tile:nogps_tile;
 		rdis->drawTile(de->x, de->y, 1, tile);
 		}
 		break;
 	case 'O':
 		// GPS long
-		snprintf(buf, 16, "%2.5f", disp.gpsLon);
+		snprintf(buf, 16, "%2.5f", gpsPos.lon);
 		drawString(de,buf);
 		break;
 	case 'A':
 		// GPS lat
-		snprintf(buf, 16, "%2.5f", disp.gpsLat);
+		snprintf(buf, 16, "%2.5f", gpsPos.lat);
 		drawString(de,buf);
 		break;
 	case 'H':
 		// GPS alt
-		snprintf(buf, 16, "%4dm", disp.gpsAlt);
+		snprintf(buf, 16, "%4dm", gpsPos.alt);
 		drawString(de,buf);
 		break;
 	case 'C':
 		// GPS Course over ground
-		snprintf(buf, 4, "%3d", disp.gpsCourse);
+		snprintf(buf, 4, "%3d", gpsPos.course);
 		drawString(de, buf);
 		break;
 	case 'D':
@@ -1330,7 +1331,7 @@ void Display::drawGPS(DispEntry *de) {
 		if( (sonde.si()->validPos&0x03)!=0x03 ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
-		} else if(!disp.gpsValid) {
+		} else if(!gpsPos.valid) {
 			snprintf(buf, 16, "no gps ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else {
@@ -1350,7 +1351,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'I':
 		// dIrection
-		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1362,7 +1363,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'B':
 		// relative bearing
-		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1392,15 +1393,15 @@ void Display::drawGPS(DispEntry *de) {
 		bool rxgood = (sonde.si()->rxStat[0]==0);
 		int angN, angA, angB;   // angle of north, array, bullet
 		int validA, validB;     // 0: no, 1: yes, -1: old
-		if(circinfo->arr=='C') {  angA=disp.gpsCourse; validA=disp.gpsCourseOld?-1:1; }
+		if(circinfo->arr=='C') {  angA=gpsPos.course; validA=disp.gpsCourseOld?-1:1; }
 		else { angA=disp.gpsDir; validA=sonde.si()->validPos?(rxgood?1:-1):0; }
-		if(circinfo->bul=='C') {  angB=disp.gpsCourse; validB=disp.gpsCourseOld?-1:1; }
+		if(circinfo->bul=='C') {  angB=gpsPos.course; validB=disp.gpsCourseOld?-1:1; }
 		else { angB=disp.gpsDir; validB=sonde.si()->validPos?(rxgood?1:-1):0; }
 		if(circinfo->top=='N') {
 			angN = 0;
 		} else {
 			//if (circinfo->top=='C') {
-			angN = 360-disp.gpsCourse;
+			angN = 360-gpsPos.course;
 			angA += angN; if(angA>=360) angA-=360;
 			angB += angN; if(angB>=360) angB-=360;
 		}

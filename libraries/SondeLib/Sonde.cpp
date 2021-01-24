@@ -19,16 +19,18 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
-int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, -1 };
+int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
   "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
   "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
   "TTGO LORA v1.0 (0.9\" OLED@4,15)",
   "Heltec v1/v2 (0.9\"OLED@4,15)",
-  "TTGO T-Beam (old version), 0.9\" OLED@21,22",
-  "TTGO T-Beam (old version), SPI TFT@4,21,22",
-  "TTGO T-Beam (new version 1.0), 0.9\" OLED@21,22",
-  "TTGO T-Beam (new version 1.0), SPI TFT@4,13,14",
+  "TTGO T-Beam (V0.7), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V0.7), SPI TFT@4,21,22",
+  "TTGO T-Beam (V1.0), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V1.0), SPI TFT@4,13,14",
+  "TTGO T-Beam (V1.1), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V1.1), SPI TFT@4,13,14",
 };
 
 /* global variables from RX_FSK.ino */
@@ -97,8 +99,15 @@ void Sonde::defaultConfig() {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
 		if(initlevels[17]==0) { // T-Beam
-			if(initlevels[12]==0) {  // T-Beam v1.0
+			int tbeam=7;
+			if(initlevels[12]==0) {
+				tbeam = 10;
 				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
+			} else if ( initlevels[4]==1 && initlevels[12]==1 ) {
+				tbeam = 11;
+				Serial.println("Autoconfig: looks like T-Beam 1.1 board");
+			}
+			if(tbeam == 10  || tbeam == 11) {  // T-Beam v1.0  or T-Beam v1.1
 				config.button_pin = 38;
 				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
 				// Maybe in future use as default only PWR as button2?
