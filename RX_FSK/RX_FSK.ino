@@ -1564,7 +1564,6 @@ void setup()
       axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
       axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
       if(sonde.config.button2_axp) {
         pinMode(PMU_IRQ, INPUT_PULLUP);
         attachInterrupt(PMU_IRQ, [] {
