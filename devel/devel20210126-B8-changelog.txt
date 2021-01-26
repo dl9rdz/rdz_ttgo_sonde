@@ -1,0 +1,1 @@
+always send json data after each frame for rdzwx-go
