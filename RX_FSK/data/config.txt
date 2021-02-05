@@ -78,6 +78,14 @@ rs92.alt2d=480
 dfm.agcbw=20800
 dfm.rxbw=10400
 #-------------------------------#
+# ftp server for RINEX data (for RS92)
+# YYYY/DDD/brdcDDD0.YYn.gz is appended
+# s1: igs.bkg.bund.de/IGS/BRDC/
+# s2: www.ngs.noaa.gov/cors/rinex/
+#-------------------------------#
+ephftp=www.ngs.noaa.gov/cors/rinex/
+#ephftp=igs.bkg.bund.de/IGS/BRDC/
+#-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
 # local use only, do not feed to public services

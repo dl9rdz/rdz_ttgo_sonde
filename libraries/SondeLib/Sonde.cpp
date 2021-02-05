@@ -204,6 +204,7 @@ void Sonde::defaultConfig() {
 	config.tcpfeed.highrate = 10;
 	config.tcpfeed.idformat = ID_DFMDXL;
 	config.kisstnc.active = 0;
+	strcpy(config.ephftp,"igs.bkg.bund.de/IGS/BRDC/");
 
 	config.mqtt.active = 0;
 	strcpy(config.mqtt.id, "rdz_sonde_server");
@@ -312,6 +313,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.dfm.rxbw = atoi(val);
 	} else if(strcmp(cfg,"rs92.alt2d")==0) {
 		config.rs92.alt2d= atoi(val);
+	} else if(strcmp(cfg,"ephftp")==0) {
+		strncpy(config.ephftp, val, 40);
 	} else if(strcmp(cfg,"kisstnc.active")==0) {
 		config.kisstnc.active = atoi(val);
 	} else if(strcmp(cfg,"kisstnc.idformat")==0) {

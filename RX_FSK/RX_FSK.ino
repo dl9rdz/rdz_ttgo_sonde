@@ -498,6 +498,7 @@ struct st_configitems config_list[] = {
   {"dfm.rxbw", "DFM RX bandwidth", 0, &sonde.config.dfm.rxbw},
   {"m10m20.agcbw", "M10/M20 AGC bandwidth", 0, &sonde.config.m10m20.agcbw},
   {"m10m20.rxbw", "M10/M20 RX bandwidth", 0, &sonde.config.m10m20.rxbw},
+  {"ephftp", "FTP for eph (RS92)", 39, &sonde.config.ephftp},
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
@@ -1140,7 +1141,7 @@ void unkHandler(T nmea) {
   }
 }
 
-#define DEBUG_GPS 1
+#define DEBUG_GPS 0
 static bool gpsCourseOld;
 static int lastCourse;
 void gpsTask(void *parameter) {
