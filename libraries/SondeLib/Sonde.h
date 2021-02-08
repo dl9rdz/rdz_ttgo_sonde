@@ -99,6 +99,9 @@ typedef struct st_sondeinfo {
 	// shut down timers, currently only for RS41; -1=disabled
 	int16_t launchKT, burstKT, countKT;
 	uint16_t crefKT; // frame number in which countKT was last sent
+	float temperature = -300.0; // platinum resistor temperature
+	float tempRHSensor = -300.0; // temperature of relative humidity sensor
+	float relativeHumidity = -1.0; // relative humidity
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 
