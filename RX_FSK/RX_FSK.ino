@@ -1141,7 +1141,7 @@ void unkHandler(T nmea) {
   }
 }
 
-#define DEBUG_GPS 0
+//#define DEBUG_GPS
 static bool gpsCourseOld;
 static int lastCourse;
 void gpsTask(void *parameter) {
@@ -1987,8 +1987,15 @@ void loopDecoder() {
         s->countKT,
         s->crefKT
         );
-
-        rdzclient.write(raw, len>1024?1024:len);
+	//Serial.println("Writing rdzclient...");
+	if(len>1024) len=1024;
+        int wlen = rdzclient.write(raw, len);
+	if(wlen != len) {
+	   Serial.println("Writing rdzClient not OK, closing connection");
+	   rdzclient.stop();
+	   rdzclient = NULL;
+	}
+	//Serial.println("Writing rdzclient OK");
   }
   Serial.print("updateDisplay started... ");
   if (forceReloadScreenConfig) {
