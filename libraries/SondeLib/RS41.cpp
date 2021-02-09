@@ -599,7 +599,6 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
             + (calibration.value.refCapHigh - calibration.value.refCapLow) * current;
    /* Apply calibration */
    float Cp = ( C / calibration.value.calibU[0] - 1.0f) * calibration.value.calibU[1];
-   Serial.printf("Cp = %f\n", Cp );
 
    int j, k;
    float sum = 0;
@@ -762,17 +761,18 @@ int RS41::decode41(byte *data, int maxlen)
                if ( tempMeasMain > tempMeasRef1 && tempMeasMain < tempMeasRef2 ) {
                   sonde.si()->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
                                     calibration.value.calT, calibration.value.taylorT, calibration.value.polyT );
-                  Serial.printf("tempRA = %f\n", sonde.si()->temperature );
+                  Serial.printf("External temperature = %f\n", sonde.si()->temperature );
                }
                else {
                   Serial.println( "External temperature data measurement mismatch");
                }
             }
 
-            if ( validHumidity ) {
+            if ( validHumidity && validExternalTemperature ) {
                if ( tempHumiMain > tempHumiRef1 && tempHumiMain < tempHumiRef2 ) {
                   sonde.si()->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration.value.calTU, calibration.value.taylorTU, calibration.value.polyTrh );
+                  Serial.printf("Humidity Sensor temperature = %f\n", sonde.si()->tempRHSensor );
                   sonde.si()->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, sonde.si()->tempRHSensor, sonde.si()->temperature );
                   Serial.printf("Relative humidity = %f\n", sonde.si()->relativeHumidity );
                }
