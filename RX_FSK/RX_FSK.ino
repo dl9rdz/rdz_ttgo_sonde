@@ -1035,7 +1035,7 @@ void SetupAsyncServer() {
   });
 
   server.on("/live.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(200, "application/vnd.google-earth.kml+xml", createKMLLive(sonde.myIP));
+    request->send(200, "application/vnd.google-earth.kml+xml", createKMLLive(sonde.ipaddr.c_str()));
   });
 
   server.on("/dynamic.kml", HTTP_GET, [](AsyncWebServerRequest * request) {

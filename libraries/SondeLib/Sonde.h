@@ -239,7 +239,6 @@ public:
 	// moved to heap, saving space in .bss
 	//SondeInfo sondeList[MAXSONDE+1];
 	SondeInfo *sondeList;
-	char myIP[17]; // 17 - to fit full IPv4 IP + null byte
 
 	Sonde();
 	void defaultConfig();
