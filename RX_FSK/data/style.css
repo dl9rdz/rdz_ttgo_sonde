@@ -4,6 +4,18 @@ body, html {
 	font-family: Arial;
 }
 
+.wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+.tci {
+  flex-grow: 1; border: none; margin: 0; padding: 0; 
+}
+.footer {
+}
+
 table, th, td {
 	border: 1px solid black;
 	border-collapse: collapse;
@@ -31,7 +43,8 @@ td#sfreq {
 	border: none;
 	outline: none;
 	cursor: pointer;
-	padding: 14px 16px;
+	padding: 10px 10px;
+	width: 16vw;
 	transition: 0.3s;
 }
 
@@ -42,13 +55,21 @@ td#sfreq {
 .tab button.active {
 	background-color: #ccc;
 }
-
+.content {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	overflow: auto;
+	height: 100%;
+}
 .tabcontent {
 	display: none;
+	flex: 1;
 	padding: 6px 12px;
 	border: 1px solid #ccc;
 	border-top: none;
-	height: 100%;
+	flex-direction: column;
+	overflow: auto;
 }
 
 html {
@@ -59,12 +80,12 @@ html {
 }
 h1{
   color: #0F3376;
-  padding: 2vh;
+  font-size: 24px
 }
 p{
   font-size: 1.5rem;
 }
-.button {
+.canberemoved_button {
   display: inline-block;
   background-color: #008CBA;
   border: none;
@@ -78,4 +99,32 @@ p{
 }
 .button2 {
   background-color: #f44336;
+}
+.save {
+  background-color: #0F3376;
+  border: black;
+  border-width: 1;
+  color: white;
+  padding: 8px 30px;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+  font-size: 14px;
+  margin: 0
+}
+.ctlbtn {
+  background-color: #ccc;
+  border: black;
+  border-width: 1;
+  color: black;
+  padding: 4px 30px;
+  text-align: center;
+  text-decoration: none;
+  display: block;
+  margin: 2;
+  font-size: 4vh;
+}
+.update {
+  margin: 0;
+  display: block;
 }

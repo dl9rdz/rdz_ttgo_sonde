@@ -357,7 +357,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    sonde.si()->dir = dir;
    Serial.print(" ");
    sonde.si()->hs = sqrt((float)(vn*vn+ve*ve));
-   Serial.print(sonde.si()->hs);
+   Serial.print(sonde.si()->hs*3.6);
    Serial.print("km/h ");
    Serial.print(dir);
    Serial.print("deg ");
