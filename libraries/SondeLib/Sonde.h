@@ -209,6 +209,7 @@ typedef struct st_rdzconfig {
 	struct st_rs92config rs92;
 	struct st_dfmconfig dfm;
 	struct st_m10m20config m10m20;
+	char ephftp[40];
 	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign
