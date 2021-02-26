@@ -780,8 +780,8 @@ void Display::parseDispElement(char *text, DispEntry *de)
 			de->extra = (char *)circinfo;
 		} else {
 			de->extra = strdup(text+1);
+			Serial.printf("parsing 'g' entry: extra is '%s'\n", de->extra);
 		}
-		Serial.printf("parsing 'g' entry: extra is '%s'\n", de->extra);
 		break;
 	case 'r':
 		de->func = disp.drawRSSI; break;
@@ -839,7 +839,7 @@ int Display::countEntries(File f) {
 		break;
 	}	
 	f.seek(pos, SeekSet);
-	Serial.printf("Counted %d entries\n", n);
+	//Serial.printf("Counted %d entries\n", n);
 	return n;
 }
 
@@ -970,9 +970,11 @@ void Display::initFromFile(int index) {
 				what++;
 				newlayouts[idx].de[what].func = NULL;
 			} else {
+#if 0
 				for(int i=0; i<12; i++) {
 					Serial.printf("action %d: %d\n", i, (int)newlayouts[idx].actions[i]);
 				}
+#endif
  				what=-1;
 			}
 			break;

@@ -26,7 +26,7 @@
 #tft_cs=0
 tft_orient=1
 #gps_rxd=-1
-gps_txd=-1
+#gps_txd=-1
 # Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
 showafc=1
 # Frequency correction, in Hz

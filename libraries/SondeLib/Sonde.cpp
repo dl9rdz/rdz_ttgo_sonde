@@ -114,6 +114,7 @@ void Sonde::defaultConfig() {
 				//config.button2_pin = 255;
 				config.button2_axp = 1;
 				config.gps_rxd = 34;
+				config.gps_txd = 12;
 				// Check for I2C-Display@21,22
 #define SSD1306_ADDRESS 0x3c
 				Wire.begin(21, 22);
