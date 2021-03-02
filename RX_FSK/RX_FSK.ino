@@ -108,6 +108,7 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
   return n;
 }
 
+
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
@@ -564,6 +565,7 @@ struct st_configitems config_list[] = {
   {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
   {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
   {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
+  {"tft_modeflip", "TFT modeflip (usually 0)", 0, &sonde.config.tft_modeflip},
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
   {"button2_axp", "Use AXP192 PWR as Button 2", 0, &sonde.config.button2_axp},
@@ -790,6 +792,55 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
   return "";
 }
 
+int streamEditForm(int &state, File &file, String filename, char *buffer, size_t maxlen, size_t index) {
+  Serial.printf("streamEdit: state=%d  max:%d idx:%d\n", state, maxlen, index);
+  int i=0;
+  switch(state) {
+    case 0: // header
+    {
+      // we optimistically assume that on first invocation, maxlen is large enough to handle the header.....
+      strncpy(buffer, "<html><head><title>Editor</title></head><body><p>Edit: ", maxlen);
+      i = strlen(buffer);
+      strncpy(buffer+i, filename.c_str(), maxlen-i);
+      i += strlen(buffer+i);
+      strncpy(buffer+i, "</p><form action=\"edit.html?file=", maxlen-i);
+      i += strlen(buffer+i);
+      strncpy(buffer+i, filename.c_str(), maxlen-i);
+      i += strlen(buffer+i);
+      strncpy(buffer+i, "\" method=\"post\" enctype=\"multipart/form-data\"><textarea name=\"text\" cols=\"80\" rows=\"40\">", maxlen-i);
+      i += strlen(buffer+i);
+      if(i>=maxlen) {
+        strncpy(buffer, "Out of memory", maxlen);
+        state = 3;
+        return strlen(buffer);
+      }
+      state++;
+      Serial.printf("Wrote %d bytes. Header finished", i);
+      return i;
+      break;
+    }
+    case 1: // file content
+      while(file.available()) {
+        int cnt = readLine(file, buffer+i, maxlen-i-1);
+        i += cnt;
+        buffer[i++] = '\n';
+        buffer[i] = 0;
+        if(i+256 > maxlen) break;  // max line length in file 256 chars
+      }
+      if(i>0) return i;
+      file.close();
+      state++;  // intentional fall-through
+    case 2:  // footer
+      Serial.println("Appending footer\n");
+      strncpy(buffer, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>", maxlen);
+      state++;
+      return strlen(buffer);
+    case 3:  // end
+      return 0;
+  }    
+  return 0;
+}
+
 // bad idea. prone to buffer overflow. use at your own risk...
 const char *createEditForm(String filename) {
   Serial.println("Creating edit form");
@@ -999,14 +1050,27 @@ void SetupAsyncServer() {
   });
 
   server.on("/edit.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    // new version:
+    // Open file
+    // store file object in request->_tempObject
+    //request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    const String filename = request->getParam(0)->value();
+    File file = SPIFFS.open("/" + filename, "r");
+    int state = 0;
+    request->send("text/html", 0, [state,file,filename](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t  {
+      Serial.printf("******* send callback: %d %d %d\n", state, maxLen, index);
+      return streamEditForm(state, file, filename, (char *)buffer, maxLen, index);
+    });
   });
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     const char *ret = handleEditPost(request);
     if (ret == NULL)
       request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
-    else
-      request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    else {
+      String f = request->getParam(0)->value();
+      request->redirect("/edit.html?file="+f);
+      //request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
+    }
   },
   NULL,
   [](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {

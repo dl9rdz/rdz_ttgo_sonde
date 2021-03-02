@@ -186,6 +186,7 @@ typedef struct st_rdzconfig {
 	int tft_rs;			// TFT RS pin
 	int tft_cs;			// TFT CS pin
 	int tft_orient;			// TFT orientation (default: 1)
+	int tft_modeflip;		// Hack for Joerg's strange display
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
 	// software configuration
