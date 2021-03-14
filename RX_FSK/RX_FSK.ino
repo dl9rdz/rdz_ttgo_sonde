@@ -953,6 +953,48 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
   return "";
 }
 
+const char *createKMLLive(const char *myIP) {
+  char *ptr = message;
+
+  strcpy(ptr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><NetworkLink><name>loads dynamic.kml</name><Link><href>http://");
+  strcat(ptr, myIP);
+  strcat(ptr, "/dynamic.kml</href><refreshMode>onInterval</refreshMode><refreshInterval>10</refreshInterval></Link></NetworkLink></kml>");
+
+  return message;
+}
+
+void addSondeStatusKML(char *ptr, int i)
+{
+  SondeInfo *s = &sonde.sondeList[i];
+
+  if (!s->validID)
+  {
+    return;
+  }
+
+  sprintf(ptr + strlen(ptr), "<Placemark id=\"%s\"><name>%s</name><Point><coordinates>%.6f,%.6f,%.0f</coordinates></Point><description>%3.3f MHz, Type: %s, h=%.0fm</description></Placemark>",
+    s->id, s->id,
+    s->lon, s->lat, s->alt,
+    s->freq, sondeTypeStr[s->type], s->alt);
+}
+
+const char *createKMLDynamic() {
+  char *ptr = message;
+
+  strcpy(ptr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>");
+
+  for (int i = 0; i < sonde.nSonde; i++) {
+    int snum = (i + sonde.currentSonde) % sonde.nSonde;
+    if (sonde.sondeList[snum].active) {
+      addSondeStatusKML(ptr, snum);
+    }
+  }
+
+  strcat(ptr, "</Document></kml>");
+
+  return message;
+}
+
 
 const char *sendGPX(AsyncWebServerRequest * request) {
   Serial.println("\n\n\n********GPX request\n\n");
@@ -1087,6 +1129,14 @@ void SetupAsyncServer() {
   // Route to set GPIO to HIGH
   server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/index.html", String(), false, processor);
+  });
+
+  server.on("/live.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(200, "application/vnd.google-earth.kml+xml", createKMLLive(sonde.ipaddr.c_str()));
+  });
+
+  server.on("/dynamic.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(200, "application/vnd.google-earth.kml+xml", createKMLDynamic());
   });
 
   server.onNotFound([](AsyncWebServerRequest * request) {
