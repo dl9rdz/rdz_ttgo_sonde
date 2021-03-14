@@ -1,0 +1,1 @@
+gps init bugfix, less debug messages, gps for android w/o gps (+GPGST parser), merge kml live view
