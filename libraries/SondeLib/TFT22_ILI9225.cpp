@@ -198,6 +198,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t sdi, int8_
     hwSPI = false;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using software SPI.  All output pins are configurable. Adds backlight brightness 0-255
@@ -212,6 +213,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t sdi, int8_
     hwSPI = false;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
@@ -226,6 +228,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t led) {
     hwSPI = true;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
@@ -241,6 +244,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t led, uint8
     hwSPI = true;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
  
@@ -584,7 +588,7 @@ void TFT22_ILI9225::setDisplay(boolean flag) {
     }
 }
 
-void TFT22_ILI9225::setModeFlip(uint8_t m) {
+void TFT22_ILI9225::setModeFlip(uint16_t m) {
     _modeFlip = m;
 }
 

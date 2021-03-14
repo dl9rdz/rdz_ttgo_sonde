@@ -135,8 +135,10 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
+#if RS41_DEBUG
 	Serial.print("RS41: setting RX frequency to ");
 	Serial.println(frequency);
+#endif
 	int retval = sx1278.setFrequency(frequency);
 	dpos = 0;
 
@@ -524,7 +526,7 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 int RS41::receive() {
 	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
-	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } 
+	if(e) { /*Serial.println("TIMEOUT");*/ return RX_TIMEOUT; } 
 
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }

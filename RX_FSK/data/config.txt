@@ -113,7 +113,7 @@ tcp.idformat=0
 # data not sanitized / quality checked, outliers not filtered out
 mqtt.active=0
 mqtt.id=rdz_sonde_server
-mqtt.ip=
+mqtt.host=
 mqtt.port=1883
 mqtt.username=
 mqtt.password=
