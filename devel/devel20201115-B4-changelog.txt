@@ -1,1 +1,0 @@
-fix spectrum display for 1.3inch SH1106 LCD
