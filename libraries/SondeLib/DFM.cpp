@@ -412,7 +412,7 @@ void DFM::decodeDAT(uint8_t *dat)
 	case 2:
 		{
 		float lat, vh;
-		lat = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
+		lat = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]));
 		vh = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
@@ -424,7 +424,7 @@ void DFM::decodeDAT(uint8_t *dat)
 	case 3:
 		{
 		float lon, dir;
-		lon = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3];
+		lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
 		dir = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lon: "); Serial.print(lon*0.0000001);
 		Serial.print(", dir: "); Serial.print(dir*0.01);

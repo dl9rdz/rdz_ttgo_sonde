@@ -6,11 +6,11 @@
 #include <inttypes.h>
 #include <WiFi.h>
 #include "Display.h"
-
+#include "Sonde.h"
 
 extern WiFiClient client;
 
-static const char *ftpserver = "www.ngs.noaa.gov";
+//static const char *ftpserver = "www.ngs.noaa.gov";
 char outbuf[128];
 
 uint8_t getreply() {
@@ -72,31 +72,32 @@ void geteph() {
 		Serial.printf("now: %s, existing: %s => updating\n", nowstr, tsstr);
 	}
 	status.close();
-	disp.rdis->clear();
-	disp.rdis->setFont(FONT_SMALL);
-	disp.rdis->drawString(0, 0, "FTP ngs.noaa.gov");
-	// fetch rinex from server
 	File fh = SPIFFS.open("/brdc.gz","w");
 	if(!fh) {	
 		Serial.println("cannot open file\n");
 		return;
 	}
-	char buf[252];
-	snprintf(buf, 128, "/cors/rinex/%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
+	char host[252];
+	strcpy(host, sonde.config.ephftp);
+	char *buf  = strchr(host, '/');
+	if(!buf) { Serial.println("Invalid FTP host config"); return; }
+        *buf = 0;
+	buf++;	
+	uint8_t dispw, disph, dispxs, dispys;
+  	disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+	disp.rdis->clear();
+	disp.rdis->setFont(FONT_SMALL);
+	disp.rdis->drawString(0, 0, host);
+	// fetch rinex from server
+	char *ptr = buf + strlen(buf);
+	snprintf(ptr, 128, "%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
 	Serial.println("running geteph\n");
-	disp.rdis->drawString(0, 1, buf+21);
+	disp.rdis->drawString(0, 1*dispys, ptr+9);
 	
-	if(!client.connect(ftpserver, 21)) {
-		Serial.println("FTP connection to www.ngs.noaa.gov failed");
+	if(!client.connect(host, 21)) {
+		Serial.printf("FTP connection to %s failed\n", host);
 		return;
 	}
-#if 0
-	while(!client.available()) delay(1);
-	while(client.available()) {
-		String s = client.readStringUntil('\n');
-		Serial.println(s);
-	}
-#endif
 	if(getreply()>='4') { Serial.println("connected failed"); return; }
 	client.print("USER anonymous\r\n");
 	if(getreply()>='4') { Serial.println("USER failed"); return; }
@@ -121,8 +122,8 @@ void geteph() {
 	}
 	uint16_t port = (array_pasv[4]<<8) | (array_pasv[5]&0xff);
 	WiFiClient dclient;
-	Serial.printf("connecting to %s:%d\n", ftpserver,port);
-	dclient.connect(ftpserver, port);
+	Serial.printf("connecting to %s:%d\n", host, port);
+	dclient.connect(host, port);
 	if(!dclient) {
 		Serial.println("data connection failed");
 		return;
@@ -149,9 +150,9 @@ void geteph() {
 	fh.close();
 	snprintf(buf, 16, "Fetched %d B    ",len);
 	buf[16]=0;
-	disp.rdis->drawString(0,2,buf);
+	disp.rdis->drawString(0,2*dispys,buf);
 
-	disp.rdis->drawString(0,4,"Decompressing...");
+	disp.rdis->drawString(0,4*dispys,"Decompressing...");
 	// decompression
 	tinfl_decompressor *decomp = (tinfl_decompressor *)malloc(sizeof(tinfl_decompressor));
 	tinfl_init(decomp);
@@ -219,7 +220,7 @@ void geteph() {
 	status.close();
         snprintf(buf, 16, "Done: %d B    ",total);
         buf[16]=0;
-        disp.rdis->drawString(0,5,buf);
+        disp.rdis->drawString(0,5*dispys,buf);
 	delay(1000);
 
 	free(obuf);

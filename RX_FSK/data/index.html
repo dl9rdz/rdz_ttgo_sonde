@@ -1,64 +1,50 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>RDZSonde Server</title>
+  <title>rdzTTGOsonde Server</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <body>
-  <h2>RDZSonde Server</h2>
-<!--
-  <p>GPIO state: <strong> %STATE%</strong></p>
-  <p><a href="/on"><button class="button">ON</button></a></p>
-  <p><a href="/off"><button class="button button2">OFF</button></a></p>
--->
+ <div class="wrapper"><div class="header">
+  <h1>RDZSonde Server</h1>
 
 <div class="tab">
 	  <button class="tablinks" onclick="selTab(event,'QRG')" id="defaultTab">QRG</button>
 	  <button class="tablinks" onclick="selTab(event,'WiFi')">WiFi</button>
 	  <button class="tablinks" onclick="selTab(event,'Data')">Data</button>
-	  <!-- <button class="tablinks" onclick="selTab(event,'SondeMap')">SondeMap</button>	   -->
 	  <button class="tablinks" onclick="selTab(event,'Config')">Config</button>
 	  <button class="tablinks" onclick="selTab(event,'Control')">Control</button>
 	  <button class="tablinks" onclick="selTab(event,'About')">About</button>
 </div>
+</div>
 
 <div id="QRG" class="tabcontent" data-src="qrg.html">
-	<h3> QRG - Setup</h3>
-	<iframe src="" style="border:none;" width="100%%" height="100%%"></iframe>
+	<iframe class="tci" src="" ></iframe>
 </div>
 
 <div id="WiFi" class="tabcontent" data-src="wifi.html">
-	<h3> WiFi - Settings</h3>
-	<iframe src="" style="border:none;" width="100%%" height="100%%"></iframe>
+	<iframe class="tci" src="" ></iframe>
 </div>
 
 <div id="Data" class="tabcontent" data-src="status.html">
-	<h3>Data</h3>
-	<iframe src="" style="border:none;" width="100%%" height="100%%"></iframe>
+	<iframe class="tci" src="" ></iframe>
 </div>
-
-<!--
-<div id="SondeMap" class="tabcontent" data-src="https://wetterson.de/karte/">
-	<iframe src="" style="border:none;" width="98%%" height="98%%"></iframe>
-</div>
--->
 
 <div id="Config" class="tabcontent" data-src="config.html">
-	<h3>Configuration</h3>
-	<iframe src="" style="border:none;" width="100%%" height="100%%"></iframe>
+	<iframe class="tci" src="" ></iframe>
 </div>
 
 <div id="Control" class="tabcontent" data-src="control.html">
-	<h3>Control</h3>
-	<iframe src="" style="border:none;" width="100%%" height="100%%"></iframe>
+	<iframe class="tci" src="" ></iframe>
 </div>
 
 <div id="About" class="tabcontent">
-	<h3>About</h3>
+<div class="tci">
    %VERSION_NAME%<br>
-   Copyright &copy; 2019-2020 by Hansi Reiser, DL9RDZ<br>
+   Copyright &copy; 2019-2021 by Hansi Reiser, DL9RDZ<br>
    (version %VERSION_ID%)<br><br>
    with contributions by Vigor and Xavier (M20 support), <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
    <a href="https://github.com/bazjo">Johannes</a>, <a href="http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden">Robert Stefanowicz</a>,
@@ -68,14 +54,16 @@
    <br>
    Autodetect info: %AUTODETECT_INFO%<br>
    <br>
-    This program is free software; you can redistribute it and/or<br>
-    modify it under the terms of the GNU General Public License as<br>
-    published by the Free Software Foundation; either version 2 of<br>
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License as
+    published by the Free Software Foundation; either version 2 of
     the License, or (at your option) any later version.<br>
-    see <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
-    for details
+    See <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
+    for details.
+</div>
 </div>
 
+</div>
 <script>
 function selTab(evt, id) {
 	var i, tabcontent, tablinks;
@@ -93,7 +81,7 @@ function selTab(evt, id) {
 		tablinks[i].className = tablinks[i].className.replace(" active", "");
 	}	
 	var act = document.getElementById(id);
-	act.style.display = "block";
+	act.style.display = "flex";
 	evt.currentTarget.className += " active";
 	
 	var link = act.dataset.src;
@@ -104,6 +92,7 @@ function selTab(evt, id) {
 }
 document.getElementById("defaultTab").click();
 </script>
+
 </body>
 </html>
 

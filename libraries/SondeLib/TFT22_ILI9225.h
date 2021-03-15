@@ -393,6 +393,8 @@ class TFT22_ILI9225 {
 
         void getGFXCharExtent(uint8_t c, int16_t *gw, int16_t *gh, int16_t *xa);
 
+	void setModeFlip(uint16_t m);
+
     private:
 
         void _spiWrite(uint8_t v);
@@ -437,6 +439,7 @@ class TFT22_ILI9225 {
 #endif
 
         uint8_t  _orientation, _brightness;
+	uint16_t _modeFlip;
         
         // correspondig modes if orientation changed:
         const autoIncMode_t modeTab [3][8] = {

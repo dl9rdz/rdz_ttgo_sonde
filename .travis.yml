@@ -1,7 +1,7 @@
 language: c
 env:
  global: 
-   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.4/tools
+   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools
    - MKSPIFFS=/home/travis/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs
 before_install:
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"

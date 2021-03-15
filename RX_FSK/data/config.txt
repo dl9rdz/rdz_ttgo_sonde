@@ -25,8 +25,9 @@
 #tft_rs=2
 #tft_cs=0
 tft_orient=1
+#tft_modeflip=0
 #gps_rxd=-1
-gps_txd=-1
+#gps_txd=-1
 # Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
 showafc=1
 # Frequency correction, in Hz
@@ -78,6 +79,14 @@ rs92.alt2d=480
 dfm.agcbw=20800
 dfm.rxbw=10400
 #-------------------------------#
+# ftp server for RINEX data (for RS92)
+# YYYY/DDD/brdcDDD0.YYn.gz is appended
+# s1: igs.bkg.bund.de/IGS/BRDC/
+# s2: www.ngs.noaa.gov/cors/rinex/
+#-------------------------------#
+ephftp=www.ngs.noaa.gov/cors/rinex/
+#ephftp=igs.bkg.bund.de/IGS/BRDC/
+#-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
 # local use only, do not feed to public services
@@ -104,7 +113,7 @@ tcp.idformat=0
 # data not sanitized / quality checked, outliers not filtered out
 mqtt.active=0
 mqtt.id=rdz_sonde_server
-mqtt.ip=
+mqtt.host=
 mqtt.port=1883
 mqtt.username=
 mqtt.password=

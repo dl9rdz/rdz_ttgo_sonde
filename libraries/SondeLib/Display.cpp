@@ -339,6 +339,7 @@ static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 void ILI9225Display::begin() {
 	tft = new MY_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
 			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
+	tft->setModeFlip(sonde.config.tft_modeflip);
         tft->begin(spiDisp);
 	tft->setOrientation(sonde.config.tft_orient);
 }
@@ -665,7 +666,7 @@ int Display::allocDispInfo(int entries, DispInfo *d, char *label)
 	d->timeouts = (int16_t *)mem;
 
 	d->label = label;
-	Serial.printf("allocated %d bytes (%d entries) for %p (addr=%p)\n", totalsize, entries, d, d->de);
+	Serial.printf("%s: alloc %d bytes (%d entries) for %p (addr=%p)\n", label, totalsize, entries, d, d->de);
 	return 0;
 }
 
@@ -726,7 +727,7 @@ void Display::parseDispElement(char *text, DispEntry *de)
 	case 'f':
 		de->func = disp.drawFreq;
 		de->extra = strdup(text+1);
-		Serial.printf("parsing 'f' entry: extra is '%s'\n", de->extra);
+		//Serial.printf("parsing 'f' entry: extra is '%s'\n", de->extra);
 		break;
 	case 'n':
 		// IP address / small always uses tiny font on TFT for backward compatibility
@@ -780,8 +781,8 @@ void Display::parseDispElement(char *text, DispEntry *de)
 			de->extra = (char *)circinfo;
 		} else {
 			de->extra = strdup(text+1);
+			//Serial.printf("parsing 'g' entry: extra is '%s'\n", de->extra);
 		}
-		Serial.printf("parsing 'g' entry: extra is '%s'\n", de->extra);
 		break;
 	case 'r':
 		de->func = disp.drawRSSI; break;
@@ -839,7 +840,7 @@ int Display::countEntries(File f) {
 		break;
 	}	
 	f.seek(pos, SeekSet);
-	Serial.printf("Counted %d entries\n", n);
+	//Serial.printf("Counted %d entries\n", n);
 	return n;
 }
 
@@ -848,7 +849,7 @@ void Display::initFromFile(int index) {
 	if(index>0) {
 		char file[20];
 		snprintf(file, 20, "/screens%d.txt", index);
-		Serial.printf("Trying %i (%s)\n", index, file);
+		Serial.printf("Reading %s\n", file);
 		d = SPIFFS.open(file, "r");
 		if(!d || d.available()==0 ) { Serial.printf("%s not found, using /screens.txt\n", file); }
 	}
@@ -888,6 +889,7 @@ void Display::initFromFile(int index) {
 		case -1:	// wait for start of screen (@)
 			{
 			if(*s != '@') {
+				if(*s==0 || *s==10 || *s==13) continue;
 				Serial.printf("Illegal start of screen: %s\n", s);
 				continue;
 			}
@@ -896,7 +898,6 @@ void Display::initFromFile(int index) {
 			DebugPrintf(DEBUG_SPARSER,"Reading entry with %d elements\n", entrysize);
 			idx++;
 			int res = allocDispInfo(entrysize, &newlayouts[idx], label);
-			Serial.printf("allocDispInfo: idx %d: label is %p - %s\n",idx,newlayouts[idx].label, newlayouts[idx].label);
 			if(res<0) {
 				Serial.println("Error allocating memory for disp info");
 				continue;
@@ -917,7 +918,7 @@ void Display::initFromFile(int index) {
 				if(newlayouts[idx].timeouts[1]>0) newlayouts[idx].timeouts[1]*=1000;
 				if(newlayouts[idx].timeouts[2]>0) newlayouts[idx].timeouts[2]*=1000;
 				//sscanf(s+6, "%hd,%hd,%hd", newlayouts[idx].timeouts, newlayouts[idx].timeouts+1, newlayouts[idx].timeouts+2);
-				Serial.printf("timer values: %d, %d, %d\n", newlayouts[idx].timeouts[0], newlayouts[idx].timeouts[1], newlayouts[idx].timeouts[2]);
+				//Serial.printf("timer values: %d, %d, %d\n", newlayouts[idx].timeouts[0], newlayouts[idx].timeouts[1], newlayouts[idx].timeouts[2]);
 			} else if(strncmp(s, "key1action=",11)==0) { // key 1 actions
 				char c1,c2,c3,c4;
 				sscanf(s+11, "%c,%c,%c,%c", &c1, &c2, &c3, &c4);
@@ -932,7 +933,7 @@ void Display::initFromFile(int index) {
 				newlayouts[idx].actions[6] = ACTION(c2);
 				newlayouts[idx].actions[7] = ACTION(c3);
 				newlayouts[idx].actions[8] = ACTION(c4);
-				Serial.printf("parsing key2action: %c %c %c %c\n", c1, c2, c3, c4);
+				//Serial.printf("parsing key2action: %c %c %c %c\n", c1, c2, c3, c4);
 			} else if(strncmp(s, "timeaction=",11)==0) { // timer actions
 				char c1,c2,c3;
 				sscanf(s+11, "%c,%c,%c", &c1, &c2, &c3);
@@ -970,9 +971,11 @@ void Display::initFromFile(int index) {
 				what++;
 				newlayouts[idx].de[what].func = NULL;
 			} else {
+#if 0
 				for(int i=0; i<12; i++) {
 					Serial.printf("action %d: %d\n", i, (int)newlayouts[idx].actions[i]);
 				}
+#endif
  				what=-1;
 			}
 			break;
