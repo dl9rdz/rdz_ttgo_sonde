@@ -41,6 +41,8 @@ int M10M20::setup(float frequency)
         Serial.print("M10/M20: setting RX frequency to ");
         Serial.println(frequency);
         int res = sx1278.setFrequency(frequency);
+	// Test: maybe fix issue after spectrum display?
+	sx1278.writeRegister(REG_PLL_HOP, 0);
 
         if(sx1278.setAFCBandwidth(sonde.config.m10m20.agcbw)!=0) {
                 M10M20_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.m10m20.agcbw));
@@ -108,7 +110,7 @@ int M10M20::setup(float frequency)
         }
 
 	///// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	///if(sx1278.setRxConf(0x1E)!=0) {
+	//if(sx1278.setRxConf(0x1E)!=0) {
 	// Disable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(sx1278.setRxConf(0x00)!=0) {
 		M10M20_DBG(Serial.println("Setting RX Config FAILED"));
@@ -135,7 +137,6 @@ int M10M20::setup(float frequency)
 
         // enable RX
         sx1278.setPayloadLength(0);  // infinite for now...
-	//sx1278.setPayloadLength(292);
         sx1278.setRxConf(0x20);
 	uint16_t afc = sx1278.getRawAFC();
         sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
@@ -368,7 +369,7 @@ void M10M20::processM10data(uint8_t dt)
                                 int rssi=sx1278.getRSSI();
                                 int fei=sx1278.getFEI();
                                 int afc=sx1278.getAFC();
-                                Serial.print("Test: RSSI="); Serial.print(rssi);
+                                Serial.print("SYNC!!! Test: RSSI="); Serial.print(rssi);
                                 Serial.print(" FEI="); Serial.print(fei);
                                 Serial.print(" AFC="); Serial.println(afc);
                                 sonde.si()->rssi = rssi;
