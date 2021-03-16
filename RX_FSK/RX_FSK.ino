@@ -2120,7 +2120,7 @@ void loopDecoder() {
     if (*typestr == 0) typestr = sondeTypeStr[s->type];
     // TODO: only if GPS is valid...
     if (gpsPos.valid) {
-      snprintf(gps, 128, ", \"gpslat\": %f"
+      snprintf(gps, 128, ", \"gpslat\": %f,"
                "\"gpslon\": %f,"
                "\"gpsalt\": %d,"
                "\"gpsacc\": %d,"
