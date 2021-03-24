@@ -1,1 +1,1 @@
-fix minor bug that prevents most revent devel versions from communicating with app
+Update issue templates
