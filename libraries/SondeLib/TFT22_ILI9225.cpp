@@ -198,6 +198,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t sdi, int8_
     hwSPI = false;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using software SPI.  All output pins are configurable. Adds backlight brightness 0-255
@@ -212,6 +213,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t sdi, int8_
     hwSPI = false;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
@@ -226,6 +228,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t led) {
     hwSPI = true;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
 // Constructor when using hardware SPI.  Faster, but must use SPI pins
@@ -241,6 +244,7 @@ TFT22_ILI9225::TFT22_ILI9225(int8_t rst, int8_t rs, int8_t cs, int8_t led, uint8
     hwSPI = true;
     writeFunctionLevel = 0;
     gfxFont = NULL;
+    _modeFlip = 0;
 }
 
  
@@ -342,10 +346,12 @@ void TFT22_ILI9225::begin()
     endWrite();
     delay(50);
 
+#define OCTLFLIP(m) ((m&0xff)<<8)
+#define EMODEFLIP(m) ((m>>8)<<3)
     startWrite();
-    _writeRegister(ILI9225_DRIVER_OUTPUT_CTRL, 0x011C); // set the display line number and display direction
+    _writeRegister(ILI9225_DRIVER_OUTPUT_CTRL, OCTLFLIP(_modeFlip) ^ 0x011C); // set the display line number and display direction
     _writeRegister(ILI9225_LCD_AC_DRIVING_CTRL, 0x0100); // set 1 line inversion
-    _writeRegister(ILI9225_ENTRY_MODE, 0x1038); // set GRAM write direction and BGR=1.
+    _writeRegister(ILI9225_ENTRY_MODE, EMODEFLIP(_modeFlip) ^ 0x1038); // set GRAM write direction and BGR=1.
     _writeRegister(ILI9225_DISP_CTRL1, 0x0000); // Display off
     _writeRegister(ILI9225_BLANK_PERIOD_CTRL1, 0x0808); // set the back porch and front porch
     _writeRegister(ILI9225_FRAME_CYCLE_CTRL, 0x1100); // set the clocks number per line
@@ -482,7 +488,7 @@ void TFT22_ILI9225::_setWindow(uint16_t x0, uint16_t y0, uint16_t x1, uint16_t y
     startWrite();
     // autoincrement mode
     if ( _orientation > 0 ) mode = modeTab[_orientation-1][mode];
-    _writeRegister(ILI9225_ENTRY_MODE, 0x1000 | ( mode<<3) );
+    _writeRegister(ILI9225_ENTRY_MODE, EMODEFLIP(_modeFlip) ^ (0x1000 | ( mode<<3)) );
     _writeRegister(ILI9225_HORIZONTAL_WINDOW_ADDR1,x1);
     _writeRegister(ILI9225_HORIZONTAL_WINDOW_ADDR2,x0);
 
@@ -582,6 +588,9 @@ void TFT22_ILI9225::setDisplay(boolean flag) {
     }
 }
 
+void TFT22_ILI9225::setModeFlip(uint16_t m) {
+    _modeFlip = m;
+}
 
 void TFT22_ILI9225::setOrientation(uint8_t orientation) {
 

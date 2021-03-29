@@ -25,8 +25,9 @@
 #tft_rs=2
 #tft_cs=0
 tft_orient=1
+#tft_modeflip=0
 #gps_rxd=-1
-gps_txd=-1
+#gps_txd=-1
 # Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
 showafc=1
 # Frequency correction, in Hz
@@ -112,7 +113,7 @@ tcp.idformat=0
 # data not sanitized / quality checked, outliers not filtered out
 mqtt.active=0
 mqtt.id=rdz_sonde_server
-mqtt.ip=
+mqtt.host=
 mqtt.port=1883
 mqtt.username=
 mqtt.password=

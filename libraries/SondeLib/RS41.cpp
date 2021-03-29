@@ -17,6 +17,137 @@
 static byte data[800];
 static int dpos = 0;
 
+#if 0
+// subframe is never used?
+static byte subframe[51*16]; // 816 subframe bytes
+// this is moved to sondeInfo->extra
+static bool subframeReceived[51] = { false }; // do we have data for row
+static bool subframeComplete = false; // is the subframe complete
+// this is needed only locally, use a local variable on stack for that
+static bool validExternalTemperature = false; // have received all the calibration frames for the external temperature
+static bool validHumidity = false; // have received all the calibration frames for the humidity
+static bool validRAExternalTemperature = false; // have received all the calibration frames for the external temperature
+static bool validRAHumidity = false; // have received all the calibration frames for the humidity
+#endif
+
+// whole 51 row frame as C structure
+// taken from https://github.com/einergehtnochrein/ra-firmware
+struct subframeBuffer {
+    uint64_t valid;   // bitmask for subframe valid; lsb=frame 0, etc.
+    union {
+        byte rawData[51*16];
+        struct __attribute__((__packed__)) {
+            uint16_t crc16;                     /* CRC16 CCITT Checksum over range 0x002...0x31F */
+            uint16_t frequency;                 /* 0x002: TX is on 400 MHz + (frequency / 64) * 10 kHz */
+            uint8_t startupTxPower;             /* 0x004: TX power level at startup (1...7) */
+            uint8_t reserved005;
+            uint8_t reserved006;
+            uint16_t reserved007;               /* 0x007:  ?? (some bitfield) [0],[1],[2],[3]. Init value = 0xE */
+            uint16_t reserved009;               /* 0x009: ? */
+            uint8_t reserved00B;
+            uint8_t reserved00C;
+            uint8_t serial[8];                  /* 0x00D: Sonde ID, 8 char, not terminated */
+            uint16_t firmwareVersion;           /* 0x015: 10000*major + 100*minor + patch*/
+            uint16_t reserved017;
+            uint16_t minHeight4Flight;          /* 0x019: Height (meter above ground) where flight mode begins */
+            uint8_t lowBatteryThreshold100mV;   /* 0x01B: (Default=18) Shutdown if battery voltage below this
+                                                          threshold for some time (10s ?)
+                                                */
+            uint8_t nfcDetectorThreshold;       /* 0x01C: NFC detector threshold [25mV] (Default: 0x05 = 125mV) */
+            uint8_t reserved01D;                /* 0x01D: ?? (Init value = 0xB4) */
+            uint8_t reserved01E;                /* 0x01E: ?? (Init value = 0x3C) */
+            uint16_t reserved01F;
+            int8_t refTemperatureThreshold;     /* 0x021: Reference temperature threshold [°C] */
+            uint8_t reserved022;
+            uint16_t reserved023;
+            uint16_t reserved025;
+            int16_t flightKillFrames;           /* 0x027: Number of frames in flight until kill (-1 = disabled) */
+            uint16_t reserved029;               /* 0x029: ? (Init value = 0) */
+            uint8_t burstKill;                  /* 0x02B: Burst kill (0=disabled, 1=enabled) */
+            uint8_t reserved02C;
+            uint8_t reserved02D;
+            uint16_t reserved02E;
+            uint16_t reserved030;
+            uint8_t reserved032;
+            uint16_t reserved033;
+            uint16_t reserved035;
+            uint16_t reserved037;
+            uint16_t reserved039;               /* 0x039: */
+            uint8_t reserved03B;                /* 0x03B: */
+            uint8_t reserved03C;                /* 0x03C: */
+            float refResistorLow;               /* 0x03D: Reference resistor low (750 Ohms) */
+            float refResistorHigh;              /* 0x041: Reference resistor high (1100 Ohms) */
+            float refCapLow;                    /* 0x045: Reference capacitance low (0) */
+            float refCapHigh;                   /* 0x049: Reference capacitance high (47 pF) */
+            float taylorT[3];                   /* 0x04D: Tayor coefficients for main temperature calculation */
+            float calT;                         /* 0x059: Calibration factor for main sensor */
+            float polyT[6];                     /* 0x05D: */
+            float calibU[2];                    /* 0x075: Calibration coefficients for humidity sensor */
+
+            float matrixU[7][6];                /* 0x07D: Matrix for humidity sensor RH calculation */
+            float taylorTU[3];                  /* 0x125: Coefficients for U sensor temperature calculation */
+            float calTU;                        /* 0x131: Calibration factor for U temperature sensor */
+            float polyTrh[6];                   /* 0x135:  */
+
+            uint8_t reserved14D;                /* 0x14D: */
+            uint32_t reserved14E;               /* 0x14E: */
+
+            float f152;
+            uint8_t u156;
+            float f157;                         /* 0x157: ?? (Initialized by same value as calibU) */
+            uint8_t reserved15B[0x160-0x15B];
+            float f160[35];
+            uint8_t startIWDG;                  /* 0x1EC: If ==0 or ==2: Watchdog IWDG will not be started */
+            uint8_t parameterSetupDone;         /* 0x1ED: Set (!=0) if parameter setup was done */
+            uint8_t reserved1EE;
+            uint8_t reserved1EF;
+            float f1F0[8];
+            float pressureLaunchSite[2];        /* 0x210: Pressure [hPa] at launch site */
+            struct {
+                char variant[10];               /* 0x218: Sonde variant (e.g. "RS41-SG") */
+                uint8_t mainboard[10];          /* 0x222: Name of mainboard (e.g. "RSM412") */
+            } names;
+            struct {
+                uint8_t mainboard[9];           /* 0x22C: Serial number of mainboard (e.g. "L1123553") */
+                uint8_t text235[12];            /* 0x235: "0000000000" */
+                uint16_t reserved241;           /* 0x241: */
+                uint8_t pressureSensor[8];      /* 0x243: Serial number of pressure sensor (e.g. "N1310487") */
+                uint16_t reserved24B;           /* 0x24B: */
+            } serials;
+            uint16_t reserved24D;               /* 0x24D: */
+            uint8_t reserved24F;
+            uint8_t reserved250;
+            uint16_t reserved251;               /* 0x251: (Init value = 0x21A = 538) */
+            uint8_t xdataUartBaud;              /* 0x253: 1=9k6, 2=19k2, 3=38k4, 4=57k6, 5=115k2 */
+            uint8_t reserved254;
+            float cpuTempSensorVoltageAt25deg;  /* 0x255: CPU temperature sensor voltage at 25°C */
+            uint8_t reserved259;
+            uint8_t reserved25A[0x25E -0x25A];
+            float matrixP[18];                  /* 0x25E: Coefficients for pressure sensor polynomial */
+            float f2A6[17];
+            uint8_t reserved2EA[0x2FA-0x2EA];
+            uint16_t halfword2FA[9];
+            float reserved30C;
+            float reserved310;                  /* 0x310: */
+            uint8_t reserved314;                /* 0x314: */
+            uint8_t reserved315;                /* 0x315: */
+            int16_t burstKillFrames;            /* 0x316: Number of active frames after burst kill */
+            uint8_t reserved318[0x320-0x318];
+
+            /* This is fragment 50. It only uses 14 valid bytes! */
+            int16_t killCountdown;              /* 0x320: Counts frames remaining until kill (-1 = inactive) */
+            uint8_t reserved322[6];
+            int8_t intTemperatureCpu;           /* 0x328: Temperature [°C] of CPU */
+            int8_t intTemperatureRadio;         /* 0x329: Temperature [°C] of radio chip */
+            int8_t reserved32A;                 /* 0x32A: */
+            uint8_t reserved32B;                /* 0x32B: */
+            uint8_t reserved32C;                /* 0x32C: ? (the sum of two slow 8-bit counters) */
+            uint8_t reserved32D;                /* 0x32D: ? (the sum of two slow 8-bit counters) */
+        } value;
+    };
+};
+// moved global variable "calibration" to sondeInfo->extra
+
 static uint16_t CRCTAB[256];
 
 #define X2C_DIVR(a, b) ((b) != 0.0f ? (a)/(b) : (a))
@@ -135,8 +266,10 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
+#if RS41_DEBUG
 	Serial.print("RS41: setting RX frequency to ");
 	Serial.println(frequency);
+#endif
 	int retval = sx1278.setFrequency(frequency);
 	dpos = 0;
 
@@ -251,6 +384,11 @@ static int32_t getint32(const byte frame[], uint32_t frame_len,
    return (int32_t)n;
 } /* end getint32() */
 
+static uint32_t getint24(const byte frame[], uint32_t frame_len, uint32_t p) {  // 24bit unsigned int
+    uint32_t val24 = 0;
+    val24 = frame[p] | (frame[p+1]<<8) | (frame[p+2]<<16);
+    return val24;
+}
 
 static uint32_t getcard16(const byte frame[], uint32_t frame_len,
                 uint32_t p)
@@ -379,7 +517,131 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
       sonde.si()->validPos = 0x7f;
 } /* end posrs41() */
 
+void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
+   // the total subframe consists of 51 rows, each row 16 bytes
+   // based on https://github.com/bazjo/RS41_Decoding/tree/master/RS41-SGP#Subframe 
+   struct subframeBuffer *s = (struct subframeBuffer *)sonde.si()->extra;
+   // Allocate on demand
+   if(!s) {
+      s = (struct subframeBuffer *)malloc( sizeof(struct subframeBuffer) );
+      if(!s) { Serial.println("ProcessSubframe: out of memory"); return; }
+      sonde.si()->extra = s;
+   }
+   memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
+   s->valid |= (1ULL << subframeNumber);
+   // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
 
+   #if 0
+      Serial.printf("subframe number: 0x%02X\n", subframeNumber );
+      Serial.print("subframe values: ");
+      for ( int i = 0; i < 16; i++ ) {
+         Serial.printf( "%02X ", subframeBytes[i] ); 
+      }
+      Serial.println();
+
+      Serial.println("Full subframe");
+      for ( int j = 0; j<51; j++ ) {
+         Serial.printf("%03X ", j*16);
+         for ( int i = 0; i < 16; i++ ) {
+            Serial.printf( "%02X ", s.rawData[j*16+i] ); 
+         }
+         Serial.println();
+      }
+      Serial.println();
+   #endif   
+}
+
+/* Find the water vapor saturation pressure for a given temperature.
+ * Uses the Hyland and Wexler equation with coefficients for T < 0°C.
+ */
+// taken from https://github.com/einergehtnochrein/ra-firmware
+static float _RS41_waterVaporSaturationPressure (float Tcelsius)
+{
+    /* Convert to Kelvin */
+    float T = Tcelsius + 273.15f;
+
+    /* Apply some correction magic */
+    T = 0
+        - 0.4931358f
+        + (1.0f + 4.61e-3f) * T
+        - 1.3746454e-5f * T * T
+        + 1.2743214e-8f * T * T * T
+        ;
+
+    /* Plug into H+W equation */
+    float p = expf(-5800.2206f / T
+                  + 1.3914993f
+                  + 6.5459673f * logf(T)
+                  - 4.8640239e-2f * T
+                  + 4.1764768e-5f * T * T
+                  - 1.4452093e-8f * T * T * T
+                  );
+
+    /* Scale result to hPa */
+    return p / 100.0f;
+}
+
+// taken from https://github.com/einergehtnochrein/ra-firmware
+float GetRATemp( uint32_t measuredCurrent, uint32_t refMin, uint32_t refMax, float calT, float taylorT[3], float polyT[6] ) {
+   struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
+   /* Reference values for temperature are two known resistors.
+    * From that we can derive the resistance of the sensor.
+    */
+   float current = ( float(measuredCurrent) - float(refMin) ) / float(refMax - refMin);
+   float res = calibration->value.refResistorLow
+            + (calibration->value.refResistorHigh - calibration->value.refResistorLow) * current;
+   float x = res * calT;
+
+   float Tuncal = 0
+            + taylorT[0]
+            + taylorT[1] * x
+            + taylorT[2] * x * x;
+
+   /* Apply calibration polynomial */
+   float temperature =
+         Tuncal + polyT[0]
+         + polyT[1] * Tuncal
+         + polyT[2] * Tuncal * Tuncal
+         + polyT[3] * Tuncal * Tuncal * Tuncal
+         + polyT[4] * Tuncal * Tuncal * Tuncal * Tuncal
+         + polyT[5] * Tuncal * Tuncal * Tuncal * Tuncal * Tuncal;
+
+   return temperature;
+}
+
+// taken from https://github.com/einergehtnochrein/ra-firmware
+float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, float sensorTemp, float externalTemp ) {
+   struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
+   float current = float( humCurrent - humMin) / float( humMax - humMin );
+   /* Compute absolute capacitance from the known references */
+   float C = calibration->value.refCapLow
+            + (calibration->value.refCapHigh - calibration->value.refCapLow) * current;
+   /* Apply calibration */
+   float Cp = ( C / calibration->value.calibU[0] - 1.0f) * calibration->value.calibU[1];
+
+   int j, k;
+   float sum = 0;
+   float xj = 1.0f;
+   for (j = 0; j < 7; j++) {
+      float yk = 1.0f;
+      for (k = 0; k < 6; k++) {
+         sum += xj * yk * calibration->value.matrixU[j][k];
+         yk *= ( sensorTemp - 20.0f) / 180.0f;
+      }
+      xj *= Cp;
+   }
+
+   /* Since there is always a small difference between the temperature readings for
+    * the atmospheric (main) tempoerature sensor and the temperature sensor inside
+    * the humidity sensor device, transform the humidity value to the atmospheric conditions
+    * with its different water vapor saturation pressure.
+   */
+   float RH = sum
+            * _RS41_waterVaporSaturationPressure(sensorTemp)
+            / _RS41_waterVaporSaturationPressure(externalTemp);
+
+   return RH;
+}
 
 // returns: 0: ok, -1: rs or crc error
 int RS41::decode41(byte *data, int maxlen)
@@ -457,6 +719,15 @@ int RS41::decode41(byte *data, int maxlen)
 				sonde.si()->countKT = cntdown;
 				sonde.si()->crefKT = fnr;
 			}
+#if 0
+         // process this subframe 
+         int subframeOffset = 24; // 24 = 0x18, start of subframe data
+         byte receivedBytes[16];
+         memcpy( receivedBytes, data+p+subframeOffset, 16);
+         ProcessSubframe( receivedBytes, calnr );
+#endif
+			ProcessSubframe( data+p+24, calnr );
+
 			}
 			// TODO: some more data
 			break;
@@ -476,6 +747,61 @@ int RS41::decode41(byte *data, int maxlen)
 		case '{': // pos
 			posrs41(data+p, len, 0);
 			break;
+		case 'z': // 0x7a is character z - 7A-MEAS temperature and humidity frame
+         {
+      		uint32_t tempMeasMain = getint24(data, 560, p+0);
+		      uint32_t tempMeasRef1 = getint24(data, 560, p+3);
+			   uint32_t tempMeasRef2 = getint24(data, 560, p+6);
+  			   uint32_t humidityMain = getint24(data, 560, p+9);
+			   uint32_t humidityRef1 = getint24(data, 560, p+12);
+			   uint32_t humidityRef2 = getint24(data, 560, p+15);
+			   uint32_t tempHumiMain = getint24(data, 560, p+18);
+			   uint32_t tempHumiRef1 = getint24(data, 560, p+21);
+			   uint32_t tempHumiRef2 = getint24(data, 560, p+24);
+			   uint32_t pressureMain = getint24(data, 560, p+27);
+			   uint32_t pressureRef1 = getint24(data, 560, p+30);
+			   uint32_t pressureRef2 = getint24(data, 560, p+33);
+            #if 0
+               Serial.printf( "External temp: tempMeasMain = %ld, tempMeasRef1 = %ld, tempMeasRef2 = %ld\n", tempMeasMain, tempMeasRef1, tempMeasRef2 );
+               Serial.printf( "Rel  Humidity: humidityMain = %ld, humidityRef1 = %ld, humidityRef2 = %ld\n", humidityMain, humidityRef1, humidityRef2 );
+               Serial.printf( "Humid  sensor: tempHumiMain = %ld, tempHumiRef1 = %ld, tempHumiRef2 = %ld\n", tempHumiMain, tempHumiRef1, tempHumiRef2 );
+               Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
+            #endif
+   	    struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
+#if 0
+            // for a valid temperature, require rLow rHigh (frames 3 4) TaylorT (frames 4 5), polyT (frames 5 6 7), 
+            validExternalTemperature = subframeReceived[3] && subframeReceived[4] && subframeReceived[5]
+                                          && subframeReceived[6] && subframeReceived[7];
+
+            // for a valid RA humidity, valid temperature, calibU (frame 7) matrixU (frame 7-12), taylorTU (frame 12 13),
+            //       calTU (frame 13) polyTrh (frame 13 14) 
+            validHumidity = validExternalTemperature && subframeReceived[0x08] && subframeReceived[0x09] && subframeReceived[0x0A]
+                                 && subframeReceived[0x0B] && subframeReceived[0x0C] && subframeReceived[0x0D] && subframeReceived[0x0E]
+                                 && subframeReceived[0x0F] && subframeReceived[0x10] && subframeReceived[0x11] && subframeReceived[0x12];
+#else
+	    // check for bits 3, 4, 5, 6, and 7 set
+	    bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
+	    bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FF8) == 0x7FF8;
+#endif
+
+            if ( validExternalTemperature ) {
+               sonde.si()->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
+                                 calibration->value.calT, calibration->value.taylorT, calibration->value.polyT );
+               Serial.printf("External temperature = %f\n", sonde.si()->temperature );
+            }
+
+            if ( validHumidity && validExternalTemperature ) {
+               sonde.si()->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
+                                                    calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
+               Serial.printf("Humidity Sensor temperature = %f\n", sonde.si()->tempRHSensor );
+               sonde.si()->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, sonde.si()->tempRHSensor, sonde.si()->temperature );
+               Serial.printf("Relative humidity = %f\n", sonde.si()->relativeHumidity );
+            }
+         }
+         break;
+
+
+
 		default:
 			break;
 		}}
@@ -524,7 +850,7 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 int RS41::receive() {
 	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
-	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } 
+	if(e) { /*Serial.println("TIMEOUT");*/ return RX_TIMEOUT; } 
 
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }

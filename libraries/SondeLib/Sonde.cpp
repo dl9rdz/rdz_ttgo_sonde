@@ -87,6 +87,7 @@ void Sonde::defaultConfig() {
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
 	config.screenfile = 1;
+	config.tft_modeflip = 0;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -114,6 +115,7 @@ void Sonde::defaultConfig() {
 				//config.button2_pin = 255;
 				config.button2_axp = 1;
 				config.gps_rxd = 34;
+				config.gps_txd = 12;
 				// Check for I2C-Display@21,22
 #define SSD1306_ADDRESS 0x3c
 				Wire.begin(21, 22);
@@ -257,6 +259,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.tft_cs = atoi(val);
 	} else if(strcmp(cfg,"tft_orient")==0) {
 		config.tft_orient = atoi(val);
+	} else if(strcmp(cfg,"tft_modeflip")==0) {
+		config.tft_modeflip = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
@@ -434,17 +438,17 @@ void Sonde::setup() {
 		Serial.print("Invalid rxtask.currentSonde: ");
 		Serial.println(rxtask.currentSonde);
 		rxtask.currentSonde = 0;
-    for(int i=0; i<config.maxsonde - 1; i++) {
-      if(!sondeList[rxtask.currentSonde].active) {
-        rxtask.currentSonde++;
-        if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
-      }
-    }
-    sonde.currentSonde = rxtask.currentSonde;
-  }
+		for(int i=0; i<config.maxsonde - 1; i++) {
+			if(!sondeList[rxtask.currentSonde].active) {
+				rxtask.currentSonde++;
+				if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+			}
+		}
+		sonde.currentSonde = rxtask.currentSonde;
+	}
 
 	// update receiver config
-	Serial.print("\nSonde::setup() on sonde index ");
+	Serial.print("Sonde.setup() on sonde index ");
 	Serial.println(rxtask.currentSonde);
 	switch(sondeList[rxtask.currentSonde].type) {
 	case STYPE_RS41:
@@ -464,9 +468,10 @@ void Sonde::setup() {
 		break;
 	}
 	// debug
-	float afcbw = sx1278.getAFCBandwidth();
-	float rxbw = sx1278.getRxBandwidth();
-	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
+	int freq = (int)sx1278.getFrequency();
+	int afcbw = (int)sx1278.getAFCBandwidth();
+	int rxbw = (int)sx1278.getRxBandwidth();
+	Serial.printf("Sonde.setup(): Freq %d, AFC BW: %d, RX BW: %d\n", freq, afcbw, rxbw);
 
 	// reset rxtimer / norxtimer state
 	sonde.sondeList[sonde.currentSonde].lastState = -1;
@@ -504,7 +509,7 @@ void Sonde::receive() {
                 }
         } else { // RX not ok
 		if(res==RX_ERROR) flashLed(100);
-		Serial.printf("RX result %d, laststate was %d\n", res, si->lastState);
+		Serial.printf("RX result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
                         si->lastState = 0;
@@ -520,7 +525,7 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
-	if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
+	//if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -542,7 +547,7 @@ void Sonde::receive() {
 		}
 	}
 	res = (action<<8) | (res&0xff);
-	Serial.printf("receive(): Result is %04x (action %d, res %d)\n", res, action, res&0xff);
+	Serial.printf("Sonde:receive(): Event %02x: action %02x, res %02x => %04x\n", event, action, res&0xff, res);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -598,22 +603,22 @@ rxloop:
 
 uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 	uint32_t now = millis();
-#if 1
+#if 0
 	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d; lastState: %d\n",
 		now, si->viewStart, disp.layout->timeouts[0],
 		now, si->rxStart, disp.layout->timeouts[1],
 		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
-		Serial.println("View timer expired");
+		Serial.println("Sonde.timeoutEvent: View");
 		return EVT_VIEWTO;
 	}
 	if(si->lastState==1 && disp.layout->timeouts[1]>=0 && now - si->rxStart >= disp.layout->timeouts[1]) {
-		Serial.println("RX timer expired");
+		Serial.println("Sonde.timeoutEvent: RX");
 		return EVT_RXTO;
 	}
 	if(si->lastState==0 && disp.layout->timeouts[2]>=0 && now - si->norxStart >= disp.layout->timeouts[2]) {
-		Serial.println("NORX timer expired");
+		Serial.println("Sonde.timeoutEvent: NORX");
 		return EVT_NORXTO;
 	}
 	return 0;

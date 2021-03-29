@@ -99,6 +99,11 @@ typedef struct st_sondeinfo {
 	// shut down timers, currently only for RS41; -1=disabled
 	int16_t launchKT, burstKT, countKT;
 	uint16_t crefKT; // frame number in which countKT was last sent
+	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
+        void *extra;
+	float temperature = -300.0; // platinum resistor temperature
+	float tempRHSensor = -300.0; // temperature of relative humidity sensor
+	float relativeHumidity = -1.0; // relative humidity
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 
@@ -186,6 +191,7 @@ typedef struct st_rdzconfig {
 	int tft_rs;			// TFT RS pin
 	int tft_cs;			// TFT CS pin
 	int tft_orient;			// TFT orientation (default: 1)
+	int tft_modeflip;		// Hack for Joerg's strange display
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
 	// software configuration
