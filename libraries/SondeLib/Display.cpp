@@ -1445,7 +1445,7 @@ void Display::drawGPS(DispEntry *de) {
 void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
-	// if(!axp192_found) return;
+	if(!axp192_found && sonde.fingerprint != 31) return;
 	if (!axp192_found && sonde.fingerprint == 31)
 	{
 		xSemaphoreTake(axpSemaphore, portMAX_DELAY);
