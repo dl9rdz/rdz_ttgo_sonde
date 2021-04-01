@@ -515,7 +515,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 		
 	ids[0] = 'M';
 	ids[1] = 'E';
-	uint32_t id = getint16(data+18);
+	uint32_t id = data[18];  // getint16(data+18);
 	ids[2] = hex(id/16);
 	ids[3] = hex(id);
 	//
@@ -525,9 +525,24 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	ids[6] = (char)((id/100)%10+48);
 	ids[7] = (char)((id/10)%10+48);
 	ids[8] = (char)(id%10+48);
+	strncpy(sonde.si()->id, ids, 10);
+	// Serial: AAB-C-DDEEE
+	char *ser = sonde.si()->ser;
+	uint8_t tmp = data[18] & 0x7F;
+	ser[0] = (tmp/12) + '0';
+	ser[1] = ((tmp%12 + 1) / 10 ) + '0';
+	ser[2] = ((tmp%12 + 1) % 10 ) + '0';
+	ser[3] = '-';
+	ser[4] = (data[18]/128) + 1 + '0';
+	ser[5] = '-';
+	ser[6] = ids[4];
+	ser[7] = ids[5];
+	ser[8] = ids[6];
+	ser[9] = ids[7];
+	ser[10] = ids[8];
+	ser[11] = 0;
 
 	// TODO
-	strncpy(sonde.si()->ser, ids, 10);
 	if(crcok) {
 	sonde.si()->validID = true;
 	//Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
