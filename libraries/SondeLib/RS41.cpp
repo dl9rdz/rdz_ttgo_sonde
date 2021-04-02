@@ -169,7 +169,7 @@ static uint32_t X2C_LSH(uint32_t a, int32_t length, int32_t n)
 	return (a >> -n) & m;
 }
 
-static double atang2(double x, double y)
+double atang2(double x, double y)
 {
    double w;
    if (fabs(x)>fabs(y)) {
@@ -408,7 +408,8 @@ static int32_t getint16(const byte frame[], uint32_t frame_len,
    return (int32_t)n;
 } /* end getint16() */
 
-static void wgs84r(double x, double y, double z,
+// also used by MP3H.cpp
+void wgs84r(double x, double y, double z,
                 double * lat, double * long0,
                 double * heig)
 {
