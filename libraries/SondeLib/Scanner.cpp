@@ -18,10 +18,12 @@ struct scancfg {
 	int SMPL_PIX;		// Frequency steps per pixel
 	int NCHAN;		// number of channels to scan, PLOT_W * SMPL_PIX
 	int SMOOTH;
+	int ADDWAIT;
 };
 
-struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2 };
-struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1 };
+//struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/20.0, 20, 120*20, 1 };
+struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2, 40 };
+struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0 };
 
 struct scancfg &scanconfig = scanTFT;
 
@@ -30,7 +32,8 @@ struct scancfg &scanconfig = scanTFT;
 //#define STARTF 401000000
 
 // max of 120*5 and 210*3
-#define MAXN 210*10
+//#define MAXN 210*10
+#define MAXN 120*20
 // max of 120 and 210 (ceil(210/8)*8))
 #define MAXDISP 216
 
@@ -60,11 +63,14 @@ void Scanner::fillTiles(uint8_t *row, int value) {
  * Currently we use 210 * (6000/120)kHz channels, i.e. 28.5714kHz
  */
 ///// unused????  uint8_t tiles[16] = { 0x0f,0x0f,0x0f,0x0f,0xf0,0xf0,0xf0,0xf0, 1, 3, 7, 15, 31, 63, 127, 255};
+
+// type 0: lcd, 1: tft, 2: lcd(sh1106)
+#define ISTFT (sonde.config.disptype==1)
 void Scanner::plotResult()
 {
 	int yofs = 0;
 	char buf[30];
-	if(sonde.config.disptype != 0) {
+	if(ISTFT) {
 		yofs = 2;
   		if (sonde.config.marker != 0) {
     			itoa((sonde.config.startfreq), buf, 10);
@@ -92,14 +98,14 @@ void Scanner::plotResult()
 		        if( ((i+j)%scanconfig.TICK2)==0) { row[j] |= 0x01; }
 		}
 		for(int y=0; y<scanconfig.PLOT_H8; y++) {
-			if(sonde.config.marker && y==1 && sonde.config.disptype==0 ) {
+			if(sonde.config.marker && y==1 && !ISTFT ) {
 				// don't overwrite MHz marker text
 				if(i<3*8 || (i>=7*8&&i<10*8) || i>=13*8) continue;
 			}
 			disp.rdis->drawTile(i/8, y+yofs, 1, row+8*y);
 		}
 	}
-	if(sonde.config.disptype != 0) { // large TFT
+	if(ISTFT) { // large TFT
 		sprintf(buf, "Peak: %03.3f MHz", peakf*0.000001);	
 		disp.rdis->drawString(0, (yofs+scanconfig.PLOT_H8+1)*8, buf);
 	} else {
@@ -110,7 +116,7 @@ void Scanner::plotResult()
 
 void Scanner::scan()
 {
-	if(sonde.config.disptype==0) { // LCD small
+	if(!ISTFT) { // LCD small
 		scanconfig = scanLCD;
 	} else {
 		scanconfig = scanTFT;
@@ -128,10 +134,11 @@ void Scanner::scan()
 
 	unsigned long start = millis();
 	uint32_t lastfrf= STARTF * (1<<19) / SX127X_CRYSTAL_FREQ;
-	float freq;
-	int wait = 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
-	for(int iter=0; iter<3; iter++) {   // two interations, to catch all RS41 transmissions
-	    delayMicroseconds(20000);
+	float freq = STARTF;
+	int wait = scanconfig.ADDWAIT + 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
+	Serial.print("wait time (us) is: "); Serial.println(wait);
+	for(int iter=0; iter<3; iter++) {   // three interations, to catch all RS41 transmissions
+	    delayMicroseconds(20000); yield();
 	    for(int i=0; i<scanconfig.PLOT_W*scanconfig.SMPL_PIX; i++) {
 		freq = STARTF + 1000.0*i*scanconfig.CHANSTEP;
 		//freq = 404000000 + 100*i*scanconfig.CHANSTEP;
@@ -152,6 +159,7 @@ void Scanner::scan()
 		}
 	    }
 	}
+	yield();
 	unsigned long duration = millis()-start;
 	Serial.print("wait: ");
 	Serial.println(wait);
@@ -162,9 +170,11 @@ void Scanner::scan()
 	int peakidx=-1;
 	int peakres=-9999;
 	for(int i=0; i<scanconfig.PLOT_W; i+=1) {
-		scandisp[i]=scanresult[i*scanconfig.SMPL_PIX];
+		int r=scanresult[i*scanconfig.SMPL_PIX];
+                if(r>peakres+1) { peakres=r; peakidx=i*scanconfig.SMPL_PIX; }
+		scandisp[i] = r;
 		for(int j=1; j<scanconfig.SMPL_PIX; j++) { 
-			int r = scanresult[i*scanconfig.SMPL_PIX+j]; 
+			r = scanresult[i*scanconfig.SMPL_PIX+j]; 
 			scandisp[i]+=r;
 			if(r>peakres+1) { peakres=r; peakidx=i*scanconfig.SMPL_PIX+j; }
 		}

@@ -11,24 +11,25 @@ int readLine(Stream &stream, char *buffer, int maxlen);
 extern const char *version_name;
 extern const char *version_id;
 
-#include <../fonts/FreeMono9pt7b.h>
-#include <../fonts/FreeMono12pt7b.h>
-#include <../fonts/FreeSans9pt7b.h>
-#include <../fonts/FreeSans12pt7b.h>
-#include <../fonts/Picopixel.h>
+#include <fonts/FreeMono9pt7b.h>
+#include <fonts/FreeMono12pt7b.h>
+#include <fonts/FreeSans9pt7b.h>
+#include <fonts/FreeSans12pt7b.h>
+#include <fonts/Picopixel.h>
 
 extern Sonde sonde;
-
-extern MicroNMEA nmea;
 
 extern AXP20X_Class axp;
 extern bool axp192_found;
 extern SemaphoreHandle_t axpSemaphore;
 
+struct GpsPos gpsPos;
 
 SPIClass spiDisp(HSPI);
 
-const char *sondeTypeStr[NSondeTypes] = { "DFM6", "DFM9", "RS41", "RS92", "M10 " };
+const char *sondeTypeStr[NSondeTypes] = { "DFM ", "DFM9", "RS41", "RS92", "M10 ", "M20 ", "DFM6" };
+const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "DFM9 (old)", "RS41", "RS92", "M10 ", "M20 ", "DFM6 (old)" };
+const char sondeTypeChar[NSondeTypes] = { 'D', '9', '4', 'R', 'M', '2', '6' };
 
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
@@ -267,7 +268,7 @@ void U8x8Display::welcome() {
   	drawString(8 - strlen(version_name) / 2, 0, version_name);
   	drawString(8 - strlen(version_id) / 2, 2, version_id);
   	setFont(FONT_SMALL);
-	drawString(0, 4, "RS41/92,DFM,M10");
+	drawString(0, 4, "RS41/92,DFM,Mx0");
   	drawString(0, 6, "by Hansi, DL9RDZ");
 }
 
@@ -384,39 +385,85 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 	}
 }
 
+// Note: alignright means that there is a box from x to x+(-width), with text right-justified
+//       x is the *left* corner! not the right...
 void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
-	if(findex<3) {  // standard font
-		Serial.printf("Simple Text %s at %d,%d [%d]\n", s, x, y, width);
-		tft->drawText(x, y, s, fg);
-		return;
-	}
-	// GFX font
 	if(width<0) {
 		width = -width;
 		alignright = true;
 	}
+	// Standard font
+	if(findex<3) {
+		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
+		tft->setBackgroundColor(bg);
+		int h = tft->getFont().height;
+		if( alignright ) {
+			w = tft->getTextWidth(s);
+			if( width==WIDTH_AUTO ) { width = w; }
+			if( width > w ) {
+				tft->fillRectangle(x, y, x + width - w, y + h - 1, bg);
+			}
+			tft->drawText(x + width - w, y, s, fg);
+		} else {
+			int curx = tft->drawText(x, y, s, fg);
+			if( width==WIDTH_AUTO ) { return; }
+			if(curx < x + width) {
+        			tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
+			}
+		}
+		return;
+	}
+	// GFX font
 	if(width==WIDTH_AUTO || alignright) {
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
-		if(width==WIDTH_AUTO) { 
-			width=w;
-			if(alignright) {
-				x -= w;
-				Serial.print("reducing x by widht, its now ");
-				Serial.println(x);
+		if(width==WIDTH_AUTO) { width=w; }
+		if(alignright) {
+			if(w > width) {
+				// fast drawBitmap does bad things if not within viewport
+				// Maybe better truncate on the right? (TODO)
+				x = x - w + width; if(x<0) x=0;
+				width = w;
 			}
+			//x -= width;
+			//DebugPrintf(DEBUG_DISPLAY, "Reducing x by width %d, its now %d\n", width, x); 
 		}
 	}
 
 	if(findex-3>=ngfx) findex=3;
+	DebugPrintf(DEBUG_DISPLAY,"GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
+#if 0
+	// Text by clear rectangle and refill, causes some flicker
 	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-3].yclear, bg);
-	Serial.printf("GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
 	if(alignright) {
         	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-3].yofs, s, fg);
 	} else {
         	tft->drawGFXText(x, y + gfxoffsets[findex-3].yofs, s, fg);
 	}
+#else 
+	// Text by drawing bitmap.... => less "flicker"
+	uint16_t height = gfxoffsets[findex-3].yclear;
+        uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * width * height);
+	if(!bitmap) {
+		Serial.println("FATAL: OUT OF MEMORY when allocating bitmap");
+		Serial.printf("w=%d, h=%d, s==%d\n",width, height, 2*width*height);
+		heap_caps_print_heap_info(MALLOC_CAP_DEFAULT);
+		return;
+	}
+        for(int i=0; i<width*height; i++) { bitmap[i] = bg; }   // fill with background
+	int x0 = 0;
+	if(alignright) { x0 = width - w; }
+	int y0 = gfxoffsets[findex-3].yofs;
+	DebugPrintf(DEBUG_DISPLAY,"GFX: w=%d h=%d\n", width, height);
+	for (uint8_t k = 0; k < strlen(s); k++) {	
+            x0 += tft->drawGFXcharBM(x0, y0, s[k], fg, bitmap, width, height) + 1;
+	    DebugPrintf(DEBUG_DISPLAY,"[%c->%d]",s[k],x0);
+	}
+	// TODO: if x+width exceeds display width, garbage is generated....
+        drawBitmap(x, y, bitmap, width, height);
+	free(bitmap);
+#endif
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
@@ -455,10 +502,10 @@ void ILI9225Display::welcome() {
         setFont(5);
 	int l=3*22;
 	if(sonde.config.tft_orient&1) {
-        	drawString(0, 1*22, "RS41/92,DFM6/9,M10");
+        	drawString(0, 1*22, "RS41/92,DFM,M10/20");
 	} else {
         	drawString(0, 1*22, "RS41,RS92,");
-        	drawString(0, 2*22, "DFM6/9,M10");
+        	drawString(0, 2*22, "DFM,M10/20");
 		l+=22;
 	}
        	drawString(0, l, version_id);
@@ -686,6 +733,7 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		// Large font can be used arbitrarily
 		if(de->fmt==fontsma) de->fmt=0;
 		de->func = disp.drawIP; break;
+		de->extra = strdup(text+1);
 	case 's':
 		de->func = disp.drawSite;
 		de->extra = strdup(text+1);
@@ -795,8 +843,16 @@ int Display::countEntries(File f) {
 	return n;
 }
 
-void Display::initFromFile() {
-	File d = SPIFFS.open("/screens.txt", "r");
+void Display::initFromFile(int index) {
+	File d;
+	if(index>0) {
+		char file[20];
+		snprintf(file, 20, "/screens%d.txt", index);
+		Serial.printf("Trying %i (%s)\n", index, file);
+		d = SPIFFS.open(file, "r");
+		if(!d || d.available()==0 ) { Serial.printf("%s not found, using /screens.txt\n", file); }
+	}
+	if(!d || d.available()==0 ) d = SPIFFS.open("/screens.txt", "r");
 	if(!d) return;
 
 	DispInfo *newlayouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
@@ -806,13 +862,18 @@ void Display::initFromFile() {
 	}
 	memset(newlayouts, 0, MAXSCREENS * sizeof(DispInfo));
 
+	// default values
+        xscale=13;
+	yscale=22;
+        fontsma=0;
+	fontlar=1;
 	// default color
 	colfg = 0xffff; // white; only used for ILI9225
 	colbg = 0;  // black; only used for ILI9225
 	int idx = -1;
 	int what = -1;
 	int entrysize;
-	Serial.printf("Reading from /screens.txt. available=%d\n",d.available());
+	Serial.printf("Reading from screen config: available=%d\n",d.available());
 	while(d.available()) {
 		//Serial.printf("Unused stack: %d\n", uxTaskGetStackHighWaterMark(0));
 		const char *ptr;
@@ -821,7 +882,7 @@ void Display::initFromFile() {
 		// String line = readLine(d);  
 		// line.trim();
 		// const char *s = line.c_str();
-		Serial.printf("Line: '%s'\n", s);
+		DebugPrintf(DEBUG_SPARSER, "Line: '%s'\n", s);
 		if(*s == '#') continue;  // ignore comments
 		switch(what) {
 		case -1:	// wait for start of screen (@)
@@ -832,7 +893,7 @@ void Display::initFromFile() {
 			}
 			char *label = strdup(s+1);
 			entrysize = countEntries(d);
-			Serial.printf("Reading entry with %d elements\n", entrysize);
+			DebugPrintf(DEBUG_SPARSER,"Reading entry with %d elements\n", entrysize);
 			idx++;
 			int res = allocDispInfo(entrysize, &newlayouts[idx], label);
 			Serial.printf("allocDispInfo: idx %d: label is %p - %s\n",idx,newlayouts[idx].label, newlayouts[idx].label);
@@ -847,7 +908,7 @@ void Display::initFromFile() {
 			if(strncmp(s,"timer=",6)==0) {  // timer values
 				char t1[10],t2[10],t3[10];
 				sscanf(s+6, "%5[0-9a-zA-Z-] , %5[0-9a-zA-Z-] , %5[0-9a-zA-Z-]", t1, t2, t3);
-				Serial.printf("timers are %s, %s, %s\n", t1, t2, t3);
+				DebugPrintf(DEBUG_SPARSER,"timers are %s, %s, %s\n", t1, t2, t3);
 				newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout:atoi(t1);
 				newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N')?sonde.config.norx_timeout:atoi(t2);
 				newlayouts[idx].timeouts[2] = (*t3=='n'||*t3=='N')?sonde.config.norx_timeout:atoi(t3);
@@ -901,7 +962,7 @@ void Display::initFromFile() {
 				newlayouts[idx].de[what].y = y;
 				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
 				parseDispElement(text, newlayouts[idx].de+what);
-				Serial.printf("entry at %d,%d width=%d font %d, color=%x,%x\n", (int)x, (int)y, newlayouts[idx].de[what].width, newlayouts[idx].de[what].fmt,
+				DebugPrintf(DEBUG_SPARSER,"entry at %d,%d width=%d font %d, color=%x,%x\n", (int)x, (int)y, newlayouts[idx].de[what].width, newlayouts[idx].de[what].fmt,
 					newlayouts[idx].de[what].fg, newlayouts[idx].de[what].bg);
 				if(newlayouts[idx].de[what].func == disp.drawGPS) {
 					newlayouts[idx].usegps = GPSUSE_BASE|GPSUSE_DIST|GPSUSE_BEARING; // just all for now
@@ -1004,7 +1065,7 @@ void Display::drawHS(DispEntry *de) {
 	}
 	boolean is_ms = (de->extra && de->extra[0]=='m')?true:false;  // m/s or km/h
 	float hs = sonde.si()->hs;
-	if(is_ms) hs = hs / 3.6;
+	if(!is_ms) hs = hs * 3.6;
 	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
 	snprintf(buf, 16, hs>99?" %3.0f":" %2.1f", hs);
 	if(has_extra) { strcat(buf, de->extra+1); }
@@ -1018,7 +1079,7 @@ void Display::drawVS(DispEntry *de) {
 	   return;
 	}
 	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
-	Serial.printf("drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
+	DebugPrintf(DEBUG_DISPLAY, "drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
 	if(de->extra) { strcat(buf, de->extra); }
 	drawString(de, buf+strlen(buf)-5- (de->extra?strlen(de->extra):0) );
 	if(!de->extra) rdis->drawTile(de->x+5,de->y,2,ms_tiles);
@@ -1029,24 +1090,24 @@ void Display::drawID(DispEntry *de) {
 		drawString(de, "nnnnnnnn ");
 		return;
 	}
-	// TODO: handle DFM6 IDs
-
-	if(!de->extra || de->extra[0]=='s') {
-		// real serial number, as printed on sonde
+	if(de->extra && de->extra[0]=='n') {
+		// real serial number, as printed on sonde, can be up to 11 digits long
 		drawString(de, sonde.si()->ser);
-	} else if (de->extra[0]=='a') {
-		// autorx sonde number ("DF9" and last 6 digits of real serial number)
-		if(sonde.si()->type == STYPE_DFM09) {
-			int n = strlen(sonde.si()->ser) - 6;
-			if(n<0) n=0;
-			memcpy(buf, "DF9", 3);
-			memcpy(buf+3, sonde.si()->ser+n, 6);
-			drawString(de, buf);
+	} else if (de->extra && de->extra[0]=='s') {
+		// short ID, max 8 digits (no initial "D" for DFM, "M" instead of "ME" for M10)
+		if( TYPE_IS_DFM(sonde.si()->type) ) {
+			drawString(de, sonde.si()->id+1);
+		} else if (TYPE_IS_METEO(sonde.si()->type)) {
+			char sid[9];
+			sid[0]='M';
+			memcpy(sid+1, sonde.si()->id+2, 8);
+			sid[8] = 0;
+			drawString(de, sid);
 		} else {
-			drawString(de, sonde.si()->ser);
+			drawString(de, sonde.si()->id);
 		}
 	} else {
-		// dxlAPRS sonde number (DF6 (why??) and 5 last digits of serial number as hex number
+		// dxlAPRS sonde number, max 9 digits, as used on aprs.fi and radiosondy.info
 		drawString(de, sonde.si()->id);
 	}
 }
@@ -1073,7 +1134,9 @@ void Display::drawQS(DispEntry *de) {
 
 void Display::drawType(DispEntry *de) {
 	rdis->setFont(de->fmt);
-        drawString(de, sondeTypeStr[sonde.si()->type]);
+	const char *typestr = sonde.si()->typestr;
+	if(*typestr==0) typestr = sondeTypeStr[sonde.si()->type];
+        drawString(de, typestr);
 }
 void Display::drawFreq(DispEntry *de) {
 	rdis->setFont(de->fmt);
@@ -1131,7 +1194,7 @@ void Display::drawTelemetry(DispEntry *de) {
 
 void Display::drawKilltimer(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	uint16_t value;
+	uint16_t value=0;
 	switch(de->extra[0]) {
 	case 'l': value = sonde.si()->launchKT; break;
 	case 'b': value = sonde.si()->burstKT; break;
@@ -1169,6 +1232,7 @@ void Display::drawKilltimer(DispEntry *de) {
 extern int lastCourse; // from RX_FSK.ino
 void Display::calcGPS() {
 	// base data
+#if 0
 #if FAKEGPS
 	gpsValid = true;
 	gpsLat = 48.9;
@@ -1181,7 +1245,7 @@ static int tmpc=0;
 	gpsValid = nmea.isValid();
 	gpsLon = nmea.getLongitude()*0.000001;
 	gpsLat = nmea.getLatitude()*0.000001;
-	long alt;
+	long alt = 0;
 	nmea.getAltitude(alt); gpsAlt=(int)(alt/1000);
 	gpsCourse = (int)(nmea.getCourse()/1000);
 	gpsCourseOld = false;
@@ -1194,11 +1258,12 @@ static int tmpc=0;
 		}
 	}
 #endif
+#endif
 	// distance
-	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-        	float lat1 = nmea.getLatitude()*0.000001;
+	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
+        	float lat1 = gpsPos.lat;
         	float lat2 = sonde.si()->lat;
-        	float x = radians(nmea.getLongitude()*0.000001-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
+        	float x = radians(gpsPos.lon-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
         	float y = radians(lat2-lat1);
         	float d = sqrt(x*x+y*y)*EARTH_RADIUS;
 		gpsDist = (int)d;
@@ -1206,17 +1271,17 @@ static int tmpc=0;
 		gpsDist = -1;
 	}
 	// bearing
-	if( gpsValid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
-                float lat1 = radians(gpsLat);
+	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
+                float lat1 = radians(gpsPos.lat);
                 float lat2 = radians(sonde.si()->lat);
-                float lon1 = radians(gpsLon);
+                float lon1 = radians(gpsPos.lon);
                 float lon2 = radians(sonde.si()->lon);
                 float y = sin(lon2-lon1)*cos(lat2);
                 float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
                 float dir = atan2(y, x)/PI*180;
                 if(dir<0) dir+=360;
 		gpsDir = (int)dir;
-		gpsBear = gpsDir - gpsCourse;
+		gpsBear = gpsDir - gpsPos.course;
 		if(gpsBear < 0) gpsBear += 360;
 		if(gpsBear >= 360) gpsBear -= 360;
 	} else {
@@ -1224,39 +1289,39 @@ static int tmpc=0;
 		gpsBear = -1;
 	}
 	
-	Serial.printf("GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsValid?1:0,
-		gpsLat, gpsLon, gpsAlt, gpsCourse, gpsDist, gpsDir, gpsBear);
+	DebugPrintf(DEBUG_DISPLAY, "GPS data: valid%d  GPS at %f,%f (alt=%d,cog=%d);  sonde at dist=%d, dir=%d rel.bear=%d\n",gpsPos.valid?1:0,
+		gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, gpsDist, gpsDir, gpsBear);
 }
 
 void Display::drawGPS(DispEntry *de) {
-	if(sonde.config.gps_rxd<0) return;
+	// TODO: FIXME: ??? if(sonde.config.gps_rxd<0) return;
 	rdis->setFont(de->fmt);
 	switch(de->extra[0]) {
 	case 'V':
 		{
 		// show if GPS location is valid
-		uint8_t *tile = disp.gpsValid?gps_tile:nogps_tile;
+		uint8_t *tile = gpsPos.valid?gps_tile:nogps_tile;
 		rdis->drawTile(de->x, de->y, 1, tile);
 		}
 		break;
 	case 'O':
 		// GPS long
-		snprintf(buf, 16, "%2.5f", disp.gpsLon);
+		snprintf(buf, 16, "%2.5f", gpsPos.lon);
 		drawString(de,buf);
 		break;
 	case 'A':
 		// GPS lat
-		snprintf(buf, 16, "%2.5f", disp.gpsLat);
+		snprintf(buf, 16, "%2.5f", gpsPos.lat);
 		drawString(de,buf);
 		break;
 	case 'H':
 		// GPS alt
-		snprintf(buf, 16, "%4dm", disp.gpsAlt);
+		snprintf(buf, 16, "%4dm", gpsPos.alt);
 		drawString(de,buf);
 		break;
 	case 'C':
 		// GPS Course over ground
-		snprintf(buf, 4, "%3d", disp.gpsCourse);
+		snprintf(buf, 4, "%3d", gpsPos.course);
 		drawString(de, buf);
 		break;
 	case 'D':
@@ -1266,7 +1331,7 @@ void Display::drawGPS(DispEntry *de) {
 		if( (sonde.si()->validPos&0x03)!=0x03 ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
-		} else if(!disp.gpsValid) {
+		} else if(!gpsPos.valid) {
 			snprintf(buf, 16, "no gps ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else {
@@ -1286,7 +1351,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'I':
 		// dIrection
-		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1298,7 +1363,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'B':
 		// relative bearing
-		if( (!disp.gpsValid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1328,21 +1393,21 @@ void Display::drawGPS(DispEntry *de) {
 		bool rxgood = (sonde.si()->rxStat[0]==0);
 		int angN, angA, angB;   // angle of north, array, bullet
 		int validA, validB;     // 0: no, 1: yes, -1: old
-		if(circinfo->arr=='C') {  angA=disp.gpsCourse; validA=disp.gpsCourseOld?-1:1; }
+		if(circinfo->arr=='C') {  angA=gpsPos.course; validA=disp.gpsCourseOld?-1:1; }
 		else { angA=disp.gpsDir; validA=sonde.si()->validPos?(rxgood?1:-1):0; }
-		if(circinfo->bul=='C') {  angB=disp.gpsCourse; validB=disp.gpsCourseOld?-1:1; }
+		if(circinfo->bul=='C') {  angB=gpsPos.course; validB=disp.gpsCourseOld?-1:1; }
 		else { angB=disp.gpsDir; validB=sonde.si()->validPos?(rxgood?1:-1):0; }
 		if(circinfo->top=='N') {
 			angN = 0;
 		} else {
 			//if (circinfo->top=='C') {
-			angN = 360-disp.gpsCourse;
+			angN = 360-gpsPos.course;
 			angA += angN; if(angA>=360) angA-=360;
 			angB += angN; if(angB>=360) angB-=360;
 		}
 		Serial.printf("GPS0: %c%c%c N=%d, A=%d, B=%d\n", circinfo->top, circinfo->arr, circinfo->bul, angN, angA, angB);
 		// "N" in direction angN
-		static_cast<ILI9225Display *>(rdis)->tft->drawGFXcharBM(x0 + circinfo->radius*sin(angN*PI/180)-6, y0 - circinfo->radius*cos(angN*PI/180)+7, 'N', 0xffff, bitmap, size);
+		static_cast<ILI9225Display *>(rdis)->tft->drawGFXcharBM(x0 + circinfo->radius*sin(angN*PI/180)-6, y0 - circinfo->radius*cos(angN*PI/180)+7, 'N', 0xffff, bitmap, size, size);
 
 		// small circle in direction angB
 		if(validB) {

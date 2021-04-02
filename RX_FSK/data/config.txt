@@ -27,8 +27,8 @@
 tft_orient=1
 #gps_rxd=-1
 gps_txd=-1
-# Show AFC value (for RS41 only, maybe also DFM, but useful for RS92 or M10)
-# showafc=1
+# Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
+showafc=1
 # Frequency correction, in Hz
 # freqofs=0
 #-------------------------------#
@@ -41,6 +41,9 @@ wifi=3
 # TCP/IP KISS TNC in port 14590 for APRSdroid (0=disabled, 1=enabled)
 kisstnc.active = 1
 
+# which screens file to use (0: screens.txt, i>0: screens${i}.txt
+# 0: old version; 1: for OLED, 2: for TFT; 3: for TFT (portrait mode)
+# screenfile=2
 # display configuration. List of "displays"
 # first entry: "Scanner" display
 # second entry: default "Receiver" display
@@ -75,6 +78,14 @@ rs92.alt2d=480
 dfm.agcbw=20800
 dfm.rxbw=10400
 #-------------------------------#
+# ftp server for RINEX data (for RS92)
+# YYYY/DDD/brdcDDD0.YYn.gz is appended
+# s1: igs.bkg.bund.de/IGS/BRDC/
+# s2: www.ngs.noaa.gov/cors/rinex/
+#-------------------------------#
+ephftp=www.ngs.noaa.gov/cors/rinex/
+#ephftp=igs.bkg.bund.de/IGS/BRDC/
+#-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
 # local use only, do not feed to public services
@@ -95,6 +106,17 @@ tcp.port=14590
 tcp.symbol=/O
 tcp.highrate=20
 tcp.idformat=0
+#-------------------------------#
+# mqtt settings
+#-------------------------------#
+# data not sanitized / quality checked, outliers not filtered out
+mqtt.active=0
+mqtt.id=rdz_sonde_server
+mqtt.ip=
+mqtt.port=1883
+mqtt.username=
+mqtt.password=
+mqtt.prefix=rdz_sonde_server/
 #-------------------------------#
 # EOF
 #-------------------------------#

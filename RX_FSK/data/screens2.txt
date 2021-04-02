@@ -1,3 +1,4 @@
+## screens2.txt: TFT display (landscape)
 # Definition of display content and action behaviour
 #
 # Timer: (view timer, rx timer, norx timer)
@@ -96,113 +97,6 @@
 # for TFT display, coordinates and width are multiplied by xscale,yscale and later used in pixels
 # with scale=1,1 you can directly use pixel coordinates.  (default: xscale=13,yscale=22 => 8 lines, 16 columns)
 ###########
-# 
-# Default configuration for "Scanner" display:
-# - view timer disabled;  rx timer=0; norx timer = 0
-#   => after 1 second immediately an action is triggered
-#      (norx: go to next sonde; rx: go to default receiver display)
-# - key1 actions: D,0,F,W
-#   => Button press activates default receiver view, double press does nothing
-#      Mid press activates Spectrum display, long press activates Wifi scan
-# - key2 has no function
-@Scanner
-timer=-1,0,0
-key1action=D,#,F,W
-key2action=#,#,#,#
-timeaction=#,D,+
-0,0=XScan
-0,5=S#:
-0,9=T
-3,0=F MHz
-5,0=S
-7,5=n
-
-############
-# Default configuration for "Legacy" display:
-# - view timer=-1, rx timer=-1 (disabled); norx timer=20 (or -1 for "old" behaviour)
-#    => norx timer fires after not receiving a singla for 20 seconds
-# - key1 actions: +,0,F,W
-#    => Button1 press: next sonde; double press => @Scanner display
-#    => Mid press activates Spectrum display, long press activates Wifi scan
-# - key2 actions: 2,#,#,#
-#    => BUtton2 activates display 2 (@Field)
-# - timer actions: #,#,0
-#   (norx timer: if no signal for >20 seconds: go back to scanner mode)
-#
-@Legacy
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,0
-0,5=f MHz
-1,8=c
-0,0=t
-1,0=is
-2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-6,0=R
-6,7=Q
-
-############
-# Configuratoon for "Field" display (display 2)
-# similar to @Legacy, but no norx timer, and Key2 goes to display 4
-@Field
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-2,0=L
-4,0=O
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
-
-############
-# Configuration for "Field2" display (display 3)
-# similar to @Field
-@Field2
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-2,0=L
-4,0=O
-1,12=t
-0,9=f
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
-
-#############
-# Configuration for "GPS" display
-# not yet the final version, just for testing
-@GPSDIST
-timer=-1,-1,-1
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-0,0=Is
-0,9=f
-1,12=t
-2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-5,9=gC
-5,13=gB
-6,7=Q
-7,0=gV
-7,2=xd=
-7,4=gD
-7,12=gI°
 
 ############
 # Scan display for large 2" TFT dispaly
@@ -213,8 +107,8 @@ key2action=#,#,#,#
 timeaction=#,D,+
 fonts=5,6
 0,0=XScan
-0,8,-3=S#:
-0,9,5=T
+0,5,-3=S#:
+0,9,5.5=T
 3,0=F MHz
 5,0,16=S
 7,5=n
@@ -226,14 +120,14 @@ key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
 color=FFD700
-0,0=Is
+0,0,10.5=Is
 color=0000FF
 0,11,-5.5=f
-1,1,6=c
-1,12.5,-4=t
+1,0,4=t
+1,10.5,-6=c
 color=00ff00
-2,0=L
-4,0=O
+2,0,7=L
+4,0,7=O
 color=FFA500
 2,9.5,-7=A
 3,9.5,-7=vm/s
@@ -241,6 +135,7 @@ color=AA5522
 4,9.5,-7=hkkm/h
 color=FFFFFF
 6,2=r
+6.3,10=Q4
 7,0=xd=
 7,2,6=gD
 7,12=gI
@@ -265,7 +160,6 @@ color=ffffff,000000
 7,4,4=gC
 7,8=xturn:
 7,12,4=gB
-
 
 ############
 @GPSdataTFT
@@ -301,25 +195,6 @@ timeaction=#,#,#
 6.4,0=xTemp:
 6.4,5,5=bT C
 
-############
-@BatteryOLED
-timer=-1,-1,-1
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-fonts=0,1
-0,0=xBat.Status:
-0,12=bS
-1,0=xBatt:
-1,6=bVV
-2,0=bCmA (charge) 
-3,0=bDmA (disch.) 
-4,0=xUSB:
-4,5=bUV
-5,5=bImA
-6,0=xTemp:
-6,5=bT C
-
 ### Alternative display layouts based on https://gist.github.com/bazjo 
 # Scan display for large 2" TFT dispaly
 @Scan.TFT.Bazjo
@@ -334,12 +209,12 @@ color=e0e0e0
 0.5,0=XScanning...
 #Row 2
 3,0=xIndex
-4,0=S/
+4,0,8=S/
 3,9=xSite
 4,9=S
 #Row 3
 6,0=xType
-7,0=T
+7,0,6=T
 6,9=xFrequency
 7,9=F
 #Row 4
@@ -411,7 +286,6 @@ color=6C757D
 15,0=xDecode Mode / General View
 15,18=bVV
 
-
 ############
 @Decode/Battery.TFT.Bazjo
 timer=-1,-1,N
@@ -458,3 +332,242 @@ color=99001F
 15,0=xDecode Mode/Battery View
 15,18=bVV
 
+# based on https://github.com/puspis/rdz_ttgo_sonde
+##########
+@Scanner.Puspis
+timer=-1,0,4
+key1action=D,#,F,W
+key2action=#,#,#,#
+timeaction=#,D,+
+scale=13,10
+fonts=0,1
+#Row 1
+color=90EE90
+0.5,3=XFREQUENCY SCAN
+#Row 2
+color=00FF00
+3,0=xMEMORY
+3,9=xLAUNCH SITE
+color=639AFF
+4,0,9=S/
+4,9=S
+#Row 3
+color=00FF00
+6,0=xTYPE
+6,9=xFREQUENCY
+color=639AFF
+7,0,9=T
+7,9=F MHz
+#Row 4
+fonts=0,5
+color=285454
+11.5,0=xIP ADDRESS:
+10.9,7,-15=N
+#Footer
+color=FF0000
+12.7,18=bVV
+
+############
+@Main.Puspis
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,0
+scale=11,10
+fonts=0,2
+#Row 1
+color=00FF00
+0,0=xSONDE ID
+0,11=xFREQUENCY
+color=90EE90
+0,7.4=t
+1,0=Is
+1,11=F
+#Row 2
+fonts=0,1
+color=00FF00
+3,0=xLATITUDE
+3,11=xLONGITUDE
+color=FF007B
+4,0=L
+4,11=O
+#Row 3
+color=00FF00
+6,0=xWIND SPEED
+6,11=xCLIMB RATE
+color=639AFF
+7,0=Hkkm/h
+7,11=Vm/s
+#Row 4
+color=00FF00
+9,0=xRX ALTITUDE
+9,11=xSONDE ALTITUDE
+color=639AFF
+10,0=GH
+10,11=A
+#Row 5
+color=00FF00
+12,0=xDISTANCE
+12,11=xFRAMES
+color=FFFFFF
+13,0=GD
+13.5,11=Q4
+#Footer
+color=FF0000
+15,0.2=xIP:
+15,2.5=n
+15,18=bVV
+
+############
+@JotaEme.Puspis
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,0
+scale=11,10
+fonts=0,1
+#Row 1
+color=90EE90
+0,0=Is
+0.7,10.5=t
+0,14=F
+#Row 2
+color=00FF00
+2,1.2=xWIND SPEED
+2,14=xCLIMB RATE
+color=639AFF
+3,1=Hkkm/h
+3,13=Vm/s
+#Row 3
+color=00FF00
+5,1=xRX ALTITUDE
+5,12.5=xSONDE ALTITUDE
+color=639AFF
+6,2=GH
+6,14=A
+#Row 4
+color=00FF00
+8,0=xSONDE POSITION
+color=FF007B
+9,2=l
+10,2=o
+#Row 5
+color=00FF00
+11.4,2=xDISTANCE
+color=FFFFFF
+12.4,1.5=GD
+#Circle
+color=EEAA00,000033
+8,13.8=g0CCS,28,FFFF00,000033,5,9ACD32,5,EEAA00
+#Footer
+color=FF0000
+15,0=n
+color=FFFFFF,000000
+15,8.7=Q4
+color=FF0000
+15,18.4=bVV
+
+############
+@CompassTFT.Puspis
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=13,10
+fonts=0,1
+#Row 1
+color=90EE90
+0.5,1.5=XCOMPASS
+#Row 2
+color=00FF00
+4,2=xRX HEADING
+color=639AFF
+5,3.8=GC
+#Row 3
+color=00FF00
+9.5,3=xDISTANCE
+9.5,13.5=xBEARING
+color=639AFF
+10.5,3.4=GD
+10.5,14.3=GI
+#Circle
+color=EEAA00,000033
+0.2,10=g0CCS,52,FFFF00,000033,10,9ACD32,6,EEAA00
+#Footer
+color=FF0000,000000
+12.7,1=Q4
+12.7,18=bVV
+
+############
+@GPSdataTFT.Puspis
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=13,10
+fonts=0,1
+#Row 1
+color=90EE90
+0.5,0.5=XGPS RECEIVER STATION
+#Row 2
+color=00FF00
+3,0=xRX LATITUDE
+3,12=xRX LONGITUDE
+color=639AFF
+4,0=GA
+4,12=GO
+#Row 3
+color=00FF00
+6,0=xRX ALTITUDE
+6,12=xRX HEADING
+color=639AFF
+7,0=GH
+7,12=GC
+#Row 4
+color=00FF00
+9,0=xDISTANCE
+9,12=xBEARING
+color=639AFF
+10,0=GD
+10,12=GB
+#Footer
+color=FF0000,000000
+12.7,0.4=Q4
+12.7,18=bVV
+
+############
+@BatteryTFT.Puspis
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+scale=13,10
+fonts=0,1
+#Row 1
+color=90EE90
+0.5,4=XBATTERY STATUS
+#Row 2
+color=00FF00
+3,0=x(C)HARGE/(B)ATT
+3,11.5=xBATTERY VOLTAGE
+color=639AFF
+4,4=BS
+4,11.5=BVV
+#Row 3
+color=00FF00
+6,0=xCHARGE CURRENT
+6,11.5=xDISCHG. CURRENT
+color=639AFF
+7,0=BCmA
+7,11.5=BDmA
+#Row 3
+color=00FF00
+9,0=xIC TEMPERATURE
+9,11.5=xFREQ. OFFSET
+color=639AFF
+10,0=BTC
+10,10=C
+#Footer
+color=FF0000,000000
+12.7,0.4=Q4
+12.7,18=bVV

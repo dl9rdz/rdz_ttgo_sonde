@@ -1,13 +1,13 @@
 /*
- * M10.h
- * Functions for decoding Meteomodem M10 sondes with SX127x chips
+ * M10M20.h
+ * Functions for decoding Meteomodem M10M20 sondes with SX127x chips
  * Copyright (C) 2019 Hansi Reiser, dl9rdz
  *
  * SPDX-License-Identifier:	GPL-2.0+
  */
 
-#ifndef M10_h
-#define M10_h
+#ifndef M10M20_h
+#define M10M20_h
 
 #include <stdlib.h>
 #include <stdint.h>
@@ -16,45 +16,14 @@
         #include <inttypes.h>
 #endif
 
-#if 0
-struct CONTEXTR9 {
-   char calibdata[512];
-   uint32_t calibok;
-   char mesok;
-   char posok;
-   char framesent;
-   double lat;
-   double lon;
-   double heig;
-   double speed;
-   double dir;
-   double climb;
-   double lastlat;
-   double laslong;
-   double lastalt;
-   double lastspeed;
-   double lastdir;
-   double lastclb;
-   float hrmsc;
-   float vrmsc;
-   double hp;
-   double hyg;
-   double temp;
-   double ozontemp;
-   double ozon;
-   uint32_t goodsats;
-   uint32_t timems;
-   uint32_t framenum;
-};
-#endif
-
 /* Main class */
-class M10
+class M10M20
 {
 private:
 	void printRaw(uint8_t *data, int len);
 	void processM10data(uint8_t data);
         int decodeframeM10(uint8_t *data);
+        int decodeframeM20(uint8_t *data);
 #if 0
 	void stobyte92(uint8_t byte);
 	void dogps(const uint8_t *sf, int sf_len,
@@ -83,7 +52,7 @@ private:
 #endif
 
 public:
-	M10();
+	M10M20();
 	int setup(float frequency);
 	int receive();
 	int waitRXcomplete();
@@ -91,6 +60,6 @@ public:
 	//int use_ecc = 1;
 };
 
-extern M10 m10;
+extern M10M20 m10m20;
 
 #endif

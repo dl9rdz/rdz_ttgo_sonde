@@ -5,12 +5,12 @@
 #include "RS41.h"
 #include "RS92.h"
 #include "DFM.h"
-#include "M10.h"
+#include "M10M20.h"
 #include "SX1278FSK.h"
 #include "Display.h"
 #include <Wire.h>
 
-extern SX1278FSK sx1278;
+uint8_t debug = 255-8-16;
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -19,19 +19,25 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
-int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, -1 };
+int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
   "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
   "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
   "TTGO LORA v1.0 (0.9\" OLED@4,15)",
   "Heltec v1/v2 (0.9\"OLED@4,15)",
-  "TTGO T-Beam (old version), 0.9\" OLED@21,22",
-  "TTGO T-Beam (old version), SPI TFT@4,21,22",
-  "TTGO T-Beam (new version 1.0), 0.9\" OLED@21,22",
-  "TTGO T-Beam (new version 1.0), SPI TFT@4,13,14",
+  "TTGO T-Beam (V0.7), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V0.7), SPI TFT@4,21,22",
+  "TTGO T-Beam (V1.0), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V1.0), SPI TFT@4,13,14",
+  "TTGO T-Beam (V1.1), 0.9\" OLED@21,22",
+  "TTGO T-Beam (V1.1), SPI TFT@4,13,14",
 };
 
-int getKeyPressEvent(); /* in RX_FSK.ino */
+/* global variables from RX_FSK.ino */
+int getKeyPressEvent(); 
+int handlePMUirq();
+extern bool pmu_irq;
+extern SX1278FSK sx1278;
 
 /* Task model:
  * There is a background task for all SX1278 interaction.
@@ -41,7 +47,7 @@ int getKeyPressEvent(); /* in RX_FSK.ino */
  *  - Periodically it calls Sonde::receive(), which calls the current decoder's receive()
  *    function. It should return control to the SX1278 main loop at least once per second.
  *    It will also set the internal variable receiveResult.  The decoder's receive function
- *    must make sure that there are no FIFI overflows in the SX1278.
+ *    must make sure that there are no FIFO overflows in the SX1278.
  *  - the Arduino main loop will call the waitRXcomplete function, which should return as
  *    soon as there is some new data to display, or no later than after 1s, returning the
  *    value of receiveResult (or timeout, if receiveResult was not set within 1s). It
@@ -80,6 +86,7 @@ void Sonde::defaultConfig() {
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
+	config.screenfile = 1;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -92,8 +99,15 @@ void Sonde::defaultConfig() {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
 		if(initlevels[17]==0) { // T-Beam
-			if(initlevels[12]==0) {  // T-Beam v1.0
+			int tbeam=7;
+			if(initlevels[12]==0) {
+				tbeam = 10;
 				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
+			} else if ( initlevels[4]==1 && initlevels[12]==1 ) {
+				tbeam = 11;
+				Serial.println("Autoconfig: looks like T-Beam 1.1 board");
+			}
+			if(tbeam == 10  || tbeam == 11) {  // T-Beam v1.0  or T-Beam v1.1
 				config.button_pin = 38;
 				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
 				// Maybe in future use as default only PWR as button2?
@@ -120,6 +134,7 @@ void Sonde::defaultConfig() {
 					config.tft_rs = 2;
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
+					config.screenfile = 2;
 				} else {
 					// OLED display, pins 21,22 ok...
 					config.disptype = 0;
@@ -140,6 +155,7 @@ void Sonde::defaultConfig() {
 					config.tft_rs = 2;
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
+					config.screenfile = 2;
 				}
 			}
 		} else {
@@ -171,6 +187,8 @@ void Sonde::defaultConfig() {
 	config.rs92.alt2d=480;
 	config.dfm.agcbw=20800;
 	config.dfm.rxbw=10400;
+	config.m10m20.agcbw=20800;
+	config.m10m20.rxbw=12500;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -186,6 +204,14 @@ void Sonde::defaultConfig() {
 	config.tcpfeed.highrate = 10;
 	config.tcpfeed.idformat = ID_DFMDXL;
 	config.kisstnc.active = 0;
+	strcpy(config.ephftp,"igs.bkg.bund.de/IGS/BRDC/");
+
+	config.mqtt.active = 0;
+	strcpy(config.mqtt.id, "rdz_sonde_server");
+	config.mqtt.port = 1883;
+	strcpy(config.mqtt.username, "/0");
+	strcpy(config.mqtt.password, "/0");
+	strcpy(config.mqtt.prefix, "rdz_sonde_server/");
 }
 
 void Sonde::setConfig(const char *cfg) {
@@ -246,6 +272,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.wifiap = atoi(val);
 	} else if(strcmp(cfg,"mdnsname")==0) {
 		strncpy(config.mdnsname, val, 14);
+	} else if(strcmp(cfg,"screenfile")==0) {
+		config.screenfile = atoi(val);
 	} else if(strcmp(cfg,"display")==0) {
 		int i = 0;
 		char *ptr;
@@ -275,12 +303,18 @@ void Sonde::setConfig(const char *cfg) {
 		config.rs41.agcbw = atoi(val);
 	} else if(strcmp(cfg,"rs41.rxbw")==0) {
 		config.rs41.rxbw = atoi(val);
+	} else if(strcmp(cfg,"m10m20.agcbw")==0) {
+		config.m10m20.agcbw = atoi(val);
+	} else if(strcmp(cfg,"m10m20.rxbw")==0) {
+		config.m10m20.rxbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.agcbw")==0) {
 		config.dfm.agcbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.rxbw")==0) {
 		config.dfm.rxbw = atoi(val);
 	} else if(strcmp(cfg,"rs92.alt2d")==0) {
 		config.rs92.alt2d= atoi(val);
+	} else if(strcmp(cfg,"ephftp")==0) {
+		strncpy(config.ephftp, val, 40);
 	} else if(strcmp(cfg,"kisstnc.active")==0) {
 		config.kisstnc.active = atoi(val);
 	} else if(strcmp(cfg,"kisstnc.idformat")==0) {
@@ -311,6 +345,22 @@ void Sonde::setConfig(const char *cfg) {
 		config.tcpfeed.highrate = atoi(val);
 	} else if(strcmp(cfg,"tcp.idformat")==0) {
 		config.tcpfeed.idformat = atoi(val);
+	
+	} else if(strcmp(cfg,"mqtt.active")==0) {
+		config.mqtt.active = atoi(val)>0;
+	} else if(strcmp(cfg,"mqtt.id")==0) {
+		strncpy(config.mqtt.id, val, 63);
+	} else if(strcmp(cfg,"mqtt.host")==0) {
+		strncpy(config.mqtt.host, val, 63);
+	} else if(strcmp(cfg,"mqtt.port")==0) {
+		config.mqtt.port = atoi(val);
+	} else if(strcmp(cfg,"mqtt.username")==0) {
+		strncpy(config.mqtt.username, val, 63);
+	} else if(strcmp(cfg,"mqtt.password")==0) {
+		strncpy(config.mqtt.password, val, 63);
+	} else if(strcmp(cfg,"mqtt.prefix")==0) {
+		strncpy(config.mqtt.prefix, val, 63);
+
 	} else {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
@@ -331,6 +381,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	}
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	sondeList[nSonde].type = type;
+	sondeList[nSonde].typestr[0] = 0;
 	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
@@ -399,21 +450,26 @@ void Sonde::setup() {
 	case STYPE_RS41:
 		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
-		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type==STYPE_DFM06?0:1 );
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
+		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
 	case STYPE_RS92:
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_M10:
-		m10.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+	case STYPE_M20:
+		m10m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	}
 	// debug
 	float afcbw = sx1278.getAFCBandwidth();
 	float rxbw = sx1278.getRxBandwidth();
 	Serial.printf("AFC BW: %f  RX BW: %f\n", afcbw, rxbw);
+
+	// reset rxtimer / norxtimer state
+	sonde.sondeList[sonde.currentSonde].lastState = -1;
 }
 
 extern void flashLed(int ms);
@@ -429,10 +485,12 @@ void Sonde::receive() {
 		res = rs92.receive();
 		break;
 	case STYPE_M10:
-		res = m10.receive();
+	case STYPE_M20:
+		res = m10m20.receive();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		res = dfm.receive();
 		break;
 	}
@@ -462,24 +520,29 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
-	Serial.printf("event %x: action is %x\n", event, action);
+	if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
-	if(action == ACT_NEXTSONDE || action==ACT_PREVSONDE || (action>64&&action<128) ) {
+	if(action == ACT_DISPLAY_SCANNER || action == ACT_NEXTSONDE || action==ACT_PREVSONDE || (action>64&&action<128) ) {
 		// handled here...
-		if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
-			nextRxSonde();
-		else
-			nextRxFreq( action-64 );
-		action = ACT_SONDE(rxtask.currentSonde);
+		if(action==ACT_DISPLAY_SCANNER) {
+			// nothing to do here, be re-call setup() for M10/M20 for repeating AFC
+		}
+		else {
+			if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
+				nextRxSonde();
+			else
+				nextRxFreq( action-64 );
+			action = ACT_SONDE(rxtask.currentSonde);
+		}
 		if(rxtask.activate==-1) {
 			// race condition here. maybe better use mutex. TODO
-			rxtask.activate = action;
+			rxtask.activate = ACT_SONDE(rxtask.currentSonde);
 		}
 	}
 	res = (action<<8) | (res&0xff);
-	Serial.printf("receive Result is %04x\n", res);
+	Serial.printf("receive(): Result is %04x (action %d, res %d)\n", res, action, res&0xff);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -489,10 +552,14 @@ uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
 rxloop:
-        while( rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+        while( !pmu_irq && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+	if( pmu_irq ) {
+		handlePMUirq();
+		goto rxloop;
+	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
-		Serial.print("RSSI update: ");
+		Serial.printf("RSSI update: %d/2\n", sonde.si()->rssi);
 		disp.updateDisplayRSSI();
 		goto rxloop;
 	}
@@ -515,10 +582,12 @@ rxloop:
 		rs92.waitRXcomplete();
 		break;
 	case STYPE_M10:
-		m10.waitRXcomplete();
+	case STYPE_M20:
+		m10m20.waitRXcomplete();
 		break;
-	case STYPE_DFM06:
-	case STYPE_DFM09:
+	case STYPE_DFM06_OLD:
+	case STYPE_DFM09_OLD:
+	case STYPE_DFM:
 		dfm.waitRXcomplete();
 		break;
 	}
@@ -530,12 +599,11 @@ rxloop:
 uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 	uint32_t now = millis();
 #if 1
-	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d\n",
+	Serial.printf("Timeout check: %d - %d vs %d; %d - %d vs %d; %d - %d vs %d; lastState: %d\n",
 		now, si->viewStart, disp.layout->timeouts[0],
 		now, si->rxStart, disp.layout->timeouts[1],
-		now, si->norxStart, disp.layout->timeouts[2]);
+		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
-	Serial.printf("lastState is %d\n", si->lastState);
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
 		Serial.println("View timer expired");
 		return EVT_VIEWTO;
@@ -643,9 +711,7 @@ void Sonde::updateDisplayIP() {
 
 void Sonde::updateDisplay()
 {
-	int t = millis();
 	disp.updateDisplay();
-	Serial.printf("updateDisplay took %d ms\n", (int)(millis()-t));
 }
 
 void Sonde::clearDisplay() {

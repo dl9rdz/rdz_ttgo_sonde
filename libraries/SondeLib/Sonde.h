@@ -2,6 +2,13 @@
 #ifndef Sonde_h
 #define Sonde_h
 
+enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
+extern uint8_t debug;
+
+#define DebugPrint(l,x) if(debug&l) { Serial.print(x); }
+#define DebugPrintln(l,x) if(debug&l) { Serial.println(x); }
+#define DebugPrintf(l,...) if(debug&l) { Serial.printf(__VA_ARGS__); }
+
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
 // RX_OK: header and data ok
@@ -46,9 +53,14 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 5
-enum SondeType { STYPE_DFM06, STYPE_DFM09, STYPE_RS41, STYPE_RS92, STYPE_M10 };
+#define NSondeTypes 7
+enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_DFM06_OLD };
 extern const char *sondeTypeStr[NSondeTypes];
+extern const char *sondeTypeLongStr[NSondeTypes];
+extern const char sondeTypeChar[NSondeTypes];
+
+#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM || (t)==STYPE_DFM09_OLD || (t)==STYPE_DFM06_OLD )
+#define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 
 typedef struct st_sondeinfo {
         // receiver configuration
@@ -56,6 +68,7 @@ typedef struct st_sondeinfo {
         SondeType type;
         float freq;
         // decoded ID
+	char typestr[5];			// decoded type (use type if *typestr==0)
         char id[10];
 	char ser[12];
         bool validID;
@@ -64,8 +77,8 @@ typedef struct st_sondeinfo {
         float lat;			// latitude
         float lon;			// longitude
         float alt;			// altitude
-        float vs;			// vertical speed
-        float hs;			// horizontal speed
+        float vs;			// vertical speed in m/s
+        float hs;			// horizontal speed in m/s
 	float dir; 			// 0..360
 	uint8_t sats;			// number of sats
         uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old
@@ -121,6 +134,10 @@ struct st_dfmconfig {
 	int agcbw;
 	int rxbw;
 };
+struct st_m10m20config {
+	int agcbw;
+	int rxbw;
+};
 
 
 enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
@@ -144,6 +161,15 @@ struct st_kisstnc {
         int idformat;
 };
 
+struct st_mqtt {
+	int active;
+	char id[64];
+	char host[64];
+	int port;
+	char username[64];
+	char password[64];
+	char prefix[64];
+};
 
 typedef struct st_rdzconfig {
 	// hardware configuration
@@ -166,6 +192,7 @@ typedef struct st_rdzconfig {
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
 	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
+	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
@@ -181,6 +208,8 @@ typedef struct st_rdzconfig {
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	struct st_rs92config rs92;
 	struct st_dfmconfig dfm;
+	struct st_m10m20config m10m20;
+	char ephftp[40];
 	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign
@@ -188,6 +217,7 @@ typedef struct st_rdzconfig {
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
+	struct st_mqtt mqtt;
 } RDZConfig;
 
 

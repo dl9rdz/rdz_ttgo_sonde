@@ -164,20 +164,23 @@ void SX1278FSK::writeRegister(byte address, byte data)
  */
 void SX1278FSK::clearIRQFlags()
 {
+#if 0
 	byte st0;
-
 	// Save the previous status
 	st0 = readRegister(REG_OP_MODE);		
 	// Stdby mode to write in registers
 	writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);	
+#endif
 	// FSK mode flags1 register
 	writeRegister(REG_IRQ_FLAGS1, 0xFF);
 	// FSK mode flags2 register 
 	writeRegister(REG_IRQ_FLAGS2, 0xFF);
+#if 0
 	// Getting back to previous status
 	if(st0 != FSK_STANDBY_MODE)  {
 		writeRegister(REG_OP_MODE, st0);
 	}
+#endif
 #if (SX1278FSK_debug_mode > 1)
 	Serial.println(F("## FSK flags cleared ##"));
 #endif
@@ -194,7 +197,7 @@ uint8_t SX1278FSK::setFSK()
 {
 	uint8_t state = 2;
 	byte st0;
-	byte config1;
+	//byte config1;
 
 #if (SX1278FSK_debug_mode > 1)
 	Serial.println();
@@ -563,6 +566,13 @@ int32_t SX1278FSK::getAFC()
 	AFC = (int32_t)(regval * SX127X_FSTEP);
 	return AFC;
 }
+uint16_t SX1278FSK::getRawAFC() {
+	return (readRegister(REG_AFC_MSB)<<8) | readRegister(REG_AFC_LSB);
+}
+void SX1278FSK::setRawAFC(uint16_t afc) {
+	writeRegister(REG_AFC_MSB, afc>>8);
+	writeRegister(REG_AFC_LSB, afc&0xFF);
+}
 
 /*
 Function: Gets the current supply limit of the power amplifier, protecting battery chemistries.
@@ -719,7 +729,6 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 			// It's a bit of a hack.... get RSSI and AFC (a) at beginning of packet and
 			// for RS41 after about 0.5 sec. It might be more logical to put this decoder-specific
 			// code into RS41.cpp instead of this file... (maybe TODO?)
-			
 			if(di==1 || di==290 ) {
 				int rssi=getRSSI();
 				int afc=getAFC();

@@ -13,16 +13,21 @@ generate_website_index() {
   echo '<p class="view"><a href="https://github.com/dl9rdz/rdz_ttgo_sonde">View the Project on GitHub <small>dl9rdz/rdz_ttgo_sonde</small></a></p>' >> download.html
   echo '</header><section><h1 id="rdz_ttgo_sonde">rdz_ttgo_sonde</h1>' >> download.html
   echo "<h2>Master repository</h2><ul>" >> download.html
-  for i in `ls master`; do
+  for i in `ls master|sort -r`; do
     TS=`git log master/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
     echo "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul><h2>Development repository</h2><ul>" >> download.html
-  for i in `ls devel`; do
+  for i in `ls devel|sort -r|grep "\.bin"`; do
     TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
-    echo "<li><a href=\"devel/$i\">$i</a> ($TS)</li>\n" >> download.html;
+    VERS=`basename $i -full.bin`
+    CL=`cat devel/${VERS}-changelog.txt 2>/dev/null`
+    echo "VERS $VERS: CL $CL"
+    echo "<li><a href=\"devel/$i\">$i</a> ($TS)" >> download.html
+    if [ -n "${CL}" ]; then echo "<br>${CL}" >> download.html; fi
+    echo "</li>\n" >> download.html
   done
   echo "</ul>
   <br>
@@ -54,6 +59,8 @@ commit_website_files() {
   git add ${BRANCH}/${VERSION}-full.bin
   cp ${MYPATH}/build/RX_FSK.ino.bin ${BRANCH}/update.ino.bin
   git add ${BRANCH}/update.ino.bin
+  echo "${TRAVIS_COMMIT_MESSAGE}" > ${BRANCH}/${VERSION}-changelog.txt
+  git add ${BRANCH}/${VERSION}-changelog.txt
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {

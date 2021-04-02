@@ -240,6 +240,8 @@ public:
 
 	// Get current AFC value
 	int32_t getAFC();
+	uint16_t getRawAFC();
+	void setRawAFC(uint16_t afc);
 
 	// Get the maximum current supply by the module.
 	int getMaxCurrent();
