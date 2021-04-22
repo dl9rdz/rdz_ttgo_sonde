@@ -12,12 +12,8 @@
 #include <ESPmDNS.h>
 #include <MicroNMEA.h>
 #include <Ticker.h>
-<<<<<<< Updated upstream
-
-=======
 #include <TimeLib.h>
 //#include <time.h>
->>>>>>> Stashed changes
 #include <SX1278FSK.h>
 #include <Sonde.h>
 #include <Display.h>
@@ -36,11 +32,6 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOUCHCALIB" };
 
 AsyncWebServer server(80);
-<<<<<<< Updated upstream
-=======
-AsyncWebSocket ws("/ws");
-AsyncWebSocketClient * globalClient = NULL;
->>>>>>> Stashed changes
 
 AXP20X_Class axp;
 #define PMU_IRQ             35
@@ -2138,10 +2129,8 @@ void loopDecoder() {
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
       }
-<<<<<<< Updated upstream
     }
 
-=======
   	  Serial.println("Sending data to the sondehub v2 DB  <--------------------------------->");
 	  sondehub_send_data(&shclient, s, &sonde.config.sondehub);
 
@@ -2276,14 +2265,13 @@ void loopDecoder() {
 			*/
     }
   
->>>>>>> Stashed changes
 
     // send to MQTT if enabled
     if (connected && mqttEnabled) {
       Serial.println("Sending sonde info via MQTT");
       mqttclient.publishPacket(s);
     }
-  }
+  //}
   // always send data, even if not valid....
   if (rdzclient.connected()) {
     Serial.println("Sending position via TCP as rdzJSON");
@@ -2479,8 +2467,6 @@ void enableNetwork(bool enable) {
       mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
     }
 
-<<<<<<< Updated upstream
-=======
 //	rsclient.connect("192.168.1.5", 8881);
 
 	shclient.setInsecure(); // Skip verification
@@ -2519,7 +2505,6 @@ void enableNetwork(bool enable) {
 		Serial.println("Radiosondy FAIL *************************************************");
 	}
 */
->>>>>>> Stashed changes
     connected = true;
   } else {
     MDNS.end();
