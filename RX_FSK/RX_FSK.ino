@@ -2,6 +2,7 @@
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <WiFiClientSecure.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
@@ -11,7 +12,12 @@
 #include <ESPmDNS.h>
 #include <MicroNMEA.h>
 #include <Ticker.h>
+<<<<<<< Updated upstream
 
+=======
+#include <TimeLib.h>
+//#include <time.h>
+>>>>>>> Stashed changes
 #include <SX1278FSK.h>
 #include <Sonde.h>
 #include <Display.h>
@@ -30,6 +36,11 @@ static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
 const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOUCHCALIB" };
 
 AsyncWebServer server(80);
+<<<<<<< Updated upstream
+=======
+AsyncWebSocket ws("/ws");
+AsyncWebSocketClient * globalClient = NULL;
+>>>>>>> Stashed changes
 
 AXP20X_Class axp;
 #define PMU_IRQ             35
@@ -47,6 +58,8 @@ String *updateBin = &updateBinM;
 boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
+//WiFiClient rsclient;	// Radiosondy client
+WiFiClientSecure shclient;	// Sondehub v2
 
 // KISS over TCP for communicating with APRSdroid
 WiFiServer tncserver(14580);
@@ -581,6 +594,17 @@ struct st_configitems config_list[] = {
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
   {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 
+  /* Sondehub v2 settings */
+  {"", "Sondehub v2 settings", -5, NULL},
+  {"sondehub.active", "Sondehub reporting active", 0, &sonde.config.sondehub.active},
+  {"sondehub.host", "Sondehub host", 63, &sonde.config.sondehub.host},
+  {"sondehub.callsign", "Callsign", 63, &sonde.config.sondehub.callsign},
+  {"sondehub.lat", "Latitude", 19, &sonde.config.sondehub.lat},
+  {"sondehub.lon", "Longitude", 19, &sonde.config.sondehub.lon},
+  {"sondehub.alt", "Altitude", 19, &sonde.config.sondehub.alt},
+  {"sondehub.antenna", "Antenna", 63, &sonde.config.sondehub.antenna},
+  
+
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -1035,8 +1059,10 @@ void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventT
   if (type == WS_EVT_CONNECT) {
     Serial.println("Websocket client connection received");
     client->text("Hello from ESP32 Server");
+	//globalClient = client;
   } else if (type == WS_EVT_DISCONNECT) {
     Serial.println("Client disconnected");
+	globalClient = NULL;
   }
 }
 #endif
@@ -1055,6 +1081,11 @@ void SetupAsyncServer() {
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
+/*
+  server.on("/spectrum", HTTP_GET, [](AsyncWebServerRequest *request){
+    request->send(SPIFFS, "/ws.html", "text/html");
+  });
+*/
   server.on("/test.html", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/test.html", String(), false, processor);
   });
@@ -2107,8 +2138,145 @@ void loopDecoder() {
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
       }
+<<<<<<< Updated upstream
     }
 
+=======
+  	  Serial.println("Sending data to the sondehub v2 DB  <--------------------------------->");
+	  sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+
+	  Serial.println("Sending data to the radiosondy.info <--------------------------------->");
+
+
+/*
+{"software_name":"BSG TTGO Sonde", "software_version":"v0.2.0", "uploader_callsign":"OH3BSG",
+"time_received":"YYYY-MM-DDTHH:MM:SS.SSSSSSZ",
+"manufacturer":"Vaisala",
+"type":"RS41",
+"serial":"Radiosonde Serial Number",
+"frame":1,
+"datetime":"YYYY-MM-DDTHH:MM:SS.SSSSSSZ",
+"lat":	float,
+"lon":	float,
+"alt":	float
+}
+*/
+/*
+	  char rs_msg[400];
+	  char *w;
+	  int i;
+	  memset(rs_msg, 0, 400);
+	  w=rs_msg;
+	  sprintf(w, "{\"software_name\":\"BSG TTGO Sonde\", \"software_version\":\"v0.2.0\", \"uploader_callsign\":\"OH3BSG\",");
+	  i = strlen(w);
+	  sprintf(w+i, " \"serial\":\"%s\",", s->id);
+	  i = strlen(w);
+	  sprintf(w+i, " \"frame\":%d,", s->frame);
+	  i = strlen(w);
+	  int sec = s->time % 86400;
+	  sprintf(w+i, " \"datetime\": \"%02d%02d%02dz\"", sec/(60*60), (sec%(60*60))/60, sec%60);
+	  i = strlen(w);
+	  sprintf(w+i, " \"lat\":%02d.%06d,", (int)s->lat, (int)((s->lat - (int)s->lat)*1000000));
+	  i = strlen(w);
+	  sprintf(w+i, " \"lon\":%03d.%06d,", (int)s->lon, (int)((s->lon - (int)s->lon)*1000000));
+	  i = strlen(w);
+	  sprintf(w+i, " \"alt\":%d.%02d}", (int)s->alt, (int)((s->alt - (int)s->alt)*100));
+
+  	  if (!rsclient.connected()) {
+		rsclient.connect("192.168.1.5", 8881);
+	  }
+	  if (rsclient.write(rs_msg, strlen(rs_msg)) == strlen(rs_msg)) {
+	      Serial.println("    Data sent OK");
+	  }
+*/
+/*
+	  // oh3bsg>APRARX,SONDEGATE,TCPIP,qAR,oh3bsg:;S0650576 *183213h6004.64N/02340.07EO114/024/A=052626 Clb=5.3m/s t=-273.0C h=-1.0% p=-1.0hPa 403.001 MHz Type=RS41 Radiosonde auto_rx v1.5.0 !wPv!\r\n
+	  strncat(rs_msg, "oh3bsg>APRARX,SONDEGATE,TCPIP,qAR,oh3bsg:;", 42);
+	  strncat(rs_msg, s->id, 10);
+	  strncat(rs_msg, " *", 2);
+	  // Time convertions
+	  time_t t = s->time;
+	  int tt = hour(t);
+	  char ctemp[3];
+	  ctemp[0] = '0' + ((tt/10)%10);
+	  ctemp[1] = '0' + (tt%10);
+	  ctemp[3] = 0;
+	  strncat(rs_msg, ctemp, 2);
+	  tt = minute(t);
+	  ctemp[0] = '0' + ((tt/10)%10);
+	  ctemp[1] = '0' + (tt%10);
+	  strncat(rs_msg, ctemp, 2);
+	  tt = second(t);
+	  ctemp[0] = '0' + ((tt/10)%10);
+	  ctemp[1] = '0' + (tt%10);
+	  strncat(rs_msg, ctemp, 2);
+  	  strncat(rs_msg, "h", 1);
+	  // Location convertions
+	  char location[6];
+	  float latlon = s->lat;
+	  int deg = abs((int)latlon);
+	  sprintf(location, "%02d", deg);
+	  strncat(rs_msg, location, 2);
+	  float min = abs(latlon - (int)latlon)*60.0;
+	  sprintf(location, "%02d", (int)min);
+	  strncat(rs_msg, location, 2);
+	  int min_des = (min - (int)min)*100;
+	  sprintf(location, ".%02dN/", min_des);
+	  strncat(rs_msg, location, 5);
+	  latlon = s->lon;
+	  deg = abs((int)latlon);
+	  sprintf(location, "%03d", deg);
+	  strncat(rs_msg, location, 3);
+	  min = abs(latlon - (int)latlon)*60.0;
+	  sprintf(location, "%02d", (int)min);
+	  strncat(rs_msg, location, 2);
+	  min_des = (min - (int)min)*100;
+	  sprintf(location, ".%02dEO", min_des);
+	  strncat(rs_msg, location, 5);
+	  char temp[50];
+	  sprintf(temp, "%03d/%03d", (int)s->dir, (int)s->hs);	// datoissa jotain hämärää
+	  //sprintf(temp, "%03d/%03d", 0, 0);
+	  strncat(rs_msg, temp, 7);
+	  sprintf(temp, "/A=%06d ", (int)s->alt);
+	  strncat(rs_msg, temp, 10);
+	  // Comments
+	  //Clb=5.3m/s t=-273.0C h=-1.0% p=-1.0hPa 403.001 MHz Type=RS41 Radiosonde auto_rx v1.5.0
+	  sprintf(temp, "Clb=%02dm/s ", (int)s->vs);
+	  strncat(rs_msg, temp, 10);
+	  int frq_dec = abs(s->freq - (int)s->freq)*1000;
+	  sprintf(temp, "%03d.%03d MHz Type=RS41 BSG_TTGO v0.1.0.dev\r\n", (int)s->freq, frq_dec);
+	  strncat(rs_msg, temp, 43);
+	  // Leave precision part away. http://www.aprs.org/datum.txt
+	  
+	  Serial.println("Radiosondy.info");
+	  Serial.println(rs_msg);
+	  Serial.println(s->lat);
+	  Serial.println(s->lon);
+	  Serial.println(s->dir);
+	  Serial.println(s->hs);
+	  Serial.println(s->alt);
+	  Serial.println(s->freq);
+	  Serial.println(sizeof(rs_msg));
+
+	  
+	  if (rsclient.write(rs_msg, 148) == 148) {
+	      Serial.println("    Data sent OK");
+//	  }
+*/
+	  /*
+	  out_str = ";%s*%sh%s/%sO%s/A=%06d %s %s" % (
+            _object_name,			=> Sonde_id
+            _aprs_timestamp,		=> aika
+            lat_str,				=> lat
+            lon_str,				=> lon
+            course_speed,			=> speed
+            alt,					=> korkeus
+            _aprs_comment,
+            _datum,
+			*/
+    }
+  
+>>>>>>> Stashed changes
 
     // send to MQTT if enabled
     if (connected && mqttEnabled) {
@@ -2241,6 +2409,13 @@ void loopSpectrum() {
 
   scanner.scan();
   scanner.plotResult();
+  
+/*
+  if(globalClient != NULL && globalClient->status() == WS_CONNECTED){
+      String randomNumber = String(random(0,20));
+      globalClient->text(randomNumber);
+   }
+*/
 
   if (sonde.config.spectrum > 0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
@@ -2304,6 +2479,47 @@ void enableNetwork(bool enable) {
       mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
     }
 
+<<<<<<< Updated upstream
+=======
+//	rsclient.connect("192.168.1.5", 8881);
+
+	shclient.setInsecure(); // Skip verification
+	sondehub_station_update(&shclient, &sonde.config.sondehub);
+/*
+	if (!shclient.connect("api.v2.sondehub.org", 443)) {
+		Serial.println("Connection FAILED");
+	}
+	else {
+		//sondehub_station_update(&shclient);
+	}
+*/
+	//rsclient.write("user OH3BSG pass 23727 vers BSG-TTGO filter b/OH3BSG", 52);
+	//rsclient.write("{\"software_name\":\"BSG TTGO Sonde\", \"frame\":3}");
+
+/* Radiosondy
+	if (rsclient.connect("radiosondy.info", 14590)) {
+		Serial.println("Radiosondy connection OK");
+		// Log on
+		if (rsclient.write("user OH3BSG pass 23727 vers BSG-TTGO filter b/OH3BSG \r\n", 55) == 55) {
+			Serial.println("    Log on sent OK");
+		}
+		if (rsclient.write("#filter p/ZZ\r\n", 14) == 14) {
+			Serial.println("    Filter sent OK");
+		}
+		if (rsclient.write("#filter -t/po\r\n", 15) == 15) {
+			Serial.println("    Filter sent OK");
+		}
+		delay(1000);
+		while(rsclient.available()) {
+			char a = rsclient.read();
+			Serial.print(a);
+		}
+	}
+	else {
+		Serial.println("Radiosondy FAIL *************************************************");
+	}
+*/
+>>>>>>> Stashed changes
     connected = true;
   } else {
     MDNS.end();
@@ -2869,3 +3085,203 @@ void loop() {
   }
 
 }
+
+// Sondehub v2 DB related codes
+
+/*
+ *	Update station data to the sondehub v2 DB
+ */
+void sondehub_station_update(WiFiClientSecure *client, struct st_sondehub *conf) {
+	char data[200];	
+	
+	Serial.println("sondehub_station_update()");
+	
+	if (!client->connected()) {
+		if (!client->connect(conf->host, 443)) {
+			Serial.println("Connection FAILED");
+		}
+	}
+
+	client->println("PUT /listeners HTTP/1.1");
+    client->print("Host: ");
+	client->println(conf->host);
+	client->println("accept: text/plain");
+	client->println("Content-Type: application/json");
+	client->print("Content-Length: ");
+	sprintf(data, "{\
+		\"software_name\": \"%s\",\
+		\"software_version\": \"%s\",\
+		\"uploader_callsign\": \"%s\",\
+		\"uploader_position\": [%s,%s,%s],\
+		\"uploader_antenna\": \"%s\"\
+		}", version_name, version_id, conf->callsign, conf->lat, conf->lon, conf->alt, conf->antenna);
+	client->println(strlen(data));
+    client->println();
+    client->println(data);
+	Serial.println(strlen(data));
+	Serial.println(data);
+	//delay(1000);
+    String response = client->readString();
+	Serial.println(response);
+	client->stop();
+}
+
+//
+// curl -X PUT "https://api.v2.sondehub.org/sondes/telemetry" 
+// -H "accept: text/plain" 
+// -H "Date: Thu, 22 Apr 2021 14:48:00 GMT" 
+// -H "Content-Type: application/json" 
+// -d "[ { \"software_name\": \"string\",
+//         \"software_version\": \"string\",
+//         \"uploader_callsign\": \"string\", 
+//         \"time_received\": \"2021-04-22T14:46:31.652Z\", 
+//         \"manufacturer\": \"Vaisala\", 
+//         \"type\": \"RS41\", 
+//         \"serial\": \"string\", 
+//         \"frame\": 0, 
+//         \"datetime\": \"2021-04-22T14:46:31.652Z\", 
+//         \"lat\": 0, 
+//         \"lon\": 0, 
+//         \"alt\": 0, 
+//         \"subtype\": \"RS41-SG\", 
+//         \"frequency\": 0, 
+//         \"temp\": 0, 
+//         \"humidity\": 0, 
+//         \"vel_h\": 0, 
+//         \"vel_v\": 0, 
+//         \"pressure\": 0, 
+//         \"heading\": 0, 
+//         \"batt\": 0, 
+//         \"sats\": 0, 
+//         \"xdata\": \"string\", 
+//         \"snr\": 0, 
+//         \"rssi\": 0, 
+//         \"uploader_position\": [ 62.00, 24.5, 170.3 ], 
+//         \"uploader_antenna\": \"string\" }]"
+//
+void sondehub_send_data(WiFiClientSecure *client, SondeInfo *s, struct st_sondehub *conf) {
+	Serial.println("sondehub_send_data()");
+	
+
+// {"software_name":"BSG TTGO Sonde", "software_version":"v0.2.3", "uploader_callsign":"OH3BSG", "time_received":"2021-04-11T12:07:09.000Z", "manufacturer":"Vaisala", "type":"RS41", "serial":"S0730222", "frame":3776, "datetime":"2021-04-11T12:07:09.000Z", "lat":60.929744, "lon":024.661953, "alt":11030.75}
+	char rs_msg[400];
+	char *w;
+	char *weekdays[8] = {"?", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}; // weekday 1=Sun, 2=mon ... 7=Sat
+	int i;
+
+	memset(rs_msg, 0, 400);
+	w=rs_msg;
+	sprintf(w, "[{\"software_name\":\"%s\", \"software_version\":\"%s\", \"uploader_callsign\":\"OH3BSG\",", version_name, version_id);
+//	time_t t = now();
+	time_t t = s->time;
+	i = strlen(w);
+	sprintf(w+i, " \"time_received\":\"%04d-%02d-%02dT%02d:%02d:%02d.000Z\",", year(t), month(t), day(t), hour(t), minute(t), second(t));
+	i = strlen(w);
+	sprintf(w+i, " \"manufacturer\":\"%s\",", "Vaisala");	// ToDo: update this later Now it can be hardcoded
+	i = strlen(w);
+//	Serial.println(s->typestr);
+//	Serial.println(sondeTypeLongStr[s->type]);
+	if (s->typestr==NULL) {
+		sprintf(w+i, " \"type\":\"%s\",", s->typestr);
+	}
+	else {
+		sprintf(w+i, " \"type\":\"%s\",", sondeTypeLongStr[s->type]);								// ToDo: Check subtype => if not then type
+	}
+	i = strlen(w);
+	sprintf(w+i, " \"serial\":\"%s\",", s->id);
+	i = strlen(w);
+	sprintf(w+i, " \"frame\":%d,", s->frame);
+	i = strlen(w);
+//	int sec = s->time % 86400;
+//	sprintf(w+i, " \"datetime\": \"%02d%02d%02dz\"", sec/(60*60), (sec%(60*60))/60, sec%60);	// TODO
+	sprintf(w+i, " \"datetime\":\"%04d-%02d-%02dT%02d:%02d:%02d.000Z\",", year(t), month(t), day(t), hour(t), minute(t), second(t));
+	i = strlen(w);
+	sprintf(w+i, " \"lat\":%02d.%06d,", (int)s->lat, (int)((s->lat - (int)s->lat)*1000000));
+	i = strlen(w);
+	sprintf(w+i, " \"lon\":%03d.%06d,", (int)s->lon, (int)((s->lon - (int)s->lon)*1000000));
+	i = strlen(w);
+	sprintf(w+i, " \"alt\":%d.%02d}]", (int)s->alt, (int)((s->alt - (int)s->alt)*100));
+
+	char headers[300];
+/*
+	sprintf(headers, 
+			"PUT /sondes/telemetry HTTP/1.1\r\n Host:&s\r\nUser-Agent: BSGTTGO-0.2.3\r\nContent-Type: application/json\r\nDate: %s, %02d %s %d %02d:%02d:%02d GMT\r\nContent-Length: %d",
+			/conf->host"api.v2.sondehub.org", weekdays[weekday(t)], day(t), monthShortStr(month(t)), year(t), hour(t), minute(t), second(t), strlen(rs_msg));
+*/
+	sprintf(headers, 
+			"PUT /sondes/telemetry HTTP/1.1\r\naccept: text/plain\r\nHost: %s\r\nUser-Agent: BSGTTGO-0.2.3\r\nContent-Type: application/json\r\nDate: %s, %02d %s %d %02d:%02d:%02d GMT\r\nContent-Length: ",
+			conf->host, weekdays[weekday(t)], day(t), monthShortStr(month(t)), year(t), hour(t), minute(t), second(t));
+	//sondehub_send(client, conf, headers, rs_msg);
+/*
+	Serial.println(rs_msg);
+	Serial.print("Date: ");
+	Serial.print(weekdays[weekday(t)]);
+	Serial.print(", ");
+	Serial.print(day(t));
+	Serial.print(" ");
+	Serial.print(monthShortStr(month(t)));
+	Serial.print(" ");
+	Serial.println(year(t));
+	//Serial.println(monthShortStr(month(t)));
+	//Serial.println(weekdays[weekday(t)]);
+*/
+/*
+	if (!client->connected()) {
+		if (!client->connect(conf->host, 443)) {
+			Serial.println("Connection FAILED");
+		}
+	}
+
+// Headers
+// {'User-Agent': 'autorx-1.5.1', 'Content-Encoding': 'gzip', 'Content-Type': 'application/json', 'Date': 'Sun, 11 Apr 2021 18:04:09 GMT'}
+	client->println("PUT /sondes/telemetry HTTP/1.1");
+    client->print("Host: ");
+	client->println(conf->host);
+	client->println("User-Agent': 'BSGTTGO-0.2.3");
+	//client->println("accept: text/plain");
+	client->println("Content-Type: application/json");
+	client->println("Date: Fri, 16 Apr 2021 05:48:44 GMT");
+	client->print("Content-Length: ");
+	client->println(strlen(rs_msg));
+    client->println();
+    client->println(rs_msg);
+	//delay(1000);
+    String response = client->readString();
+	Serial.println(response);
+	client->stop();
+*/
+
+
+/*
+  	  if (!rsclient.connected()) {
+		rsclient.connect("192.168.1.5", 8881);
+	  }
+	  if (rsclient.write(rs_msg, strlen(rs_msg)) == strlen(rs_msg)) {
+	      Serial.println("    Data sent OK");
+	  }
+*/
+}
+
+int sondehub_send(WiFiClientSecure *client, struct st_sondehub *conf, char *headers, char *data) {
+	Serial.println("sondehub_send");
+	if (!client->connected()) {
+		if (!client->connect(conf->host, 443)) {
+			Serial.println("Connection FAILED");
+			return -1;
+		}
+	}
+	client->print(headers);
+	client->println(strlen(data));
+	client->println();
+	client->println(data);
+	Serial.print(headers);
+	Serial.println(strlen(data));
+	Serial.println();
+	Serial.println(data);
+	//delay(1000);
+    String response = client->readString();
+	Serial.println(response);
+	client->stop();
+}
+
+// End of sondehub v2 related codes

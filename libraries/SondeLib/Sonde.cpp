@@ -371,7 +371,20 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.mqtt.password, val, 63);
 	} else if(strcmp(cfg,"mqtt.prefix")==0) {
 		strncpy(config.mqtt.prefix, val, 63);
-
+	} else if(strcmp(cfg, "sondehub.active")==0) {
+		config.sondehub.active = atoi(val);
+	} else if(strcmp(cfg, "sondehub.host")==0) {
+		strncpy(config.sondehub.host, val, 63);
+	} else if(strcmp(cfg, "sondehub.callsign")==0) {
+		strncpy(config.sondehub.callsign, val, 63);
+	} else if(strcmp(cfg, "sondehub.lat")==0) {
+		strncpy(config.sondehub.lat, val, 19);
+	} else if(strcmp(cfg, "sondehub.lon")==0) {
+		strncpy(config.sondehub.lon, val, 19);
+	} else if(strcmp(cfg, "sondehub.alt")==0) {
+		strncpy(config.sondehub.alt, val, 19);
+	} else if(strcmp(cfg, "sondehub.antenna")==0) {
+		strncpy(config.sondehub.antenna, val, 63);
 	} else {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}

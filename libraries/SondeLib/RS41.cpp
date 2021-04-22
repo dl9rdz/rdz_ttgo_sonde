@@ -5,7 +5,7 @@
 #include "rsc.h"
 #include "Sonde.h"
 
-#define RS41_DEBUG 0
+#define RS41_DEBUG 1
 
 #if RS41_DEBUG
 #define RS41_DBG(x) x

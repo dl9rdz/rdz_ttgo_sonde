@@ -180,6 +180,16 @@ struct st_mqtt {
 	char prefix[64];
 };
 
+struct st_sondehub {
+	int active;
+	char host[64];
+	char callsign[64];
+	char lat[20];
+	char lon[20];
+	char alt[20];
+	char antenna[64];
+};
+
 typedef struct st_rdzconfig {
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
@@ -229,6 +239,7 @@ typedef struct st_rdzconfig {
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 	struct st_mqtt mqtt;
+	struct st_sondehub sondehub;
 } RDZConfig;
 
 

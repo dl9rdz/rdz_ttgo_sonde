@@ -4,7 +4,7 @@
 #include "SX1278FSK.h"
 #include "Sonde.h"
 
-#define DFM_DEBUG 1
+#define DFM_DEBUG 0
 
 #if DFM_DEBUG
 #define DFM_DBG(x) x

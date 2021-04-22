@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+   <head>
+      <script type = "text/javascript">
+        var ws = new WebSocket("ws://192.168.1.18/ws");
+ 
+        ws.onopen = function() {
+            window.alert("Connected");
+         };
+ 
+         ws.onmessage = function(evt) {
+            document.getElementById("display").innerHTML  = "temperature: " + evt.data + " C";
+        };
+ 
+      </script>
+   </head>
+ 
+   <body>
+      <div>
+         <p id = "display">Not connected</p>
+      </div>
+   </body>
+</html>

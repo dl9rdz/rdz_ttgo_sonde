@@ -111,13 +111,31 @@ tcp.idformat=0
 # mqtt settings
 #-------------------------------#
 # data not sanitized / quality checked, outliers not filtered out
+<<<<<<< Updated upstream
 mqtt.active=0
 mqtt.id=rdz_sonde_server
 mqtt.host=
 mqtt.port=1883
+=======
+mqtt.active=1
+mqtt.id=BSG_MQTT
+mqtt.ip=192.168.1.5
+mqtt.port=1884
+>>>>>>> Stashed changes
 mqtt.username=
 mqtt.password=
 mqtt.prefix=rdz_sonde_server/
+#-------------------------------#
+# Sondehub v2 settings
+#-------------------------------#
+# Sondehub v2 DB settings
+sondehub.active=1
+sondehub.host=api.v2.sondehub.org
+sondehub.callsign=OH3BSG
+sondehub.lat=61.570242
+sondehub.lon=23.518801
+sondehub.alt=160.0
+sondehub.antenna=Discone + LNA
 #-------------------------------#
 # EOF
 #-------------------------------#
