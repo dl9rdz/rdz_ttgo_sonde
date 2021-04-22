@@ -111,17 +111,10 @@ tcp.idformat=0
 # mqtt settings
 #-------------------------------#
 # data not sanitized / quality checked, outliers not filtered out
-<<<<<<< Updated upstream
-mqtt.active=0
-mqtt.id=rdz_sonde_server
-mqtt.host=
-mqtt.port=1883
-=======
 mqtt.active=1
 mqtt.id=BSG_MQTT
 mqtt.ip=192.168.1.5
 mqtt.port=1884
->>>>>>> Stashed changes
 mqtt.username=
 mqtt.password=
 mqtt.prefix=rdz_sonde_server/
