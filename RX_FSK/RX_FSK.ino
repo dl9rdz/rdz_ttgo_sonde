@@ -3112,6 +3112,7 @@ void sondehub_station_update(WiFiClientSecure *client, struct st_sondehub *conf)
 }
 
 //
+// {"software_name":"BSG TTGO Sonde", "software_version":"v0.2.3", "uploader_callsign":"OH3BSG", "time_received":"2021-04-11T12:07:09.000Z", "manufacturer":"Vaisala", "type":"RS41", "serial":"S0730222", "frame":3776, "datetime":"2021-04-11T12:07:09.000Z", "lat":60.929744, "lon":024.661953, "alt":11030.75}
 // curl -X PUT "https://api.v2.sondehub.org/sondes/telemetry" 
 // -H "accept: text/plain" 
 // -H "Date: Thu, 22 Apr 2021 14:48:00 GMT" 
@@ -3146,9 +3147,7 @@ void sondehub_station_update(WiFiClientSecure *client, struct st_sondehub *conf)
 //
 void sondehub_send_data(WiFiClientSecure *client, SondeInfo *s, struct st_sondehub *conf) {
 	Serial.println("sondehub_send_data()");
-	
 
-// {"software_name":"BSG TTGO Sonde", "software_version":"v0.2.3", "uploader_callsign":"OH3BSG", "time_received":"2021-04-11T12:07:09.000Z", "manufacturer":"Vaisala", "type":"RS41", "serial":"S0730222", "frame":3776, "datetime":"2021-04-11T12:07:09.000Z", "lat":60.929744, "lon":024.661953, "alt":11030.75}
 	char rs_msg[400];
 	char *w;
 	char *weekdays[8] = {"?", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}; // weekday 1=Sun, 2=mon ... 7=Sat
@@ -3156,6 +3155,64 @@ void sondehub_send_data(WiFiClientSecure *client, SondeInfo *s, struct st_sondeh
 
 	memset(rs_msg, 0, 400);
 	w=rs_msg;
+
+	sprintf(w,
+			"[ {"
+			"\"software_name\": \"%s\","
+			"\"software_version\": \"%s\","
+			"\"uploader_callsign\": \"%s\"," 
+			"\"time_received\": \"2021-04-22T14:46:31.652Z\"," 
+			"\"manufacturer\": \"Vaisala\"," 
+			"\"type\": \"RS41\"," 
+			"\"serial\": \"%s\"," 
+			"\"frame\": %d," 
+			"\"datetime\": \"2021-04-22T14:46:31.652Z\"," 
+			"\"lat\": %02d.%06d," 
+			"\"lon\": %03d.%06d," 
+			"\"alt\": %d.%02d," 
+//			"\"subtype\": \"RS41-SG\"," 
+//			"\"frequency\": 0," 
+//			"\"temp\": 0," 
+//			"\"humidity\": 0," 
+//			"\"vel_h\": 0," 
+//			"\"vel_v\": 0," 
+//			"\"pressure\": 0," 
+//			"\"heading\": 0," 
+//			"\"batt\": 0," 
+//			"\"sats\": 0," 
+//			"\"xdata\": \"string\"," 
+//			"\"snr\": 0," 
+			"\"rssi\": %d," 
+//			"\"uploader_position\": [ 62.00, 24.5, 170.3 ]," 
+//			"\"uploader_antenna\": \"string\""
+			"}]",
+			version_name, version_id, conf->callsign, s->id, s->frame, (int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
+			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100), s->rssi
+	);
+	
+	if (!client->connected()) {
+		if (!client->connect(conf->host, 443)) {
+			Serial.println("Connection FAILED");
+		}
+	}
+
+	client->println("PUT /sondes/telemetry HTTP/1.1");
+    client->print("Host: ");
+	client->println(conf->host);
+	client->println("accept: text/plain");
+	client->println("Content-Type: application/json");
+	client->print("Content-Length: ");
+	client->println(strlen(w));
+    client->println();
+    client->println(w);
+	Serial.println(strlen(w));
+	Serial.println(w);
+	//delay(1000);
+    String response = client->readString();
+	Serial.println(response);
+	client->stop();
+	
+/*
 	sprintf(w, "[{\"software_name\":\"%s\", \"software_version\":\"%s\", \"uploader_callsign\":\"OH3BSG\",", version_name, version_id);
 //	time_t t = now();
 	time_t t = s->time;
@@ -3186,16 +3243,16 @@ void sondehub_send_data(WiFiClientSecure *client, SondeInfo *s, struct st_sondeh
 	sprintf(w+i, " \"lon\":%03d.%06d,", (int)s->lon, (int)((s->lon - (int)s->lon)*1000000));
 	i = strlen(w);
 	sprintf(w+i, " \"alt\":%d.%02d}]", (int)s->alt, (int)((s->alt - (int)s->alt)*100));
-
-	char headers[300];
+*/
+//	char headers[300];
 /*
 	sprintf(headers, 
 			"PUT /sondes/telemetry HTTP/1.1\r\n Host:&s\r\nUser-Agent: BSGTTGO-0.2.3\r\nContent-Type: application/json\r\nDate: %s, %02d %s %d %02d:%02d:%02d GMT\r\nContent-Length: %d",
 			/conf->host"api.v2.sondehub.org", weekdays[weekday(t)], day(t), monthShortStr(month(t)), year(t), hour(t), minute(t), second(t), strlen(rs_msg));
 */
-	sprintf(headers, 
-			"PUT /sondes/telemetry HTTP/1.1\r\naccept: text/plain\r\nHost: %s\r\nUser-Agent: BSGTTGO-0.2.3\r\nContent-Type: application/json\r\nDate: %s, %02d %s %d %02d:%02d:%02d GMT\r\nContent-Length: ",
-			conf->host, weekdays[weekday(t)], day(t), monthShortStr(month(t)), year(t), hour(t), minute(t), second(t));
+//	sprintf(headers, 
+//			"PUT /sondes/telemetry HTTP/1.1\r\naccept: text/plain\r\nHost: %s\r\nUser-Agent: BSGTTGO-0.2.3\r\nContent-Type: application/json\r\nDate: %s, %02d %s %d %02d:%02d:%02d GMT\r\nContent-Length: ",
+//			conf->host, weekdays[weekday(t)], day(t), monthShortStr(month(t)), year(t), hour(t), minute(t), second(t));
 	//sondehub_send(client, conf, headers, rs_msg);
 /*
 	Serial.println(rs_msg);
