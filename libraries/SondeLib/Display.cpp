@@ -336,26 +336,51 @@ static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 #define TFT_LED 0 // 0 if wired to +5V directly
 #define TFT_BRIGHTNESS 100 // Initial brightness of TFT backlight (optional)
 
+#ifdef ALT9225
+Arduino_DataBus *bus;
+#endif
+
 void ILI9225Display::begin() {
+#ifdef ALT9225
+	Serial.println("ILI9225 init (alt driver)");
+	bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
+		sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
+	tft = new Arduino_ILI9225(bus, sonde.config.oled_rst);
+	Serial.println("ILI9225 init (alt driver): done");
+	tft->begin();
+	tft->setRotation(sonde.config.tft_orient);
+#else
 	tft = new MY_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
 			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
 	tft->setModeFlip(sonde.config.tft_modeflip);
         tft->begin(spiDisp);
 	tft->setOrientation(sonde.config.tft_orient);
+#endif
 }
 
 void ILI9225Display::clear() {
+#ifdef ALT9225
+	tft->fillScreen(0);
+#else
         tft->clear();
+#endif
 }
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
 void ILI9225Display::setFont(uint8_t fontindex) {
 	findex = fontindex;
 	switch(fontindex) {
+#ifdef ALT9225
+	case 0: tft->setFont(NULL); tft->setTextSize(1); break;
+	case 1: tft->setFont(NULL); tft->setTextSize(2); break;
+	case 2: tft->setFont(NULL); tft->setTextSize(2); break;
+	default: tft->setFont(gfl[fontindex-3]);
+#else
 	case 0: tft->setFont(Terminal6x8); break;
 	case 1: tft->setFont(Terminal11x16); break;
 	case 2: tft->setFont(Terminal12x16); break;
 	default: tft->setGFXFont(gfl[fontindex-3]);
+#endif
 	}
 }
 
@@ -377,11 +402,21 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 		break;
 	default: // get size from GFX Font
 	{
+#ifdef ALT9225
+		int16_t x, y;
+		uint16_t w, h;
+		tft->getTextBounds("|", 0, 0, &x, &y, &w, &h);
+		if(lineskip) *lineskip = h+2;
+		tft->getTextBounds("A", 0, 0, &x, &y, &w, &h);
+		if(colskip) *colskip = w+2;
+		if(lineskip&&colskip) { Serial.printf("skip size from bounds: %d, %d\n", *lineskip, *colskip); }
+#else
 		int16_t w,h,a;
 		tft->getGFXCharExtent('|',&w,&h,&a);
 		if(lineskip) *lineskip = h+2;
 		tft->getGFXCharExtent('A',&w,&h,&a);
 		if(colskip) *colskip = w+2; // just an approximation
+#endif
 	}
 	}
 }
@@ -398,27 +433,62 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	// Standard font
 	if(findex<3) {
 		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
+#ifdef ALT9225
+		// for gpx fonts and new library, cursor is at baseline!!
+		int h = 6; if(findex>1) h=12;
+#else
 		tft->setBackgroundColor(bg);
 		int h = tft->getFont().height;
+#endif
 		if( alignright ) {
+#ifdef ALT9225
+			//w = tft->getTextWidth(s);
+			/// TODO
+			if( width==WIDTH_AUTO ) { width = w; }
+			if( width > w ) {
+				tft->writeFillRect(x, y, width - w, h - 1, bg);
+			}
+			tft->setCursor(x + width - w, y);
+			tft->setTextColor(fg, bg);
+			tft->print(s);
+#else
 			w = tft->getTextWidth(s);
 			if( width==WIDTH_AUTO ) { width = w; }
 			if( width > w ) {
 				tft->fillRectangle(x, y, x + width - w, y + h - 1, bg);
 			}
 			tft->drawText(x + width - w, y, s, fg);
+#endif
 		} else {
+#ifdef ALT9225
+			tft->setCursor(x, y);
+			tft->setTextColor(fg, bg);
+			tft->print(s);
+			// curx???
+			//i//int curx = tft->drawText(x, y, s, fg);
+			//if( width==WIDTH_AUTO ) { return; }
+			//if(curx < x + width) {
+        		//	tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
+			//}
+#else
 			int curx = tft->drawText(x, y, s, fg);
 			if( width==WIDTH_AUTO ) { return; }
 			if(curx < x + width) {
         			tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
 			}
+#endif
 		}
 		return;
 	}
 	// GFX font
-	if(width==WIDTH_AUTO || alignright) {
+	int16_t x1, y1;
+	if(1||width==WIDTH_AUTO || alignright) {
+#ifdef ALT9225
+		tft->getTextBounds(s, x, y + gfxoffsets[findex-3].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
+		w += x1 - x;
+#else
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
+#endif
 		if(width==WIDTH_AUTO) { width=w; }
 		if(alignright) {
 			if(w > width) {
@@ -444,6 +514,22 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	}
 #else 
 	// Text by drawing bitmap.... => less "flicker"
+#ifdef ALT9225
+	//TODO
+	tft->setCursor( alignright? x+width-w : x, y + gfxoffsets[findex-3].yofs);
+	tft->setTextColor( fg, bg );
+	tft->print(s);
+	uint16_t height = gfxoffsets[findex-3].yclear;
+	if(alignright) {
+		// fill with bg from x+w to width
+		if(width>w) tft->fillRect( x, y, width-w, height, bg);
+		DebugPrintf(DEBUG_DISPLAY,"rtext fill %d %d %d %d -- %d %d\n", x, y, width-w, height, x1, y1);
+	} else {
+		// fill with bg from x+w to width
+		if(width>w) tft->fillRect( x+w, y, width-w, height, bg);
+		DebugPrintf(DEBUG_DISPLAY,"ltext fill %d %d %d %d -- %d %d\n", x+w, y, width-w, height, x1, y1);
+	}
+#else
 	uint16_t height = gfxoffsets[findex-3].yclear;
         uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * width * height);
 	if(!bitmap) {
@@ -465,10 +551,24 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
         drawBitmap(x, y, bitmap, width, height);
 	free(bitmap);
 #endif
+#endif
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+#ifdef ALT9225
+        int i,j;
+        tft->startWrite();
+        for(i=0; i<cnt*8; i++) {
+                uint8_t v = tile_ptr[i];
+                for(j=0; j<8; j++) {
+                        tft->writePixel(8*x+i, 8*y+j, (v&0x01) ? GREEN:BLUE);
+                        v >>= 1;
+                }
+        }
+        tft->endWrite();
+#else
 	tft->drawTile(x, y, cnt, tile_ptr);
+#endif
 #if 0
 	int i,j;
 	tft->startWrite();
@@ -493,11 +593,19 @@ void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_
 }
 
 void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
+#ifdef ALT9225
+	tft->draw16bitRGBBitmap(x1, y1, bitmap, w, h);
+#else
 	tft->drawBitmap(x1, y1, bitmap, w, h);
+#endif
 }
 
 void ILI9225Display::welcome() {
+#ifdef ALT9225
+	tft->fillScreen(0);
+#else
 	tft->clear();
+#endif
         setFont(6);
         drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);
@@ -544,6 +652,9 @@ void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uin
 #include <pgmspace.h>
 #define pgm_read_pointer(addr) ((void *)pgm_read_dword(addr))
 
+
+#ifdef ALT9225
+#else
 void MY_ILI9225::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
         startWrite();
@@ -592,6 +703,7 @@ uint16_t MY_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t
 
     return (uint16_t)xa;
 }
+#endif
 ///////////////
 
 
@@ -1410,7 +1522,10 @@ void Display::drawGPS(DispEntry *de) {
 		}
 		Serial.printf("GPS0: %c%c%c N=%d, A=%d, B=%d\n", circinfo->top, circinfo->arr, circinfo->bul, angN, angA, angB);
 		// "N" in direction angN
+#ifdef ALT9225
+#else
 		static_cast<ILI9225Display *>(rdis)->tft->drawGFXcharBM(x0 + circinfo->radius*sin(angN*PI/180)-6, y0 - circinfo->radius*cos(angN*PI/180)+7, 'N', 0xffff, bitmap, size, size);
+#endif
 
 		// small circle in direction angB
 		if(validB) {

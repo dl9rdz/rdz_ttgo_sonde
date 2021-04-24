@@ -2221,6 +2221,8 @@ void setCurrentDisplay(int value) {
 void loopSpectrum() {
   int marker = 0;
   char buf[10];
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
 
   switch (getKeyPress()) {
     case KP_SHORT: /* move selection of peak, TODO */
@@ -2244,13 +2246,12 @@ void loopSpectrum() {
 
   if (sonde.config.spectrum > 0) {
     int remaining = sonde.config.spectrum - (millis() - specTimer) / 1000;
-    itoa(remaining, buf, 10);
     Serial.printf("config.spectrum:%d  specTimer:%ld millis:%ld remaining:%d\n", sonde.config.spectrum, specTimer, millis(), remaining);
     if (sonde.config.marker != 0) {
       marker = 1;
     }
-    disp.rdis->drawString(0, 1 + marker, buf);
-    disp.rdis->drawString(2, 1 + marker, "Sec.");
+    snprintf(buf, 10, "%d Sec.", remaining);
+    disp.rdis->drawString(0, dispys<=1 ? (1+marker) : (dispys+1)*marker, buf);
     if (remaining <= 0) {
       setCurrentDisplay(0);
       enterMode(ST_DECODER);

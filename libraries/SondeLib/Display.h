@@ -1,3 +1,4 @@
+#define ALT9225
 
 #ifndef Display_h
 #define Display_h
@@ -6,7 +7,12 @@
 #define FONT_SMALL 0
 
 #include <SPI.h>
+#ifdef ALT9225
+#include <Arduino_GFX_Library.h>
+//#include <Arduino_GFX.h>
+#else
 #include <TFT22_ILI9225.h>
+#endif
 #include <U8x8lib.h>
 #include <SPIFFS.h>
 
@@ -95,12 +101,16 @@ public:
         void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
+#ifdef ALT9225
+	typedef Arduino_GFX MY_ILI9225;
+#else
 class MY_ILI9225 : public TFT22_ILI9225 {
 	using TFT22_ILI9225::TFT22_ILI9225;
 public:
 	uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
 	void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
 };
+#endif
 
 class ILI9225Display : public RawDisplay {
 private:
