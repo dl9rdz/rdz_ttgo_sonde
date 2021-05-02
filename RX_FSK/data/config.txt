@@ -91,7 +91,7 @@ ephftp=www.ngs.noaa.gov/cors/rinex/
 #-------------------------------#
 # local use only, do not feed to public services
 # data not sanitized / quality checked, outliers not filtered out
-axudp.active=1
+axudp.active=0
 axudp.host=192.168.42.20
 axudp.port=9002
 axudp.symbol=/O
@@ -111,7 +111,7 @@ tcp.idformat=0
 # mqtt settings
 #-------------------------------#
 # data not sanitized / quality checked, outliers not filtered out
-mqtt.active=1
+mqtt.active=0
 mqtt.id=BSG_MQTT
 mqtt.ip=192.168.1.5
 mqtt.port=1884
