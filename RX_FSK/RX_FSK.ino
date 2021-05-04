@@ -2969,8 +2969,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"software_version\": \"%s\","
 			"\"uploader_callsign\": \"%s\"," 
 			"\"time_received\": \"%d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
-			"\"manufacturer\": \"Vaisala\"," 	// TODO:
-			"\"type\": \"RS41\"," 				// TODO:
+			"\"manufacturer\": \"%s\","
+			"\"type\": \"%s\","
 			"\"serial\": \"%s\"," 
 			"\"frame\": %d," 
 			"\"datetime\": \"%d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
@@ -2995,7 +2995,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"}]",
 			version_name, version_id, conf->callsign, 
 			_year, _month, _day, _hour, _minute, _second, 
-			s->id, s->frame, 
+			manufacturer_string[s->type], sondeTypeStr[s->type], s->id, s->frame, 
 			_year, _month, _day, _hour, _minute, _second,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
