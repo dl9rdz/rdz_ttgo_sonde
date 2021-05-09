@@ -261,7 +261,7 @@ void calcgps(uint8_t *buf) {
 	if(dir<0.0) dir+=360.0;
 	si->dir = dir;
 	si->vs = clb;
-	si->hs = sqrt((float)(vn*vn + ve*ve));
+	si->hs = sqrt(vn*vn + ve*ve);
 
 	Serial.printf("Pos: %f %f  alt %f  dir %f vs %f hs %f\n", si->lat, si->lon, si->alt, si->dir, si->vs, si->hs);
 	si->validPos = 0x3f;  // maybe do some checks first...
