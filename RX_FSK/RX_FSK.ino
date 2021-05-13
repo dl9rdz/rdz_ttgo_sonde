@@ -12,8 +12,6 @@
 #include <ESPmDNS.h>
 #include <MicroNMEA.h>
 #include <Ticker.h>
-#include <TimeLib.h>
-//#include <time.h>
 #include <SX1278FSK.h>
 #include <Sonde.h>
 #include <Display.h>
@@ -2945,22 +2943,16 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
 	Serial.println("sondehub_send_data()");
 
-	char rs_msg[400];
+	char rs_msg[450];
 	char *w;
-//	char *weekdays[8] = {"?", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}; // weekday 1=Sun, 2=mon ... 7=Sat
+	struct tm ts;
 	int i;
 	uint16_t _year;
 	uint8_t _month, _day, _hour, _minute, _second;
-
 	time_t t = s->time;
-	_year = year(t);
-	_month = month(t);
-	_day = day(t);
-	_hour = hour(t);
-	_minute = minute(t);
-	_second = second(t);
-
-	memset(rs_msg, 0, 400);
+	
+	ts = *gmtime(&t);
+	memset(rs_msg, 0, 450);
 	w=rs_msg;
 
 	sprintf(w,
@@ -2968,12 +2960,12 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"software_name\": \"%s\","
 			"\"software_version\": \"%s\","
 			"\"uploader_callsign\": \"%s\"," 
-			"\"time_received\": \"%d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+			"\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
 			"\"manufacturer\": \"%s\","
 			"\"type\": \"%s\","
 			"\"serial\": \"%s\"," 
 			"\"frame\": %d," 
-			"\"datetime\": \"%d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+			"\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
 			"\"lat\": %02d.%06d," 
 			"\"lon\": %d.%06d," 
 			"\"alt\": %d.%02d," 
@@ -2994,9 +2986,9 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"uploader_antenna\": \"%s\""
 			"}]",
 			version_name, version_id, conf->callsign, 
-			_year, _month, _day, _hour, _minute, _second, 
-			manufacturer_string[s->type], sondeTypeStr[s->type], s->id, s->frame, 
-			_year, _month, _day, _hour, _minute, _second,
+			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+			manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame, 
+			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
 			conf->lat, conf->lon, conf->alt, conf->antenna
@@ -3012,42 +3004,15 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	client->println("PUT /sondes/telemetry HTTP/1.1");
     client->print("Host: ");
 	client->println(conf->host);
-// -H "Date: Thu, 22 Apr 2021 14:48:00 GMT" 
 	client->println("accept: text/plain");
 	client->println("Content-Type: application/json");
 	client->print("Content-Length: ");
 	client->println(strlen(w));
     client->println();
     client->println(w);
-	//Serial.println(strlen(w));
 	Serial.println(w);
-	//delay(1000);
     //String response = client->readString();
 	//Serial.println(response);
 	//client->stop();
 }
-
-/*
-int sondehub_send(WiFiClient *client, struct st_sondehub *conf, char *headers, char *data) {
-	Serial.println("sondehub_send");
-	if (!client->connected()) {
-		if (!client->connect(conf->host, 80)) {
-			Serial.println("Connection FAILED");
-			return -1;
-		}
-	}
-	client->print(headers);
-	client->println(strlen(data));
-	client->println();
-	client->println(data);
-	//Serial.print(headers);
-	//Serial.println(strlen(data));
-	//Serial.println();
-	//Serial.println(data);
-	//delay(1000);
-    String response = client->readString();
-	Serial.println(response);
-	//client->stop();
-}
-*/
 // End of sondehub v2 related codes
