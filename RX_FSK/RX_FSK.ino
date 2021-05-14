@@ -2908,7 +2908,7 @@ void loop() {
  *	Update station data to the sondehub v2 DB
  */
 void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
-	char data[200];	
+	char data[300];	
 	
 	Serial.println("sondehub_station_update()");
 	
@@ -2955,6 +2955,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	
 	ts = *gmtime(&t);
   //TODO convert back to GPS time from UTC time +18s
+  Serial.println(sondeTypeStr[s->type]);
 	memset(rs_msg, 0, 450);
 	w=rs_msg;
 
@@ -2978,7 +2979,6 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"heading\": %.1f," 
 			"\"sats\": %d,"
 			"\"rssi\": %.1f,"
-      //TODO only send position + antenna if set
 			"\"uploader_position\": [ %s, %s, %s ]," 
 			"\"uploader_antenna\": \"%s\""
 			"}]",
