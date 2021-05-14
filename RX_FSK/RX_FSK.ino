@@ -2928,6 +2928,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 		"\"software_name\": \"%s\","
 		"\"software_version\": \"%s\","
 		"\"uploader_callsign\": \"%s\","
+    //TODO only send position + antenna if set
 		"\"uploader_position\": [%s,%s,%s],"
 		"\"uploader_antenna\": \"%s\""
 		"}", version_name, version_id, conf->callsign, conf->lat, conf->lon, conf->alt, conf->antenna);
@@ -2953,6 +2954,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	time_t t = s->time;
 	
 	ts = *gmtime(&t);
+  //TODO convert back to GPS time from UTC time +18s
 	memset(rs_msg, 0, 450);
 	w=rs_msg;
 
@@ -2970,19 +2972,13 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"lat\": %02d.%06d," 
 			"\"lon\": %d.%06d," 
 			"\"alt\": %d.%02d," 
-//			"\"subtype\": \"RS41-SG\"," 
-//			"\"frequency\": 0," 
-//			"\"temp\": 0," 
-//			"\"humidity\": 0," 
-//			"\"vel_h\": 0," 
-//			"\"vel_v\": 0," 
-//			"\"pressure\": 0," 
-//			"\"heading\": 0," 
-//			"\"batt\": 0," 
-//			"\"sats\": 0," 
-//			"\"xdata\": \"string\"," 
-//			"\"snr\": 0," 
-//			"\"rssi\": %d" 
+			"\"frequency\": %.2f," 
+			"\"vel_h\": %.1f," 
+			"\"vel_v\": %.1f," 
+			"\"heading\": %.1f," 
+			"\"sats\": %d,"
+			"\"rssi\": %.1f,"
+      //TODO only send position + antenna if set
 			"\"uploader_position\": [ %s, %s, %s ]," 
 			"\"uploader_antenna\": \"%s\""
 			"}]",
@@ -2992,7 +2988,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
-			conf->lat, conf->lon, conf->alt, conf->antenna
+      (float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, (float)s->rssi, conf->lat, conf->lon, conf->alt, conf->antenna
 	);
 	
 	if (!client->connected()) {
