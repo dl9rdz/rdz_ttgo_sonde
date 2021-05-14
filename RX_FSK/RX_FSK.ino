@@ -594,7 +594,7 @@ struct st_configitems config_list[] = {
   {"sondehub.lon", "Longitude", 19, &sonde.config.sondehub.lon},
   {"sondehub.alt", "Altitude", 19, &sonde.config.sondehub.alt},
   {"sondehub.antenna", "Antenna", 63, &sonde.config.sondehub.antenna},
-  
+  {"sondehub.email", "Sondehub email", 63, &sonde.config.sondehub.email},
 
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -2928,10 +2928,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 		"\"software_name\": \"%s\","
 		"\"software_version\": \"%s\","
 		"\"uploader_callsign\": \"%s\","
-    //TODO only send position + antenna if set
+    "\"uploader_contact_email\": \"%s\","
 		"\"uploader_position\": [%s,%s,%s],"
 		"\"uploader_antenna\": \"%s\""
-		"}", version_name, version_id, conf->callsign, conf->lat, conf->lon, conf->alt, conf->antenna);
+		"}", version_name, version_id, conf->callsign, conf->email, conf->lat, conf->lon, conf->alt, conf->antenna);
 	client->println(strlen(data));
     client->println();
     client->println(data);

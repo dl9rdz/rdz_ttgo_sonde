@@ -189,6 +189,7 @@ struct st_sondehub {
 	char lon[20];
 	char alt[20];
 	char antenna[64];
+	char email[64];
 };
 
 typedef struct st_rdzconfig {

@@ -124,11 +124,12 @@ mqtt.prefix=rdz_sonde_server/
 # Sondehub v2 DB settings
 sondehub.active=1
 sondehub.host=api.v2.sondehub.org
-sondehub.callsign=OH3BSG
-sondehub.lat=61.570242
-sondehub.lon=23.518801
-sondehub.alt=160.0
-sondehub.antenna=Discone + LNA
+sondehub.callsign=CHANGEME_BSG_TTGO
+sondehub.lat=null
+sondehub.lon=null
+sondehub.alt=null
+sondehub.antenna=
+sondehub.email=
 #-------------------------------#
 # EOF
 #-------------------------------#

@@ -388,6 +388,8 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.sondehub.alt, val, 19);
 	} else if(strcmp(cfg, "sondehub.antenna")==0) {
 		strncpy(config.sondehub.antenna, val, 63);
+	} else if(strcmp(cfg, "sondehub.email")==0) {
+		strncpy(config.sondehub.email, val, 63);
 	} else {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
