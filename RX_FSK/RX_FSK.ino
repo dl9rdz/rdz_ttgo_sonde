@@ -2130,7 +2130,9 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
-	sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+    if (sonde.config.sondehub.active) {
+	    sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+    }
   }
 
     // send to MQTT if enabled
@@ -2315,6 +2317,9 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
+enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
+
+static t_wifi_state wifi_state = WIFI_DISABLED;
 
 void enableNetwork(bool enable) {
   if (enable) {
@@ -2334,19 +2339,16 @@ void enableNetwork(bool enable) {
       mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
     }
 
-	//shclient.setInsecure(); // Skip verification
-	sondehub_station_update(&shclient, &sonde.config.sondehub);
+	  if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
+      sondehub_station_update(&shclient, &sonde.config.sondehub);
+    }
+	  
     connected = true;
   } else {
     MDNS.end();
     connected = false;
   }
 }
-
-
-enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
-
-static t_wifi_state wifi_state = WIFI_DISABLED;
 
 // Events used only for debug output right now
 void WiFiEvent(WiFiEvent_t event)
