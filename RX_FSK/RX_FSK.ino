@@ -460,6 +460,7 @@ void addSondeStatus(char *ptr, int i)
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wetterson.de/karte/?%s\">wetterson.de</a> - ", s->id);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://radiosondy.info/sonde_archive.php?sondenumber=%s\">radiosondy.info</a> - ", s->id);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->id);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->lat, s->lon);
 
@@ -593,7 +594,7 @@ struct st_configitems config_list[] = {
   {"sondehub.lon", "Longitude", 19, &sonde.config.sondehub.lon},
   {"sondehub.alt", "Altitude", 19, &sonde.config.sondehub.alt},
   {"sondehub.antenna", "Antenna", 63, &sonde.config.sondehub.antenna},
-  
+  {"sondehub.email", "Sondehub email", 63, &sonde.config.sondehub.email},
 
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -2129,7 +2130,9 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
-	sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+    if (sonde.config.sondehub.active) {
+	    sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+    }
   }
 
     // send to MQTT if enabled
@@ -2314,6 +2317,9 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
+enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
+
+static t_wifi_state wifi_state = WIFI_DISABLED;
 
 void enableNetwork(bool enable) {
   if (enable) {
@@ -2333,19 +2339,16 @@ void enableNetwork(bool enable) {
       mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
     }
 
-	//shclient.setInsecure(); // Skip verification
-	sondehub_station_update(&shclient, &sonde.config.sondehub);
+	  if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
+      sondehub_station_update(&shclient, &sonde.config.sondehub);
+    }
+	  
     connected = true;
   } else {
     MDNS.end();
     connected = false;
   }
 }
-
-
-enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
-
-static t_wifi_state wifi_state = WIFI_DISABLED;
 
 // Events used only for debug output right now
 void WiFiEvent(WiFiEvent_t event)
@@ -2907,7 +2910,7 @@ void loop() {
  *	Update station data to the sondehub v2 DB
  */
 void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
-	char data[200];	
+	char data[300];	
 	
 	Serial.println("sondehub_station_update()");
 	
@@ -2927,9 +2930,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 		"\"software_name\": \"%s\","
 		"\"software_version\": \"%s\","
 		"\"uploader_callsign\": \"%s\","
+    "\"uploader_contact_email\": \"%s\","
 		"\"uploader_position\": [%s,%s,%s],"
 		"\"uploader_antenna\": \"%s\""
-		"}", version_name, version_id, conf->callsign, conf->lat, conf->lon, conf->alt, conf->antenna);
+		"}", version_name, version_id, conf->callsign, conf->email, conf->lat, conf->lon, conf->alt, conf->antenna);
 	client->println(strlen(data));
     client->println();
     client->println(data);
@@ -2952,6 +2956,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	time_t t = s->time;
 	
 	ts = *gmtime(&t);
+  //TODO convert back to GPS time from UTC time +18s
+  Serial.println(sondeTypeStr[s->type]);
 	memset(rs_msg, 0, 450);
 	w=rs_msg;
 
@@ -2969,19 +2975,12 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"lat\": %02d.%06d," 
 			"\"lon\": %d.%06d," 
 			"\"alt\": %d.%02d," 
-//			"\"subtype\": \"RS41-SG\"," 
-//			"\"frequency\": 0," 
-//			"\"temp\": 0," 
-//			"\"humidity\": 0," 
-//			"\"vel_h\": 0," 
-//			"\"vel_v\": 0," 
-//			"\"pressure\": 0," 
-//			"\"heading\": 0," 
-//			"\"batt\": 0," 
-//			"\"sats\": 0," 
-//			"\"xdata\": \"string\"," 
-//			"\"snr\": 0," 
-//			"\"rssi\": %d" 
+			"\"frequency\": %.2f," 
+			"\"vel_h\": %.1f," 
+			"\"vel_v\": %.1f," 
+			"\"heading\": %.1f," 
+			"\"sats\": %d,"
+			"\"rssi\": %.1f,"
 			"\"uploader_position\": [ %s, %s, %s ]," 
 			"\"uploader_antenna\": \"%s\""
 			"}]",
@@ -2991,7 +2990,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
-			conf->lat, conf->lon, conf->alt, conf->antenna
+      (float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, (float)s->rssi, conf->lat, conf->lon, conf->alt, conf->antenna
 	);
 	
 	if (!client->connected()) {

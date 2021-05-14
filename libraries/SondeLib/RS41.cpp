@@ -173,15 +173,14 @@ double atang2(double x, double y)
 {
    double w;
    if (fabs(x)>fabs(y)) {
-      w = (double)atan((float)(X2C_DIVL(y,x)));
+      w = (double)atan(X2C_DIVL(y,x));
       if (x<0.0) {
          if (y>0.0) w = 3.1415926535898+w;
          else w = w-3.1415926535898;
       }
    }
    else if (y!=0.0) {
-      w = (double)(1.5707963267949f-atan((float)(X2C_DIVL(x,
-                y))));
+      w = (double)(1.5707963267949f-atan(X2C_DIVL(x, y)));
       if (y<0.0) w = w-3.1415926535898;
    }
    else w = 0.0;
@@ -422,20 +421,18 @@ void wgs84r(double x, double y, double z,
    double h;
    h = x*x+y*y;
    if (h>0.0) {
-      rh = (double)sqrt((float)h);
+      rh = sqrt(h);
       xh = x+rh;
       *long0 = atang2(xh, y)*2.0;
       if (*long0>3.1415926535898) *long0 = *long0-6.2831853071796;
-      t = (double)atan((float)(X2C_DIVL(z*1.003364089821,
-                rh)));
-      st = (double)sin((float)t);
-      ct = (double)cos((float)t);
-      *lat = (double)atan((float)
-                (X2C_DIVL(z+4.2841311513312E+4*st*st*st,
+      t = atan(X2C_DIVL(z*1.003364089821, rh));
+      st = sin(t);
+      ct = cos(t);
+      *lat = atan((X2C_DIVL(z+4.2841311513312E+4*st*st*st,
                 rh-4.269767270718E+4*ct*ct*ct)));
-      sl = (double)sin((float)*lat);
-      *heig = X2C_DIVL(rh,(double)cos((float)*lat))-(double)(X2C_DIVR(6.378137E+6f,
-                sqrt((float)(1.0-6.6943799901413E-3*sl*sl))));
+      sl = sin(*lat);
+      *heig = X2C_DIVL(rh,cos(*lat))-(X2C_DIVR(6.378137E+6f,
+                sqrt((1.0-6.6943799901413E-3*sl*sl))));
    }
    else {
       *lat = 0.0;
@@ -481,21 +478,14 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    vx = (double)getint16(b, b_len, p+12UL)*0.01;
    vy = (double)getint16(b, b_len, p+14UL)*0.01;
    vz = (double)getint16(b, b_len, p+16UL)*0.01;
-   vn = (-(vx*(double)sin((float)lat)*(double)
-                cos((float)long0))-vy*(double)
-                sin((float)lat)*(double)sin((float)
-                long0))+vz*(double)cos((float)lat);
-   ve = -(vx*(double)sin((float)long0))+vy*(double)
-                cos((float)long0);
-   vu = vx*(double)cos((float)lat)*(double)
-                cos((float)long0)+vy*(double)
-                cos((float)lat)*(double)sin((float)
-                long0)+vz*(double)sin((float)lat);
+   vn = (-(vx*sin(lat)*cos(long0))-vy*sin(lat)*sin(long0))+vz*cos(lat);
+   ve = -(vx*sin(long0))+vy*cos(long0);
+   vu = vx*cos(lat)*cos(long0)+vy*cos(lat)*sin(long0)+vz*sin(lat);
    dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
    if (dir<0.0) dir = 360.0+dir;
    sonde.si()->dir = dir;
    Serial.print(" ");
-   sonde.si()->hs = sqrt((float)(vn*vn+ve*ve));
+   sonde.si()->hs = sqrt(vn*vn+ve*ve);
    Serial.print(sonde.si()->hs*3.6);
    Serial.print("km/h ");
    Serial.print(dir);
