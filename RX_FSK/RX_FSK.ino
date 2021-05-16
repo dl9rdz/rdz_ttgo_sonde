@@ -2947,7 +2947,8 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
 	Serial.println("sondehub_send_data()");
 
-	char rs_msg[450];
+#define MSG_SIZE 550
+	char rs_msg[MSG_SIZE];
 	char *w;
 	struct tm ts;
 	int i;
@@ -2955,10 +2956,11 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	uint8_t _month, _day, _hour, _minute, _second;
 	time_t t = s->time;
 	
+	t += 18;	// convert back to GPS time from UTC time +18s 
 	ts = *gmtime(&t);
-  //TODO convert back to GPS time from UTC time +18s
-  Serial.println(sondeTypeStr[s->type]);
-	memset(rs_msg, 0, 450);
+
+	Serial.println(sondeTypeStr[s->type]);
+	memset(rs_msg, 0, MSG_SIZE);
 	w=rs_msg;
 
 	sprintf(w,
@@ -2975,7 +2977,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"lat\": %02d.%06d," 
 			"\"lon\": %d.%06d," 
 			"\"alt\": %d.%02d," 
-			"\"frequency\": %.2f," 
+			"\"frequency\": %.3f," 
 			"\"vel_h\": %.1f," 
 			"\"vel_v\": %.1f," 
 			"\"heading\": %.1f," 
@@ -2990,7 +2992,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
-      (float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, (float)s->rssi, conf->lat, conf->lon, conf->alt, conf->antenna
+      (float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
 	);
 	
 	if (!client->connected()) {
@@ -3012,6 +3014,5 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	Serial.println(w);
     //String response = client->readString();
 	//Serial.println(response);
-	//client->stop();
 }
 // End of sondehub v2 related codes
