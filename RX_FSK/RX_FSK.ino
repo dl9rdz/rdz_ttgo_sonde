@@ -2917,6 +2917,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 	if (!client->connected()) {
 		if (!client->connect(conf->host, 80)) {
 			Serial.println("Connection FAILED");
+			return;
 		}
 	}
 
@@ -2926,14 +2927,16 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 	client->println("accept: text/plain");
 	client->println("Content-Type: application/json");
 	client->print("Content-Length: ");
-	sprintf(data, "{"
-		"\"software_name\": \"%s\","
-		"\"software_version\": \"%s\","
-		"\"uploader_callsign\": \"%s\","
-    "\"uploader_contact_email\": \"%s\","
-		"\"uploader_position\": [%s,%s,%s],"
-		"\"uploader_antenna\": \"%s\""
-		"}", version_name, version_id, conf->callsign, conf->email, conf->lat, conf->lon, conf->alt, conf->antenna);
+	sprintf(data, 
+			"{"
+			"\"software_name\": \"%s\","
+			"\"software_version\": \"%s\","
+			"\"uploader_callsign\": \"%s\","
+			"\"uploader_contact_email\": \"%s\","
+			"\"uploader_position\": [%s,%s,%s],"
+			"\"uploader_antenna\": \"%s\""
+			"}", 
+			version_name, version_id, conf->callsign, conf->email, conf->lat, conf->lon, conf->alt, conf->antenna);
 	client->println(strlen(data));
     client->println();
     client->println(data);
@@ -2944,6 +2947,9 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 	client->stop();
 }
 
+/*
+ *	Update sonde data to the sondehub v2 DB
+ */
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
 	Serial.println("sondehub_send_data()");
 
@@ -2951,15 +2957,13 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	char rs_msg[MSG_SIZE];
 	char *w;
 	struct tm ts;
-	int i;
-	uint16_t _year;
-	uint8_t _month, _day, _hour, _minute, _second;
 	time_t t = s->time;
+	
+	if (s->ser == "") return;	// Don't send anything without serial number
 	
 	t += 18;	// convert back to GPS time from UTC time +18s 
 	ts = *gmtime(&t);
 
-	Serial.println(sondeTypeStr[s->type]);
 	memset(rs_msg, 0, MSG_SIZE);
 	w=rs_msg;
 
@@ -2992,13 +2996,14 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
 			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
-      (float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
+			(float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
 	);
 	
 	if (!client->connected()) {
 		Serial.println("NO CONNECTION");
 		if (!client->connect(conf->host, 80)) {
 			Serial.println("Connection FAILED");
+			return;
 		}
 	}
 
