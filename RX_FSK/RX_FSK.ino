@@ -2961,6 +2961,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	
 	if (s->ser == "") return;	// Don't send anything without serial number
 	
+	if (((int)s->lat == 0) && ((int)s->lon == 0) && ((int)s->alt == 0)) return;	// Sometimes all of these values are zeroes. Don't send those to the sondehub
+	
 	t += 18;	// convert back to GPS time from UTC time +18s 
 	ts = *gmtime(&t);
 
