@@ -2960,6 +2960,12 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	time_t t = s->time;
 	
 	if (s->ser == "") return;	// Don't send anything without serial number
+
+  if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
+
+  if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
+
+  if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 	
   if (String(sondeTypeStr[s->type]) == "RS41" || String(sondeTypeStr[s->type]) == "RS92" || String(sondeTypeStr[s->type]) == "M10" || String(sondeTypeStr[s->type]) == "M20") {
     t += 18;	// convert back to GPS time from UTC time +18s
@@ -2967,6 +2973,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
 	ts = *gmtime(&t);
 
+  //TODO send temp, humidity
+  //TODO check if valid pos
   Serial.println(s->temperature);
   Serial.println(s->relativeHumidity);
   Serial.println(s->validPos);
