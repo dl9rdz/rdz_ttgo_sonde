@@ -2973,11 +2973,11 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
 	ts = *gmtime(&t);
 
-  //TODO send temp, humidity
-  //TODO check if valid pos
-  Serial.println(s->temperature);
-  Serial.println(s->relativeHumidity);
-  Serial.println(s->validPos);
+  if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
+    //TODO send temp, humidity
+    Serial.println(s->temperature);
+    Serial.println(s->relativeHumidity);
+  }
 
 	memset(rs_msg, 0, MSG_SIZE);
 	w=rs_msg;
@@ -3034,7 +3034,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     client->println();
     client->println(w);
 	Serial.println(w);
-    //String response = client->readString();
-	//Serial.println(response);
+    String response = client->readString();
+	Serial.println(response);
 }
 // End of sondehub v2 related codes
