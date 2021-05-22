@@ -11,4 +11,6 @@
 402.400 4 + Vaisala
 403.500 4 + Katajaluoto
 402.500 4 + Katajaluoto
+404.000 4 + Tallinn
+405.300 4 + Sundsvall
 # end
