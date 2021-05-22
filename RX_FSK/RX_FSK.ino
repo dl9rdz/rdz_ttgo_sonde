@@ -2993,9 +2993,9 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			"\"serial\": \"%s\"," 
 			"\"frame\": %d," 
 			"\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
-			"\"lat\": %02d.%06d," 
-			"\"lon\": %d.%06d," 
-			"\"alt\": %d.%02d," 
+			"\"lat\": %.6f," 
+			"\"lon\": %.6f," 
+			"\"alt\": %.2f," 
 			"\"frequency\": %.3f," 
 			"\"vel_h\": %.1f," 
 			"\"vel_v\": %.1f," 
@@ -3011,9 +3011,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
 			manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame, 
 			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
-			(int)s->lat, (int)((s->lat - (int)s->lat)*1000000),
-			(int)s->lon, (int)((s->lon - (int)s->lon)*1000000), (int)s->alt, (int)((s->alt - (int)s->alt)*100),
-			(float)s->freq, (float)s->hs, (float)s->vs, (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
+			(float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
+      (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
 	);
 	
 	if (!client->connected()) {
