@@ -2959,7 +2959,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 	struct tm ts;
 	time_t t = s->time;
 	
-	if (s->ser == "") return;	// Don't send anything without serial number
+	if (String(s->ser) == "") return;	// Don't send anything without serial number
 
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
 
@@ -2973,47 +2973,75 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
 	ts = *gmtime(&t);
 
-  if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
-    //TODO send temp, humidity
-    Serial.println(s->temperature);
-    Serial.println(s->relativeHumidity);
-  }
-
-	memset(rs_msg, 0, MSG_SIZE);
+  memset(rs_msg, 0, MSG_SIZE);
 	w=rs_msg;
 
-	sprintf(w,
-			"[ {"
-			"\"software_name\": \"%s\","
-			"\"software_version\": \"%s\","
-			"\"uploader_callsign\": \"%s\"," 
-			"\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
-			"\"manufacturer\": \"%s\","
-			"\"type\": \"%s\","
-			"\"serial\": \"%s\"," 
-			"\"frame\": %d," 
-			"\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
-			"\"lat\": %.6f," 
-			"\"lon\": %.6f," 
-			"\"alt\": %.2f," 
-			"\"frequency\": %.3f," 
-			"\"vel_h\": %.1f," 
-			"\"vel_v\": %.1f," 
-			"\"heading\": %.1f," 
-			"\"sats\": %d,"
-			"\"rssi\": %.1f,"
-      //"\"temp\": %.2f,"
-      //"\"humidity\": %.2f,"
-			"\"uploader_position\": [ %s, %s, %s ]," 
-			"\"uploader_antenna\": \"%s\""
-			"}]",
-			version_name, version_id, conf->callsign, 
-			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
-			manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame, 
-			ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
-			(float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
+  if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
+    sprintf(w,
+      "[ {"
+      "\"software_name\": \"%s\","
+      "\"software_version\": \"%s\","
+      "\"uploader_callsign\": \"%s\"," 
+      "\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+      "\"manufacturer\": \"%s\","
+      "\"type\": \"%s\","
+      "\"serial\": \"%s\"," 
+      "\"frame\": %d," 
+      "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+      "\"lat\": %.6f," 
+      "\"lon\": %.6f," 
+      "\"alt\": %.2f," 
+      "\"frequency\": %.3f," 
+      "\"vel_h\": %.1f," 
+      "\"vel_v\": %.1f," 
+      "\"heading\": %.1f," 
+      "\"sats\": %d,"
+      "\"rssi\": %.1f,"
+      "\"temp\": %.2f,"
+      "\"humidity\": %.2f,"
+      "\"uploader_position\": [ %s, %s, %s ]," 
+      "\"uploader_antenna\": \"%s\""
+      "}]",
+      version_name, version_id, conf->callsign, 
+      ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+      manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame, 
+      ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+      (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
+      (float)s->dir, (int)s->sats, -((float)s->rssi/2), float(s->temperature), float(s->relativeHumidity), conf->lat, conf->lon, conf->alt, conf->antenna
+    );
+  } 
+  else {
+    sprintf(w,
+      "[ {"
+      "\"software_name\": \"%s\","
+      "\"software_version\": \"%s\","
+      "\"uploader_callsign\": \"%s\"," 
+      "\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+      "\"manufacturer\": \"%s\","
+      "\"type\": \"%s\","
+      "\"serial\": \"%s\"," 
+      "\"frame\": %d," 
+      "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\"," 
+      "\"lat\": %.6f," 
+      "\"lon\": %.6f," 
+      "\"alt\": %.2f," 
+      "\"frequency\": %.3f," 
+      "\"vel_h\": %.1f," 
+      "\"vel_v\": %.1f," 
+      "\"heading\": %.1f," 
+      "\"sats\": %d,"
+      "\"rssi\": %.1f,"
+      "\"uploader_position\": [ %s, %s, %s ]," 
+      "\"uploader_antenna\": \"%s\""
+      "}]",
+      version_name, version_id, conf->callsign, 
+      ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+      manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame, 
+      ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+      (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
       (float)s->dir, (int)s->sats, -((float)s->rssi/2), conf->lat, conf->lon, conf->alt, conf->antenna
-	);
+    );
+  }
 	
 	if (!client->connected()) {
 		Serial.println("NO CONNECTION");
