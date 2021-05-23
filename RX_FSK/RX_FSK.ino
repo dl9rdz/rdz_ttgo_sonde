@@ -1,8 +1,9 @@
 #include <axp20x.h>
 
+#include "features.h"
+
 #include <WiFi.h>
 #include <WiFiUdp.h>
-//#include <WiFiClientSecure.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
 //#include <U8x8lib.h>
@@ -20,7 +21,9 @@
 #include "version.h"
 #include "geteph.h"
 #include "rs92gps.h"
+#if FEATURE_MQTT
 #include "mqtt.h"
+#endif
 #include "esp_heap_caps.h"
 //#define ESP_MEM_DEBUG 1
 int e;
@@ -47,9 +50,9 @@ String *updateBin = &updateBinM;
 boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
-//WiFiClient rsclient;	// Radiosondy client
-//WiFiClientSecure shclient;	// Sondehub v2
+#if FEATURE_SONDEHUB
 WiFiClient shclient;	// Sondehub v2
+#endif
 
 // KISS over TCP for communicating with APRSdroid
 WiFiServer tncserver(14580);
@@ -58,10 +61,11 @@ WiFiClient tncclient;
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
 
+#if FEATURE_MQTT
 unsigned long lastMqttUptime = 0;
 boolean mqttEnabled;
 MQTT mqttclient;
-
+#endif
 boolean forceReloadScreenConfig = false;
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
@@ -555,6 +559,7 @@ struct st_configitems config_list[] = {
   {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
 
+#if FEATURE_MQTT
   /* MQTT */
   {"mqtt.active", "MQTT Active (needs reboot)", 0, &sonde.config.mqtt.active},
   {"mqtt.id", "MQTT client ID", 63, &sonde.config.mqtt.id},
@@ -563,6 +568,7 @@ struct st_configitems config_list[] = {
   {"mqtt.username", "MQTT Username", 63, &sonde.config.mqtt.username},
   {"mqtt.password", "MQTT Password", 63, &sonde.config.mqtt.password},
   {"mqtt.prefix", "MQTT Prefix", 63, &sonde.config.mqtt.prefix},
+#endif
 
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
@@ -585,6 +591,7 @@ struct st_configitems config_list[] = {
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
   {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 
+#if FEATURE_SONDEHUB
   /* Sondehub v2 settings */
   {"", "Sondehub v2 settings", -5, NULL},
   {"sondehub.active", "Sondehub reporting active", 0, &sonde.config.sondehub.active},
@@ -595,7 +602,7 @@ struct st_configitems config_list[] = {
   {"sondehub.alt", "Altitude", 19, &sonde.config.sondehub.alt},
   {"sondehub.antenna", "Antenna", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", "Sondehub email", 63, &sonde.config.sondehub.email},
-
+#endif
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
@@ -1072,11 +1079,6 @@ void SetupAsyncServer() {
     request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
-  /*
-    server.on("/spectrum", HTTP_GET, [](AsyncWebServerRequest *request){
-      request->send(SPIFFS, "/ws.html", "text/html");
-    });
-  */
   server.on("/test.html", HTTP_GET, [](AsyncWebServerRequest * request) {
     request->send(SPIFFS, "/test.html", String(), false, processor);
   });
@@ -2130,17 +2132,21 @@ void loopDecoder() {
         tncclient.write(raw, rawlen);
       }
     }
+#if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
-  }
+#endif
 
-  // send to MQTT if enabled
-  if (connected && mqttEnabled) {
-    Serial.println("Sending sonde info via MQTT");
-    mqttclient.publishPacket(s);
+
+#if FEATURE_MQTT
+    // send to MQTT if enabled
+    if (connected && mqttEnabled) {
+      Serial.println("Sending sonde info via MQTT");
+      mqttclient.publishPacket(s);
+    }
+#endif
   }
-  //}
   // always send data, even if not valid....
   if (rdzclient.connected()) {
     Serial.println("Sending position via TCP as rdzJSON");
@@ -2334,16 +2340,17 @@ void enableNetwork(bool enable) {
       tncserver.begin();
       rdzserver.begin();
     }
-
+#if FEATURE_MQTT
     if (sonde.config.mqtt.active && strlen(sonde.config.mqtt.host) > 0) {
       mqttEnabled = true;
       mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
     }
-
+#endif
+#if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
       sondehub_station_update(&shclient, &sonde.config.sondehub);
     }
-
+#endif
     connected = true;
   } else {
     MDNS.end();
@@ -2897,16 +2904,17 @@ void loop() {
     lastDisplay = currentDisplay;
   }
 
+#if FEATURE_MQTT
   int now = millis();
   if (mqttEnabled && (lastMqttUptime == 0 || (lastMqttUptime + 60000 < now) || (lastMqttUptime > now))) {
     mqttclient.publishUptime();
     lastMqttUptime = now;
   }
-
+#endif
 }
 
+#if FEATURE_SONDEHUB
 // Sondehub v2 DB related codes
-
 /*
  	Update station data to the sondehub v2 DB
 */
@@ -3066,3 +3074,4 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   Serial.println(response);
 }
 // End of sondehub v2 related codes
+#endif
