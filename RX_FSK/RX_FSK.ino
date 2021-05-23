@@ -2976,7 +2976,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 
-  if (String(sondeTypeStr[s->type]) == "RS41" || String(sondeTypeStr[s->type]) == "RS92" || String(sondeTypeStr[s->type]) == "M10" || String(sondeTypeStr[s->type]) == "M20") {
+  if( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
 
