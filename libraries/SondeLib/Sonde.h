@@ -58,6 +58,7 @@ enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, 
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
+extern const char *manufacturer_string[NSondeTypes];
 
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM || (t)==STYPE_DFM09_OLD || (t)==STYPE_DFM06_OLD )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
@@ -180,6 +181,17 @@ struct st_mqtt {
 	char prefix[64];
 };
 
+struct st_sondehub {
+	int active;
+	char host[64];
+	char callsign[64];
+	char lat[20];
+	char lon[20];
+	char alt[20];
+	char antenna[64];
+	char email[64];
+};
+
 typedef struct st_rdzconfig {
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
@@ -229,6 +241,7 @@ typedef struct st_rdzconfig {
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 	struct st_mqtt mqtt;
+	struct st_sondehub sondehub;
 } RDZConfig;
 
 

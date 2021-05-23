@@ -279,7 +279,8 @@ char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 	*b=0;
 	aprsstr_append(b, usercall);
 	aprsstr_append(b, ">");
-	const char *destcall="APZRDZ";
+//	const char *destcall="APZRDZ";
+	const char *destcall="APRARX,SONDEGATE,TCPIP,qAR,oh3bsg";
 	aprsstr_append(b, destcall);
 	// uncompressed
 	aprsstr_append(b, ":;");
