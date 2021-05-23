@@ -1,8 +1,18 @@
-RDZ_TTGO_SONDE
-==============
+rdzTTGOsonde
+============
 
-This a simple, experimental decoder for radiosonde RS41, RS92, DFM06/09/17 and M10/M20 on
-a TTGO LoRa ESP32 board with either a OLED or extern TFT display.
+This a decoder for radiosonde RS41, RS92, DFM06/09/17, M10/M20, and MP3H
+based on a TTGO LoRa ESP32 board.
+
+It supports OLED displays (SSD1306, SH1106) and TFT displays (ILI9225).
+
+It also supports feeding data to external applications using WiFi (NOT bluetooth):
+- Arduino app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
+- AXUDP (for aprsmap application by oe5dxl, among others)
+- KISS TNC (aprs format, mainly useful for APRSdroid app)
+- MQTT
+- SondeHub tracker (experimental)
+
 
 Please consult the Wiki at https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Supported-boards
 for details on supported boardsi, and additional setup instructions.
