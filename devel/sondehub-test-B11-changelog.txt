@@ -1,0 +1,1 @@
+testing the sondehub merge; some conditional compile stuff; force arduino esp board to 1.0.6 for travis as 2.0.0alpha breaks wifi
