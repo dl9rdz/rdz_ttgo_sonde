@@ -1,1 +1,1 @@
-sondehub integration: minor update to README
+sondehub integration: better background handling of reading response data
