@@ -21,7 +21,7 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
 // Dependency to enum SondeType
-const char *manufacturer_string[]={"Graw", "Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Graw", "???"};
+const char *manufacturer_string[]={"Graw", "Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Graw", "Meteo-Radiy"};
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
