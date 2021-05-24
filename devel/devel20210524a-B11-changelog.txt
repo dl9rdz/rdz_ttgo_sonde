@@ -1,0 +1,1 @@
+Compatible with newer version of APX library (consistent with platformio, make sure to upgrade your ArduinoIDE), and font enhancements for new ILI9225 libraray
