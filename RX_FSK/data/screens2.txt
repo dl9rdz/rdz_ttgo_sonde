@@ -103,7 +103,7 @@
 @ScannerTFT
 timer=-1,0,0
 key1action=D,#,F,W
-key2action=#,#,#,#
+key2action=D,#,#,#
 timeaction=#,D,+
 fonts=5,6
 0,0=XScan
@@ -200,7 +200,7 @@ timeaction=#,#,#
 @Scan.TFT.Bazjo
 timer=-1,0,0
 key1action=D,#,F,W
-key2action=#,#,#,#
+key2action=D,#,#,#
 timeaction=#,D,+
 scale=11,10
 fonts=0,2
@@ -337,7 +337,7 @@ color=99001F
 @Scanner.Puspis
 timer=-1,0,4
 key1action=D,#,F,W
-key2action=#,#,#,#
+key2action=D,#,#,#
 timeaction=#,D,+
 scale=13,10
 fonts=0,1

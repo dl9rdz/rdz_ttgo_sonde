@@ -500,7 +500,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	if(1||width==WIDTH_AUTO || alignright) {
 #ifdef ALT9225
 		tft->getTextBounds(s, x, y + gfxoffsets[findex-3].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
-		w += x1 - x;
+		w += x1 - x + 1;
 #else
 		tft->getGFXTextExtent(s, x, y + gfxoffsets[findex-3].yofs, &w, &h);
 #endif

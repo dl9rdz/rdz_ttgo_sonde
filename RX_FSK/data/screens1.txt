@@ -109,7 +109,7 @@
 @Scanner
 timer=-1,0,0
 key1action=D,#,F,W
-key2action=#,#,#,#
+key2action=D,#,#,#
 timeaction=#,D,+
 0,0=XScan
 0,5=S#:
