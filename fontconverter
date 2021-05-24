@@ -5,6 +5,11 @@ use warnings;
 use Data::Dumper;
 
 my $fontname = "Terminal11x16";
+## https://github.com/moononournation/Arduino_GFX/blob/master/src/Arduino_GFX.cpp: baseline = yadvance * 2 / 3
+## so we have to set yadvance = (baseline * 3 / 2).
+## baseofs is baseline offset from bottom, i.e. baseline = height - baseofs
+## so lets try... (for Terminal11x16, baseline is 14 pixel from top, height is 16)
+my $baseofs = 2;
 
 my @data;
 # read font bitmap
@@ -81,7 +86,7 @@ for my $c ($first .. $first+$count-1) {
     "height" => $h,
     "xadv" => $w+1,
     "xofs" => $xofs,
-    "yofs" => -$height + $yofs,
+    "yofs" => -$height + $yofs + $baseofs,
     "c" => $c,
   };
   push @bitmap, @$d;
@@ -107,4 +112,4 @@ print("};\n");
 printf("const GFXfont %sFont = {\n", $fontname);
 printf("  (uint8_t  *)%sBitmap,\n", $fontname);
 printf("  (GFXglyph *)%sGlyphs,\n", $fontname);
-printf("  0x%02X, 0x%02X, %d };\n", $first, $first+$count-1, $height+2+8); # warum auch immer +8
+printf("  0x%02X, 0x%02X, %d };\n", $first, $first+$count-1, ($height-$baseofs)*3/2+1); 
