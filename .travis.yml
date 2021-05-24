@@ -20,9 +20,9 @@ before_install:
   - rm master.zip
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
   - wget https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
-  - wget https://github.com/lewisxhe/AXP202X_Library/archive/v1.0.zip
-  - unzip v1.0.zip
-  - sudo mv AXP202X_Library-1.0 /usr/local/share/arduino/libraries/
+  - wget https://github.com/lewisxhe/AXP202X_Library/archive/refs/tags/V1.1.3.zip
+  - unzip V1.1.3.zip
+  - sudo mv AXP202X_Library-1.1.3 /usr/local/share/arduino/libraries/
 
   - wget https://github.com/dx168b/async-mqtt-client/archive/master.zip
   - unzip master.zip

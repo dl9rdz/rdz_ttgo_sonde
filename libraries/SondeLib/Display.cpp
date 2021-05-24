@@ -361,6 +361,7 @@ void ILI9225Display::begin() {
 	Serial.println("ILI9225 init (alt driver): done");
 	tft->begin();
 	tft->setRotation(sonde.config.tft_orient);
+	tft->setTextWrap(false);
 #else
 	tft = new MY_ILI9225(sonde.config.oled_rst, sonde.config.tft_rs, sonde.config.tft_cs,
 			sonde.config.oled_sda, sonde.config.oled_scl, TFT_LED, TFT_BRIGHTNESS);
@@ -1608,7 +1609,7 @@ void Display::drawBatt(DispEntry *de) {
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'T':
-		val = axp.getTemp()-144.7;  // WTF... library returns temperatur in K above -144.7°C!??
+		val = axp.getTemp();  // fixed in newer versions of libraray: -144.7 no longer needed here!
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	default:

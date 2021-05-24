@@ -9,7 +9,7 @@ my $fontname = "Terminal11x16";
 ## so we have to set yadvance = (baseline * 3 / 2).
 ## baseofs is baseline offset from bottom, i.e. baseline = height - baseofs
 ## so lets try... (for Terminal11x16, baseline is 14 pixel from top, height is 16)
-my $baseofs = 2;
+my $baseofs = 4;
 
 my @data;
 # read font bitmap
@@ -112,4 +112,4 @@ print("};\n");
 printf("const GFXfont %sFont = {\n", $fontname);
 printf("  (uint8_t  *)%sBitmap,\n", $fontname);
 printf("  (GFXglyph *)%sGlyphs,\n", $fontname);
-printf("  0x%02X, 0x%02X, %d };\n", $first, $first+$count-1, ($height-$baseofs)*3/2+1); 
+printf("  0x%02X, 0x%02X, %d };\n", $first, $first+$count-1, ($height-$baseofs)*3/2); 
