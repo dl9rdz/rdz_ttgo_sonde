@@ -1,1 +1,2 @@
 some font enhancements for new display driver (working better with some displays)
+README update and other minor things
