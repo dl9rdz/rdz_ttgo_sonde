@@ -2087,7 +2087,7 @@ void loopDecoder() {
   }
   if (rdzserver.hasClient()) {
     Serial.println("TCP JSON socket: new connection");
-    if (rdzclient) rdzclient.stop();
+    rdzclient.stop();
     rdzclient = rdzserver.available();
   }
   if (rdzclient.available()) {
@@ -2229,7 +2229,6 @@ void loopDecoder() {
     if (wlen != len) {
       Serial.println("Writing rdzClient not OK, closing connection");
       rdzclient.stop();
-      rdzclient = NULL;
     }
     //Serial.println("Writing rdzclient OK");
   }
@@ -2959,6 +2958,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 /*
  	Update sonde data to the sondehub v2 DB
 */
+enum SHState { SH_DISCONNECTED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_WAITACK };
+
+SHState shState = SH_DISCONNECTED;
+
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
   Serial.println("sondehub_send_data()");
 
@@ -2968,15 +2971,42 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   struct tm ts;
   time_t t = s->time;
 
+  while (client->available() > 0) {
+    // data is available from remote server, process it...
+    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE);
+    rs_msg[cnt] = 0;
+    Serial.println(rs_msg);
+    // If something that looks like a valid HTTP response is received, we are ready to send the next data item
+    if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
+      shState = SH_CONN_IDLE;
+    }
+  }
+
+  // Check if current sonde data is valid. If not, don't do anything....
   if (String(s->ser) == "") return;	// Don't send anything without serial number
-
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
-
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
-
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 
-  if( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
+  // If not connected to sondehub, try reconnecting.
+  // TODO: do this outside of main loop
+  if (!client->connected()) {
+    Serial.println("NO CONNECTION");
+    shState = SH_DISCONNECTED;
+    if (!client->connect(conf->host, 80)) {
+      Serial.println("Connection FAILED");
+      return;
+    }
+    client->Client::setTimeout(0);  // does this work?
+    shState = SH_CONN_IDLE;
+  }
+
+  if ( shState == SH_CONN_WAITACK ) {
+    Serial.println("Previous SH-frame not yet ack'ed, not sending new data");
+    return;
+  }
+
+  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
 
@@ -3029,15 +3059,6 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           conf->lat, conf->lon, conf->alt, conf->antenna
          );
 
-
-  if (!client->connected()) {
-    Serial.println("NO CONNECTION");
-    if (!client->connect(conf->host, 80)) {
-      Serial.println("Connection FAILED");
-      return;
-    }
-  }
-
   client->println("PUT /sondes/telemetry HTTP/1.1");
   client->print("Host: ");
   client->println(conf->host);
@@ -3048,8 +3069,9 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   client->println();
   client->println(rs_msg);
   Serial.println(rs_msg);
-  String response = client->readString();
-  Serial.println(response);
+  shState = SH_CONN_WAITACK;
+  //String response = client->readString();
+  //Serial.println(response);
 }
 // End of sondehub v2 related codes
 #endif
