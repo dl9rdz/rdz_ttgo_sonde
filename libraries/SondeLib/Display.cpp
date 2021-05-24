@@ -16,6 +16,7 @@ extern const char *version_id;
 #include <fonts/FreeSans9pt7b.h>
 #include <fonts/FreeSans12pt7b.h>
 #include <fonts/Picopixel.h>
+#include <fonts/Terminal11x16.h>
 
 extern Sonde sonde;
 
@@ -311,8 +312,14 @@ void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, ui
 
 
 const GFXfont *gfl[] = {
+#ifdef ALT9225
+	&Terminal11x16Font,		// 3 (replacement for 1 or 2 with old library)
+	&Terminal11x16Font,		// 4 (replacement for 1 or 2 with old library)
+#else
+	// nobody was using them, so removed with new library
 	&FreeMono9pt7b,		// 3
 	&FreeMono12pt7b,	// 4
+#endif
 	&FreeSans9pt7b,		// 5
 	&FreeSans12pt7b,	// 6
 	&Picopixel,             // 7
@@ -324,8 +331,13 @@ struct gfxoffset_t {
 // first value: offset: max offset from font glyphs (last column * (-1))   (check /, \, `, $)`
 // yclear:max height: max of (height in 3rd column) + (yofs + 6th column)  (check j)
 const struct gfxoffset_t gfxoffsets[]={
+#ifdef ALT9225
+        { 16, 18},
+        { 16, 18},
+#else
 	{ 11, 15 },  // 13+11-9 "j"
 	{ 15, 20 },  // 19+15-14
+#endif
         { 13, 18 },  // 17+13-12 "j" 
         { 17, 23 }, // 23+17-17
         {  4, 6},       // 6+4-4
@@ -368,6 +380,9 @@ void ILI9225Display::clear() {
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
 void ILI9225Display::setFont(uint8_t fontindex) {
+#ifdef ALT9225
+	if(fontindex==1 || fontindex==2) { fontindex=3; }
+#endif
 	findex = fontindex;
 	switch(fontindex) {
 #ifdef ALT9225

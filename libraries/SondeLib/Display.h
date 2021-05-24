@@ -1,4 +1,4 @@
-//#define ALT9225
+#define ALT9225
 
 #ifndef Display_h
 #define Display_h
@@ -9,7 +9,6 @@
 #include <SPI.h>
 #ifdef ALT9225
 #include <Arduino_GFX_Library.h>
-//#include <Arduino_GFX.h>
 #else
 #include <TFT22_ILI9225.h>
 #endif
