@@ -1,1 +1,0 @@
-sondehub integration: better background handling of reading response data

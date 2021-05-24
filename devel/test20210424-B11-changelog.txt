@@ -1,1 +1,0 @@
-test with other display driver -- do not use unless you are sure you want this -- missing font, slow display updates - travis fix
