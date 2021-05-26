@@ -821,6 +821,26 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
   return "";
 }
 
+void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+  static File file;
+  if (!index) {
+    Serial.printf("UploadStart: %s\n", filename.c_str());
+    file = SPIFFS.open("/" + filename, "w");
+    if (!file) {
+      Serial.println("There was an error opening the file '/config.txt' for reading");
+    }
+  }
+  if (!file) return;
+  for (size_t i = 0; i < len; i++) {
+    file.write(data[i]);
+  }
+  if (final) {
+    Serial.printf("UploadEnd: %s, %u B\n", filename.c_str(), index + len);
+    file.close();
+  }
+}
+
+
 int streamEditForm(int &state, File &file, String filename, char *buffer, size_t maxlen, size_t index) {
   Serial.printf("streamEdit: state=%d  max:%d idx:%d\n", state, maxlen, index);
   int i = 0;
@@ -1125,6 +1145,19 @@ void SetupAsyncServer() {
     handleControlPost(request);
     request->send(200, "text/html", createControlForm());
   });
+
+  server.on("/file", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    String url = request->url();
+    const char *filename = url.c_str() + 5;
+    if (*filename == 0) {
+      request->send(400, "error");
+      return;
+    }
+    request->send(SPIFFS, filename, "text/plain");
+  });
+  server.on("/file", HTTP_POST,  [](AsyncWebServerRequest * request) {
+    request->send(200);
+  }, handleUpload);
 
   server.on("/edit.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     // new version:
@@ -2950,8 +2983,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   client->println(data);
   Serial.println(strlen(data));
   Serial.println(data);
+  Serial.println("Waiting for response");
   String response = client->readString();
   Serial.println(response);
+  Serial.println("Response done...");
   client->stop();
 }
 

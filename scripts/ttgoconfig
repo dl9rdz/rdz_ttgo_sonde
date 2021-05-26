@@ -1,0 +1,81 @@
+#!/usr/bin/python3
+import requests
+import sys
+import os
+
+url = "http://192.168.42.69/";
+screens = ("screens1.txt", "screens2.txt", "screens3.txt")
+allfiles = ("config.txt", "qrg.txt", "networks.txt") + screens
+
+optprint = False
+optdir = ""
+
+def getfile(name):
+  urlg = url+"file/"+name;
+  print("Downloading: ",urlg);
+  data = requests.get(urlg);
+  if optprint:
+    print(data.text)
+  elif len(data.content)>0:
+    f = open(optdir+name, "wb");
+    f.write(data.content);
+    f.close();
+  else:
+    print("Error: empty response")
+
+def putfile(name):
+  print("Uploading: ",optdir+name)
+  files = { 'data': (name, open(optdir+name, "rb")), }
+  response = requests.post(url+"file", files=files)
+
+if len(sys.argv)>=2:
+  if sys.argv[1]=="--print":
+    del(sys.argv[1])
+    optprint = True
+    print("Printing file content on screen\n")
+  if sys.argv[1].startswith("--dir="):
+    optdir = sys.argv[1][6:]+"/"
+    print("Using file directory ",optdir)
+    os.makedirs(optdir, exist_ok=True)
+    del(sys.argv[1])
+  
+if len(sys.argv)<=2:
+  print("Usage: ",sys.argv[0]," [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
+  print("or:    ",sys.argv[0]," <get|put> file {filename}");
+  print("\n",
+        "     screens is screens1.txt, screens2.txt, screens3.txt");
+  print("     networks is networks.txt (Wifi ssid and password)")
+  print("     qrg is qrg.txt (List with scan frequencies)")
+  print("     all is screens + network + qrg")
+  sys.exit(1)
+
+files=()
+
+if sys.argv[2]=="file":
+  if len(sys.argv)<=3:
+    print("get/put file: missing filename\n");
+    sys.exit(1);
+  files=(sys.argv[3],)
+elif sys.argv[2]=="config":
+  files=("config.txt",)
+elif sys.argv[2]=="qrg":
+  files=("qrg.txt",)
+elif sys.argv[2]=="networks":
+  files=("networks.txt",)
+elif sys.argv[2]=="screens":
+  files=screens
+elif sys.argv[2]=="all":
+  files=allfiles
+else:
+  print("Invalid file specification: ",sys.argv[2])
+  sys.exit(1)
+
+if(sys.argv[1]=="get"):
+  for f in files:
+    getfile(f)
+elif(sys.argv[1]=="put"):
+  for f in files:
+    putfile(f)
+else:
+  print("Invalid command ",sys.argv[1])
+
