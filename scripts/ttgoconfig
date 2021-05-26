@@ -2,8 +2,10 @@
 import requests
 import sys
 import os
+import socket
 
-url = "http://192.168.42.69/";
+ttgohost = "rdzsonde.local"
+
 screens = ("screens1.txt", "screens2.txt", "screens3.txt")
 allfiles = ("config.txt", "qrg.txt", "networks.txt") + screens
 
@@ -28,19 +30,24 @@ def putfile(name):
   files = { 'data': (name, open(optdir+name, "rb")), }
   response = requests.post(url+"file", files=files)
 
-if len(sys.argv)>=2:
+while len(sys.argv)>=2:
   if sys.argv[1]=="--print":
     del(sys.argv[1])
     optprint = True
     print("Printing file content on screen\n")
-  if sys.argv[1].startswith("--dir="):
+  elif sys.argv[1].startswith("--dir="):
     optdir = sys.argv[1][6:]+"/"
     print("Using file directory ",optdir)
     os.makedirs(optdir, exist_ok=True)
     del(sys.argv[1])
+  elif sys.argv[1].startswith("--ttgo="):
+    ttgohost = sys.argv[1][7:]
+    del(sys.argv[1])
+  else:
+    break
   
 if len(sys.argv)<=2:
-  print("Usage: ",sys.argv[0]," [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
+  print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
   print("or:    ",sys.argv[0]," <get|put> file {filename}");
   print("\n",
         "     screens is screens1.txt, screens2.txt, screens3.txt");
@@ -48,6 +55,10 @@ if len(sys.argv)<=2:
   print("     qrg is qrg.txt (List with scan frequencies)")
   print("     all is screens + network + qrg")
   sys.exit(1)
+
+addrinfo = socket.gethostbyname(ttgohost)
+url = "http://"+addrinfo+"/"
+print("Using URL ",url)
 
 files=()
 
