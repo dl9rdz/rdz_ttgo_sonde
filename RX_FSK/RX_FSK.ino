@@ -3057,7 +3057,6 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"uploader_callsign\": \"%s\","
           "\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
           "\"manufacturer\": \"%s\","
-          "\"type\": \"%s\","
           "\"serial\": \"%s\","
           "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
           "\"lat\": %.6f,"
