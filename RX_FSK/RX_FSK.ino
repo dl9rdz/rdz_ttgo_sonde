@@ -46,6 +46,10 @@ String updateBinD = "/devel/update.ino.bin";
 String *updateBin = &updateBinM;
 
 #define LOCALUDPPORT 9002
+//Get real UTC time from NTP server
+const char* ntpServer = "pool.ntp.org";
+const long  gmtOffset_sec = 0; //UTC
+const int   daylightOffset_sec = 0; //UTC
 
 boolean connected = false;
 WiFiUDP udp;
@@ -2383,6 +2387,7 @@ void enableNetwork(bool enable) {
       sondehub_station_update(&shclient, &sonde.config.sondehub);
     }
 #endif
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     connected = true;
   } else {
     MDNS.end();
@@ -3054,14 +3059,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     return;
   }
 
-  //Get real UTC time from NTP server
-  const char* ntpServer = "pool.ntp.org";
-  const long  gmtOffset_sec = 0; //UTC
-  const int   daylightOffset_sec = 0; //UTC
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-
   struct tm timeinfo;
-  if(!getLocalTime(&timeinfo)){
+  if(!getLocalTime(&timeinfo, 0)){
     Serial.println("Failed to obtain time");
     return;
   }
