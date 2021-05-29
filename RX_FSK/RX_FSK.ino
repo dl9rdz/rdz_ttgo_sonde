@@ -3059,7 +3059,6 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"manufacturer\": \"%s\","
           "\"type\": \"%s\","
           "\"serial\": \"%s\","
-          "\"frame\": %d,"
           "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
           "\"lat\": %.6f,"
           "\"lon\": %.6f,"
@@ -3072,13 +3071,42 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"rssi\": %.1f,",
           version_name, version_id, conf->callsign,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
-          manufacturer_string[s->type], sondeTypeStr[s->type], s->ser, s->frame,
+          manufacturer_string[s->type], s->ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
           (float)s->dir, (int)s->sats, -((float)s->rssi / 2)
          );
-
   w += strlen(w);
+
+  if ( s->type == STYPE_DFM09_OLD || s->type == STYPE_DFM06_OLD || s->type == STYPE_M10 || s->type == STYPE_M20 ) { //don't send frame for these sonde
+    if ( s->type == STYPE_DFM09_OLD) { //fix subtype
+      sprintf(w,
+          "\"type\": \"DFM\","
+          "\"subtype\": \"DFM09\","
+          );
+      w += strlen(w);
+    } else if ( s->type == STYPE_DFM06_OLD) { //fix subtype
+      sprintf(w,
+          "\"type\": \"DFM\","
+          "\"subtype\": \"DFM06\","
+          );
+      w += strlen(w);
+    } else {
+      sprintf(w,
+        "\"type\": \"%s\",",
+        sondeTypeStr[s->type]
+        );
+    w += strlen(w);   
+    }
+  } else {
+    sprintf(w,
+        "\"frame\": %d,"
+        "\"type\": \"%s\",",
+        s->frame, sondeTypeStr[s->type]
+        );
+    w += strlen(w);    
+  }
+
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
     sprintf(w,
             "\"temp\": %.2f,"
@@ -3087,12 +3115,14 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
            );
     w += strlen(w);
   }
+
   sprintf(w,
           "\"uploader_position\": [ %s, %s, %s ],"
           "\"uploader_antenna\": \"%s\""
           "}]",
           conf->lat, conf->lon, conf->alt, conf->antenna
          );
+  w += strlen(w);
 
   client->println("PUT /sondes/telemetry HTTP/1.1");
   client->print("Host: ");
