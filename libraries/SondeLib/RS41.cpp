@@ -462,6 +462,11 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
+   if(x==0 && y==0 && z==0) {
+      // RS41 sometimes sends frame with all 0
+      if(sonde.si()->validPos) sonde.si()->validPos |= 0x80; // flag as old
+      return;
+   }
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
    sonde.si()->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));

@@ -2997,6 +2997,19 @@ enum SHState { SH_DISCONNECTED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_WAITACK };
 
 SHState shState = SH_DISCONNECTED;
 
+/* Sonde.h: enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_DFM06_OLD, STYPE_MP3H }; */
+const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "DFM", "RS41", "RS92", "M10", "M20", "DFM", "MRZ" };
+const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
+                                    "DFM06",  // 0x06
+                                    "PS15",   // 0x07
+                                    NULL, NULL,
+                                    "DFM09",  // 0x0A
+                                    "DFM17",  // 0x0B
+                                    "DFM09P", // 0x0C
+                                    "DFM17",  // 0x0D
+                                    NULL, NULL
+                                  };
+
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
   Serial.println("sondehub_send_data()");
 
@@ -3077,39 +3090,23 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
          );
   w += strlen(w);
 
-  if ( s->type == STYPE_DFM09_OLD || s->type == STYPE_DFM06_OLD || s->type == STYPE_M10 || s->type == STYPE_M20 ) { //send frame as unix timestamp for these sonde
-    //send unix timestamp
-    sprintf(w,
-        "\"frame\": \"%d\",",
-        int(t)
-        );
-    w += strlen(w);
-    if ( s->type == STYPE_DFM09_OLD) { //fix subtype
-      sprintf(w,
-          "\"type\": \"DFM\","
-          "\"subtype\": \"DFM09\","
-          );
-      w += strlen(w);
-    } else if ( s->type == STYPE_DFM06_OLD) { //fix subtype
-      sprintf(w,
-          "\"type\": \"DFM\","
-          "\"subtype\": \"DFM06\","
-          );
-      w += strlen(w);
-    } else {
-      sprintf(w,
-        "\"type\": \"%s\",",
-        sondeTypeStr[s->type]
-        );
-    w += strlen(w);   
-    }
+  if ( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) ) { //send frame as unix timestamp for these sonde
+    sprintf(w, "\"frame\": %d,", int(t));
   } else {
-    sprintf(w,
-        "\"frame\": %d,"
-        "\"type\": \"%s\",",
-        s->frame, sondeTypeStr[s->type]
-        );
-    w += strlen(w);    
+    sprintf(w, "\"frame\": %d,", s->frame);
+  }
+  w += strlen(w);
+
+  sprintf(w, "\"type\": \"%s\",", sondeTypeStrSH[s->type]);
+  w += strlen(w);
+
+  /* if there is a subtype (DFM only) */
+  if ( TYPE_IS_DFM(s->type) && s->subtype > 0 && s->subtype < 16 ) {
+    const char *t = dfmSubtypeStrSH[s->subtype];
+    // as in https://github.com/projecthorus/radiosonde_auto_rx/blob/e680221f69a568e1fdb24e76db679233f32cb027/auto_rx/autorx/sonde_specific.py#L84
+    if (t) sprintf(w, "\"subtype\": \"%s\",", t);
+    else sprintf(w, "\"subtype\": \"DFMx%X\",", s->subtype); // Unknown subtype
+    w += strlen(w);
   }
 
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {

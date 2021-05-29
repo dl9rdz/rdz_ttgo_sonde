@@ -269,6 +269,7 @@ void DFM::finddfname(uint8_t *b)
 						if(i==6) {
 							snprintf(sonde.si()->id, 10, "D%x ", id);
 							sonde.si()->validID = true;
+							sonde.si()->subtype = (st>>4)&0x0F;
 							strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 							return;
 						}
@@ -319,6 +320,7 @@ void DFM::finddfname(uint8_t *b)
 					Serial.print("\nNEW AUTOID:");
 					Serial.println(sonde.si()->id);
 					sonde.si()->validID = true;
+					sonde.si()->subtype = (st>>4)&0x0F;
 					strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 				}
 				if(dfmstate.nameregok==i) {

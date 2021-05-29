@@ -67,6 +67,7 @@ typedef struct st_sondeinfo {
         // receiver configuration
 	bool active;
         SondeType type;
+	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, maybe add 1/2 for M10/M20 as well?*/
         float freq;
         // decoded ID
 	char typestr[5];			// decoded type (use type if *typestr==0)
