@@ -3015,6 +3015,8 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
+// in hours.... max allowed diff UTC <-> sonde time
+#define SONDEHUB_TIME_THRESHOLD (3) 
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
   Serial.println("sondehub_send_data()");
 
@@ -3060,8 +3062,15 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   }
 
   struct tm timeinfo;
-  if(!getLocalTime(&timeinfo, 0)){
+  time_t now;
+  time(&now);
+  gmtime_r(&now, &timeinfo);
+  if(timeinfo.tm_year <= (2016-1900)) {
     Serial.println("Failed to obtain time");
+    return;
+  }
+  if( abs(now - s->time) > (3600*SONDEHUB_TIME_THRESHOLD) ) {
+    Serial.println("Sonde time too far from current UTC time");
     return;
   }
 
@@ -3069,7 +3078,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     t += 18;	// convert back to GPS time from UTC time +18s
   }
 
-  ts = *gmtime(&t);
+  gmtime_r(&t, &ts);
 
   memset(rs_msg, 0, MSG_SIZE);
   w = rs_msg;
