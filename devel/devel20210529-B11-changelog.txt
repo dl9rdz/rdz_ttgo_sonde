@@ -1,1 +1,2 @@
 DFM subtypes enhancement for SondeHub
+... ntp time sync merge, moving init the network start
