@@ -3077,7 +3077,13 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
          );
   w += strlen(w);
 
-  if ( s->type == STYPE_DFM09_OLD || s->type == STYPE_DFM06_OLD || s->type == STYPE_M10 || s->type == STYPE_M20 ) { //don't send frame for these sonde
+  if ( s->type == STYPE_DFM09_OLD || s->type == STYPE_DFM06_OLD || s->type == STYPE_M10 || s->type == STYPE_M20 ) { //send frame as unix timestamp for these sonde
+    //send unix timestamp
+    sprintf(w,
+        "\"frame\": \"%d\",",
+        int(t)
+        );
+    w += strlen(w);
     if ( s->type == STYPE_DFM09_OLD) { //fix subtype
       sprintf(w,
           "\"type\": \"DFM\","
