@@ -3041,6 +3041,18 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     return;
   }
 
+  //Get real UTC time from NTP server
+  const char* ntpServer = "pool.ntp.org";
+  const long  gmtOffset_sec = 0; //UTC
+  const int   daylightOffset_sec = 0; //UTC
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+
+  struct tm timeinfo;
+  if(!getLocalTime(&timeinfo)){
+    Serial.println("Failed to obtain time");
+    return;
+  }
+
   if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
@@ -3069,7 +3081,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"sats\": %d,"
           "\"rssi\": %.1f,",
           version_name, version_id, conf->callsign,
-          ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
           manufacturer_string[s->type], s->ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
