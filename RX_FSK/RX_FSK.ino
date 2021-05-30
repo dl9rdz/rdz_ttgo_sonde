@@ -3046,10 +3046,15 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
   if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 ) {
-    //TODO REGEX CHECK
+    // TODO REGEX CHECK
     // s->ser
     // [E-Z][0-5][\d][1-7]\d{4}
   }
+  if ( String(conf->lat) != "null" && String(conf->lon) != "null" ) {
+    // TODO radius breach check
+    // calculate distance between station and sonde
+    // if distance >1000km discard
+  } 
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
