@@ -3024,7 +3024,9 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
-  time_t t = s->time;
+  // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
+  // For all others, sec should always be 0 and time the exact time in seconds
+  time_t t = s->time + s->sec;
 
   while (client->available() > 0) {
     // data is available from remote server, process it...

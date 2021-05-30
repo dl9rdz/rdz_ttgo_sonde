@@ -406,7 +406,7 @@ void DFM::decodeDAT(uint8_t *dat)
 		{
 		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
 		Serial.print("UTC-msec: "); Serial.print(val);
-		sonde.si()->sec = val/1000;
+		sonde.si()->sec = (val+500)/1000;
 		uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
 		sonde.si()->sats = bitCount(tmp); // maybe!?!?!?
 		}
