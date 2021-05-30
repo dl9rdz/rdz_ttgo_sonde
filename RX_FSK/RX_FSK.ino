@@ -3040,6 +3040,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
+  if ( s->type == STYPE_MP3H ) return; //don't try to upload these as no timestamps
   if (String(s->ser) == "") return;	// Don't send anything without serial number
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
