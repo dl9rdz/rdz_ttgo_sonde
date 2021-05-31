@@ -392,7 +392,7 @@ static int bitCount(int x) {
     return s1;
 }
 
-static uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
+uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
 void DFM::decodeDAT(uint8_t *dat)
 {

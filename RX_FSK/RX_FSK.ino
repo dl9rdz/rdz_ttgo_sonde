@@ -3016,7 +3016,7 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                   };
 
 // in hours.... max allowed diff UTC <-> sonde time
-#define SONDEHUB_TIME_THRESHOLD (3) 
+#define SONDEHUB_TIME_THRESHOLD (3)
 void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *conf) {
   Serial.println("sondehub_send_data()");
 
@@ -3040,7 +3040,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
-  if (String(s->ser) == "") return;	// Don't send anything without serial number
+  if (*s->ser == 0) return;	// Don't send anything without serial number
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
@@ -3067,15 +3067,17 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   time_t now;
   time(&now);
   gmtime_r(&now, &timeinfo);
-  if(timeinfo.tm_year <= (2016-1900)) {
+  if (timeinfo.tm_year <= (2016 - 1900)) {
     Serial.println("Failed to obtain time");
     return;
   }
-  if( abs(now - s->time) > (3600*SONDEHUB_TIME_THRESHOLD) ) {
-    Serial.println("Sonde time too far from current UTC time");
+  if ( abs(now - (time_t)s->time) > (3600 * SONDEHUB_TIME_THRESHOLD) ) {
+    Serial.printf("Sonde time %d too far from current UTC time %ld", s->time, now);
     return;
   }
 
+  //  DFM uses UTC. Most of the other radiosondes use GPS time
+  // SondeHub expect datetime to be the same time sytem as the sonde transmits as time stamp
   if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
@@ -3112,8 +3114,12 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
          );
   w += strlen(w);
 
-  if ( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) ) { //send frame as unix timestamp for these sonde
-    sprintf(w, "\"frame\": %d,", int(t));
+  if ( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H ) {
+    // send frame as gps timestamp for these sonde, identical to autorx
+    // For M10, this is real GPS time (seconds since Jqn 6 1980, without adjusting for leap seconds)
+    // DFM and MP3H send real UTC (with leap seconds considered), so for them the frame number actually
+    // is gps time plus number of leap seconds since the beginning of GPS time.
+    sprintf(w, "\"frame\": %d,", int(t - 315964800));
   } else {
     sprintf(w, "\"frame\": %d,", s->frame);
   }

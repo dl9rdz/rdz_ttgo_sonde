@@ -19,6 +19,7 @@ static struct st_mp3hstate {
 	uint32_t id1, id2;
 	uint8_t idok;
 	uint32_t gpsdate;
+	uint32_t gpsdatetime;
 	bool dateok;
 } mp3hstate;
 
@@ -31,6 +32,8 @@ static int rxp=0;
 static int haveNewFrame = 0;
 //static int lastFrame = 0;
 static int headerDetected = 0;
+
+extern uint16_t MON[];
 
 int MP3H::setup(float frequency) 
 {
@@ -243,9 +246,11 @@ void calcgps(uint8_t *buf) {
 	double vx = i2(buf+pos_GPSecefV) * 0.01;
 	double vy = i2(buf+pos_GPSecefV+2) * 0.01;
 	double vz = i2(buf+pos_GPSecefV+4) * 0.01;
+	if(wx==0 && wy==0 && wz==0) { if(si->validPos&0x7f) { si->validPos |= 0x80; } return; }
 	// wgs84r
 	double lat, lng, alt;
 	wgs84r(wx, wy, wz, &lat, &lng, &alt);
+	if(alt<-1000 || alt>80000) { if(si->validPos&0x7f) { si->validPos |= 0x80; } return; }
 	si->lat = (float)(lat*DEG);
 	si->lon = (float)(lng*DEG);
 	si->alt = alt;
@@ -262,15 +267,52 @@ void calcgps(uint8_t *buf) {
 	si->dir = dir;
 	si->vs = clb;
 	si->hs = sqrt(vn*vn + ve*ve);
+	si->sats = buf[pos_GPSnSats];
 
-	Serial.printf("Pos: %f %f  alt %f  dir %f vs %f hs %f\n", si->lat, si->lon, si->alt, si->dir, si->vs, si->hs);
-	si->validPos = 0x3f;  // maybe do some checks first...
+	Serial.printf("Pos: %f %f  alt %f  dir %f vs %f hs %f sats %d\n", si->lat, si->lon, si->alt, si->dir, si->vs, si->hs, si->sats);
+	si->validPos = 0x7f;
+}
+static uint32_t getgpstime(uint8_t *buf) {
+	return buf[pos_TIME] * 60*60 + buf[pos_TIME+1] * 60 + buf[pos_TIME+2];
+}
+// unix time stamp from date and time info in frame. 
+static void getmp3htime(uint8_t *buf) {
+	SondeInfo *si = sonde.si();
+
+	// gpsdate from CFG frame 15 (0 if not yet received)
+	uint32_t gpsdate = mp3hstate.gpsdate;
+	uint32_t gpstime = getgpstime(buf);
+	int tt = 0;
+	if(gpsdate) {
+		uint16_t year = (gpsdate%100)+2000;
+		gpsdate /= 100;
+		uint8_t month = gpsdate%100;
+		gpsdate /= 100;
+		uint8_t day = gpsdate % 100;
+		// year-month-day to unix time
+        	tt = (year-1970)*365 + (year-1969)/4; // days since 1970
+        	if(month<=12) { tt += MON[month]; if((year%4)==0 && month>2) tt++; }
+        	tt = (tt+day-1)*(60*60*24);
+		if(gpstime < mp3hstate.gpsdatetime) tt += 60*60*24; // time wrapped since last date tx
+		Serial.printf("date: %04d-%02d-%02d t%d ", year, month, day, gpstime);
+	}
+	tt += gpstime;
+	si->time = tt;
+	Serial.printf(" mp3h TIMESTAMP: %d\n", tt);
 }
 
 static uint8_t hex(uint32_t n) {
 	n = n % 16;
 	return (n<10) ? (n+'0') : (n-10+'A');
 }
+
+static void resetmp3h() {
+	mp3hstate.id1 = mp3hstate.id2 = 0;
+	mp3hstate.idok = 0;
+	mp3hstate.gpsdate = 0;
+	mp3hstate.dateok = 0;
+}
+
 // ret: 1=frame ok; 2=frame with errors; 0=ignored frame (m10dop-alternativ)
 int MP3H::decodeframeMP3H(uint8_t *data) {
 	printRaw(data, MP3H_FRAMELEN);
@@ -288,13 +330,16 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 	if(cnt==15) {
 		// date
 		mp3hstate.gpsdate = cfg;
+		mp3hstate.gpsdatetime = getgpstime(data);
 		mp3hstate.dateok = true;
 	} else if(cnt==13) {
 		// id2
+		if(mp3hstate.id2 > 0 && mp3hstate.id2 != cfg) { resetmp3h(); }
 		mp3hstate.id2 = cfg;
 		mp3hstate.idok |= 2;
 	} else if(cnt==12) {
 		// id1
+		if(mp3hstate.id1 > 0 && mp3hstate.id1 != cfg) { resetmp3h(); }
 		mp3hstate.id1 = cfg;
 		mp3hstate.idok |= 1;
 	}
@@ -313,12 +358,14 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 		si->id[7] = hex(n/0x10);
 		si->id[8] = hex(n);
 		si->id[9] = 0;
-		snprintf(si->ser, 12, "MRZ-%d-%d", mp3hstate.id1, mp3hstate.id2);
+		snprintf(si->ser, 12, "%d-%d", mp3hstate.id1, mp3hstate.id2);
 		si->validID = true;
 	}
 
 	// position
 	calcgps(data);
+	// time
+	getmp3htime(data);
 	return 1;
 #if 0
 	int repairstep = 16;
@@ -429,13 +476,11 @@ void MP3H::processMP3Hdata(uint8_t dt)
 		// BF3H => 1011 1111 0011 0101 => 10011010 10101010 01011010 01100110 => 9AAA5A66 // 6555a599
 		if(rxsearching) {
 			if( rxdata == 0x9AAA5A66 || rxdata == 0x6555a599 ) {
-//if( rxdata == 0x9AAA5A66 || rxdata == 0x6555a599 ) {
 				rxsearching = false;
 				rxbitc = 0;
 				rxp = 0;
 				headerDetected = 1;
 				Serial.print("SYNC\n");
-#if 0
                                 int rssi=sx1278.getRSSI();
                                 int fei=sx1278.getFEI();
                                 int afc=sx1278.getAFC();
@@ -444,7 +489,6 @@ void MP3H::processMP3Hdata(uint8_t dt)
                                 Serial.print(" AFC="); Serial.println(afc);
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
-#endif
 			}
 		} else {
 			rxbitc = (rxbitc+1)%16; // 16;
@@ -460,10 +504,16 @@ void MP3H::processMP3Hdata(uint8_t dt)
 	}
 }
 
+#define MAXFRAMES 6
 int MP3H::receive() {
+	// we wait for at most 6 frames or until a new seq nr.
+	uint8_t nFrames = MAXFRAMES;  // MP3H sends every frame  6x
+	static uint32_t lastFrame = 0;
+	uint8_t retval = RX_TIMEOUT;
+
 	unsigned long t0 = millis();
 	Serial.printf("MP3H::receive() start at %ld\n",t0);
-   	while( millis() - t0 < 1100 ) {
+   	while( millis() - t0 < 1100 + (retval!=RX_TIMEOUT)?1000:0 ) {
 		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);
 		if ( bitRead(value, 7) ) {
 			Serial.println("FIFO full");
@@ -488,18 +538,37 @@ int MP3H::receive() {
     			if(haveNewFrame) {
 				Serial.printf("MP3H::receive(): new frame complete after %ldms\n", millis()-t0);
 				printRaw(dataptr, MP3H_FRAMELEN);
-				int retval = haveNewFrame==1 ? RX_OK: RX_ERROR;
+				nFrames--;
+				// frame with CRC error: just skip and retry (unless we have waited for 6 frames alred)
+				if(haveNewFrame != 1) {
+					Serial.printf("hNF: %d (ERROR)\n", haveNewFrame);
+					retval = RX_ERROR;
+				} else if (sonde.si()->time == lastFrame) { // same frame number as seen before => skip
+					Serial.printf("Skipping frame with frame# %d\n", lastFrame);
+					// nothing, wait for next, "new" frame
+				} else {  // good and new frame, return it.
+					Serial.println("Good frame");
+					haveNewFrame = 0;
+					lastFrame = sonde.si()->time;
+					return RX_OK;
+				}
 				haveNewFrame = 0;
-				return retval;
+#if 0
+				if(nFrames <= 0) {
+					// up to 6 old or erronous frames received => break out
+					Serial.printf("nFrames is %di, giving up\n", nFrames);
+					break;
+				}
+#endif
 			}
 			delay(2);
     		}
     	}
-                       int32_t afc = sx1278.getAFC();
-                       int16_t rssi = sx1278.getRSSI();
-                       Serial.printf("receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
+        int32_t afc = sx1278.getAFC();
+        int16_t rssi = sx1278.getRSSI();
+        Serial.printf("receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
 	Serial.printf("MP3H::receive() timed out\n");
-    	return RX_TIMEOUT; // TODO RX_OK;
+    	return retval;
 }
 
 int MP3H::waitRXcomplete() {
