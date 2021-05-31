@@ -1,0 +1,1 @@
+MP3-H1 extended data for SondeHub upload: #sats, timestamp (for frame#), rrsi; fix for wrong time check; filtering repeated frames
