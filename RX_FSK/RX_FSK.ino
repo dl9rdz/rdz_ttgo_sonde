@@ -59,6 +59,9 @@ WiFiUDP udp;
 WiFiClient client;
 #if FEATURE_SONDEHUB
 WiFiClient shclient;	// Sondehub v2
+regex_t regex;
+int reti;
+reti = regcomp(&regex, "[C-Z][\d][\d][\d]\d{4}", 0);
 #endif
 
 // KISS over TCP for communicating with APRSdroid
