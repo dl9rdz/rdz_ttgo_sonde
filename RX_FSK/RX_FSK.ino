@@ -61,7 +61,6 @@ WiFiClient client;
 WiFiClient shclient;	// Sondehub v2
 regex_t regex;
 int reti;
-reti = regcomp(&regex, "[C-Z][\d][\d][\d]\d{4}", 0);
 #endif
 
 // KISS over TCP for communicating with APRSdroid
@@ -2177,6 +2176,7 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
+      reti = regcomp(&regex, "[C-Z][\d][\d][\d]\d{4}", 0);
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
@@ -3052,7 +3052,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
   if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 ) { // Regex check for RS41/RS92
     reti = regexec(&regex, s->ser, 0, NULL, 0);
-    if (reti == REG_NOMATCH) return
+    if (!reti) {} else {return;};
   }
 
   // If not connected to sondehub, try reconnecting.
