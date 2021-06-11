@@ -3052,11 +3052,6 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     // s->ser
     // [C-Z][\d][\d][\d]\d{4}
   }
-  if ( String(conf->lat) != "null" && String(conf->lon) != "null" ) {
-    // TODO radius breach check
-    // calculate distance between station and sonde
-    // if distance >1000km discard
-  } 
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
