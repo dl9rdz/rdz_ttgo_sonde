@@ -3050,10 +3050,9 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
   if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
-  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 ) {
-    // TODO REGEX CHECK
-    // s->ser
-    // [C-Z][\d][\d][\d]\d{4}
+  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 ) { // Regex check for RS41/RS92
+    reti = regexec(&regex, s->ser, 0, NULL, 0);
+    if (reti == REG_NOMATCH) return
   }
 
   // If not connected to sondehub, try reconnecting.
