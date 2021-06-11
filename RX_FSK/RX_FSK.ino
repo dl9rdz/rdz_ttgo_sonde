@@ -25,6 +25,9 @@
 #include "mqtt.h"
 #endif
 #include "esp_heap_caps.h"
+#if FEATURE_SONDEHUB
+#include <regex.h>
+#endif
 //#define ESP_MEM_DEBUG 1
 int e;
 
