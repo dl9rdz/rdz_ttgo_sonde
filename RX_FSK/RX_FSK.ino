@@ -2176,7 +2176,7 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      reti = regcomp(&regex, "[C-Z][\d][\d][\d]\d{4}", 0);
+      reti = regcomp(&regex, "^[E-Z][0-5][0-9][1-7][0-9]{4}", 0);
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
