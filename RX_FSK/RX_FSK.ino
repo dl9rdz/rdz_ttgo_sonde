@@ -58,9 +58,7 @@ WiFiClient client;
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
 WiFiClient shclient;	// Sondehub v2
-unsigned long time_now = 0;
 unsigned long time_last_update = 0;
-unsigned long time_delta = 0;
 #endif
 
 // KISS over TCP for communicating with APRSdroid
@@ -2177,14 +2175,9 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      time_now = millis();
-      if (time_now < time_last_update) {
-        // counter overflow
-        time_delta = SONDEHUB_STATION_UPDATE_TIME;
-      }
-      else {
-        time_delta = time_now - time_last_update;
-      }
+      unsigned long time_now = millis();
+      // time_delta will be correct, even if time_now overflows
+      unsigned long time_delta = time_now - time_last_update;
       if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME)) {  // 60 min
         sondehub_station_update(&shclient, &sonde.config.sondehub);
         time_last_update = time_now;

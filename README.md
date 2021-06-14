@@ -29,8 +29,7 @@ Meteomodem | M10 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteomodem | M20 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteo-Radiy | MP3-H1 (MRZ-H1) | :heavy_check_mark: | :x: | :x: | :x: 
 
-SondeHub integration has mainly been tested with RS41 and DFM. MP3-H1 currently lacks decoding
-timestamps from telemetry, thus not yet suitable for SondeHub.
+SondeHub integration has mainly been tested with RS41 and DFM. 
 
 
 Support for other radiosondes that use AFSK modulation is not feasible with the TTGO hardware.
