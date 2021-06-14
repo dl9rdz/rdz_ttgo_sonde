@@ -184,6 +184,7 @@ struct st_mqtt {
 
 struct st_sondehub {
 	int active;
+	int chase;
 	char host[64];
 	char callsign[64];
 	char lat[20];

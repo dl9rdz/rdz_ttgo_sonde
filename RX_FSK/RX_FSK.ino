@@ -55,7 +55,12 @@ boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
 #if FEATURE_SONDEHUB
+#define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
+#define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
 WiFiClient shclient;	// Sondehub v2
+unsigned long time_now = 0;
+unsigned long time_last_update = 0;
+unsigned long time_delta = 0;
 #endif
 
 // KISS over TCP for communicating with APRSdroid
@@ -599,6 +604,7 @@ struct st_configitems config_list[] = {
   /* Sondehub v2 settings */
   {"", "Sondehub v2 settings", -5, NULL},
   {"sondehub.active", "Sondehub reporting active", 0, &sonde.config.sondehub.active},
+  {"sondehub.chase", "Sondehub chase location active", 0, &sonde.config.sondehub.chase},
   {"sondehub.host", "Sondehub host", 63, &sonde.config.sondehub.host},
   {"sondehub.callsign", "Callsign", 63, &sonde.config.sondehub.callsign},
   {"sondehub.lat", "Latitude", 19, &sonde.config.sondehub.lat},
@@ -2171,6 +2177,22 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
+      time_now = millis();
+      if (time_now < time_last_update) {
+        // counter overflow
+        time_delta = SONDEHUB_STATION_UPDATE_TIME;
+      }
+      else {
+        time_delta = time_now - time_last_update;
+      }
+      if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME)) {  // 60 min
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
+      else if ((sonde.config.sondehub.chase == 1) && (time_delta >= SONDEHUB_MOBILE_STATION_UPDATE_TIME)) {  // 30 sec
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
@@ -2385,6 +2407,7 @@ void enableNetwork(bool enable) {
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
       sondehub_station_update(&shclient, &sonde.config.sondehub);
+      time_last_update = millis();
     }
 #endif
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -2956,7 +2979,9 @@ void loop() {
  	Update station data to the sondehub v2 DB
 */
 void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
-  char data[300];
+  #define STATION_DATA_LEN 300
+  char data[STATION_DATA_LEN];
+  char *w;
 
   Serial.println("sondehub_station_update()");
 
@@ -2967,22 +2992,42 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
     }
   }
 
+  w = data;
+  memset(w, 0, STATION_DATA_LEN);
+
+  sprintf(w,
+          "{"
+          "\"software_name\": \"%s\","
+          "\"software_version\": \"%s\","
+          "\"uploader_callsign\": \"%s\","
+          "\"uploader_contact_email\": \"%s\",",
+          version_name, version_id, conf->callsign, conf->email);
+  w += strlen(w);
+  if (conf->chase == 0) {
+    sprintf(w,
+            "\"uploader_position\": [%s,%s,%s],"
+            "\"uploader_antenna\": \"%s\""
+            "}",
+            conf->lat, conf->lon, conf->alt, conf->antenna);
+  }
+  else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+    sprintf(w,
+            "\"uploader_position\": [%.6f, %.6f, %d],"
+            "\"uploader_antenna\": \"%s\""
+            "\"mobile\": \"true\""
+            "}",
+            gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
+  }
+  else {
+    return;
+  }
+
   client->println("PUT /listeners HTTP/1.1");
   client->print("Host: ");
   client->println(conf->host);
   client->println("accept: text/plain");
   client->println("Content-Type: application/json");
   client->print("Content-Length: ");
-  sprintf(data,
-          "{"
-          "\"software_name\": \"%s\","
-          "\"software_version\": \"%s\","
-          "\"uploader_callsign\": \"%s\","
-          "\"uploader_contact_email\": \"%s\","
-          "\"uploader_position\": [%s,%s,%s],"
-          "\"uploader_antenna\": \"%s\""
-          "}",
-          version_name, version_id, conf->callsign, conf->email, conf->lat, conf->lon, conf->alt, conf->antenna);
   client->println(strlen(data));
   client->println();
   client->println(data);
@@ -2992,7 +3037,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   String response = client->readString();
   Serial.println(response);
   Serial.println("Response done...");
-  client->stop();
+  //client->stop();
 }
 
 /*
@@ -3146,13 +3191,29 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     w += strlen(w);
   }
 
-  sprintf(w,
-          "\"uploader_position\": [ %s, %s, %s ],"
-          "\"uploader_antenna\": \"%s\""
-          "}]",
-          conf->lat, conf->lon, conf->alt, conf->antenna
-         );
-  w += strlen(w);
+  if (conf->chase == 0) {
+    sprintf(w,
+            "\"uploader_position\": [ %s, %s, %s ],"
+            "\"uploader_antenna\": \"%s\""
+            "}]",
+            conf->lat, conf->lon, conf->alt, conf->antenna
+          );
+  }
+  else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+    sprintf(w,
+            "\"uploader_position\": [ %.6f, %.6f, %d ],"
+            "\"uploader_antenna\": \"%s\""
+            "}]",
+            gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna
+          );
+  }
+  else {
+    sprintf(w, 
+            "\"uploader_antenna\": \"%s\""
+            "}]",
+            conf->antenna
+           );
+  }
 
   client->println("PUT /sondes/telemetry HTTP/1.1");
   client->print("Host: ");

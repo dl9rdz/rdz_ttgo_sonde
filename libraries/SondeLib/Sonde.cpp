@@ -376,6 +376,8 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.mqtt.prefix, val, 63);
 	} else if(strcmp(cfg, "sondehub.active")==0) {
 		config.sondehub.active = atoi(val);
+	} else if(strcmp(cfg,"sondehub.chase")==0) {
+		config.sondehub.chase = atoi(val);
 	} else if(strcmp(cfg, "sondehub.host")==0) {
 		strncpy(config.sondehub.host, val, 63);
 	} else if(strcmp(cfg, "sondehub.callsign")==0) {

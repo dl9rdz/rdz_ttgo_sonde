@@ -123,6 +123,7 @@ mqtt.prefix=rdz_sonde_server/
 #-------------------------------#
 # Sondehub v2 DB settings
 sondehub.active=0
+sondehub.chase=0
 sondehub.host=api.v2.sondehub.org
 sondehub.callsign=CHANGEME_RDZTTGO
 sondehub.lat=null
