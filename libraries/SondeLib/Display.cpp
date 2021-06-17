@@ -188,7 +188,7 @@ DispInfo staticLayouts[5] = {
 /////////////// Wrapper code for various display
 
 // ALLFONTS requires 30k extra flash memory... for now there is still enough space :)
-#define ALLFONTS 1
+//#define ALLFONTS 1
 static const uint8_t *fl[] = { 
                 u8x8_font_chroma48medium8_r,        // 0 ** default small
                 u8x8_font_7x14_1x2_f,               // 1 ** default large

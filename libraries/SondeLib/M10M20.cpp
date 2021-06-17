@@ -281,7 +281,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		Serial.println("Decoding...");
 		// Its a M10
 		// getid...
-		char ids[11];
+		char ids[12];
 		ids[0] = 'M';
 		ids[1] = 'E';
 		ids[2] = hex(data[95]/16);
@@ -297,14 +297,17 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[0] = hex(data[95]/16);
 		ids[1] = dez((data[95]&0x0f)/10);
 		ids[2] = dez((data[95]&0x0f));
-		ids[3] = dez(data[93]);
-		ids[4] = dez(id>>13);
+		ids[3] = '-';
+		ids[4] = dez(data[93]);
+		ids[5] = '-';
+		ids[6] = dez(id>>13);
 		id &= 0x1fff;
-		ids[5] = dez(id/1000); 
-		ids[6] = dez((id/100)%10);
-		ids[7] = dez((id/10)%10);
-		ids[8] = dez(id%10);
-		strncpy(sonde.si()->ser, ids, 10);
+		ids[7] = dez(id/1000); 
+		ids[8] = dez((id/100)%10);
+		ids[9] = dez((id/10)%10);
+		ids[10] = dez(id%10);
+		ids[11] = 0;
+		strncpy(sonde.si()->ser, ids, 12);
 		sonde.si()->validID = true;
 		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
