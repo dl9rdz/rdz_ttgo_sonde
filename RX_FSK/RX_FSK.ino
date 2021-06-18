@@ -415,7 +415,8 @@ const char *createSondeHubMap() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
   HTMLBODY(ptr, "map.html");
-  sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/?sondehub=1#!mz=11&f=%s&q=%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser, s-> ser);
+  strcat(ptr, "<p>Sonde information will only be shown if SondeHub uploading is enabled.</p>");
+  sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/?sondehub=1#!mz=11&f=%s&q=%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh;width:100%%\"></iframe>", s-> ser, s-> ser);
   HTMLBODYEND(ptr);
   return message;
 }
