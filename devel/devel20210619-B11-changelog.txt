@@ -1,1 +1,2 @@
 +version update
+wetterson.de is gone
