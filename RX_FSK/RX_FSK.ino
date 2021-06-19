@@ -410,6 +410,29 @@ const char *createWIFIForm() {
   return message;
 }
 
+const char *createSondeHubMap() {
+  SondeInfo *s = &sonde.sondeList[0];
+  char *ptr = message;
+  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
+  HTMLBODY(ptr, "map.html");
+  if (!sonde.config.sondehub.active) {
+    strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
+    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+    } else {
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
+    }
+  } else {
+    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+      sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+    } else {
+      sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
+    }
+  }
+  HTMLBODYEND(ptr);
+  return message;
+}
+
 const char *handleWIFIPost(AsyncWebServerRequest *request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
@@ -471,7 +494,7 @@ void addSondeStatus(char *ptr, int i)
   sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://wetterson.de/karte/?%s\">wetterson.de</a> - ", s->id);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://radiosondy.info/sonde_archive.php?sondenumber=%s\">radiosondy.info</a> - ", s->id);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->id);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->ser);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->lat, s->lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->lat, s->lon);
 
@@ -1125,6 +1148,14 @@ void SetupAsyncServer() {
   server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     handleWIFIPost(request);
     request->send(200, "text/html", createWIFIForm());
+  });
+
+  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", createSondeHubMap());
+  });
+  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    handleWIFIPost(request);
+    request->send(200, "text/html", createSondeHubMap());
   });
 
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
