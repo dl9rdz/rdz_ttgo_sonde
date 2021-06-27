@@ -1,2 +1,3 @@
 +version update
 wetterson.de is gone
+more ttgconfig script features: backup and restore
