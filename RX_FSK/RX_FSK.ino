@@ -3146,7 +3146,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
   //  DFM uses UTC. Most of the other radiosondes use GPS time
   // SondeHub expect datetime to be the same time sytem as the sonde transmits as time stamp
-  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M10 || s->type == STYPE_M20 ) {
+  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
 
