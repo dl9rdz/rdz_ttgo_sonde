@@ -55,12 +55,28 @@ if len(sys.argv)<=2:
   print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
   print("or:    ",sys.argv[0]," <get|put> file {filename}");
   print("or:    ",sys.argv[0]," update <devel-xxx|master-yyy>");
+  print("or:    ",sys.argv[0]," <backup|restore> file.bin");
   print("\n",
         "     screens is screens1.txt, screens2.txt, screens3.txt");
   print("     networks is networks.txt (Wifi ssid and password)")
   print("     qrg is qrg.txt (List with scan frequencies)")
   print("     all is screens + network + qrg")
   sys.exit(1)
+
+if sys.argv[1]=="backup":
+  # backup installed firmware (+ all data) to backup.bin
+  sys._argv = sys.argv[:]
+  sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "read_flash", "0x1000", "0x3FF000", sys.argv[2]]
+  esptool.main()
+  exit(0)
+
+if sys.argv[1]=="restore":
+  # restore system from backup.bin
+  sys._argv = sys.argv[:]
+  sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "write_flash", "-z", "--flash_mode", "dio", "--flash_freq", "80m", "--flash_size", "detect", "0x1000", sys.argv[2]]
+  esptool.main()
+  exit(0)
+  
 
 if sys.argv[1]=="update":
   # update to a new version...
