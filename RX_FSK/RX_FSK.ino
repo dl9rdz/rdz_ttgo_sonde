@@ -1454,32 +1454,43 @@ void gpsTask(void *parameter) {
 #define UBX_SYNCH_1 0xB5
 #define UBX_SYNCH_2 0x62
 uint8_t ubx_set9k6[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8D, 0x8F};
-uint8_t ubx_factorydef[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x09, 13, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0x17, 0x8A };
+uint8_t ubx_factorydef[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x09, 13, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0x13, 0x7c };
 uint8_t ubx_hardreset[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x04, 4, 0, 0xff, 0xff, 0, 0, 0x0C, 0x5D };
 // GPGST: Class 0xF0 Id 0x07
 uint8_t ubx_enable_gpgst[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x01, 3, 0, 0xF0, 0x07, 2, 0x03, 0x1F};
 
+void dumpGPS() {
+    while (Serial2.available()) {
+      char c = Serial2.read();
+      Serial.printf("%02x ", (uint8_t)c);
+    }
+}
 void initGPS() {
   if (sonde.config.gps_rxd < 0) return; // GPS disabled
   if (sonde.config.gps_txd >= 0) {  // TX enable, thus try setting baud to 9600 and do a factory reset
     File testfile = SPIFFS.open("/GPSRESET", FILE_READ);
     if (testfile && !testfile.isDirectory()) {
       testfile.close();
-      Serial.println("GPS factory reset...");
+      Serial.println("GPS resetting baud to 9k6...");
       Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      delay(100);
+      delay(200);
       Serial2.begin(38400, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      delay(100);
+      delay(200);
       Serial2.begin(19200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      delay(100);
       Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
+      delay(1000);
+      dumpGPS();
+      Serial.println("GPS factory reset...");
       Serial2.write(ubx_factorydef, sizeof(ubx_factorydef));
-      delay(100);
-      Serial2.write(ubx_hardreset, sizeof(ubx_hardreset));
-      delay(5000);
+      delay(1000);
+      dumpGPS();
+      delay(1000);
+      dumpGPS();
+      delay(1000);
+      dumpGPS();
       SPIFFS.remove("/GPSRESET");
     } else if (testfile) {
       Serial.println("GPS reset file: not found/isdir");
