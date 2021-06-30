@@ -417,13 +417,13 @@ const char *createSondeHubMap() {
   HTMLBODY(ptr, "map.html");
   if (!sonde.config.sondehub.active) {
     strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+    if ((*s->ser == 0) && (sonde.config.sondehub.lat[0] != '\0')) {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
     }
   } else {
-    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+    if ((*s->ser == 0) && (sonde.config.sondehub.lat[0] != '\0')) {
       sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
       sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
@@ -3037,16 +3037,24 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
           "\"uploader_contact_email\": \"%s\",",
           version_name, version_id, conf->callsign, conf->email);
   w += strlen(w);
-  if (conf->chase == 0) {
-    sprintf(w,
-            "\"uploader_position\": [%s,%s,%s],"
-            "\"uploader_antenna\": \"%s\""
-            "}",
-            conf->lat, conf->lon, conf->alt, conf->antenna);
+  if ((conf->chase == 0) && (conf->lat[0] != '\0') && (conf->lon[0] != '\0')){
+    if (conf->alt[0] != '\0') {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,%s],"
+              "\"uploader_antenna\": \"%s\""
+              "}",
+              conf->lat, conf->lon, conf->alt, conf->antenna);
+    } else {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,null],"
+              "\"uploader_antenna\": \"%s\""
+              "}",
+              conf->lat, conf->lon, conf->antenna);
+    }
   }
   else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
     sprintf(w,
-            "\"uploader_position\": [%.6f, %.6f, %d],"
+            "\"uploader_position\": [%.6f,%.6f,%d],"
             "\"uploader_antenna\": \"%s\""
             "\"mobile\": \"true\""
             "}",
@@ -3225,17 +3233,26 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     w += strlen(w);
   }
 
-  if (conf->chase == 0) {
-    sprintf(w,
-            "\"uploader_position\": [ %s, %s, %s ],"
-            "\"uploader_antenna\": \"%s\""
-            "}]",
-            conf->lat, conf->lon, conf->alt, conf->antenna
-          );
+  if ((conf->chase == 0) && (conf->lat[0] != '\0') && (conf->lon[0] != '\0')){
+    if (conf->alt[0] != '\0') {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,%s],"
+              "\"uploader_antenna\": \"%s\""
+              "}]",
+              conf->lat, conf->lon, conf->alt, conf->antenna
+            );
+    } else {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,null],"
+              "\"uploader_antenna\": \"%s\""
+              "}]",
+              conf->lat, conf->lon, conf->antenna
+            );
+    }
   }
   else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
     sprintf(w,
-            "\"uploader_position\": [ %.6f, %.6f, %d ],"
+            "\"uploader_position\": [%.6f,%.6f,%d],"
             "\"uploader_antenna\": \"%s\""
             "}]",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna
