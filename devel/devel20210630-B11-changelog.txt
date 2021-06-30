@@ -1,0 +1,1 @@
+more robust GPS reset, using clear+load CFG
