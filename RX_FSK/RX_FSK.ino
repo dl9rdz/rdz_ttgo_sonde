@@ -1878,6 +1878,7 @@ void setup()
         axp.clearIRQ();
       }
       int ndevices = scanI2Cdevice();
+      if (sonde.fingerprint == 31) { pinMode(35, INPUT); }
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
       delay(500);
     }
