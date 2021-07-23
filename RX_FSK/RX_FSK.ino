@@ -418,15 +418,15 @@ const char *createSondeHubMap() {
   if (!sonde.config.sondehub.active) {
     strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
     if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%s,%s&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
     }
   } else {
     if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
-      sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/&mc=%s,%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+      sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%s,%s&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
-      sprintf(ptr, "<iframe src=\"https://tracker.sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
+      sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
     }
   }
   HTMLBODYEND(ptr);
