@@ -2216,21 +2216,9 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      unsigned long time_now = millis();
-      // time_delta will be correct, even if time_now overflows
-      unsigned long time_delta = time_now - time_last_update;
-      if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME)) {  // 60 min
-        sondehub_station_update(&shclient, &sonde.config.sondehub);
-        time_last_update = time_now;
-      }
-      else if ((sonde.config.sondehub.chase == 1) && (time_delta >= SONDEHUB_MOBILE_STATION_UPDATE_TIME)) {  // 30 sec
-        sondehub_station_update(&shclient, &sonde.config.sondehub);
-        time_last_update = time_now;
-      }
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
-
 
 #if FEATURE_MQTT
     // send to MQTT if enabled
@@ -3005,6 +2993,22 @@ void loop() {
     lastMqttUptime = now;
   }
 #endif
+
+#if FEATURE_SONDEHUB
+    if (sonde.config.sondehub.active) {
+      unsigned long time_now = millis();
+      // time_delta will be correct, even if time_now overflows
+      unsigned long time_delta = time_now - time_last_update;
+      if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME) && (wifi_state != WIFI_APMODE)) {  // 60 min
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
+      else if ((sonde.config.sondehub.chase == 1) && (time_delta >= SONDEHUB_MOBILE_STATION_UPDATE_TIME) && (wifi_state != WIFI_APMODE)) {  // 30 sec
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
+    }
+#endif
 }
 
 #if FEATURE_SONDEHUB
@@ -3047,7 +3051,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
     sprintf(w,
             "\"uploader_position\": [%.6f, %.6f, %d],"
-            "\"uploader_antenna\": \"%s\""
+            "\"uploader_antenna\": \"%s\","
             "\"mobile\": \"true\""
             "}",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
