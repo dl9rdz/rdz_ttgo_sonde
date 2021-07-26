@@ -9,3 +9,7 @@ SondeHub Fix Chase Cars (#104)
 
 Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
 Co-authored-by: dl9rdz <dl9rdz@darc.de>
+lat,lon,alt improvements (#103)
+
+Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
+Co-authored-by: dl9rdz <dl9rdz@darc.de>
