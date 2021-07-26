@@ -126,9 +126,9 @@ sondehub.active=0
 sondehub.chase=0
 sondehub.host=api.v2.sondehub.org
 sondehub.callsign=CHANGEME_RDZTTGO
-sondehub.lat=null
-sondehub.lon=null
-sondehub.alt=null
+sondehub.lat=
+sondehub.lon=
+sondehub.alt=
 sondehub.antenna=
 sondehub.email=
 #-------------------------------#
