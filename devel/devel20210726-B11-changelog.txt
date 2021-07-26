@@ -1,1 +1,11 @@
 add reboot to control buttons (#111)
+SondeHub Fix Chase Cars (#104)
+
+* fix chase cars
+
+* update version ID
+
+* fix version
+
+Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
+Co-authored-by: dl9rdz <dl9rdz@darc.de>
