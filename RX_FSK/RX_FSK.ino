@@ -783,23 +783,24 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   return "";
 }
 
-const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2"};
+const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2", "reboot"};
 
 const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)",
-                           "Button 2/next screen (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)"
+                           "Button 2/next screen (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)",
+                           "Reboot"
                           };
 
 const char *createControlForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
   HTMLBODY(ptr, "control.html");
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 9; i++) {
     strcat(ptr, "<input class=\"ctlbtn\" type=\"submit\" name=\"");
     strcat(ptr, ctrlid[i]);
     strcat(ptr, "\" value=\"");
     strcat(ptr, ctrllabel[i]);
     strcat(ptr, "\"></input>");
-    if (i == 3) {
+    if (i == 3 || i == 7 ) {
       strcat(ptr, "<p></p>");
     }
   }
@@ -846,6 +847,10 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
     else if (param.equals("wifi2")) {
       Serial.println("equals wifi2");
       button2.pressed = KP_LONG;
+    }
+    else if (param.equals("reboot")) {
+      Serial.println("equals reboot");
+      ESP.restart();
     }
   }
   return "";
