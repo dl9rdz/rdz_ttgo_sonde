@@ -1,0 +1,1 @@
+add reboot to control buttons (#111)
