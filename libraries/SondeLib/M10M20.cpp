@@ -319,6 +319,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		float vn = getint16(data+6)*VMUL;
 		sonde.si()->vs = getint16(data+8) * VMUL;
 		sonde.si()->hs = sqrt(ve*ve+vn*vn);
+		sonde.si()->sats = data[30];
 		float dir = atan2(vn, ve)*(1.0/RAD);
 		if(dir<0) dir+=360;
 		sonde.si()->dir = dir;
