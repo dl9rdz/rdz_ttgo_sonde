@@ -1465,10 +1465,10 @@ uint8_t ubx_hardreset[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x04, 4, 0, 0xff, 0xf
 uint8_t ubx_enable_gpgst[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x01, 3, 0, 0xF0, 0x07, 2, 0x03, 0x1F};
 
 void dumpGPS() {
-    while (Serial2.available()) {
-      char c = Serial2.read();
-      Serial.printf("%02x ", (uint8_t)c);
-    }
+  while (Serial2.available()) {
+    char c = Serial2.read();
+    Serial.printf("%02x ", (uint8_t)c);
+  }
 }
 void initGPS() {
   if (sonde.config.gps_rxd < 0) return; // GPS disabled
@@ -3022,7 +3022,7 @@ void loop() {
  	Update station data to the sondehub v2 DB
 */
 void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
-  #define STATION_DATA_LEN 300
+#define STATION_DATA_LEN 300
   char data[STATION_DATA_LEN];
   char *w;
 
@@ -3140,7 +3140,7 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information
-  if ( s->type!=STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
+  if ( s->type != STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
@@ -3216,7 +3216,11 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     // For M10, this is real GPS time (seconds since Jqn 6 1980, without adjusting for leap seconds)
     // DFM and MP3H send real UTC (with leap seconds considered), so for them the frame number actually
     // is gps time plus number of leap seconds since the beginning of GPS time.
-    sprintf(w, "\"frame\": %d,", int(t - 315964800));
+    int frame = (int)(t - 315964800);
+    if (s->type == STYPE_M10) {
+      frame += 18;
+    };
+    sprintf(w, "\"frame\": %d,", frame);
   } else {
     sprintf(w, "\"frame\": %d,", s->frame);
   }
@@ -3266,10 +3270,10 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
             "\"uploader_antenna\": \"%s\""
             "}]",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna
-          );
+           );
   }
   else {
-    sprintf(w, 
+    sprintf(w,
             "\"uploader_antenna\": \"%s\""
             "}]",
             conf->antenna
