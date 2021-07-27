@@ -3069,7 +3069,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
     sprintf(w,
             "\"uploader_position\": [%.6f,%.6f,%d],"
             "\"uploader_antenna\": \"%s\","
-            "\"mobile\": \"true\""
+            "\"mobile\": true"
             "}",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
   }
@@ -3205,11 +3205,11 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
           "\"lat\": %.6f,"
           "\"lon\": %.6f,"
-          "\"alt\": %.2f,"
+          "\"alt\": %.3f,"
           "\"frequency\": %.3f,"
-          "\"vel_h\": %.1f,"
-          "\"vel_v\": %.1f,"
-          "\"heading\": %.1f,"
+          "\"vel_h\": %.3f,"
+          "\"vel_v\": %.3f,"
+          "\"heading\": %.3f,"
           "\"sats\": %d,"
           "\"rssi\": %.1f,",
           version_name, version_id, conf->callsign,
@@ -3250,8 +3250,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
 
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
     sprintf(w,
-            "\"temp\": %.2f,"
-            "\"humidity\": %.2f,",
+            "\"temp\": %.1f,"
+            "\"humidity\": %.1f,",
             float(s->temperature), float(s->relativeHumidity)
            );
     w += strlen(w);
