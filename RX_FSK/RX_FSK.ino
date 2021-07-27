@@ -417,13 +417,13 @@ const char *createSondeHubMap() {
   HTMLBODY(ptr, "map.html");
   if (!sonde.config.sondehub.active) {
     strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+    if ((*s->ser == 0) && (sonde.config.sondehub.lat[0] != '\0')) {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%s,%s&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
     }
   } else {
-    if ((*s->ser == 0) && (strcmp(sonde.config.sondehub.lat,"null"))) {
+    if ((*s->ser == 0) && (sonde.config.sondehub.lat[0] != '\0')) {
       sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%s,%s&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
     } else {
       sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
@@ -2221,21 +2221,9 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      unsigned long time_now = millis();
-      // time_delta will be correct, even if time_now overflows
-      unsigned long time_delta = time_now - time_last_update;
-      if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME)) {  // 60 min
-        sondehub_station_update(&shclient, &sonde.config.sondehub);
-        time_last_update = time_now;
-      }
-      else if ((sonde.config.sondehub.chase == 1) && (time_delta >= SONDEHUB_MOBILE_STATION_UPDATE_TIME)) {  // 30 sec
-        sondehub_station_update(&shclient, &sonde.config.sondehub);
-        time_last_update = time_now;
-      }
       sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
-
 
 #if FEATURE_MQTT
     // send to MQTT if enabled
@@ -3010,6 +2998,22 @@ void loop() {
     lastMqttUptime = now;
   }
 #endif
+
+#if FEATURE_SONDEHUB
+    if (sonde.config.sondehub.active) {
+      unsigned long time_now = millis();
+      // time_delta will be correct, even if time_now overflows
+      unsigned long time_delta = time_now - time_last_update;
+      if ((sonde.config.sondehub.chase == 0) && (time_delta >= SONDEHUB_STATION_UPDATE_TIME) && (wifi_state != WIFI_APMODE)) {  // 60 min
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
+      else if ((sonde.config.sondehub.chase == 1) && (time_delta >= SONDEHUB_MOBILE_STATION_UPDATE_TIME) && (wifi_state != WIFI_APMODE)) {  // 30 sec
+        sondehub_station_update(&shclient, &sonde.config.sondehub);
+        time_last_update = time_now;
+      }
+    }
+#endif
 }
 
 #if FEATURE_SONDEHUB
@@ -3042,17 +3046,25 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
           "\"uploader_contact_email\": \"%s\",",
           version_name, version_id, conf->callsign, conf->email);
   w += strlen(w);
-  if (conf->chase == 0) {
-    sprintf(w,
-            "\"uploader_position\": [%s,%s,%s],"
-            "\"uploader_antenna\": \"%s\""
-            "}",
-            conf->lat, conf->lon, conf->alt, conf->antenna);
+  if ((conf->chase == 0) && (conf->lat[0] != '\0') && (conf->lon[0] != '\0')){
+    if (conf->alt[0] != '\0') {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,%s],"
+              "\"uploader_antenna\": \"%s\""
+              "}",
+              conf->lat, conf->lon, conf->alt, conf->antenna);
+    } else {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,null],"
+              "\"uploader_antenna\": \"%s\""
+              "}",
+              conf->lat, conf->lon, conf->antenna);
+    }
   }
   else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
     sprintf(w,
-            "\"uploader_position\": [%.6f, %.6f, %d],"
-            "\"uploader_antenna\": \"%s\""
+            "\"uploader_position\": [%.6f,%.6f,%d],"
+            "\"uploader_antenna\": \"%s\","
             "\"mobile\": \"true\""
             "}",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
@@ -3127,7 +3139,8 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
   if (*s->ser == 0) return;	// Don't send anything without serial number
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
-  if ((int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
+  // M20 data does not include #sat information
+  if ( s->type!=STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
@@ -3230,17 +3243,26 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
     w += strlen(w);
   }
 
-  if (conf->chase == 0) {
-    sprintf(w,
-            "\"uploader_position\": [ %s, %s, %s ],"
-            "\"uploader_antenna\": \"%s\""
-            "}]",
-            conf->lat, conf->lon, conf->alt, conf->antenna
-          );
+  if ((conf->chase == 0) && (conf->lat[0] != '\0') && (conf->lon[0] != '\0')){
+    if (conf->alt[0] != '\0') {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,%s],"
+              "\"uploader_antenna\": \"%s\""
+              "}]",
+              conf->lat, conf->lon, conf->alt, conf->antenna
+            );
+    } else {
+      sprintf(w,
+              "\"uploader_position\": [%s,%s,null],"
+              "\"uploader_antenna\": \"%s\""
+              "}]",
+              conf->lat, conf->lon, conf->antenna
+            );
+    }
   }
   else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
     sprintf(w,
-            "\"uploader_position\": [ %.6f, %.6f, %d ],"
+            "\"uploader_position\": [%.6f,%.6f,%d],"
             "\"uploader_antenna\": \"%s\""
             "}]",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna
