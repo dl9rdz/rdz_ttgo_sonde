@@ -3069,7 +3069,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
     sprintf(w,
             "\"uploader_position\": [%.6f,%.6f,%d],"
             "\"uploader_antenna\": \"%s\","
-            "\"mobile\": \"true\""
+            "\"mobile\": true"
             "}",
             gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
   }
