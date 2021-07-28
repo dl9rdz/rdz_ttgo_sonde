@@ -3210,16 +3210,20 @@ void sondehub_send_data(WiFiClient *client, SondeInfo *s, struct st_sondehub *co
           "\"vel_h\": %.3f,"
           "\"vel_v\": %.3f,"
           "\"heading\": %.3f,"
-          "\"sats\": %d,"
           "\"rssi\": %.1f,",
           version_name, version_id, conf->callsign,
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
           manufacturer_string[s->type], s->ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
-          (float)s->dir, (int)s->sats, -((float)s->rssi / 2)
+          (float)s->dir, -((float)s->rssi / 2)
          );
   w += strlen(w);
+  
+  if (s->type != STYPE_M20) {
+    sprintf(w, "\"sats\": %d,", (int)s->sats);
+    w += strlen(w);
+  }
 
   if ( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H ) {
     // send frame as gps timestamp for these sonde, identical to autorx
