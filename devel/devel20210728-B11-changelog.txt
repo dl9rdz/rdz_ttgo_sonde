@@ -1,0 +1,9 @@
+Add the changes back & M20 fix (#115)
+
+* Add the changes back
+
+* Update version number
+
+* Only send sats field if not M20
+
+Co-authored-by: dl9rdz <dl9rdz@darc.de>
