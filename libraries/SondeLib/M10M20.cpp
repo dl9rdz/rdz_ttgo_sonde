@@ -320,7 +320,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		sonde.si()->vs = getint16(data+8) * VMUL;
 		sonde.si()->hs = sqrt(ve*ve+vn*vn);
 		sonde.si()->sats = data[30];
-		float dir = atan2(vn, ve)*(1.0/RAD);
+		float dir = atan2(ve, vn)*(1.0/RAD);
 		if(dir<0) dir+=360;
 		sonde.si()->dir = dir;
 		sonde.si()->validPos = 0x3f;
@@ -566,7 +566,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	//0x18  2 byte
 	sonde.si()->vs = getint16(data+24) * VMUL_M20;
 	sonde.si()->hs = sqrt(ve*ve+vn*vn);
-	float dir = atan2(vn, ve)*(1.0/RAD);
+	float dir = atan2(ve, vn)*(1.0/RAD);
 	if(dir<0) dir+=360;
 	sonde.si()->dir = dir;
 	sonde.si()->validPos = 0x3f;
