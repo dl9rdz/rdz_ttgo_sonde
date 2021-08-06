@@ -186,7 +186,6 @@ void setupChannelList() {
   while (file.available()) {
     String line = readLine(file);   //file.readStringUntil('\n');
     String sitename;
-    if (!file.available()) break;
     if (line[0] == '#') continue;
     char *space = strchr(line.c_str(), ' ');
     if (!space) continue;
