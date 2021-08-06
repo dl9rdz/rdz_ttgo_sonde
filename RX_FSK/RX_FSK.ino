@@ -545,7 +545,7 @@ struct st_configitems config_list[] = {
   {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
   {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
-  {"screenfile", "Screen config (0=old, 1=OLED, 2=TFT, 3=TFT[port])", 0, &sonde.config.screenfile},
+  {"screenfile", "Screen config (0=old, 1=OLED, 2/3=ILI9251 l/p, 4/5=ILI9341 l/p", 0, &sonde.config.screenfile},
   {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
   /* Spectrum display settings */
   {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
@@ -601,7 +601,7 @@ struct st_configitems config_list[] = {
 
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
-  {"disptype", "Display type (0=OLED/SSD1306, 1=TFT/ILI9225, 2=OLED/SH1106)", 0, &sonde.config.disptype},
+  {"disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341)", 0, &sonde.config.disptype},
   {"norx_timeout", "No-RX-Timeout in seconds (-1=disabled)", 0, &sonde.config.norx_timeout},
   {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
   {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
