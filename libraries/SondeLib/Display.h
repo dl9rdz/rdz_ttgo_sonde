@@ -148,6 +148,7 @@ private:
 		return ret;
 	}
 public:
+	static int getScreenIndex(int index);
 	void initFromFile(int index);
 
 	int layoutIdx;

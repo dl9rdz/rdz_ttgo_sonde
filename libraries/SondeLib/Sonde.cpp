@@ -91,7 +91,7 @@ void Sonde::defaultConfig() {
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
 	config.screenfile = 1;
-	config.tft_modeflip = 0;
+	config.tft_spifreq = SPI_DEFAULT_FREQ;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -185,7 +185,6 @@ void Sonde::defaultConfig() {
 	config.startfreq=400;
 	config.channelbw=10;
 	config.marker=0;
-	config.showafc=0;
 	config.freqofs=0;
 	config.rs41.agcbw=12500;
 	config.rs41.rxbw=6300;
@@ -265,8 +264,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.tft_cs = atoi(val);
 	} else if(strcmp(cfg,"tft_orient")==0) {
 		config.tft_orient = atoi(val);
-	} else if(strcmp(cfg,"tft_modeflip")==0) {
-		config.tft_modeflip = atoi(val);
+	} else if(strcmp(cfg,"tft_spifreq")==0) {
+		config.tft_spifreq = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
@@ -305,8 +304,6 @@ void Sonde::setConfig(const char *cfg) {
 		config.spectrum = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
-	} else if(strcmp(cfg,"showafc")==0) {
-		config.showafc = atoi(val);
 	} else if(strcmp(cfg,"freqofs")==0) {
 		config.freqofs = atoi(val);
 	} else if(strcmp(cfg,"rs41.agcbw")==0) {

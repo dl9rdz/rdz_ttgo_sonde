@@ -26,7 +26,7 @@ extern SemaphoreHandle_t axpSemaphore;
 
 struct GpsPos gpsPos;
 
-SPIClass spiDisp(HSPI);
+//SPIClass spiDisp(HSPI);
 
 const char *sondeTypeStr[NSondeTypes] = { "DFM ", "DFM9", "RS41", "RS92", "M10 ", "M20 ", "DFM6", "MP3H" };
 const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "DFM9 (old)", "RS41", "RS92", "M10 ", "M20 ", "DFM6 (old)", "MP3-H1" };
@@ -338,17 +338,17 @@ static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 #define TFT_BRIGHTNESS 100 // Initial brightness of TFT backlight (optional)
 
 Arduino_DataBus *bus;
-
+		
 void ILI9225Display::begin() {
-	Serial.println("ILI9225 init (alt driver)");
+	Serial.println("ILI9225/ILI9341 init");
 	bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 		sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
 	if(_type == 3) 
 	  tft = new Arduino_ILI9341(bus, sonde.config.oled_rst);
 	else 
 	  tft = new Arduino_ILI9225(bus, sonde.config.oled_rst);
-	Serial.println("ILI9225 init (alt driver): done");
-	tft->begin();
+	Serial.println("ILI9225/ILI9341 init: done");
+	tft->begin(sonde.config.tft_spifreq);
         tft->fillScreen(BLACK);
 	tft->setRotation(sonde.config.tft_orient);
 	tft->setTextWrap(false);
@@ -675,8 +675,6 @@ void Display::init() {
 	delay(100);
 	Serial.println("Display initialized");
 	rdis->clear();
-	delay(3000);
-	Serial.println("Cleared");
 }
 
 
@@ -908,17 +906,32 @@ int Display::countEntries(File f) {
 	return n;
 }
 
+int Display::getScreenIndex(int index) {
+	if(index!=0) return index;
+	switch(sonde.config.disptype) {
+	case 1:		// ILI9225
+		index = 2;      // landscape mode (orient=1/3)
+		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
+		break;
+	case 3:		// ILI9341
+		index = 4;      // landscape mode (orient=1/3)
+		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
+		break;
+	case 0: case 2: 	// small OLED display (SD1306/SH1106)
+	default:
+		index = 1; break;
+	}
+	return index;
+}
 void Display::initFromFile(int index) {
 	File d;
-	if(index>0) {
-		char file[20];
-		snprintf(file, 20, "/screens%d.txt", index);
-		Serial.printf("Reading %s\n", file);
-		d = SPIFFS.open(file, "r");
-		if(!d || d.available()==0 ) { Serial.printf("%s not found, using /screens.txt\n", file); }
-	}
-	if(!d || d.available()==0 ) d = SPIFFS.open("/screens.txt", "r");
-	if(!d) return;
+	char file[20];
+
+	index = getScreenIndex(index);  // auto selection for index==0
+	snprintf(file, 20, "/screens%d.txt", index);
+	Serial.printf("Reading %s\n", file);
+	d = SPIFFS.open(file, "r");
+	if(!d || d.available()==0 ) { Serial.printf("%s not found\n", file); return; }
 
 	DispInfo *newlayouts = (DispInfo *)malloc(MAXSCREENS * sizeof(DispInfo));
 	if(!newlayouts) {
@@ -1211,10 +1224,7 @@ void Display::drawFreq(DispEntry *de) {
         drawString(de, buf);
 }
 void Display::drawAFC(DispEntry *de) {
- 	if(!sonde.config.showafc) return;
 	rdis->setFont(de->fmt);
-	//if(sonde.si()->afc==0) { strcpy(buf, "        "); }
-	//else
 	{ snprintf(buf, 15, "     %+3.2fk", sonde.si()->afc*0.001); }
         drawString(de, buf+strlen(buf)-8);
 }
@@ -1227,7 +1237,7 @@ void Display::drawSite(DispEntry *de) {
 	switch(de->extra[0]) {
 	case '#':
 		// currentSonde is index in array starting with 0;
-		// but we draw "1" for the first entrie and so on...
+		// but we draw "1" for the first entry and so on...
 		snprintf(buf, 3, "%2d", sonde.currentSonde+1);
 		buf[2]=0;
 		break;

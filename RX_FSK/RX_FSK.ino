@@ -541,10 +541,10 @@ struct st_configitems {
 struct st_configitems config_list[] = {
   /* General config settings */
   {"", "Software configuration", -5, NULL},
-  {"wifi", "Wifi mode (0/1/2/3)", 0, &sonde.config.wifi},
+  {"wifi", "Wifi mode (0-Off/1-Client/2-Access Point/3-Debug)", 0, &sonde.config.wifi},
   {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
-  {"maxsonde", "Maxsonde", 0, &sonde.config.maxsonde},
-  {"screenfile", "Screen config (0=old, 1=OLED, 2/3=ILI9251 l/p, 4/5=ILI9341 l/p", 0, &sonde.config.screenfile},
+  {"maxsonde", "Maxsonde (max # QRG entries)", 0, &sonde.config.maxsonde},
+  {"screenfile", "Screen config (0=automatic; 1-5=predefined; other=custom)", 0, &sonde.config.screenfile},
   {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
   /* Spectrum display settings */
   {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
@@ -554,7 +554,6 @@ struct st_configitems config_list[] = {
   {"noisefloor", "Spectrum noisefloor", 0, &sonde.config.noisefloor},
   /* decoder settings */
   {"", "Receiver configuration", -5, NULL},
-  {"showafc", "Show AFC value", 0, &sonde.config.showafc},
   {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
   {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
@@ -608,7 +607,7 @@ struct st_configitems config_list[] = {
   {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
   {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
   {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
-  {"tft_modeflip", "TFT modeflip (usually 0)", 0, &sonde.config.tft_modeflip},
+  {"tft_spifreq", "TFT SPI speed", 0, &sonde.config.tft_spifreq},
   {"button_pin", "Button input port", -4, &sonde.config.button_pin},
   {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
   {"button2_axp", "Use AXP192 PWR as Button 2", 0, &sonde.config.button2_axp},
@@ -670,7 +669,7 @@ void addConfigHeading(char *ptr, const char *label) {
   strcat(ptr, "</th></tr>\n");
 }
 void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
-  sprintf(ptr + strlen(ptr), "<tr><td>%s", label);
+  sprintf(ptr + strlen(ptr), "<tr><td>%s using /screens%d.txt", label, Display::getScreenIndex(sonde.config.screenfile));
   for (int i = 0; i < disp.nLayouts; i++) {
     sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label);
   }
@@ -1217,7 +1216,7 @@ void SetupAsyncServer() {
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     const char *ret = handleEditPost(request);
     if (ret == NULL)
-      request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong. Uploaded file is empty.</p></body></hhtml>");
+      request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong (probably ESP32 out of memory). Uploaded file is empty.</p></body></hhtml>");
     else {
       String f = request->getParam(0)->value();
       request->redirect("/edit.html?file=" + f);
@@ -2740,17 +2739,6 @@ void loopWifiScan() {
     while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
       delay(500);
       Serial.print(".");
-#if 0
-      if (cnt == 5) {
-        // my FritzBox needs this for reconnecting
-        WiFi.disconnect(true);
-        delay(500);
-        WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-        Serial.print("Reconnecting to: "); Serial.print(fetchWifiSSID(index));
-        Serial.print(" with password "); Serial.println(fetchWifiPw(index));
-        delay(500);
-      }
-#endif
       disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
       cnt++;
     }

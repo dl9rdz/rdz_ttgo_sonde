@@ -24,6 +24,7 @@ struct scancfg {
 //struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/20.0, 20, 120*20, 1 };
 struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2, 40 };
 struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0 };
+struct scancfg scan9341={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0 };
 
 struct scancfg &scanconfig = scanTFT;
 
@@ -65,7 +66,7 @@ void Scanner::fillTiles(uint8_t *row, int value) {
 ///// unused????  uint8_t tiles[16] = { 0x0f,0x0f,0x0f,0x0f,0xf0,0xf0,0xf0,0xf0, 1, 3, 7, 15, 31, 63, 127, 255};
 
 // type 0: lcd, 1: tft, 2: lcd(sh1106)
-#define ISTFT (sonde.config.disptype==1)
+#define ISTFT (sonde.config.disptype==1 || sonde.config.disptype==3)
 void Scanner::plotResult()
 {
 	int yofs = 0;

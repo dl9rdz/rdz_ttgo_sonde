@@ -209,7 +209,7 @@ typedef struct st_rdzconfig {
 	int tft_rs;			// TFT RS pin
 	int tft_cs;			// TFT CS pin
 	int tft_orient;			// TFT orientation (default: 1)
-	int tft_modeflip;		// Hack for Joerg's strange display
+	int tft_spifreq;		// SPI transfer speed (default 40M is out of spec for some TFT)
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
 	// software configuration
@@ -227,7 +227,6 @@ typedef struct st_rdzconfig {
 	int noisefloor;			// for spectrum display
 	char mdnsname[15];		// mDNS-Name, defaults to rdzsonde
 	// receiver configuration
-	int showafc;			// show afc value in rx screen
 	int freqofs;			// frequency offset (tuner config = rx frequency + freqofs) in Hz
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	struct st_rs92config rs92;
