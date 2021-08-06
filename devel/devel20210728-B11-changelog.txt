@@ -7,3 +7,4 @@ Add the changes back & M20 fix (#115)
 * Only send sats field if not M20
 
 Co-authored-by: dl9rdz <dl9rdz@darc.de>
+ILI9351 support
