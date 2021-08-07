@@ -1,1 +1,2 @@
 +longer wifi wait time
+fix #124
