@@ -2231,7 +2231,9 @@ void loopDecoder() {
     }
 #endif
   } else {
+#if FEATURE_SONDEHUB
     sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
+#endif
   }
   // always send data, even if not valid....
   if (rdzclient.connected()) {
