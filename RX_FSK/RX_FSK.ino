@@ -619,17 +619,17 @@ struct st_configitems config_list[] = {
   {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 
 #if FEATURE_SONDEHUB
-  /* Sondehub v2 settings */
-  {"", "Sondehub v2 settings", -5, NULL},
-  {"sondehub.active", "Sondehub reporting active", 0, &sonde.config.sondehub.active},
-  {"sondehub.chase", "Sondehub chase location active", 0, &sonde.config.sondehub.chase},
-  {"sondehub.host", "Sondehub host", 63, &sonde.config.sondehub.host},
+  /* SondeHub settings */
+  {"", "SondeHub settings", -5, NULL},
+  {"sondehub.active", "SondeHub reporting active (0=disabled, 1=active)", 0, &sonde.config.sondehub.active},
+  {"sondehub.chase", "SondeHub chase location active (0=fixed location, 1=GPS mobile station)", 0, &sonde.config.sondehub.chase},
+  {"sondehub.host", "SondeHub host (DO NOT CHANGE)", 63, &sonde.config.sondehub.host},
   {"sondehub.callsign", "Callsign", 63, &sonde.config.sondehub.callsign},
-  {"sondehub.lat", "Latitude", 19, &sonde.config.sondehub.lat},
-  {"sondehub.lon", "Longitude", 19, &sonde.config.sondehub.lon},
-  {"sondehub.alt", "Altitude", 19, &sonde.config.sondehub.alt},
-  {"sondehub.antenna", "Antenna", 63, &sonde.config.sondehub.antenna},
-  {"sondehub.email", "Sondehub email", 63, &sonde.config.sondehub.email},
+  {"sondehub.lat", "Latitude (optional, required to show station on SondeHub Tracker)", 19, &sonde.config.sondehub.lat},
+  {"sondehub.lon", "Longitude (optional, required to show station on SondeHub Tracker)", 19, &sonde.config.sondehub.lon},
+  {"sondehub.alt", "Altitude (optional, visible on SondeHub tracker)", 19, &sonde.config.sondehub.alt},
+  {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
+  {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
 #endif
 };
 const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
