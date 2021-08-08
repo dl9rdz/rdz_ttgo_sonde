@@ -25,11 +25,9 @@
 #tft_rs=2
 #tft_cs=0
 tft_orient=1
-#tft_modeflip=0
+#tft_spifreq=40000000
 #gps_rxd=-1
 #gps_txd=-1
-# Show AFC value (for RS41 and M10/M20, maybe also DFM, but not useful for RS92)
-showafc=1
 # Frequency correction, in Hz
 # freqofs=0
 #-------------------------------#
@@ -42,8 +40,8 @@ wifi=3
 # TCP/IP KISS TNC in port 14590 for APRSdroid (0=disabled, 1=enabled)
 kisstnc.active = 1
 
-# which screens file to use (0: screens.txt, i>0: screens${i}.txt
-# 0: old version; 1: for OLED, 2: for TFT; 3: for TFT (portrait mode)
+# which screens file to use (0: automated selection based on display type and orientation, i>0: screens${i}.txt
+# predefined: 1: for OLED, 2: for ILI9225; 3: for ILI9225 (portrait mode); 4: for ILI9431; 5: for ILI9431 (portrait mode)
 # screenfile=2
 # display configuration. List of "displays"
 # first entry: "Scanner" display

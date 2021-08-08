@@ -61,6 +61,8 @@ commit_website_files() {
   git add ${BRANCH}/update.ino.bin
   echo "${TRAVIS_COMMIT_MESSAGE}" >> ${BRANCH}/${VERSION}-changelog.txt
   git add ${BRANCH}/${VERSION}-changelog.txt
+  echo "<html><body><p>${VERSION}</p></body></html>" > ${BRANCH}/update-info.html
+  git add ${BRANCH}/update-info.html
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
