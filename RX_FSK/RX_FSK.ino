@@ -99,6 +99,8 @@ static unsigned long specTimer;
 void enterMode(int mode);
 void WiFiEvent(WiFiEvent_t event);
 
+char buffer[85];
+MicroNMEA nmea(buffer, sizeof(buffer));
 
 // Read line from file, independent of line termination (LF or CR LF)
 String readLine(Stream &stream) {
@@ -515,6 +517,39 @@ const char *createStatusForm() {
   return message;
 }
 
+const char *createLiveJson() {
+  char *ptr = message;
+  strcpy(ptr, "{");
+
+  SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
+  if (s->validID) {
+    sprintf(ptr + strlen(ptr), "\"sonde\": {\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\", \"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f }", s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs);
+  } else {
+    sprintf(ptr + strlen(ptr), "\"sonde\": {\"launchsite\": \"%s\",\"freq\": %3.3f, \"type\": \"%s\" }", s->launchsite, s->freq, sondeTypeStr[s->type]);
+  }
+
+  if (sonde.config.gps_rxd < 0) {
+    // gps disabled
+  } else {
+    long sat = nmea.getNumSatellites();
+    long speed = nmea.getSpeed();
+    long dir = nmea.getCourse();
+    long lat = nmea.getLatitude();
+    long lon = nmea.getLongitude();
+    long alt = -1;
+    bool b = nmea.getAltitude(alt);
+    bool valid = nmea.isValid();
+    uint8_t hdop = nmea.getHDOP();
+    if (valid) {
+      strcat(ptr, ",");
+      sprintf(ptr + strlen(ptr), "\"gps\": {\"lat\": %ld, \"lon\": %ld, \"alt\": %ld, \"sat\": %ld, \"speed\": %ld, \"dir\": %ld, \"hdop\": %d }", lat, lon, alt, sat, speed, dir, hdop);
+    }
+
+  }
+
+  strcat(ptr, "}");
+  return message;
+}
 ///////////////////// Config form
 
 
@@ -1175,6 +1210,15 @@ void SetupAsyncServer() {
   server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createStatusForm());
   });
+  server.on("/live.json", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/json", createLiveJson());
+  });
+  server.on("/livemap.html", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/livemap.html", String(), false, processor);
+  });
+  server.on("/livemap.js", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/livemap.js", String(), false, processor);
+  });
   server.on("/update.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createUpdateForm(0));
   });
@@ -1370,8 +1414,6 @@ void initTouch() {
   }
 }
 
-char buffer[85];
-MicroNMEA nmea(buffer, sizeof(buffer));
 
 
 
