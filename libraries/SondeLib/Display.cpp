@@ -1307,6 +1307,15 @@ void Display::drawKilltimer(DispEntry *de) {
 #define FAKEGPS 0
 
 extern int lastCourse; // from RX_FSK.ino
+
+
+float calcLatLonDist(float lat1, float lon1, float lat2, float lon2) {
+        float x = radians(lon1-lon2) * cos( radians((lat1+lat2)/2) );
+        float y = radians(lat2-lat1);
+        float d = sqrt(x*x+y*y)*EARTH_RADIUS;
+	return d;
+}
+
 void Display::calcGPS() {
 	// base data
 #if 0
@@ -1338,12 +1347,7 @@ static int tmpc=0;
 #endif
 	// distance
 	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-        	float lat1 = gpsPos.lat;
-        	float lat2 = sonde.si()->lat;
-        	float x = radians(gpsPos.lon-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
-        	float y = radians(lat2-lat1);
-        	float d = sqrt(x*x+y*y)*EARTH_RADIUS;
-		gpsDist = (int)d;
+		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->lat, sonde.si()->lon);
 	} else {
 		gpsDist = -1;
 	}

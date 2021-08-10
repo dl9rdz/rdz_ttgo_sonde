@@ -380,9 +380,11 @@ void Sonde::setConfig(const char *cfg) {
 	} else if(strcmp(cfg, "sondehub.callsign")==0) {
 		strncpy(config.sondehub.callsign, val, 63);
 	} else if(strcmp(cfg, "sondehub.lat")==0) {
-		strncpy(config.sondehub.lat, val, 19);
+		config.sondehub.lat = *val==0 ? NAN : atof(val);
+		Serial.printf("lat is %f\n", config.sondehub.lat);
 	} else if(strcmp(cfg, "sondehub.lon")==0) {
-		strncpy(config.sondehub.lon, val, 19);
+		config.sondehub.lon = *val==0 ? NAN : atof(val);
+		Serial.printf("lon is %f\n", config.sondehub.lon);
 	} else if(strcmp(cfg, "sondehub.alt")==0) {
 		strncpy(config.sondehub.alt, val, 19);
 	} else if(strcmp(cfg, "sondehub.antenna")==0) {

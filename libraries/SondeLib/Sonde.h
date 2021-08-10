@@ -187,8 +187,8 @@ struct st_sondehub {
 	int chase;
 	char host[64];
 	char callsign[64];
-	char lat[20];
-	char lon[20];
+	double lat;
+	double lon;
 	char alt[20];
 	char antenna[64];
 	char email[64];
