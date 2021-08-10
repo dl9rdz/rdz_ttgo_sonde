@@ -1,0 +1,1 @@
+automated fixed/chase mode for sondehub. also fix #130
