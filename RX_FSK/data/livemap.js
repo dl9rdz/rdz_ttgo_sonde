@@ -1,6 +1,6 @@
 $(document).ready(function(){
 
-  var map = L.map('map', { attributionControl: false });
+  var map = L.map('map', { attributionControl: false, zoomControl: false });
   map.on('mousedown touchstart',function () { follow=false; });
 
   L.control.scale().addTo(map);
@@ -67,12 +67,13 @@ headtxt = function(data,stat) {
   $('#sonde_statbar').html(statbar);
 };
 
-  map.addControl(new L.Control.Button([{ position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' }]));
+  map.addControl(new L.Control.Button([ { position: 'topleft', text: '🔙', href: 'index.html' } ]));
+  
+  L.control.zoom({ position:'topleft' }).addTo(map);
 
-  map.addControl(new L.Control.Button([
-    { position: 'topright', id: "status", text: '🔴', href: 'javascript:get_data();' },
-    { text: '⚙️', href: 'index.html' }
-  ]));
+  map.addControl(new L.Control.Button([ { position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' } ]));
+
+  map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '🔴', href: 'javascript:get_data();' } ]));
 
   map.addControl(new L.Control.Button([
     { position:'topright', text: '🎈', href: 'javascript:show(marker,\'marker\');' },
