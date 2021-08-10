@@ -39,7 +39,16 @@ var header = '';
 header += '<div id="sonde_main"><b>rdzTTGOSonde LiveMap</b><br />🎈 <b><span id="sonde_id"></span> - <span id="sonde_freq"></span> MHz - <span id="sonde_type"></span></b></div>';
 header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h</div>';
 header += '<div id="sonde_status"><small><span id="sonde_statbar"></span></small></div>';
+header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
+
+header += '<label for="burst">Burst at:</label><input type="text" id="burst" maxlength="5" value="..."  /> m<br />';
+header += '<label for="overwrite_descend">Descending:</label><input type="text" id="overwrite_descend" maxlength="2" value="..."  /> m/s<br />';
+header += '<label for="overwrite_descend_till">Use this descending until:</label><input type="text" id="overwrite_descend_till" maxlength="5" value="..."  /> m<br />';
+header += '<small>after the transmitted descend will be used</small>';
+header += '<div id="submit"><input type="button" value="save" onclick="settings_save();"/>&nbsp;&nbsp;&nbsp;<input type="button" id="submit" value="reset" onclick="settings_reset();"/></div>';
+header += '</div>';
 $('.leaflet-header').append(header);
+
 
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-bottom leaflet-center leaflet-footer'));
 var footer = '';
@@ -81,8 +90,10 @@ headtxt = function(data,stat) {
     { text: '💥', href: 'javascript:show(marker_burst,\'burst\');' },
     { text: '🎯', href: 'javascript:show(marker_landing,\'landing\');' }
   ]));
-
-
+  
+  map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', href: 'javascript:show_settings();' } ]));
+  
+    
   show = function(e,p) {
     if (p == 'landing') { get_predict(last_data); }
     if (e) {
@@ -219,19 +230,77 @@ headtxt = function(data,stat) {
         }
       });
   };
+  
+  storage = (typeof(Storage) !== "undefined")?true:false;
+  
+  settings_std = {
+    burst: 32500,
+    overwrite_descend: 6,
+    overwrite_descend_till: 12000
+  };
+
+  settings_read = function() {
+    if (storage) {
+      if (sessionStorage.settings) {
+        return JSON.parse(sessionStorage.settings); 
+      } else {
+        settings_write(settings_std);
+        return settings_std;
+      }
+    } else {
+      return settings_std;
+    }
+    return false;
+  };
+  
+  settings_write = function (data) {
+    if (storage) { 
+      sessionStorage.settings = JSON.stringify(data);
+      settings = data;
+    }
+  };
+  
+  settings = settings_read();
+  
+  settings_save = function() {
+    settings.burst = parseInt($('#settings #burst').val());
+    settings.overwrite_descend = parseInt($('#settings #overwrite_descend').val());
+    settings.overwrite_descend_till = parseInt($('#settings #overwrite_descend_till').val());
+    if (Number.isInteger(settings.burst) && Number.isInteger(settings.overwrite_descend) && Number.isInteger(settings.overwrite_descend_till)) {
+      settings_write(settings);
+      $("#settings").slideUp();
+      get_predict(last_data);
+    } else {
+      alert('Error: only numeric values allowed!');
+    }
+  };
+  
+  settings_reset = function() {
+    if (confirm('Reset to default?')) {
+      settings_write(settings_std);
+      show_settings();
+    }
+  };
+
+  show_settings = function() {
+    $('#settings #burst').val(settings.burst);
+    $('#settings #overwrite_descend').val(settings.overwrite_descend);
+    $('#settings #overwrite_descend_till').val(settings.overwrite_descend_till);
+    $("#settings").slideToggle();
+  };
 
   predictor = false;
   get_predict = function(data) {
     if (!data) { return; }
     var ascent = (data.climb > 0)? data.climb : 15;
-    var descent = (data.climb > 0)? 5 : data.climb * -1;
+    var descent = (data.climb > 0)? settings.overwrite_descend : data.climb * -1;
 
     var burst;
     if (data.climb > 0) {
-      burst = (data.alt > 32500)?data.alt + 500 : 32500;
+      burst = (data.alt > settings.burst )?data.alt + 100 : settings.burst;
     } else {
       burst = parseInt(data.alt) + 7;
-      if (data.alt > 12000) { descent = 6; }
+      if (data.alt > settings.overwrite_descend_till ) { descent = settings.overwrite_descend; }
     }
 
     var m = new Date();
