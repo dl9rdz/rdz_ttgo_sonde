@@ -276,6 +276,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 	}
 	Serial.println(crcok?"CRC OK":"CRC NOT OK");
 	Serial.printf(" repair: %d/%d\n", repl, repairstep);
+	if(!crcok) return 2;
 
 	if(data[1]==0x9F && data[2]==0x20) {
 		Serial.println("Decoding...");
@@ -338,7 +339,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
 		return 0;
 	}
-	return crcok?1:2;
+	return 1;
 }
 
 static uint32_t rxdata;
