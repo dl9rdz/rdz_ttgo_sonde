@@ -1,1 +1,2 @@
 use data only with valid CRC for M10
+added timeout for live.json request
