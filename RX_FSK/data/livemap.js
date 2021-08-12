@@ -218,7 +218,7 @@ headtxt = function(data,stat) {
 
   get_data = function() {
       $('#status').html('🔴');
-      $.get('live.json', function( data ) {
+      $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
         if (data.sonde) {
           draw(data.sonde);
@@ -228,7 +228,9 @@ headtxt = function(data,stat) {
         if (data.gps) {
           gps(data.gps);
         }
-      });
+        }),
+        timeout: 1000}
+     );
   };
   
   storage = (typeof(Storage) !== "undefined")?true:false;
