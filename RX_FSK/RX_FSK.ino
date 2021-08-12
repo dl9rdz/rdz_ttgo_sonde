@@ -646,7 +646,7 @@ struct st_configitems config_list[] = {
 
   /* Hardware dependeing settings */
   {"", "Hardware configuration (requires reboot)", -5, NULL},
-  {"disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341)", 0, &sonde.config.disptype},
+  {"disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342)", 0, &sonde.config.disptype},
   {"norx_timeout", "No-RX-Timeout in seconds (-1=disabled)", 0, &sonde.config.norx_timeout},
   {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
   {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
@@ -1929,6 +1929,7 @@ void setup()
       }
       axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
       axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+
       axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
       axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
@@ -3199,6 +3200,10 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
+  uint8_t realtype = s->type;
+  // config setting M10 and M20 will both decode both types, so use the real type that was decoded
+  if(TYPE_IS_METEO(realtype)) { realtype = s->subtype==1 ? STYPE_M10 : STYPE_M20; }
+
   // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds
   time_t t = s->time + s->sec;
@@ -3228,7 +3233,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information
-  if ( s->type != STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
+  if ( realtype != STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
@@ -3255,7 +3260,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   //  DFM uses UTC. Most of the other radiosondes use GPS time
   // SondeHub expect datetime to be the same time sytem as the sonde transmits as time stamp
-  if ( s->type == STYPE_RS41 || s->type == STYPE_RS92 || s->type == STYPE_M20 ) {
+  if ( realtype == STYPE_RS41 || realtype == STYPE_RS92 || realtype == STYPE_M20 ) {
     t += 18;	// convert back to GPS time from UTC time +18s
   }
 
@@ -3283,25 +3288,25 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
           "\"rssi\": %.1f,",
           version_name, version_id, conf->callsign,
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
-          manufacturer_string[s->type], s->ser,
+          manufacturer_string[realtype], s->ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
           (float)s->dir, -((float)s->rssi / 2)
          );
   w += strlen(w);
 
-  if (s->type != STYPE_M20) {
+  if (realtype != STYPE_M20) {
     sprintf(w, "\"sats\": %d,", (int)s->sats);
     w += strlen(w);
   }
 
-  if ( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H ) {
+  if ( TYPE_IS_DFM(realtype) || TYPE_IS_METEO(realtype) || realtype == STYPE_MP3H ) {
     // send frame as gps timestamp for these sonde, identical to autorx
     // For M10, this is real GPS time (seconds since Jqn 6 1980, without adjusting for leap seconds)
     // DFM and MP3H send real UTC (with leap seconds considered), so for them the frame number actually
     // is gps time plus number of leap seconds since the beginning of GPS time.
     int frame = (int)(t - 315964800);
-    if (s->type == STYPE_M10) {
+    if (realtype == STYPE_M10) {
       frame += 18;
     };
     sprintf(w, "\"frame\": %d,", frame);
@@ -3310,7 +3315,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
   w += strlen(w);
 
-  sprintf(w, "\"type\": \"%s\",", sondeTypeStrSH[s->type]);
+  sprintf(w, "\"type\": \"%s\",", sondeTypeStrSH[realtype]);
   w += strlen(w);
 
   /* if there is a subtype (DFM only) */

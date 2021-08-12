@@ -345,6 +345,8 @@ void ILI9225Display::begin() {
 		sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
 	if(_type == 3) 
 	  tft = new Arduino_ILI9341(bus, sonde.config.oled_rst);
+	else if(_type == 4) 
+	  tft = new Arduino_ILI9342(bus, sonde.config.oled_rst);
 	else 
 	  tft = new Arduino_ILI9225(bus, sonde.config.oled_rst);
 	Serial.println("ILI9225/ILI9341 init: done");
@@ -665,7 +667,7 @@ RawDisplay *Display::rdis = NULL;
 //TODO: maybe merge with initFromFile later?
 void Display::init() {
 	Serial.printf("disptype is %d\n",sonde.config.disptype);
-	if(sonde.config.disptype==1 || sonde.config.disptype==3) {
+	if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) {
 		rdis = new ILI9225Display(sonde.config.disptype);
 	} else {
 		rdis = new U8x8Display(sonde.config.disptype);
@@ -914,6 +916,7 @@ int Display::getScreenIndex(int index) {
 		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
 		break;
 	case 3:		// ILI9341
+	case 4:		// ILI9342
 		index = 4;      // landscape mode (orient=1/3)
 		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
 		break;
@@ -1035,7 +1038,7 @@ void Display::initFromFile(int index) {
 				char text[61];
 				n=sscanf(s, "%f,%f,%f", &y, &x, &w);
 				sscanf(ptr+1, "%60[^\r\n]", text);
-				if(sonde.config.disptype==1 || sonde.config.disptype==3) { x*=xscale; y*=yscale; w*=xscale; }
+				if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) { x*=xscale; y*=yscale; w*=xscale; }
 				newlayouts[idx].de[what].x = x;
 				newlayouts[idx].de[what].y = y;
 				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
@@ -1193,6 +1196,7 @@ void Display::drawID(DispEntry *de) {
 }
 void Display::drawRSSI(DispEntry *de) {
 	rdis->setFont(de->fmt);
+	// TODO.... 3/4!!!!!
 	if(sonde.config.disptype!=1) {
 		snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
 		int len=strlen(buf)-3;

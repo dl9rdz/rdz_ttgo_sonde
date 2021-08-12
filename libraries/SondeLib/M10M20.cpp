@@ -393,12 +393,14 @@ void M10M20::processM10data(uint8_t dt)
 				if(rxp==2 && dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
 				if(isM20) {
 					memcpy(sonde.si()->typestr, "M20 ", 5);
+					sonde.si()->subtype = 2;
 					if(rxp>=M20_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM20(dataptr);
 					}
 				} else {
 					memcpy(sonde.si()->typestr, "M10 ", 5);
+					sonde.si()->subtype = 1;
 					if(rxp>=M10_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM10(dataptr);
