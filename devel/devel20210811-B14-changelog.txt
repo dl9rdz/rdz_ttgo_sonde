@@ -1,2 +1,3 @@
 use data only with valid CRC for M10
 added timeout for live.json request
+tentative better compatibility with older browsers not supporting Unicode 12
