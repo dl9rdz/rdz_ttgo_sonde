@@ -1,0 +1,1 @@
+send real decoded type for M10/M20 to sondehub
