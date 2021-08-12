@@ -34,6 +34,10 @@ $(document).ready(function(){
 
   map.setView([51.163361,10.447683], 5); // Mitte DE
 
+var reddot = '<span class="ldot rbg"></span> ';
+var yellowdot = '<span class="ldot ybg"></span> ';
+var greendot = '<span class="ldot gbg"></span> ';
+
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
 var header = '';
 header += '<div id="sonde_main"><b>rdzTTGOSonde LiveMap</b><br />🎈 <b><span id="sonde_id"></span> - <span id="sonde_freq"></span> MHz - <span id="sonde_type"></span></b></div>';
@@ -57,9 +61,10 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
-  var staticon = (stat == '1')?'🟢':'🟡';
+  //var staticon = (stat == '1')?'🟢':'🟡';
+  var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
-  if ((statbar.length) > 20) { statbar = statbar.substring(0,20); }
+  if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
   if (data.lat == '0.000000') { return false; }
   if (data.id) {
     $('#sonde_id').html(data.id);
@@ -73,7 +78,7 @@ headtxt = function(data,stat) {
   }
   $('#sonde_freq').html(data.freq);
   $('#sonde_type').html(data.type);
-  $('#sonde_statbar').html(statbar);
+  $('#sonde_statbar').html('&nbsp;'+statbar);
 };
 
   map.addControl(new L.Control.Button([ { position: 'topleft', text: '🔙', href: 'index.html' } ]));
@@ -166,16 +171,19 @@ headtxt = function(data,stat) {
         dots.push(location);
         line.setLatLngs(dots);
         storage_write(data);
-        $('#status').html('🟢');
+        //$('#status').html('🟢');
+        $('#status').html(greendot);
         stat = 1;
       } else {
-        $('#status').html('🟡');
+        //$('#status').html('🟡');
+        $('#status').html(yellowdot);
         stat = 0;
       }
       headtxt(data,stat);
       last_data = data;
     } else {
-      $('#status').html('🟡');
+      //$('#status').html('🟡');
+      $('#status').html(yellowdot);
       headtxt(data,0);
     }
   };
@@ -217,13 +225,15 @@ headtxt = function(data,stat) {
   };
 
   get_data = function() {
-      $('#status').html('🔴');
+      //$('#status').html('🔴');
+      $('#status').html(reddot);
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
         if (data.sonde) {
           draw(data.sonde);
         } else {
-          setTimeout(function() {$('#status').html('🟡');},100);
+          //setTimeout(function() {$('#status').html('🟡');},100);
+          setTimeout(function() {$('#status').html(yellowdot);},100);
         }
         if (data.gps) {
           gps(data.gps);

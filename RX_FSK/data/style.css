@@ -242,3 +242,15 @@ p{
         transform-origin: 100% 100%;
     }
 }
+
+.ldot {
+  height: 1em;
+  width: 1em;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.ybg { background-color: #E0E000; }
+.gbg { background-color: green; }
+.rbg { background-color: red; }
+
