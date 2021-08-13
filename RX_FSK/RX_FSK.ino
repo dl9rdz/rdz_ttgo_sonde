@@ -663,6 +663,12 @@ struct st_configitems config_list[] = {
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
+#if 1
+  {"sx1278_ss", "SX1278 SS", 0, &sonde.config.sx1278_ss},
+  {"sx1278_miso", "SX1278 MISO", 0, &sonde.config.sx1278_miso},
+  {"sx1278_mosi", "SX1278 MOSI", 0, &sonde.config.sx1278_mosi},
+  {"sx1278_sck", "SX1278 SCK", 0, &sonde.config.sx1278_sck},
+#endif
   {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
 
 #if FEATURE_SONDEHUB
@@ -1844,6 +1850,7 @@ int scanI2Cdevice(void)
 
 extern int initlevels[40];
 
+extern xSemaphoreHandle globalLock;
 
 #ifdef ESP_MEM_DEBUG
 typedef void (*esp_alloc_failed_hook_t) (size_t size, uint32_t caps, const char * function_name);
@@ -1928,8 +1935,14 @@ void setup()
         Serial.println("AXP192 Begin FAIL");
       }
       axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-      axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-
+      if(sonde.config.type == TYPE_M5_CORE2) {
+        // Display backlight on M5 Core2
+        axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
+        axp.setDCDC3Voltage(3300);
+      } else {
+        // GPS on T-Beam, buzzer on M5 Core2
+        axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+      }
       axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
       axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
@@ -2044,9 +2057,30 @@ void setup()
   }
   // == show initial values from config.txt ========================= //
 
-#if 0
+#if 1
+
+  if(sonde.config.type == TYPE_M5_CORE2) {
+        // Core2 uses Pin 38 for MISO
+        SPI.begin(18, 38, 23, -1);
+  } else {
+        SPI.begin();
+  }
+  //Set most significant bit first
+  SPI.setBitOrder(MSBFIRST);
+  //Divide the clock frequency
+  SPI.setClockDivider(SPI_CLOCK_DIV2);
+  //Set data mode
+  SPI.setDataMode(SPI_MODE0);
+
+sx1278.setup(globalLock);
+
+uint8_t state = 2;
+int i=0;
+while(++i<3) {
+  delay(500);
   // == check the radio chip by setting default frequency =========== //
-  if (rs41.setFrequency(402700000) == 0) {
+  sx1278.ON();
+  if (sx1278.setFrequency(402700000) == 0) {
     Serial.println(F("Setting freq: SUCCESS "));
   } else {
     Serial.println(F("Setting freq: ERROR "));
@@ -2055,6 +2089,7 @@ void setup()
   Serial.print("Frequency set to ");
   Serial.println(f);
   // == check the radio chip by setting default frequency =========== //
+}
 #endif
 
   //sx1278.setLNAGain(-48);
@@ -2128,9 +2163,12 @@ void enterMode(int mode) {
     // trigger activation of background task
     // currentSonde should be set before enterMode()
     rxtask.activate = ACT_SONDE(sonde.currentSonde);
+    //
+    Serial.println("clearing and updating display");
     sonde.clearDisplay();
     sonde.updateDisplay();
   }
+  printf("enterMode ok\n");
 }
 
 static char text[40];
@@ -2511,6 +2549,7 @@ void enableNetwork(bool enable) {
     MDNS.end();
     connected = false;
   }
+  Serial.println("enableNetwork done");
 }
 
 // Events used only for debug output right now
@@ -3422,8 +3461,8 @@ void sondehub_send_next(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   client->print("\r\n");
 
   Serial.printf("%x\r\n", chunklen + 1);
-  Serial.write(first ? "[" : ",", 1);
-  Serial.write(chunk, chunklen);
+  Serial.write((const uint8_t *)(first ? "[" : ","), 1);
+  Serial.write((const uint8_t *)chunk, chunklen);
   Serial.print("\r\n");
 }
 void sondehub_send_last(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf) {

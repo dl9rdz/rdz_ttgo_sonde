@@ -1,3 +1,4 @@
+#include "../../RX_FSK/features.h"
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
@@ -23,6 +24,13 @@ extern Sonde sonde;
 extern AXP20X_Class axp;
 extern bool axp192_found;
 extern SemaphoreHandle_t axpSemaphore;
+
+extern xSemaphoreHandle globalLock;
+#define SPI_MUTEX_LOCK() \
+  do                     \
+  {                      \
+  } while (xSemaphoreTake(globalLock, portMAX_DELAY) != pdPASS)
+#define SPI_MUTEX_UNLOCK() xSemaphoreGive(globalLock)
 
 struct GpsPos gpsPos;
 
@@ -341,8 +349,15 @@ Arduino_DataBus *bus;
 		
 void ILI9225Display::begin() {
 	Serial.println("ILI9225/ILI9341 init");
-	bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
-		sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
+	// On the M5, the display and the Lora chip are on the same SPI interface (VSPI default pins),
+	// we must use the same SPI bus with correct locking 
+	if(sonde.config.type == TYPE_M5_CORE2) {
+		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
+			sonde.config.oled_scl, sonde.config.oled_sda, 38, VSPI);
+	} else {
+		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
+			sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
+	}
 	if(_type == 3) 
 	  tft = new Arduino_ILI9341(bus, sonde.config.oled_rst);
 	else if(_type == 4) 
@@ -354,10 +369,14 @@ void ILI9225Display::begin() {
         tft->fillScreen(BLACK);
 	tft->setRotation(sonde.config.tft_orient);
 	tft->setTextWrap(false);
+	if(sonde.config.type == TYPE_M5_CORE2) 
+		tft->invertDisplay(true);
 }
 
 void ILI9225Display::clear() {
+	SPI_MUTEX_LOCK();
 	tft->fillScreen(BLACK);
+	SPI_MUTEX_UNLOCK();
 }
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
@@ -412,6 +431,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	}
 	// Standard font
 	if(findex<3) {
+		SPI_MUTEX_LOCK();
 		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
 		// for gpx fonts and new library, cursor is at baseline!!
 		int h = 6; if(findex>1) h=12;
@@ -445,9 +465,11 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
         		//	tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
 			//}
 		}
+		SPI_MUTEX_UNLOCK();
 		return;
 	}
 	// GFX font
+	SPI_MUTEX_LOCK();
 	int16_t x1, y1;
 	if(1||width==WIDTH_AUTO || alignright) {
 		tft->getTextBounds(s, x, y + gfxoffsets[findex-3].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
@@ -515,10 +537,12 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	free(bitmap);
 #endif
 #endif
+	SPI_MUTEX_UNLOCK();
 }
 
 void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
+	SPI_MUTEX_LOCK();
         tft->startWrite();
         for(i=0; i<cnt*8; i++) {
                 uint8_t v = tile_ptr[i];
@@ -528,6 +552,7 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
                 }
         }
         tft->endWrite();
+	SPI_MUTEX_UNLOCK();
 #if 0
 	int i,j;
 	tft->startWrite();
@@ -545,18 +570,24 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 }
 
 void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, boolean fill) {
+	SPI_MUTEX_LOCK();
 	if(fill)
 		tft->fillTriangle(x1, y1, x2, y2, x3, y3, color);
 	else
 		tft->drawTriangle(x1, y1, x2, y2, x3, y3, color);
+	SPI_MUTEX_UNLOCK();
 }
 
 void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
+	SPI_MUTEX_LOCK();
 	tft->draw16bitRGBBitmap(x1, y1, bitmap, w, h);
+	SPI_MUTEX_UNLOCK();
 }
 
 void ILI9225Display::welcome() {
+	SPI_MUTEX_LOCK();
 	tft->fillScreen(0);
+	SPI_MUTEX_UNLOCK();
         setFont(6);
         drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);

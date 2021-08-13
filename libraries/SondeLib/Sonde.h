@@ -194,7 +194,11 @@ struct st_sondehub {
 	char email[64];
 };
 
+// to be extended
+enum { TYPE_TTGO, TYPE_M5_CORE2 };
+
 typedef struct st_rdzconfig {
+	int type;			// autodetected type, TTGO or M5_CORE2
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
@@ -212,6 +216,10 @@ typedef struct st_rdzconfig {
 	int tft_spifreq;		// SPI transfer speed (default 40M is out of spec for some TFT)
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
+	int sx1278_ss;			// SPI slave select for sx1278
+	int sx1278_miso;		// SPI MISO for sx1278
+	int sx1278_mosi;		// SPI MOSI for sx1278
+	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip

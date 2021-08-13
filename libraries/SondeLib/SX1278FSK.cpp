@@ -14,13 +14,38 @@
 #include <Sonde.h>
 #include <Display.h>
 
-SX1278FSK::SX1278FSK()
+
+#define SPI_MUTEX_LOCK() \
+  do                     \
+  {                      \
+  } while (xSemaphoreTake(_lock, portMAX_DELAY) != pdPASS)
+#define SPI_MUTEX_UNLOCK() xSemaphoreGive(_lock)
+
+SX1278FSK::SX1278FSK() {}
+
+void SX1278FSK::setup(xSemaphoreHandle lock) 
 {
-	// Initialize class variables
+	_lock = lock;
+	Serial.println("Setup sx1278");
+	if(_lock) SPI_MUTEX_LOCK();
+	digitalWrite(sonde.config.sx1278_ss, HIGH);
+	pinMode(sonde.config.sx1278_ss, OUTPUT);
+	Serial.printf("Configuing SX1278FSK SPI with miso=%d, mosi=%d, sck=%d, ss=%d\n", sonde.config.sx1278_miso,
+		sonde.config.sx1278_mosi, sonde.config.sx1278_sck, sonde.config.sx1278_ss);
+	SPI.begin(sonde.config.sx1278_sck, sonde.config.sx1278_miso, sonde.config.sx1278_mosi, -1); // no hardware CS
+	// was:  SPI.begin();
+
+	//Set most significant bit first
+	SPI.setBitOrder(MSBFIRST);
+	//Divide the clock frequency
+	SPI.setClockDivider(SPI_CLOCK_DIV2);
+	//Set data mode
+	SPI.setDataMode(SPI_MODE0);
+	if(_lock) SPI_MUTEX_UNLOCK();
 };
 
 
-static SPISettings spiset = SPISettings(40000000L, MSBFIRST, SPI_MODE0);
+static SPISettings spiset = SPISettings(10000000L, MSBFIRST, SPI_MODE0);
 
 /*
 Function: Turns the module ON.
@@ -33,19 +58,6 @@ uint8_t SX1278FSK::ON()
 	Serial.println();
 	Serial.println(F("Starting 'ON'"));
 #endif
-
-	// Powering the module
-	pinMode(SX1278_SS, OUTPUT);
-	digitalWrite(SX1278_SS, HIGH);
-
-	//Configure the MISO, MOSI, CS, SPCR.
-	SPI.begin();
-	//Set most significant bit first
-	SPI.setBitOrder(MSBFIRST);
-	//Divide the clock frequency
-	SPI.setClockDivider(SPI_CLOCK_DIV2);
-	//Set data mode
-	SPI.setDataMode(SPI_MODE0);
 
 	// Set Maximum Over Current Protection
 	state = setMaxCurrent(0x1B);
@@ -60,7 +72,6 @@ uint8_t SX1278FSK::ON()
 	{
 		return 1;
 	}
-
 	// set FSK mode
 	state = setFSK();
 	return state;
@@ -77,10 +88,12 @@ void SX1278FSK::OFF()
 	Serial.println(F("Starting 'OFF'"));
 #endif
 
-	SPI.end();
+	//SPI.end();
+#if 0
 	// Powering the module
 	pinMode(SX1278_SS,OUTPUT);
 	digitalWrite(SX1278_SS,LOW);
+#endif
 
 #if (SX1278FSK_debug_mode > 1)
 	Serial.println(F("## Setting OFF ##"));
@@ -98,15 +111,16 @@ byte SX1278FSK::readRegister(byte address)
 {
 	byte value = 0x00;
 
+	if(_lock) SPI_MUTEX_LOCK();
+	digitalWrite(sonde.config.sx1278_ss,LOW);
 	SPI.beginTransaction(spiset);
-	digitalWrite(SX1278_SS,LOW);
 
 	//delay(1);
 	bitClear(address, 7);		// Bit 7 cleared to write in registers
 	SPI.transfer(address);
 	value = SPI.transfer(0x00);
-	digitalWrite(SX1278_SS,HIGH);
 	SPI.endTransaction();
+	digitalWrite(sonde.config.sx1278_ss,HIGH);
 
 #if (SX1278FSK_debug_mode > 1)
 	if(address!=0x3F) {
@@ -118,7 +132,7 @@ byte SX1278FSK::readRegister(byte address)
 		Serial.println();
 	}
 #endif
-
+	if(_lock) SPI_MUTEX_UNLOCK();
 	return value;
 }
 
@@ -131,15 +145,16 @@ Parameters:
 */
 void SX1278FSK::writeRegister(byte address, byte data)
 {
+	if(_lock) SPI_MUTEX_LOCK();
+	digitalWrite(sonde.config.sx1278_ss,LOW);
 	SPI.beginTransaction(spiset);
-	digitalWrite(SX1278_SS,LOW);
 
 	//delay(1);
 	bitSet(address, 7);			// Bit 7 set to read from registers
 	SPI.transfer(address);
 	SPI.transfer(data);
-	digitalWrite(SX1278_SS,HIGH);
 	SPI.endTransaction();
+	digitalWrite(sonde.config.sx1278_ss,HIGH);
 
 #if (SX1278FSK_debug_mode > 1)
 	Serial.print(F("## Writing:  ##\t"));
@@ -150,7 +165,7 @@ void SX1278FSK::writeRegister(byte address, byte data)
 	Serial.print(data, HEX);
 	Serial.println();
 #endif
-
+	if(_lock) SPI_MUTEX_UNLOCK();
 }
 
 /*
@@ -867,4 +882,5 @@ void SX1278FSK::showRxRegisters()
 }
 #endif
 
+xSemaphoreHandle globalLock =xSemaphoreCreateMutex();
 SX1278FSK sx1278 = SX1278FSK();

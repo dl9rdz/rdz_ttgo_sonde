@@ -82,9 +82,14 @@ void Sonde::defaultConfig() {
 	config.power_pout = -1;
 	config.spectrum=10;
 	// Try autodetecting board type
+	config.type = TYPE_TTGO;
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
+	config.sx1278_ss = SS; // default SS pin, on all TTGOs
+	config.sx1278_miso = MISO;
+	config.sx1278_mosi = MOSI;
+	config.sx1278_sck = SCK;
 	config.oled_rst = 16;
 	config.disptype = 0;
 	config.tft_orient = 1;
@@ -103,32 +108,55 @@ void Sonde::defaultConfig() {
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
-		if(initlevels[17]==0) { // T-Beam
+		if(initlevels[17]==0) { // T-Beam or M5Stack Core2?
 			int tbeam=7;
 			if(initlevels[12]==0) {
 				tbeam = 10;
-				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
+				Serial.println("Autoconfig: looks like T-Beam 1.0 or M5Stack Core2 board");
 			} else if ( initlevels[4]==1 && initlevels[12]==1 ) {
 				tbeam = 11;
 				Serial.println("Autoconfig: looks like T-Beam 1.1 board");
 			}
 			if(tbeam == 10  || tbeam == 11) {  // T-Beam v1.0  or T-Beam v1.1
-				config.button_pin = 38;
-				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
-				// Maybe in future use as default only PWR as button2?
-				//config.button2_pin = 255;
-				config.button2_axp = 1;
-				config.gps_rxd = 34;
-				config.gps_txd = 12;
-				// Check for I2C-Display@21,22
-#define SSD1306_ADDRESS 0x3c
 				Wire.begin(21, 22);
-			    	Wire.beginTransmission(SSD1306_ADDRESS);
-    				byte err = Wire.endTransmission();
-				delay(100);  // otherwise its too fast?!
-			    	Wire.beginTransmission(SSD1306_ADDRESS);
-    				err = Wire.endTransmission();
-				if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
+#define BM8563_ADDRESS 0x51
+				Wire.beginTransmission(BM8563_ADDRESS);
+				byte err = Wire.endTransmission();
+				if(err==0) {
+					Serial.println("M5stack Core2 board detected\n");
+					config.type = TYPE_M5_CORE2;
+					config.button_pin = 255;
+					config.button2_pin = 255;
+					config.button2_axp = 1;
+					config.disptype = 4;  // ILI9342
+					config.oled_sda = 23;
+					config.oled_scl = 18;
+					config.oled_rst = -1;
+					config.tft_rs = 15;
+					config.tft_cs = 5;
+					config.screenfile = 4;
+					config.gps_rxd = 13;
+					config.gps_txd = -1;  // 14
+					config.sx1278_ss = 33;
+					config.sx1278_miso = 38;
+					config.sx1278_mosi = 23; //MOSI;
+					config.sx1278_sck = 18; // SCK;
+				} else { // some t-beam...
+				    config.button_pin = 38;
+				    config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
+				    // Maybe in future use as default only PWR as button2?
+				    //config.button2_pin = 255;
+				    config.button2_axp = 1;
+				    config.gps_rxd = 34;
+				    config.gps_txd = 12;
+				    // Check for I2C-Display@21,22
+#define SSD1306_ADDRESS 0x3c
+			    	    Wire.beginTransmission(SSD1306_ADDRESS);
+    				    err = Wire.endTransmission();
+				    delay(100);  // otherwise its too fast?!
+			    	    Wire.beginTransmission(SSD1306_ADDRESS);
+    				    err = Wire.endTransmission();
+				    if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
 					fingerprint |= 128;
 					Serial.println("no I2C display found, assuming large TFT display\n");
 					// CS=0, RST=14, RS=2, SDA=4, CLK=13
@@ -141,10 +169,11 @@ void Sonde::defaultConfig() {
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
 					config.screenfile = 2;
-				} else {
+				    } else {
 					// OLED display, pins 21,22 ok...
 					config.disptype = 0;
 					Serial.println("... with small OLED display\n");
+				    }
 				}
 			} else {
 				Serial.println("Autoconfig: looks like T-Beam v0.7 board");
@@ -270,6 +299,14 @@ void Sonde::setConfig(const char *cfg) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
 		config.gps_txd = atoi(val);
+	} else if(strcmp(cfg,"sx1278_ss")==0) {
+		config.sx1278_ss = atoi(val);
+	} else if(strcmp(cfg,"sx1278_miso")==0) {
+		config.sx1278_miso = atoi(val);
+	} else if(strcmp(cfg,"sx1278_mosi")==0) {
+		config.sx1278_mosi = atoi(val);
+	} else if(strcmp(cfg,"sx1278_sck")==0) {
+		config.sx1278_sck = atoi(val);
 	} else if(strcmp(cfg,"maxsonde")==0) {
 		config.maxsonde = atoi(val);
 		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
