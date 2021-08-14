@@ -42,15 +42,15 @@ $(document).ready(function(){
 
   map.setView([51.163361,10.447683], 5); // Mitte DE
 
-var reddot = '<span class="ldot rbg"></span> ';
-var yellowdot = '<span class="ldot ybg"></span> ';
-var greendot = '<span class="ldot gbg"></span> ';
+var reddot = '<span class="ldot rbg"></span>';
+var yellowdot = '<span class="ldot ybg"></span>';
+var greendot = '<span class="ldot gbg"></span>';
 
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
 var header = '';
 header += '<div id="sonde_main"><b>rdzTTGOSonde LiveMap</b><br />🎈 <b><span id="sonde_id"></span> - <span id="sonde_freq"></span> MHz - <span id="sonde_type"></span></b></div>';
 header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h</div>';
-header += '<div id="sonde_status"><small><span id="sonde_statbar"></span></small></div>';
+header += '<div id="sonde_status"><span id="sonde_statbar"></span></div>';
 header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
 
 header += '<label for="burst">Burst at:</label><input type="text" id="burst" maxlength="5" value="..."  /> m<br />';
@@ -69,7 +69,6 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
-  //var staticon = (stat == '1')?'🟢':'🟡';
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
@@ -95,7 +94,7 @@ headtxt = function(data,stat) {
 
   map.addControl(new L.Control.Button([ { position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' } ]));
 
-  map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '🔴', href: 'javascript:get_data();' } ]));
+  map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '', href: 'javascript:get_data();' } ]));
 
   map.addControl(new L.Control.Button([
     { position:'topright', text: '🎈', href: 'javascript:show(marker,\'marker\');' },
@@ -179,18 +178,15 @@ headtxt = function(data,stat) {
         dots.push(location);
         line.setLatLngs(dots);
         storage_write(data);
-        //$('#status').html('🟢');
         $('#status').html(greendot);
         stat = 1;
       } else {
-        //$('#status').html('🟡');
         $('#status').html(yellowdot);
         stat = 0;
       }
       headtxt(data,stat);
       last_data = data;
     } else {
-      //$('#status').html('🟡');
       $('#status').html(yellowdot);
       headtxt(data,0);
     }
@@ -233,14 +229,12 @@ headtxt = function(data,stat) {
   };
 
   get_data = function() {
-      //$('#status').html('🔴');
       $('#status').html(reddot);
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
         if (data.sonde) {
           draw(data.sonde);
         } else {
-          //setTimeout(function() {$('#status').html('🟡');},100);
           setTimeout(function() {$('#status').html(yellowdot);},100);
         }
         if (data.gps) {

@@ -244,13 +244,31 @@ p{
 }
 
 .ldot {
-  height: 1em;
-  width: 1em;
+  height: 15px;
+  width: 15px;
+	margin-top: 8px;
+	margin-left: -1px;
   border-radius: 50%;
   display: inline-block;
 }
 
-.ybg { background-color: #E0E000; }
-.gbg { background-color: green; }
-.rbg { background-color: red; }
+.ybg {
+	background-color: orange;
+	background-image: -webkit-gradient(linear, left top, left bottom, from(yellow), to(orange));
+	background-image: linear-gradient(top, yellow, orange);
+}
+.gbg {
+	background-color: green;
+	background-image: -webkit-gradient(linear, left top, left bottom, from(lime), to(green));
+	background-image: linear-gradient(top, lime, green); 
+}
+.rbg { 
+	background-color: red;
+	background-image: -webkit-gradient(linear, left top, left bottom, from(orange), to(red));
+	background-image: linear-gradient(top, orange, red); 
+}
+
+#sonde_statbar .ldot {
+	margin-right: 3px;
+}
 
