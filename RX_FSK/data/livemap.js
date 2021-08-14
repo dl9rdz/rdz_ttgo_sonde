@@ -1,3 +1,11 @@
+try {
+  var check = $(document);
+} catch (e) {
+  document.addEventListener("DOMContentLoaded", function(event) {
+    document.getElementById('map').innerHTML = '<br /><br />In order to use this functionality, there must be an internet connection.<br /><br/><a href="livemap.html">retry</a><br /><br/><a href="index.html">go back</a>';
+  });
+}
+
 $(document).ready(function(){
 
   var map = L.map('map', { attributionControl: false, zoomControl: false });
