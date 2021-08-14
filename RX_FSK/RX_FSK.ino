@@ -2,6 +2,9 @@
 
 #include "features.h"
 
+
+#include <inttypes.h>
+
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
@@ -10,6 +13,7 @@
 //#include <U8g2lib.h>
 #include <SPI.h>
 #include <Update.h>
+#include <mavlink.h>
 #include <ESPmDNS.h>
 #include <MicroNMEA.h>
 #include <Ticker.h>
@@ -2265,8 +2269,9 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
 
     if (s->validID && ((s->validPos & 0x03) == 0x03)) {
-      const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
+     // const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
       if (connected)  {
+        /*
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
         Serial.println("Sending AXUDP");
@@ -2274,14 +2279,41 @@ void loopDecoder() {
         udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
         udp.write((const uint8_t *)raw, rawlen);
         udp.endPacket();
-      }
-      if (tncclient.connected()) {
+        */
+
+        IPAddress broadcastIp;
+        broadcastIp[0] = 255;
+        broadcastIp[1] = 255;
+        broadcastIp[2] = 255;
+        broadcastIp[3] = 255;
+
+        uint8_t * buf = mavlink_send_hearhbeat(s);
+        udp.beginPacket(broadcastIp, 14550);
+        udp.write(buf, buf[1]+6+2);
+        udp.endPacket();
+
+        buf = mavlink_send_gps_set_raw(s);
+        udp.beginPacket(broadcastIp, 14550);
+        udp.write(buf, buf[1]+6+2);
+        udp.endPacket();
+
+        buf = mavlink_send_vfr_hud(s);
+        udp.beginPacket(broadcastIp, 14550);
+        udp.write(buf, buf[1]+6+2);
+        udp.endPacket();
+
+        buf = mavlink_send_attitude(s);
+        udp.beginPacket(broadcastIp, 14550);
+        udp.write(buf, buf[1]+6+2);
+        udp.endPacket();
+     }
+    /*  if (tncclient.connected() and 0) {
         Serial.println("Sending position via TCP");
         char raw[201];
         int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
-      }
+      }*/
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
@@ -2302,7 +2334,7 @@ void loopDecoder() {
 #endif
   }
   // always send data, even if not valid....
-  if (rdzclient.connected()) {
+  if (rdzclient.connected() and 0) {
     Serial.println("Sending position via TCP as rdzJSON");
     char raw[1024];
     char gps[128];
@@ -2393,8 +2425,8 @@ void loopDecoder() {
     forceReloadScreenConfig = false;
   }
   int t = millis();
-  sonde.updateDisplay();
-  Serial.printf("MAIN: updateDisplay done (after %d ms)\n", (int)(millis() - t));
+  //sonde.updateDisplay();
+  //Serial.printf("MAIN: updateDisplay done (after %d ms)\n", (int)(millis() - t));
 }
 
 void setCurrentDisplay(int value) {
