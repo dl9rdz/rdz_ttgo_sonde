@@ -2806,6 +2806,7 @@ void loopWifiScan() {
   }
   if (sonde.config.wifi == 2) { // AP mode, setup in background
     startAP();
+    enableNetwork();
     initialMode();
     return;
   }
