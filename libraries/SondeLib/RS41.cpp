@@ -757,7 +757,7 @@ int RS41::decode41(byte *data, int maxlen)
 			   uint32_t pressureMain = getint24(data, 560, p+27);
 			   uint32_t pressureRef1 = getint24(data, 560, p+30);
 			   uint32_t pressureRef2 = getint24(data, 560, p+33);
-            #if 0
+            #if 1
                Serial.printf( "External temp: tempMeasMain = %ld, tempMeasRef1 = %ld, tempMeasRef2 = %ld\n", tempMeasMain, tempMeasRef1, tempMeasRef2 );
                Serial.printf( "Rel  Humidity: humidityMain = %ld, humidityRef1 = %ld, humidityRef2 = %ld\n", humidityMain, humidityRef1, humidityRef2 );
                Serial.printf( "Humid  sensor: tempHumiMain = %ld, tempHumiRef1 = %ld, tempHumiRef2 = %ld\n", tempHumiMain, tempHumiRef1, tempHumiRef2 );
@@ -787,6 +787,36 @@ int RS41::decode41(byte *data, int maxlen)
             }
 
             if ( validHumidity && validExternalTemperature ) {
+              #if 1
+                // write complete calibration values
+                Serial.println( "************* All calibration values ********************")
+                Serial.printf( "refResistorLow: %f, refResistorHigh: %f\n", refResistorLow, refResistorHigh );
+                Serial.printf( "refCapLow: %f, refCapHigh: %f\n", refCapLow, refCapHigh );
+                for ( int i = 0; i < sizeof(taylorT); i++) {
+                  Serial.printf( "taylorT[%d]: %f\n", i, taylorT[i] );
+                }
+                Serial.printf( "calT: %f\n", calT );
+                for ( int i = 0; i < sizeof(polyT); i++) {
+                  Serial.printf( "polyT[%d]: %f\n", i, polyT[i] );
+                }
+                for ( int i = 0; i < sizeof(calibU); i++) {
+                  Serial.printf( "calibU[%d]: %f\n", i, calibU[i] );
+                }
+                for ( int i = 0; i < sizeof(matrixU) / sizeof(matrixU[0]); i++) {
+                  for ( j = 0; j < sizeof(matrixU[0]); j++)
+                    Serial.printf( "matrixU[%d,%d]: %f\n", i, matrixU[i][j] );
+                  }
+                }
+                for ( int i = 0; i < sizeof(taylorTU); i++) {
+                  Serial.printf( "taylorTU[%d]: %f\n", i, taylorTU[i] );
+                }
+                Serial.printf( "calTU: %f\n", calTU );
+                for ( int i = 0; i < sizeof(polyTrh); i++) {
+                  Serial.printf( "polyTrh[%d]: %f\n", i, polyTrh[i] );
+                }
+                Serial.println( "**********************************************************")
+              #endif
+
                sonde.si()->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
                Serial.printf("Humidity Sensor temperature = %f\n", sonde.si()->tempRHSensor );
