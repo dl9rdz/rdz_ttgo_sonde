@@ -585,7 +585,7 @@ int DFM::receiveNew() {
                         delay(2);
                 }
 	}
-	return RX_TIMEOUT;
+	return rxframes == 4 ? RX_TIMEOUT : RX_OK;
 }
 
 int DFM::receiveOld() {

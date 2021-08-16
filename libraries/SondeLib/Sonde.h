@@ -67,7 +67,7 @@ typedef struct st_sondeinfo {
         // receiver configuration
 	bool active;
         SondeType type;
-	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, maybe add 1/2 for M10/M20 as well?*/
+	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
         float freq;
         // decoded ID
 	char typestr[5];			// decoded type (use type if *typestr==0)
@@ -187,14 +187,18 @@ struct st_sondehub {
 	int chase;
 	char host[64];
 	char callsign[64];
-	char lat[20];
-	char lon[20];
+	double lat;
+	double lon;
 	char alt[20];
 	char antenna[64];
 	char email[64];
 };
 
+// to be extended
+enum { TYPE_TTGO, TYPE_M5_CORE2 };
+
 typedef struct st_rdzconfig {
+	int type;			// autodetected type, TTGO or M5_CORE2
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
@@ -209,9 +213,13 @@ typedef struct st_rdzconfig {
 	int tft_rs;			// TFT RS pin
 	int tft_cs;			// TFT CS pin
 	int tft_orient;			// TFT orientation (default: 1)
-	int tft_modeflip;		// Hack for Joerg's strange display
+	int tft_spifreq;		// SPI transfer speed (default 40M is out of spec for some TFT)
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
+	int sx1278_ss;			// SPI slave select for sx1278
+	int sx1278_miso;		// SPI MISO for sx1278
+	int sx1278_mosi;		// SPI MOSI for sx1278
+	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
@@ -227,7 +235,6 @@ typedef struct st_rdzconfig {
 	int noisefloor;			// for spectrum display
 	char mdnsname[15];		// mDNS-Name, defaults to rdzsonde
 	// receiver configuration
-	int showafc;			// show afc value in rx screen
 	int freqofs;			// frequency offset (tuner config = rx frequency + freqofs) in Hz
 	struct st_rs41config rs41;	// configuration options specific for RS41 receiver
 	struct st_rs92config rs92;
