@@ -1,1 +1,6 @@
 probably fixing #97
+livemap: internet connection check + nicer dots (#134)
+
+* Check internet connection
+
+* livemap: nicer dots - removed old emoji dots
