@@ -101,6 +101,7 @@
 ############
 # Scan display for large 2" TFT dispaly
 @ScannerTFT
+scale=30,18
 timer=-1,0,0
 key1action=D,#,F,W
 key2action=D,#,#,#

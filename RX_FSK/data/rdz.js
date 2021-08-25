@@ -6,6 +6,7 @@ stypes.set('6', 'DFM6 (old)');
 stypes.set('D', 'DFM');
 stypes.set('M', 'M10');
 stypes.set('2', 'M20');
+stypes.set('3', 'MP3H');
 
 /* Used by qrg.html in RX_FSK.ino */
 function prep() {

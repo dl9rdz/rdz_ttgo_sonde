@@ -1,4 +1,5 @@
-### screens1.txt: OLED display
+## screens3.txt: TFT display (portrait)
+## based on http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden
 # Definition of display content and action behaviour
 #
 # Timer: (view timer, rx timer, norx timer)
@@ -96,6 +97,7 @@
 #
 # for TFT display, coordinates and width are multiplied by xscale,yscale and later used in pixels
 # with scale=1,1 you can directly use pixel coordinates.  (default: xscale=13,yscale=22 => 8 lines, 16 columns)
+
 ###########
 # 
 # Default configuration for "Scanner" display:
@@ -106,17 +108,22 @@
 #   => Button press activates default receiver view, double press does nothing
 #      Mid press activates Spectrum display, long press activates Wifi scan
 # - key2 has no function
-@Scanner
+@ScannerPortrait
 timer=-1,0,0
 key1action=D,#,F,W
-key2action=D,#,#,#
+key2action=>,#,#,#
 timeaction=#,D,+
 0,0=XScan
 0,5=S#:
-0,9=T
-3,0=F MHz
-5,0=S
+0,9,4.5=T
+6,0=XHoehe 
+6,5=GH
+color=ffff00
+2,0=F MHz
+4,0=S
+color=00ff00,444444
 7,5=n
+7,0=bV
 
 ############
 # Default configuration for "Legacy" display:
@@ -130,97 +137,81 @@ timeaction=#,D,+
 # - timer actions: #,#,0
 #   (norx timer: if no signal for >20 seconds: go back to scanner mode)
 #
-@Legacy
+@LegacyPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
-0,5=f MHz
-1,8=c
-0,0=t
-1,0=is
+9,10=f
+9,0=r
+9,4=Q
+5,0=g0NCS,35,ffff00,000044,6,33ff33,5,eeaa00
+5,7=g0CCS,35,ffff00,000044,6,55ff55,5,eeaa00
+0,0=s
+0,9=is
 2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-6,0=R
-6,7=Q
+3,0=O
+color=FFFF00
+1,6=Hk km/h
+color=FF0000
+1,0=GD
+color=FFFFFF
+4,9=GH
+3,9=V
+4,0=A
 
 ############
-# Configuratoon for "Field" display (display 2)
-# similar to @Legacy, but no norx timer, and Key2 goes to display 4
-@Field
+@PeilungTFTPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
-2,0=L
-4,0=O
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
+color=ffff00,000033
+color=bbbbbb,000000
+0,2=xN Top:
+0,8=xCourse Top:
+color=ffff00,000033
+1,0=g0NCS,35,ffff00,000044,6,33ff33,5,eeaa00
+1,7=g0CCS,35,ffff00,000044,6,55ff55,5,eeaa00
+color=ffffff,000000
+6,0=xDirection:
+6,8,4=gI
+7,0=xCOG:
+7,4,4=gC
+7,8=xturn:
+7,12,4=gB
 
 ############
-# Configuration for "Field2" display (display 3)
-# similar to @Field
-@Field2
+@GPSdataTFTPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
-2,0=L
-4,0=O
-1,12=t
-0,9=f
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
-
-#############
-# Configuration for "GPS" display
-# not yet the final version, just for testing
-@GPSDIST
-timer=-1,-1,-1
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-0,0=Is
-0,9=f
-1,12=t
-2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-5,9=gC
-5,13=gB
-6,7=Q
-7,0=gV
-7,2=xd=
-7,4=gD
-7,12=gI°
+0,0=xOn-board GPS:
+1,0,8=gA
+2,0,8=gO
+3,0,8=gH
+4,0,8=gC
+5,0=xGPS vs Sonde:
+6,0,8=gD
+7,0,8=gI
+7,8,8=gB
 
 ############
-@BatteryOLED
+@BatteryTFTPortrait
 timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
-fonts=0,1
-0,0=xBat.Status:
-0,12=bS
+0,0=xBattery status:
+0,14=bS
 1,0=xBatt:
-1,6=bVV
-2,0=bCmA (charge) 
-3,0=bDmA (disch.) 
-4,0=xUSB:
-4,5=bUV
-5,5=bImA
-6,0=xTemp:
-6,5=bT C
+1,5,5=bVV
+2,0,16=bCmA(charging)
+3,0,16=bDmA(discharging)
+4.4,0=xUSB:
+4.4,5,5=bUV
+5.4,0,10=bImA
+6.4,0=xTemp:
+6.4,5,5=bT C
 

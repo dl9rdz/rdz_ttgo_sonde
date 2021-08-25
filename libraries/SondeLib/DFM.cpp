@@ -4,7 +4,7 @@
 #include "SX1278FSK.h"
 #include "Sonde.h"
 
-#define DFM_DEBUG 1
+#define DFM_DEBUG 0
 
 #if DFM_DEBUG
 #define DFM_DBG(x) x
@@ -269,6 +269,7 @@ void DFM::finddfname(uint8_t *b)
 						if(i==6) {
 							snprintf(sonde.si()->id, 10, "D%x ", id);
 							sonde.si()->validID = true;
+							sonde.si()->subtype = (st>>4)&0x0F;
 							strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 							return;
 						}
@@ -319,6 +320,7 @@ void DFM::finddfname(uint8_t *b)
 					Serial.print("\nNEW AUTOID:");
 					Serial.println(sonde.si()->id);
 					sonde.si()->validID = true;
+					sonde.si()->subtype = (st>>4)&0x0F;
 					strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
 				}
 				if(dfmstate.nameregok==i) {
@@ -390,7 +392,7 @@ static int bitCount(int x) {
     return s1;
 }
 
-static uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
+uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
 void DFM::decodeDAT(uint8_t *dat)
 {
@@ -404,7 +406,7 @@ void DFM::decodeDAT(uint8_t *dat)
 		{
 		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
 		Serial.print("UTC-msec: "); Serial.print(val);
-		sonde.si()->sec = val/1000;
+		sonde.si()->sec = (val+500)/1000;
 		uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
 		sonde.si()->sats = bitCount(tmp); // maybe!?!?!?
 		}
@@ -583,7 +585,7 @@ int DFM::receiveNew() {
                         delay(2);
                 }
 	}
-	return RX_TIMEOUT;
+	return rxframes == 4 ? RX_TIMEOUT : RX_OK;
 }
 
 int DFM::receiveOld() {

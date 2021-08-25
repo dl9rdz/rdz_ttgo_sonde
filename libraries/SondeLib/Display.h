@@ -1,4 +1,3 @@
-
 #ifndef Display_h
 #define Display_h
 
@@ -6,7 +5,7 @@
 #define FONT_SMALL 0
 
 #include <SPI.h>
-#include <TFT22_ILI9225.h>
+#include <Arduino_GFX_Library.h>
 #include <U8x8lib.h>
 #include <SPIFFS.h>
 
@@ -76,12 +75,12 @@ public:
 class U8x8Display : public RawDisplay {
 private:
 	U8X8 *u8x8 = NULL; // initialize later after reading config file
-	int _type;
+	uint8_t _type;
 	const uint8_t **fontlist;
 	int nfonts;
 
 public:
-	U8x8Display(int type = 0) { _type = type; }
+	U8x8Display(uint8_t  type = 0) { _type = type; }
 	void begin();
 	void clear();
 	void setFont(uint8_t fontindex);
@@ -95,20 +94,17 @@ public:
         void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
-class MY_ILI9225 : public TFT22_ILI9225 {
-	using TFT22_ILI9225::TFT22_ILI9225;
-public:
-	uint16_t drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color);
-	void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
-};
+typedef Arduino_GFX MY_ILI9225;
 
 class ILI9225Display : public RawDisplay {
 private:
 	uint8_t yofs=0;
 	uint8_t findex=0;
+	uint8_t _type;
 
 public:
 	MY_ILI9225 *tft = NULL; // initialize later after reading config file
+	ILI9225Display(int type = 1) { _type = type; }
 	void begin();
 	void clear();
 	void setFont(uint8_t fontindex);
@@ -152,6 +148,7 @@ private:
 		return ret;
 	}
 public:
+	static int getScreenIndex(int index);
 	void initFromFile(int index);
 
 	int layoutIdx;

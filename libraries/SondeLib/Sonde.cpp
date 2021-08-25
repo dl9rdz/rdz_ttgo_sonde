@@ -6,6 +6,7 @@
 #include "RS92.h"
 #include "DFM.h"
 #include "M10M20.h"
+#include "MP3H.h"
 #include "SX1278FSK.h"
 #include "Display.h"
 #include <Wire.h>
@@ -18,6 +19,9 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
                                "VIEWTO", "RXTO", "NORXTO", "(max)"};
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
+
+// Dependency to enum SondeType
+const char *manufacturer_string[]={"Graw", "Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Graw", "Meteo-Radiy"};
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
@@ -78,16 +82,21 @@ void Sonde::defaultConfig() {
 	config.power_pout = -1;
 	config.spectrum=10;
 	// Try autodetecting board type
+	config.type = TYPE_TTGO;
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
+	config.sx1278_ss = SS; // default SS pin, on all TTGOs
+	config.sx1278_miso = MISO;
+	config.sx1278_mosi = MOSI;
+	config.sx1278_sck = SCK;
 	config.oled_rst = 16;
 	config.disptype = 0;
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
 	config.screenfile = 1;
-	config.tft_modeflip = 0;
+	config.tft_spifreq = SPI_DEFAULT_FREQ;
 	if(initlevels[16]==0) {
 		config.oled_sda = 4;
 		config.oled_scl = 15;
@@ -99,32 +108,55 @@ void Sonde::defaultConfig() {
 	} else {
 		config.oled_sda = 21;
 		config.oled_scl = 22;
-		if(initlevels[17]==0) { // T-Beam
+		if(initlevels[17]==0) { // T-Beam or M5Stack Core2?
 			int tbeam=7;
 			if(initlevels[12]==0) {
 				tbeam = 10;
-				Serial.println("Autoconfig: looks like T-Beam 1.0 board");
+				Serial.println("Autoconfig: looks like T-Beam 1.0 or M5Stack Core2 board");
 			} else if ( initlevels[4]==1 && initlevels[12]==1 ) {
 				tbeam = 11;
 				Serial.println("Autoconfig: looks like T-Beam 1.1 board");
 			}
 			if(tbeam == 10  || tbeam == 11) {  // T-Beam v1.0  or T-Beam v1.1
-				config.button_pin = 38;
-				config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
-				// Maybe in future use as default only PWR as button2?
-				//config.button2_pin = 255;
-				config.button2_axp = 1;
-				config.gps_rxd = 34;
-				config.gps_txd = 12;
-				// Check for I2C-Display@21,22
-#define SSD1306_ADDRESS 0x3c
 				Wire.begin(21, 22);
-			    	Wire.beginTransmission(SSD1306_ADDRESS);
-    				byte err = Wire.endTransmission();
-				delay(100);  // otherwise its too fast?!
-			    	Wire.beginTransmission(SSD1306_ADDRESS);
-    				err = Wire.endTransmission();
-				if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
+#define BM8563_ADDRESS 0x51
+				Wire.beginTransmission(BM8563_ADDRESS);
+				byte err = Wire.endTransmission();
+				if(err==0) {
+					Serial.println("M5stack Core2 board detected\n");
+					config.type = TYPE_M5_CORE2;
+					config.button_pin = 255;
+					config.button2_pin = 255;
+					config.button2_axp = 1;
+					config.disptype = 4;  // ILI9342
+					config.oled_sda = 23;
+					config.oled_scl = 18;
+					config.oled_rst = -1;
+					config.tft_rs = 15;
+					config.tft_cs = 5;
+					config.screenfile = 4;
+					config.gps_rxd = 13;
+					config.gps_txd = -1;  // 14
+					config.sx1278_ss = 33;
+					config.sx1278_miso = 38;
+					config.sx1278_mosi = 23; //MOSI;
+					config.sx1278_sck = 18; // SCK;
+				} else { // some t-beam...
+				    config.button_pin = 38;
+				    config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
+				    // Maybe in future use as default only PWR as button2?
+				    //config.button2_pin = 255;
+				    config.button2_axp = 1;
+				    config.gps_rxd = 34;
+				    config.gps_txd = 12;
+				    // Check for I2C-Display@21,22
+#define SSD1306_ADDRESS 0x3c
+			    	    Wire.beginTransmission(SSD1306_ADDRESS);
+    				    err = Wire.endTransmission();
+				    delay(100);  // otherwise its too fast?!
+			    	    Wire.beginTransmission(SSD1306_ADDRESS);
+    				    err = Wire.endTransmission();
+				    if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
 					fingerprint |= 128;
 					Serial.println("no I2C display found, assuming large TFT display\n");
 					// CS=0, RST=14, RS=2, SDA=4, CLK=13
@@ -137,10 +169,11 @@ void Sonde::defaultConfig() {
 					config.tft_cs = 0;
 					config.spectrum = -1; // no spectrum for now on large display
 					config.screenfile = 2;
-				} else {
+				    } else {
 					// OLED display, pins 21,22 ok...
 					config.disptype = 0;
 					Serial.println("... with small OLED display\n");
+				    }
 				}
 			} else {
 				Serial.println("Autoconfig: looks like T-Beam v0.7 board");
@@ -181,7 +214,6 @@ void Sonde::defaultConfig() {
 	config.startfreq=400;
 	config.channelbw=10;
 	config.marker=0;
-	config.showafc=0;
 	config.freqofs=0;
 	config.rs41.agcbw=12500;
 	config.rs41.rxbw=6300;
@@ -191,6 +223,8 @@ void Sonde::defaultConfig() {
 	config.dfm.rxbw=10400;
 	config.m10m20.agcbw=20800;
 	config.m10m20.rxbw=12500;
+	config.mp3h.agcbw=12500;
+	config.mp3h.rxbw=12500;
 	config.udpfeed.active = 1;
 	config.udpfeed.type = 0;
 	strcpy(config.udpfeed.host, "192.168.42.20");
@@ -259,12 +293,20 @@ void Sonde::setConfig(const char *cfg) {
 		config.tft_cs = atoi(val);
 	} else if(strcmp(cfg,"tft_orient")==0) {
 		config.tft_orient = atoi(val);
-	} else if(strcmp(cfg,"tft_modeflip")==0) {
-		config.tft_modeflip = atoi(val);
+	} else if(strcmp(cfg,"tft_spifreq")==0) {
+		config.tft_spifreq = atoi(val);
 	} else if(strcmp(cfg,"gps_rxd")==0) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
 		config.gps_txd = atoi(val);
+	} else if(strcmp(cfg,"sx1278_ss")==0) {
+		config.sx1278_ss = atoi(val);
+	} else if(strcmp(cfg,"sx1278_miso")==0) {
+		config.sx1278_miso = atoi(val);
+	} else if(strcmp(cfg,"sx1278_mosi")==0) {
+		config.sx1278_mosi = atoi(val);
+	} else if(strcmp(cfg,"sx1278_sck")==0) {
+		config.sx1278_sck = atoi(val);
 	} else if(strcmp(cfg,"maxsonde")==0) {
 		config.maxsonde = atoi(val);
 		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
@@ -299,8 +341,6 @@ void Sonde::setConfig(const char *cfg) {
 		config.spectrum = atoi(val);
 	} else if(strcmp(cfg,"marker")==0) {
 		config.marker = atoi(val);					
-	} else if(strcmp(cfg,"showafc")==0) {
-		config.showafc = atoi(val);
 	} else if(strcmp(cfg,"freqofs")==0) {
 		config.freqofs = atoi(val);
 	} else if(strcmp(cfg,"rs41.agcbw")==0) {
@@ -311,6 +351,10 @@ void Sonde::setConfig(const char *cfg) {
 		config.m10m20.agcbw = atoi(val);
 	} else if(strcmp(cfg,"m10m20.rxbw")==0) {
 		config.m10m20.rxbw = atoi(val);
+	} else if(strcmp(cfg,"mp3h.agcbw")==0) {
+		config.mp3h.agcbw = atoi(val);
+	} else if(strcmp(cfg,"mp3h.rxbw")==0) {
+		config.mp3h.rxbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.agcbw")==0) {
 		config.dfm.agcbw = atoi(val);
 	} else if(strcmp(cfg,"dfm.rxbw")==0) {
@@ -364,7 +408,26 @@ void Sonde::setConfig(const char *cfg) {
 		strncpy(config.mqtt.password, val, 63);
 	} else if(strcmp(cfg,"mqtt.prefix")==0) {
 		strncpy(config.mqtt.prefix, val, 63);
-
+	} else if(strcmp(cfg, "sondehub.active")==0) {
+		config.sondehub.active = atoi(val);
+	} else if(strcmp(cfg,"sondehub.chase")==0) {
+		config.sondehub.chase = atoi(val);
+	} else if(strcmp(cfg, "sondehub.host")==0) {
+		strncpy(config.sondehub.host, val, 63);
+	} else if(strcmp(cfg, "sondehub.callsign")==0) {
+		strncpy(config.sondehub.callsign, val, 63);
+	} else if(strcmp(cfg, "sondehub.lat")==0) {
+		config.sondehub.lat = *val==0 ? NAN : atof(val);
+		Serial.printf("lat is %f\n", config.sondehub.lat);
+	} else if(strcmp(cfg, "sondehub.lon")==0) {
+		config.sondehub.lon = *val==0 ? NAN : atof(val);
+		Serial.printf("lon is %f\n", config.sondehub.lon);
+	} else if(strcmp(cfg, "sondehub.alt")==0) {
+		strncpy(config.sondehub.alt, val, 19);
+	} else if(strcmp(cfg, "sondehub.antenna")==0) {
+		strncpy(config.sondehub.antenna, val, 63);
+	} else if(strcmp(cfg, "sondehub.email")==0) {
+		strncpy(config.sondehub.email, val, 63);
 	} else {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
@@ -466,6 +529,9 @@ void Sonde::setup() {
 	case STYPE_M20:
 		m10m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
+	case STYPE_MP3H:
+		mp3h.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+		break;
 	}
 	// debug
 	int freq = (int)sx1278.getFrequency();
@@ -497,6 +563,9 @@ void Sonde::receive() {
 	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		res = dfm.receive();
+		break;
+	case STYPE_MP3H:
+		res = mp3h.receive();
 		break;
 	}
 
@@ -594,6 +663,9 @@ rxloop:
 	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		dfm.waitRXcomplete();
+		break;
+	case STYPE_MP3H:
+		mp3h.waitRXcomplete();
 		break;
 	}
 	memmove(sonde.si()->rxStat+1, sonde.si()->rxStat, 17);
