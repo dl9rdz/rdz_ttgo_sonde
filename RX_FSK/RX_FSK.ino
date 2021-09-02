@@ -2525,7 +2525,7 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
-    MDNS.addService("kisstnc", "tcp", 14580);
+    MDNS.addService("kiss-tnc", "tcp", 14580);
     MDNS.addService("jsonrdz", "tcp", 14570);
     if (sonde.config.kisstnc.active) {
       tncserver.begin();
@@ -2806,6 +2806,7 @@ void loopWifiScan() {
   }
   if (sonde.config.wifi == 2) { // AP mode, setup in background
     startAP();
+    enableNetwork(true);
     initialMode();
     return;
   }

@@ -215,6 +215,7 @@ extern int aprsstr_mon2kiss(const char *mon, char raw[], int raw_len)
 	if(len==0) return 0;
 	int idx=0;
 	raw[idx++] = '\xC0';
+	raw[idx++] = 0; // channel 0
 	for(int i=0; i<len-2; i++) { // -2: discard CRC, not used in KISS
 		if(tmp[i]=='\xC0') {	
 			raw[idx++] = '\xDB';
@@ -291,7 +292,7 @@ char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 	// time
 	int i = strlen(b);
 	int sec = s->time % 86400;
-	snprintf(b+i, APRS_MAXLEN-1, "%02d%02d%02dz", sec/(60*60), (sec%(60*60))/60, sec%60);
+	snprintf(b+i, APRS_MAXLEN-1, "%02d%02d%02dh", sec/(60*60), (sec%(60*60))/60, sec%60);
 	i = strlen(b);
 	//aprsstr_append_data(time, ds);
 	int lati = abs((int)s->lat);
