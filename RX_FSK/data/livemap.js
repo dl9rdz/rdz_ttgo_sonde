@@ -321,7 +321,7 @@ headtxt = function(data,stat) {
     var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
       az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
     var url = 'https://predict.cusf.co.uk/api/v1/';
-    url += '?launch_latitude='+data.lat + '&launch_longitude='+data.lon;
+    url += '?launch_latitude='+data.lat + '&launch_longitude='+fix_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
     url += '&ascent_rate='+ascent + '&burst_altitude=' + burst + '&descent_rate='+descent;
 
@@ -333,11 +333,11 @@ headtxt = function(data,stat) {
   draw_predict = function(prediction,data) {
     var ascending = prediction.prediction[0].trajectory;
     var highest = ascending[ascending.length-1];
-    var highest_location = [highest.latitude,highest.longitude];
+    var highest_location = [highest.latitude,fix_lon(highest.longitude)];
 
     var descending = prediction.prediction[1].trajectory;
     var landing = descending[descending.length-1];
-    var landing_location = [landing.latitude,landing.longitude];
+    var landing_location = [landing.latitude,fix_lon(landing.longitude)];
 
     if (!marker_landing) {
       marker_landing = L.marker(landing_location,{icon: icon_landing}).addTo(map)
@@ -353,7 +353,7 @@ headtxt = function(data,stat) {
     dots_predict=[];
 
     if (data.climb > 0) {
-      ascending.forEach(p => dots_predict.push([p.latitude,p.longitude]));
+      ascending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
 
       if (!marker_burst) {
         marker_burst = L.marker(highest_location,{icon:icon_burst}).addTo(map).bindPopup(poptxt('burst',highest),{closeOnClick:false, autoPan:false});
@@ -365,7 +365,7 @@ headtxt = function(data,stat) {
       }
     }
 
-    descending.forEach(p => dots_predict.push([p.latitude,p.longitude]));
+    descending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
     line_predict.setLatLngs(dots_predict);
 
     if (data.climb > 0) {
@@ -377,6 +377,12 @@ headtxt = function(data,stat) {
     }
     clearTimeout(predictor);
     predictor = setTimeout(function() {get_predict(last_data);}, predictor_time*1000);
+  };
+  
+  fix_lon = function(lon) {
+    if (lon > 180) { return lon - 360; }
+    if (lon < 0) { return lon + 360; }
+    return lon;
   };
 
   poptxt = function(t,i) {
