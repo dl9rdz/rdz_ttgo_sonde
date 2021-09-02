@@ -33,7 +33,8 @@ SondeHub integration has mainly been tested with RS41 and DFM.
 
 
 Support for other radiosondes that use AFSK modulation is not feasible with the TTGO hardware.
-In particular, decoding iMet radiosondes is not practical.
+In particular, decoding iMet-1/iMet-4 radiosondes is not practical (iMet-5x seems to use FSK,
+so should be feasible to implement).
 
 Adding support for LMS6 (see issue #48) and ims100 (see branch ims100) could be feasible,
 but currently I don't have plans to do add this myself. Well-tested pull requests will of
