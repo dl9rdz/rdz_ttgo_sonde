@@ -453,8 +453,8 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	}
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	// reset all data if type or frequency has changed
-	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].frequency) {
-	    memset(sondeList[nSonde], 0, sizeof(SondeInfo));
+	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].freq) {
+    	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
 	}
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].typestr[0] = 0;
