@@ -1,1 +1,8 @@
 reset sonde info if configuration is changed (corrected), version update
+livemap: fix prediction for longituade < 0 (tawhiri api uses 0..360)  (#148)
+
+* Check internet connection
+
+* livemap: nicer dots - removed old emoji dots
+
+* livemap: fix prediction for longituade < 0 (tawhiri api uses 0..360)
