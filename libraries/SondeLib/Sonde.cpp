@@ -122,6 +122,11 @@ void Sonde::defaultConfig() {
 #define BM8563_ADDRESS 0x51
 				Wire.beginTransmission(BM8563_ADDRESS);
 				byte err = Wire.endTransmission();
+				if(err) { // try again
+				  delay(400);
+				  Wire.beginTransmission(BM8563_ADDRESS);
+				  err = Wire.endTransmission();
+				}
 				if(err==0) {
 					Serial.println("M5stack Core2 board detected\n");
 					config.type = TYPE_M5_CORE2;
@@ -447,6 +452,10 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 		return;
 	}
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
+	// reset all data if type or frequency has changed
+	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].freq) {
+    	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
+	}
 	sondeList[nSonde].type = type;
 	sondeList[nSonde].typestr[0] = 0;
 	sondeList[nSonde].freq = frequency;
