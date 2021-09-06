@@ -1,0 +1,1 @@
+quite some reorg. virtual frame numbers now in decoders instead of RX_FSK. Better DFM support for sondehub. minor bugs removed, old DFM9 and DFM6 code removed, always use new DFM decoder
