@@ -211,13 +211,7 @@ void setupChannelList() {
     } else if (space[1] == 'R') {
       type = STYPE_RS92;
     }
-    else if (space[1] == '9') {
-      type = STYPE_DFM09_OLD;
-    }
-    else if (space[1] == '6') {
-      type = STYPE_DFM06_OLD;
-    }
-    else if (space[1] == 'D') {
+    else if (space[1] == 'D' || space[1] == '9' || space[1] == '6') {
       type = STYPE_DFM;
     }
     else if (space[1] == 'M') {
@@ -262,32 +256,6 @@ const char *createQRGForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
   strcat(ptr, "<script src=\"rdz.js\"/>  <script> window.onload = prep; </script></head>");
-  /*
-    strcat(ptr, "<script type=\"text/javascript\">"
-       "let stypes=new Map();"
-       "stypes.set('4', 'RS41');"
-       "stypes.set('R', 'RS92');"
-       "stypes.set('9', 'DFM9 (old)');"
-       "stypes.set('6', 'DFM6 (old)');"
-       "stypes.set('D', 'DFM');"
-       "stypes.set('M', 'M10');"
-       "stypes.set('2', 'M20');"
-       "function prep() {"
-       " var stlist=document.querySelectorAll(\"input.stype\");"
-       " for(txt of stlist){"
-       "  var val=txt.getAttribute('value'); var nam=txt.getAttribute('name'); "
-       "  var sel=document.createElement('select');"
-       "  sel.setAttribute('name',nam);"
-       "  for(stype of stypes) { "
-       "   var opt=document.createElement('option');"
-       "   opt.value=stype[0];"
-       "   opt.innerHTML=stype[1];"
-       "   if(stype[0]==val) { opt.setAttribute('selected','selected'); }"
-       "   sel.appendChild(opt);"
-       "  } txt.replaceWith(sel); } } "
-       "  window.onload = prep; "
-       "</script>");
-  */
   HTMLBODY(ptr, "qrg.html");
   //strcat(ptr, "<body><form class=\"wrapper\" action=\"qrg.html\" method=\"post\"><div class=\"content\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
   strcat(ptr, "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
@@ -349,6 +317,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *fstr = fstring.c_str();
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
+    if(*tstr=='6' || *tstr=='9') tstr="D";
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
     char typech = tstr[0];
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
@@ -499,7 +468,7 @@ void addSondeStatus(char *ptr, int i)
   const time_t t = s->time;
   ts = *gmtime(&t);
   sprintf(ptr + strlen(ptr), "<tr><td>Frame# %d, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
-          s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec);
+          s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
   if (s->type == STYPE_RS41) {
     sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
             s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame - s->crefKT));
@@ -1754,9 +1723,9 @@ void IRAM_ATTR button2ISR() {
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
-  //int x = digitalRead(button1.pin);
-  //Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
-  //Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
+  int x = digitalRead(button1.pin);
+  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+  Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
   return p;
 }
 
@@ -2074,7 +2043,6 @@ void setup()
 
 sx1278.setup(globalLock);
 
-uint8_t state = 2;
 int i=0;
 while(++i<3) {
   delay(500);
@@ -2376,7 +2344,6 @@ void loopDecoder() {
                        "\"sats\": %d,"
                        "\"validPos\": %d,"
                        "\"time\": %d,"
-                       "\"sec\": %d,"
                        "\"frame\": %d,"
                        "\"validTime\": %d,"
                        "\"rssi\": %d,"
@@ -2404,7 +2371,6 @@ void loopDecoder() {
                        s->sats,
                        s->validPos,
                        s->time,
-                       s->sec,
                        s->frame,
                        (int)s->validTime,
                        s->rssi,
@@ -3214,8 +3180,8 @@ enum SHState { SH_DISCONNECTED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, 
 SHState shState = SH_DISCONNECTED;
 time_t shStart = 0;
 
-/* Sonde.h: enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_DFM06_OLD, STYPE_MP3H }; */
-const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "DFM", "RS41", "RS92", "M10", "M20", "DFM", "MRZ" };
+/* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
+const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "M10", "M20", "MRZ" };
 const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM06",  // 0x06
                                     "PS15",   // 0x07
@@ -3246,11 +3212,11 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds
-  time_t t = s->time + s->sec;
+  time_t t = s->time;
 
   while (client->available() > 0) {
     // data is available from remote server, process it...
-    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE);
+    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE-1);
     rs_msg[cnt] = 0;
     Serial.println(rs_msg);
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
@@ -3329,7 +3295,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
           version_name, version_id, conf->callsign,
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
           manufacturer_string[realtype], s->ser,
-          ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec + s->sec,
+          ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
           (float)s->dir, -((float)s->rssi / 2)
          );
@@ -3340,19 +3306,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     w += strlen(w);
   }
 
-  if ( TYPE_IS_DFM(realtype) || TYPE_IS_METEO(realtype) || realtype == STYPE_MP3H ) {
-    // send frame as gps timestamp for these sonde, identical to autorx
-    // For M10, this is real GPS time (seconds since Jqn 6 1980, without adjusting for leap seconds)
-    // DFM and MP3H send real UTC (with leap seconds considered), so for them the frame number actually
-    // is gps time plus number of leap seconds since the beginning of GPS time.
-    int frame = (int)(t - 315964800);
-    if (realtype == STYPE_M10) {
-      frame += 18;
-    };
-    sprintf(w, "\"frame\": %d,", frame);
-  } else {
-    sprintf(w, "\"frame\": %d,", s->frame);
-  }
+  sprintf(w, "\"frame\": %d,", s->vframe);
   w += strlen(w);
 
   sprintf(w, "\"type\": \"%s\",", sondeTypeStrSH[realtype]);

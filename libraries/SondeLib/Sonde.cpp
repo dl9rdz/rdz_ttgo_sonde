@@ -526,8 +526,6 @@ void Sonde::setup() {
 	case STYPE_RS41:
 		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
@@ -568,8 +566,6 @@ void Sonde::receive() {
 	case STYPE_M20:
 		res = m10m20.receive();
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		res = dfm.receive();
 		break;
@@ -668,8 +664,6 @@ rxloop:
 	case STYPE_M20:
 		m10m20.waitRXcomplete();
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		dfm.waitRXcomplete();
 		break;

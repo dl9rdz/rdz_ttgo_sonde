@@ -280,6 +280,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 
 	if(data[1]==0x9F && data[2]==0x20) {
 		Serial.println("Decoding...");
+		SondeInfo *si = sonde.si();
 		// Its a M10
 		// getid...
 		char ids[12];
@@ -308,23 +309,23 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[9] = dez((id/10)%10);
 		ids[10] = dez(id%10);
 		ids[11] = 0;
-		strncpy(sonde.si()->ser, ids, 12);
-		sonde.si()->validID = true;
+		strncpy(si->ser, ids, 12);
+		si->validID = true;
 		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 		// position data
-		sonde.si()->lat = getint32(data+14) * DEGMUL;
-		sonde.si()->lon = getint32(data+18) * DEGMUL;
-		sonde.si()->alt = getint32(data+22) * 0.001;
+		si->lat = getint32(data+14) * DEGMUL;
+		si->lon = getint32(data+18) * DEGMUL;
+		si->alt = getint32(data+22) * 0.001;
 		float ve = getint16(data+4)*VMUL;
 		float vn = getint16(data+6)*VMUL;
-		sonde.si()->vs = getint16(data+8) * VMUL;
-		sonde.si()->hs = sqrt(ve*ve+vn*vn);
-		sonde.si()->sats = data[30];
+		si->vs = getint16(data+8) * VMUL;
+		si->hs = sqrt(ve*ve+vn*vn);
+		si->sats = data[30];
 		float dir = atan2(ve, vn)*(1.0/RAD);
 		if(dir<0) dir+=360;
-		sonde.si()->dir = dir;
-		sonde.si()->validPos = 0x3f;
+		si->dir = dir;
+		si->validPos = 0x3f;
 
  		uint32_t gpstime = getint32(data+10);
                 uint16_t gpsweek = getint16(data+32);
@@ -333,8 +334,11 @@ int M10M20::decodeframeM10(uint8_t *data) {
                         // unix epoch starts jan 1st 1970 0:00
                         // gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
                         // subtracting 86400 yields 315878400UL
-                sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
-                sonde.si()->validTime = true;
+                si->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+		// consistent with autorx, vframe is based on GPS time without the -18 seconds adjustment 
+		// for the GPS time / UTC time difference (included in 86382 above)
+		si->vframe = si->time - 315964800 + 18;
+                si->validTime = true;
 	} else {
 		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
 		return 0;
@@ -482,6 +486,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	int repl = 0;
 	bool crcok = false;
 	bool crcbok = false;
+	SondeInfo *si = sonde.si();
 	// error correction, inspired by oe5dxl's sondeudp
 	// check first block
 	uint8_t s[200];
@@ -532,9 +537,9 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	ids[6] = (char)((id/100)%10+48);
 	ids[7] = (char)((id/10)%10+48);
 	ids[8] = (char)(id%10+48);
-	strncpy(sonde.si()->id, ids, 10);
+	strncpy(si->id, ids, 10);
 	// Serial: AAB-C-DDEEE
-	char *ser = sonde.si()->ser;
+	char *ser = si->ser;
 	uint8_t tmp = data[18] & 0x7F;
 	ser[0] = (tmp/12) + '0';
 	ser[1] = ((tmp%12 + 1) / 10 ) + '0';
@@ -551,35 +556,36 @@ int M10M20::decodeframeM20(uint8_t *data) {
 
 	// TODO
 	if(crcok) {
-	sonde.si()->validID = true;
+	si->validID = true;
 	//Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 	// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 	// position data
 	// 0x1C  4 byte
-	sonde.si()->lat = getint32(data+28) * 1e-6;
+	si->lat = getint32(data+28) * 1e-6;
 	//0x20  4 byte
-	sonde.si()->lon = getint32(data+32) * 1e-6;
+	si->lon = getint32(data+32) * 1e-6;
 	//0x08  3 byte
-	sonde.si()->alt = getint24(data+8) * VMUL_M20;
+	si->alt = getint24(data+8) * VMUL_M20;
 	//0x0B  2 byte
 	//VMUL_M20 specific
 	float ve = getint16(data+11)*VMUL_M20;
 	//0x0D  2 byte
 	float vn = getint16(data+13)*VMUL_M20;
 	//0x18  2 byte
-	sonde.si()->vs = getint16(data+24) * VMUL_M20;
-	sonde.si()->hs = sqrt(ve*ve+vn*vn);
+	si->vs = getint16(data+24) * VMUL_M20;
+	si->hs = sqrt(ve*ve+vn*vn);
 	float dir = atan2(ve, vn)*(1.0/RAD);
 	if(dir<0) dir+=360;
-	sonde.si()->dir = dir;
-	sonde.si()->validPos = 0x3f;
+	si->dir = dir;
+	si->validPos = 0x3f;
 
         //0x0F  3 byte
  	uint32_t tow = getint24(data+15);
         uint16_t week = getint16(data+26);
-        sonde.si()->time = (tow+week*604800+315964800)-18;
+        si->time = (tow+week*604800+315964800)-18;
+	si->vframe = sonde.si()->time - 315964800;
                 
-        sonde.si()->validTime = true;
+        si->validTime = true;
 	}
 	return crcok?1:2;
 }
