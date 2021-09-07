@@ -21,7 +21,10 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
 // Dependency to enum SondeType
-const char *manufacturer_string[]={"Graw", "Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Graw", "Meteo-Radiy"};
+const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "M10 ", "M20 ", "MP3H" };
+const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10 ", "M20 ", "MP3-H1" };
+const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', '2', '3' };
+const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
@@ -526,8 +529,6 @@ void Sonde::setup() {
 	case STYPE_RS41:
 		rs41.setup(sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
@@ -568,8 +569,6 @@ void Sonde::receive() {
 	case STYPE_M20:
 		res = m10m20.receive();
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		res = dfm.receive();
 		break;
@@ -668,8 +667,6 @@ rxloop:
 	case STYPE_M20:
 		m10m20.waitRXcomplete();
 		break;
-	case STYPE_DFM06_OLD:
-	case STYPE_DFM09_OLD:
 	case STYPE_DFM:
 		dfm.waitRXcomplete();
 		break;

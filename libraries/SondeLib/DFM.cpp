@@ -23,8 +23,11 @@ static struct st_dfmstat {
 	uint8_t start[50];
 	uint16_t dat[50*2];
 	uint8_t cnt[50*2];
+	uint16_t good;
+	uint16_t msec;
 	uint8_t nameregok;
 	uint8_t nameregtop;
+	uint8_t lastdat;
 } dfmstate;
 
 int DFM::setup(float frequency, int type) 
@@ -60,36 +63,8 @@ int DFM::setup(float frequency, int type)
                 return 1;
         }
 
-	if(type == STYPE_DFM09_OLD || type == STYPE_DFM06_OLD) {
-        	// packet mode, old version, misses some frames because chip enables rx too late after
-		// one frame was recevied.  TODO: check if this can be fixed by changing parameters
-        	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-        	if(sx1278.setRxConf(0x1E)!=0) {
-        		DFM_DBG(Serial.println("Setting RX Config FAILED"));
-        		return 1;
-        	}
-        	// Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
-        	//char header[] = "0110.0101 0110.0110 1010.0101 1010.1010";
-        
-        	const char *SYNC=(stype==STYPE_DFM09_OLD)?"\x9A\x99\x5A\x55":"\x65\x66\xA5\xAA";
-        	if(sx1278.setSyncConf(0x53, 4, (const uint8_t *)SYNC)!=0) {
-        		DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
-        		return 1;
-        	}
-        	//if(sx1278.setPreambleDetect(0xA8)!=0) {
-        	if(sx1278.setPreambleDetect(0xAA)!=0) {
-        		DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
-        		return 1;
-        	}
-
-        	// Packet config 1: fixed len, mancecer, no crc, no address filter
-        	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-        	if(sx1278.setPacketConfig(0x28, 0x40)!=0) {
-        		DFM_DBG(Serial.println("Setting Packet config FAILED"));
-		        return 1;
-	        }
-                sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
-	} else {
+	// DFM OLD support has been removed
+	{
 	        // continuous mode
 	        // Enable auto-AFC, auto-AGC, RX Trigger by preamble  ????
                 if(sx1278.setRxConf(0x1E)!=0) {
@@ -349,39 +324,10 @@ void DFM::finddfname(uint8_t *b)
 
 void DFM::decodeCFG(uint8_t *cfg)
 {
-#if 1
 	// new ID
 	finddfname(cfg);
 	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
 	memcpy(sonde.si()->ser, sonde.si()->id+1, 9);
-#else
-	// old ID
-	static int lowid, highid, idgood=0, type=0;
-	if((cfg[0]>>4)==0x06 && type==0) {   // DFM-6 ID
-		lowid = ((cfg[0]&0x0F)<<20) | (cfg[1]<<12) | (cfg[2]<<4) | (cfg[3]&0x0f);
-		Serial.print("DFM-06 ID: "); Serial.print(lowid, HEX);
-		snprintf(sonde.si()->id, 10, "%x", lowid);
-		sonde.si()->validID = true;
-	}
-	if((cfg[0]>>4)==0x0A) {  // DMF-9 ID
-		type=9;
-		if(cfg[3]==1) {
-			lowid = (cfg[1]<<8) | cfg[2];
-			idgood |= 1;
-		} else {
-			highid = (cfg[1]<<8) | cfg[2];
-			idgood |= 2;
-		}
-		if(idgood==3) {
-			uint32_t dfmid = (highid<<16) | lowid;
-			Serial.print("DFM-09 ID: "); Serial.print(dfmid); 
-			snprintf(sonde.si()->ser, 10, "%d", dfmid);
-	                // dxlAPRS sonde number (DF6 (why??) and 5 last digits of serial number as hex number
-			snprintf(sonde.si()->id, 9, "DF6%05X", dfmid&0xfffff);
-			sonde.si()->validID = true;
-		}
-	}
-#endif
 }
 
 static int bitCount(int x) {
@@ -396,19 +342,26 @@ uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
 void DFM::decodeDAT(uint8_t *dat)
 {
+	SondeInfo *si = sonde.si();
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
+	// We can have a 8 and 0 subframe in a single frame. So do the reset only for dat>0
+	if( !(dat[6]==0 && dfmstate.lastdat==8) ) { // if we have DAT8 + DAT0, don't reset before returing the 8 frame...
+	    if(dat[6] < dfmstate.lastdat) dfmstate.good = 0; // next iteration detected
+        }
+	dfmstate.lastdat = dat[6];
+	dfmstate.good |= (1<<dat[6]);
 	switch(dat[6]) {
 	case 0:
 		Serial.print("Packet counter: "); Serial.print(dat[3]);	
-		sonde.si()->frame = dat[3];
+		si->frame = dat[3];
 		break;
 	case 1:
 		{
 		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
 		Serial.print("UTC-msec: "); Serial.print(val);
-		sonde.si()->sec = (val+500)/1000;
+		dfmstate.msec = val; 
 		uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
-		sonde.si()->sats = bitCount(tmp); // maybe!?!?!?
+		si->sats = bitCount(tmp); 
 		}
 		break;
 	case 2:
@@ -418,9 +371,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		vh = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
-		sonde.si()->lat = lat*0.0000001;
-		sonde.si()->hs = vh*0.01;
-		sonde.si()->validPos |= 0x11; 
+		si->lat = lat*0.0000001;
+		si->hs = vh*0.01;
+		si->validPos |= 0x11; 
 		}
 		break;
 	case 3:
@@ -430,9 +383,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		dir = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lon: "); Serial.print(lon*0.0000001);
 		Serial.print(", dir: "); Serial.print(dir*0.01);
-		sonde.si()->lon = lon*0.0000001;
-		sonde.si()->dir = dir*0.01;
-		sonde.si()->validPos |= 0x42;
+		si->lon = lon*0.0000001;
+		si->dir = dir*0.01;
+		si->validPos |= 0x42;
 		}
 		break;
 	case 4:
@@ -442,9 +395,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		vv = (int16_t)( ((int16_t)dat[4]<<8) | dat[5] );
 		Serial.print("GPS-height: "); Serial.print(alt*0.01);
 		Serial.print(", vv: "); Serial.print(vv*0.01);
-		sonde.si()->alt = alt*0.01;
-		sonde.si()->vs = vv*0.01;
-		sonde.si()->validPos |= 0x0C;
+		si->alt = alt*0.01;
+		si->vs = vv*0.01;
+		si->validPos |= 0x0C;
 		}
 		break;
 	case 8:
@@ -461,7 +414,14 @@ void DFM::decodeDAT(uint8_t *dat)
 		int tt = (y-1970)*365 + (y-1969)/4; // days since 1970
 		if(m<=12) { tt += MON[m]; if((y%4)==0 && m>2) tt++; }
 		tt = (tt+d-1)*(60*60*24) + h*3600 + mi*60;
-		sonde.si()->time = tt;
+		si->time = tt + dfmstate.msec/1000;
+	 	// Lets be consistent with autorx: the timestamp uses the msec value truncated to seconds,
+    		// whereas the virtual frame number for DFM uses the msec value rounded to full seconds.
+		// Actually, tt is real UTC, and the transformation to GPS seconds lacks adjusting for leap seconds
+		si->vframe = tt + (dfmstate.msec+500)/1000 - 315964800;
+		// maybe TODO: if we missed the type 0 frame, we still might caculate the right seconds from system time.
+		// but we only send time stamps to external servers (in particular to sondehub), if all
+		// required frame types have been correctly decoded, so this does not matter much.
 		}
 		break;
 	default:
@@ -538,19 +498,11 @@ int DFM::processDFMdata(uint8_t dt) {
 }
 
 int DFM::receive() {
-	if( stype == STYPE_DFM ) {
-		return receiveNew();
-	} else {
-		return receiveOld();
-	}
-}
+	int rxframes = 5;  // UP TO 5 frames, stop at type 8 frame
 
-
-int DFM::receiveNew() {
-	int rxframes = 4;
 	// tentative continuous RX version...
 	unsigned long t0 = millis();
-	while( ( millis() - t0 ) < 1000 ) {
+	while( ( millis() - t0 ) < 1300 ) {
 		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);	
                 if ( bitRead(value, 7) ) {
                         Serial.println("FIFO full");
@@ -570,38 +522,24 @@ int DFM::receiveNew() {
                         processDFMdata(data);
                         value = sx1278.readRegister(REG_IRQ_FLAGS2);
                 } else {
-#if 0
-                        if(headerDetected) {
-                                t0 = millis(); // restart timer... don't time out if header detected...
-                                headerDetected = 0;
-                        }
-#endif
                         if(haveNewFrame) {
                                 //Serial.printf("DFM::receive(): new frame complete after %ldms\n", millis()-t0);
+				Serial.printf("receive newframe: %d, good: %x\n", rxframes, dfmstate.good);
                                 haveNewFrame = 0;
 				rxframes--;
-                                if(rxframes==0) return RX_OK;
+				if(dfmstate.good & 0x100) {
+				    if(dfmstate.good & 0x11E) {
+					dfmstate.good = 0; return RX_OK;  // type 8 frame has been received
+				    } else {
+					dfmstate.good = 0; return RX_ERROR;
+				    }
+				}
+                                if(rxframes==0) return RX_ERROR;
                         }
                         delay(2);
                 }
 	}
-	return rxframes == 4 ? RX_TIMEOUT : RX_OK;
-}
-
-int DFM::receiveOld() {
-	byte data[1000];  // pending data from previous mode may write more than 33 bytes. TODO. 
-	for(int i=0; i<2; i++) {
-		sx1278.setPayloadLength(33);    // Expect 33 bytes (7+13+13 bytes)
-		sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-                //int t = millis();
-	        int e = sx1278.receivePacketTimeout(1000, data);
-	        //Serial.printf("rxPTO done after %d ms", (int)(millis()-t));
-	        if(e) { return RX_TIMEOUT; } //if timeout... return 1
-
-	        if(!(stype==STYPE_DFM09_OLD)) { for(int i=0; i<33; i++) { data[i]^=0xFF; } }
-	        decodeFrameDFM(data);
-	}
-	return RX_OK;
+	return rxframes == 5 ? RX_TIMEOUT : RX_OK;
 }
 
 int DFM::decodeFrameDFM(uint8_t *data) {

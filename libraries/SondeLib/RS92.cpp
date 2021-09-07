@@ -626,7 +626,7 @@ int RS92::waitRXcomplete() {
 	memcpy(si->id, gpx.id, 9);
 	memcpy(si->ser, gpx.id, 9);
 	si->validID = true;
-	si->frame = gpx.frnr;
+	si->vframe = si->frame = gpx.frnr;
 	si->sats = gpx.k;
         si->time = (gpx.gpssec/1000) + 86382 + gpx.week*604800 + 315878400UL;
         si->validTime = true;	

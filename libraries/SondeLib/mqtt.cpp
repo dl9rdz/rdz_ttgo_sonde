@@ -74,7 +74,6 @@ void MQTT::publishPacket(SondeInfo *s)
         "\"sats\": %d,"
         "\"validPos\": %d,"
         "\"time\": %d,"
-        "\"sec\": %d,"
         "\"frame\": %d,"
         "\"validTime\": %d,"
         "\"rssi\": %d,"
@@ -104,7 +103,6 @@ void MQTT::publishPacket(SondeInfo *s)
         s->sats,
         s->validPos,
         s->time,
-        s->sec,
         s->frame,
         (int)s->validTime,
         s->rssi,

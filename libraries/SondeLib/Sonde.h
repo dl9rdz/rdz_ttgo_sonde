@@ -53,14 +53,14 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 8
-enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_DFM06_OLD, STYPE_MP3H };
+#define NSondeTypes 6
+enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H };
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
 extern const char *manufacturer_string[NSondeTypes];
 
-#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM || (t)==STYPE_DFM09_OLD || (t)==STYPE_DFM06_OLD )
+#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 
 typedef struct st_sondeinfo {
@@ -86,8 +86,8 @@ typedef struct st_sondeinfo {
         uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old
 	// decoded GPS time
 	uint32_t time;
-	uint16_t sec;
 	uint32_t frame;
+	uint32_t vframe;		// vframe==frame if frame is unique/continous, otherweise vframe is derived from gps time
 	bool validTime;
         // RSSI from receiver
         int rssi;			// signal strength
