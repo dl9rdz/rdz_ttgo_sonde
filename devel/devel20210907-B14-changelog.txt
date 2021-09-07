@@ -1,0 +1,1 @@
+update manufacturer strings, in sync with old dfm6/9 removal
