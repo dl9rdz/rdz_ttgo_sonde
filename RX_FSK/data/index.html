@@ -6,20 +6,24 @@
   <meta charset="UTF-8">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <!-- Load an icon library to show a hamburger menu (bars) on small screens -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
 </head>
 <body>
  <div class="wrapper"><div class="header">
   <h2>rdzTTGOSonde Server</h2>
-
-<div class="tab">
-	  <button class="tablinks" onclick="selTab(event,'QRG')" id="defaultTab">QRG</button>
-	  <button class="tablinks" onclick="selTab(event,'WiFi')">WiFi</button>
-	  <button class="tablinks" onclick="selTab(event,'Data')">Data</button>
-    <button class="tablinks" onclick="document.location.href='livemap.html'">LiveMap</button>
-	  <button class="tablinks" onclick="selTab(event,'Map')">Map</button>
-	  <button class="tablinks" onclick="selTab(event,'Config')">Config</button>
-	  <button class="tablinks" onclick="selTab(event,'Control')">Control</button>
-	  <button class="tablinks" onclick="selTab(event,'About')">About</button>
+<div class="topnav" id="myTopnav">
+	<a href="#" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
+	<a href="#" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
+	<a href="#" onclick="selTab(event,'Data')" class="tablinks">Data</a>
+	<a href="#" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
+	<a href="#" onclick="selTab(event,'Map')" class="tablinks">Map</a>
+	<a href="#" onclick="selTab(event,'Config')" class="tablinks">Config</a>
+	<a href="#" onclick="selTab(event,'Control')" class="tablinks">Control</a>
+	<a href="#" onclick="selTab(event,'About')" class="tablinks">About</a>
+	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
+		<i class="fa fa-bars"></i>
+	</a>
 </div>
 </div>
 
@@ -100,6 +104,17 @@ function selTab(evt, id) {
 		var iframe = act.getElementsByTagName("iframe")[0];
 		iframe.setAttribute("src", link);
 	}
+	var x = document.getElementById("myTopnav");
+    x.className = "topnav";
+}
+/* Toggle between adding and removing the "responsive" class to topnav when the user clicks on the icon */
+function myFunction() {
+  var x = document.getElementById("myTopnav");
+  if (x.className === "topnav") {
+    x.className += " responsive";
+  } else {
+    x.className = "topnav";
+  }
 }
 document.getElementById("defaultTab").click();
 </script>
