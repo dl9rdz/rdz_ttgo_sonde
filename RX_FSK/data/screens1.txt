@@ -203,7 +203,7 @@ timeaction=#,#,#
 7,0=gV
 7,2=xd=
 7,4=gD
-7,12=gI°
+7,12=gIÂ°
 
 ############
 @BatteryOLED
@@ -211,16 +211,17 @@ timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,#
-fonts=0,1
-0,0=xBat.Status:
-0,12=bS
-1,0=xBatt:
-1,6=bVV
-2,0=bCmA (charge) 
-3,0=bDmA (disch.) 
-4,0=xUSB:
-4,5=bUV
-5,5=bImA
-6,0=xTemp:
-6,5=bT C
+fonts=1,1
+0,0=xBattery Status
+0,16=bS
+2,0=xVoltage:
+fonts=7,7
+6,10=bVV
+#2,0=bCmA (charge) 
+#3,0=bDmA (disch.) 
+#4,0=xUSB:
+#4,5=bUV
+#5,5=bImA
+#6,0=xTemp:
+#6,5=bT C
 
