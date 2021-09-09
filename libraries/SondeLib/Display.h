@@ -63,13 +63,13 @@ public:
 	virtual void clear() = 0;
 	virtual void setFont(uint8_t fontindex) = 0;
 	virtual void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) = 0;
-	virtual void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
-	virtual void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
+	virtual void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
+	virtual void drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) = 0;
 	virtual void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill) = 0;
 	virtual void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) = 0;
 	virtual void welcome() = 0;
-	virtual void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
-	virtual void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0) = 0;
+	virtual void drawIP(uint16_t x, uint16_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
+	virtual void drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0) = 0;
 };
 
 class U8x8Display : public RawDisplay {
@@ -85,13 +85,13 @@ public:
 	void clear();
 	void setFont(uint8_t fontindex);
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
-        void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
-        void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+        void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill);
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
-	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
-        void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
+	void drawIP(uint16_t x, uint16_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
 typedef Arduino_GFX MY_ILI9225;
@@ -109,13 +109,13 @@ public:
 	void clear();
 	void setFont(uint8_t fontindex);
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
-        void drawString(uint8_t x, uint8_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
-        void drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr);
+        void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr);
 	void drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, bool fill);
         void drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h);
 	void welcome();
-	void drawIP(uint8_t x, uint8_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
-        void drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
+	void drawIP(uint16_t x, uint16_t y, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
+        void drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg=0xffff, uint16_t bg=0);
 };
 
 class Display {
