@@ -1,7 +1,7 @@
 language: c
 env:
  global: 
-   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.5/tools
+   - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.6/tools
    - MKSPIFFS=/home/travis/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs
 before_install:
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"
@@ -20,9 +20,9 @@ before_install:
   - rm master.zip
   - sudo mv AsyncTCP-master /usr/local/share/arduino/libraries/AsyncTCP
   - wget https://github.com/me-no-dev/arduino-esp32fs-plugin/releases/download/1.0/ESP32FS-1.0.zip
-  - wget https://github.com/lewisxhe/AXP202X_Library/archive/v1.0.zip
-  - unzip v1.0.zip
-  - sudo mv AXP202X_Library-1.0 /usr/local/share/arduino/libraries/
+  - wget https://github.com/lewisxhe/AXP202X_Library/archive/refs/tags/V1.1.3.zip
+  - unzip V1.1.3.zip
+  - sudo mv AXP202X_Library-1.1.3 /usr/local/share/arduino/libraries/
 
   - wget https://github.com/dx168b/async-mqtt-client/archive/master.zip
   - unzip master.zip
@@ -45,10 +45,11 @@ install:
   - arduino --pref "custom_FlashFreq=ttgo-lora32-v1_80" --save-prefs
   - mkdir -p $PWD/build
   - arduino --pref "build.path=$PWD/build" --save-prefs
-  - arduino --install-boards esp32:esp32 --save-prefs
+  - arduino --install-boards esp32:esp32:1.0.6 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
   - arduino --install-library "U8g2"
   - arduino --install-library "MicroNMEA"
+  - arduino --install-library "GFX Library for Arduino"
 script:
   - arduino --board esp32:esp32:t-beam --verify $PWD/RX_FSK/RX_FSK.ino
   - find build

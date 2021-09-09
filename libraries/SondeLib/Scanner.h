@@ -9,7 +9,6 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
-
 class Scanner
 {
 private:

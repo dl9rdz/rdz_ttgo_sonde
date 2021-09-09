@@ -1,0 +1,115 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+use Data::Dumper;
+
+my $fontname = "Terminal11x16";
+## https://github.com/moononournation/Arduino_GFX/blob/master/src/Arduino_GFX.cpp: baseline = yadvance * 2 / 3
+## so we have to set yadvance = (baseline * 3 / 2).
+## baseofs is baseline offset from bottom, i.e. baseline = height - baseofs
+## so lets try... (for Terminal11x16, baseline is 14 pixel from top, height is 16)
+my $baseofs = 4;
+
+my @data;
+# read font bitmap
+while(<>) {
+   my @dt = map { $_=~/(0x..)/ ? (hex($1)) : () } split(/,/,$_);
+   push @data, @dt;
+}
+
+my $width = shift @data;
+my $height = shift @data;
+my $first = shift @data;
+my $count = shift @data;
+my $nbrows = int(($height+7)/8);
+my $charofs = $width * $nbrows + 1;
+
+## process all glyphs
+my @bitmap;
+my @glyph;
+my $bitofs = 0;
+
+#$count=2;
+
+sub optimize_glyph {
+  my $w = shift;
+  my $h = shift;
+  my $pix = shift;
+  my $xofs = 0;
+  my $yofs = 0;
+
+  # shrink 2D pixel array if possible
+  while(@$pix) {
+    if ( @{$pix->[0]} == grep { $_ == 0 } @{$pix->[0]} ) { shift(@$pix); $yofs++; $h--; }
+    else { last; }
+  }
+  while(@$pix) {
+    if ( @{$pix->[-1]} == grep { $_ == 0 } @{$pix->[-1]} ) { pop(@$pix); $h--; }
+    else { last; }
+  }
+
+  # transform 2D pixel array into compact byte sequence
+  my @all;
+  for(@$pix) { push @all, @$_; }
+  #print("pix size: ".(@all)."\n");
+  my @res;
+  while(@all) {
+    my @b = splice(@all,0,8);
+    while(@b<8) { push @b,0; }
+    my $res = 0;
+    while(@b) { $res = ($res*2) + (shift(@b)?1:0); }
+    push @res,$res;
+  }
+  return ($w, $h, \@res, $xofs, $yofs);
+}
+
+for my $c ($first .. $first+$count-1) {
+  # Convert char $c
+  my @gly = splice(@data,0,$charofs);
+  my $glywidth = shift @gly;
+  my @pixmap;
+  # print("Converting $c ($width x $height => nbrows=$nbrows)");
+  for my $x (0..$glywidth-1) {
+    for my $y (0..$height-1) {
+      my $g = $gly[$x * $nbrows + int($y/8)];
+      $pixmap[$y]->[$x] = (($g >> ($y%8))&1) ? 1 : 0;
+      #print("$x, $y : $pixmap[$y]->[$x]\n");
+    }
+  } 
+  # pixmap is now my glyph
+  my ($w, $h, $d, $xofs, $yofs) = optimize_glyph($glywidth, $height, \@pixmap);
+
+  my $glyph = {
+    "offset" => $bitofs,
+    "width" => $w,
+    "height" => $h,
+    "xadv" => $w+1,
+    "xofs" => $xofs,
+    "yofs" => -$height + $yofs + $baseofs,
+    "c" => $c,
+  };
+  push @bitmap, @$d;
+  $bitofs += @$d;
+  push @glyph, $glyph;
+
+  #print(Dumper($glyph,$d));
+}
+
+#print(Dumper(\@glyph));
+
+printf("const uint8_t %sBitmap[] = {\n", $fontname);
+while(my @bm = splice(@bitmap,0,12)) { print( "  ".join(", ", map { sprintf("0x%02X",$_) } @bm ).",\n" ); }
+print("};\n\n");
+
+printf("const GFXglyph %sGlyphs[] = {\n", $fontname);
+for my $gl (@glyph) {
+  printf("  { %5d, %3d, %3d, %3d, %4d, %4d },  // 0x%02x '%c'\n ", $gl->{"offset"}, $gl->{"width"}, $gl->{"height"},
+	$gl->{"xadv"}, $gl->{"xofs"}, $gl->{"yofs"}, $gl->{"c"}, $gl->{"c"});
+}
+print("};\n");
+
+printf("const GFXfont %sFont = {\n", $fontname);
+printf("  (uint8_t  *)%sBitmap,\n", $fontname);
+printf("  (GFXglyph *)%sGlyphs,\n", $fontname);
+printf("  0x%02X, 0x%02X, %d };\n", $first, $first+$count-1, ($height-$baseofs)*3/2); 

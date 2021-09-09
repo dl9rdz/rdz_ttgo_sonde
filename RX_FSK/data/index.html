@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>rdzTTGOsonde Server</title>
+  <title>rdzTTGOSonde Server</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta charset="UTF-8">
   <link rel="icon" href="data:,">
@@ -9,12 +9,14 @@
 </head>
 <body>
  <div class="wrapper"><div class="header">
-  <h1>RDZSonde Server</h1>
+  <h2>rdzTTGOSonde Server</h2>
 
 <div class="tab">
 	  <button class="tablinks" onclick="selTab(event,'QRG')" id="defaultTab">QRG</button>
 	  <button class="tablinks" onclick="selTab(event,'WiFi')">WiFi</button>
 	  <button class="tablinks" onclick="selTab(event,'Data')">Data</button>
+    <button class="tablinks" onclick="document.location.href='livemap.html'">LiveMap</button>
+	  <button class="tablinks" onclick="selTab(event,'Map')">Map</button>
 	  <button class="tablinks" onclick="selTab(event,'Config')">Config</button>
 	  <button class="tablinks" onclick="selTab(event,'Control')">Control</button>
 	  <button class="tablinks" onclick="selTab(event,'About')">About</button>
@@ -33,6 +35,10 @@
 	<iframe class="tci" src="" ></iframe>
 </div>
 
+<div id="Map" class="tabcontent" data-src="map.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
 <div id="Config" class="tabcontent" data-src="config.html">
 	<iframe class="tci" src="" ></iframe>
 </div>
@@ -46,7 +52,12 @@
    %VERSION_NAME%<br>
    Copyright &copy; 2019-2021 by Hansi Reiser, DL9RDZ<br>
    (version %VERSION_ID%)<br><br>
-   with contributions by Vigor and Xavier (M20 support), <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
+
+   <a href="/update.html">Check for update (requires TTGO internet connection via WiFi)</a><br><br>
+
+   with contributions by Vigor and Xavier (M20 support), 
+   <a href="https://github.com/LukePrior">Luke Prior</a> and <a href="https://github.com/oh3bsg">OH3BSG</a> (SondeHub support),
+   <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
    <a href="https://github.com/bazjo">Johannes</a>, <a href="http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden">Robert Stefanowicz</a>,
    <a href="https://github.com/puspis">Josema</a>, and probably some more people I forgot to mention here.
 
