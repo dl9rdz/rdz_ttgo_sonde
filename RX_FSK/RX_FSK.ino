@@ -632,6 +632,7 @@ struct st_configitems config_list[] = {
   {"led_pout", "LED output port", 0, &sonde.config.led_pout},
   {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
   {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
+  {"batt_adc", "Battery measurement pin", 0, &sonde.config.batt_adc},
 #if 1
   {"sx1278_ss", "SX1278 SS", 0, &sonde.config.sx1278_ss},
   {"sx1278_miso", "SX1278 MISO", 0, &sonde.config.sx1278_miso},
@@ -720,6 +721,7 @@ const char *createConfigForm() {
   HTMLBODY(ptr, "config.html");
   strcat(ptr, "<table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
+    Serial.printf("%d: %s -- %d\n", i, config_list[i].label, strlen(ptr));
     switch (config_list[i].type) {
       case -5: // Heading
         addConfigHeading(ptr, config_list[i].label);
@@ -1929,11 +1931,11 @@ void setup()
         axp.clearIRQ();
       }
       int ndevices = scanI2Cdevice();
-      if (sonde.fingerprint == 31) { pinMode(35, INPUT); }
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
       delay(500);
     }
   }
+  if (sonde.config.batt_adc>=0) { pinMode(sonde.config.batt_adc, INPUT); }
   if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
     pinMode(sonde.config.power_pout & 127, OUTPUT);
     digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);

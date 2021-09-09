@@ -89,6 +89,7 @@ void Sonde::defaultConfig() {
   	// Seems like on startup, GPIO4 is 1 on v1 boards, 0 on v2.1 boards?
 	config.gps_rxd = -1;
 	config.gps_txd = -1;
+	config.batt_adc = -1;
 	config.sx1278_ss = SS; // default SS pin, on all TTGOs
 	config.sx1278_miso = MISO;
 	config.sx1278_mosi = MOSI;
@@ -202,9 +203,11 @@ void Sonde::defaultConfig() {
 				}
 			}
 		} else {
+			// Likely a TTGO V2.1_1.6
 			config.button_pin = 2 + 128;     // GPIO2 / T2
 			config.button2_pin = 14 + 128;   // GPIO14 / T6
 			config.led_pout = 25;
+			config.batt_adc = 35; 
 		}
 	}
 	//
@@ -307,6 +310,8 @@ void Sonde::setConfig(const char *cfg) {
 		config.gps_rxd = atoi(val);
 	} else if(strcmp(cfg,"gps_txd")==0) {
 		config.gps_txd = atoi(val);
+	} else if(strcmp(cfg,"batt_adc")==0) {
+		config.batt_adc = atoi(val);
 	} else if(strcmp(cfg,"sx1278_ss")==0) {
 		config.sx1278_ss = atoi(val);
 	} else if(strcmp(cfg,"sx1278_miso")==0) {

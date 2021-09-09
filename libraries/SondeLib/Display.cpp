@@ -1560,24 +1560,20 @@ void Display::drawGPS(DispEntry *de) {
 void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
-	if(!axp192_found && sonde.fingerprint != 31) return;
-	if (!axp192_found && sonde.fingerprint == 31)
-	{
-		xSemaphoreTake(axpSemaphore, portMAX_DELAY);
+	if (!axp192_found) {
+		if (sonde.config.batt_adc<0) return;
 		switch (de->extra[0])
 		{
 		case 'V':
-				val = (float)(analogRead(35)) / 4095 * 2 * 3.3 * 1.1;
+				val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
 				snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
 			break;
 		default:
 			*buf = 0;
 		}
-		xSemaphoreGive(axpSemaphore);
 		rdis->setFont(de->fmt);
 		drawString(de, buf);
 	} else {
-
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
