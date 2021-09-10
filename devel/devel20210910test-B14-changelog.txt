@@ -1,1 +1,2 @@
 arduino esp32 2.0 w/ updated espressif board mamanger url
+back to arduino esp23 1.0.6.  version 2.0.0 has only 60k instead of 130k RAM left, too little for reliable web server operation
