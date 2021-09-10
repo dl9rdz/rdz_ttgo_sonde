@@ -216,6 +216,7 @@ typedef struct st_rdzconfig {
 	int tft_spifreq;		// SPI transfer speed (default 40M is out of spec for some TFT)
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
+	int batt_adc;			// Pin for ADC battery measurement (GPIO35 on TTGO V2.1_1.6)
 	int sx1278_ss;			// SPI slave select for sx1278
 	int sx1278_miso;		// SPI MISO for sx1278
 	int sx1278_mosi;		// SPI MOSI for sx1278
