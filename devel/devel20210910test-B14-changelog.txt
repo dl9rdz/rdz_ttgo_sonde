@@ -1,0 +1,1 @@
+arduino esp32 2.0 w/ updated espressif board mamanger url
