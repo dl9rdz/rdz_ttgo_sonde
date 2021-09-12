@@ -464,20 +464,6 @@ int M10M20::waitRXcomplete() {
 }
 
 
-#if 0
-static bool checkM20crc(uint8_t *msg, int crcpos) {
-	int i, cs, cs1;
-	cs = 0;
-	for (i = 0; i < crcpos; i++) {
-		cs = update_checkM10(cs, msg[i]);  // same for M10 and M20
-	}
-	cs = cs & 0xFFFF;
-	cs1 = (msg[crcpos] << 8) | msg[crcpos+1];
-	return (cs1 == cs);
-}
-#endif
-
-
 
 // ret: 1=frame ok; 2=frame with errors; 0=ignored frame (m20dop-alternativ)
 int M10M20::decodeframeM20(uint8_t *data) {
@@ -590,63 +576,5 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	return crcok?1:2;
 }
 
-#if 0
-//// same as for M10
-// search for
-// //101001100110011010011010011001100110100110101010100110101001
-// //1010011001100110100110100110 0110.0110 1001.1010 1010.1001 1010.1001 => 0x669AA9A9
-void M10M20::processM20data(uint8_t dt)
-{
-	for(int i=0; i<8; i++) {
-		uint8_t d = (dt&0x80)?1:0;
-		dt <<= 1;
-		rxdata = (rxdata<<1) | d;
-		//uint8_t value = ((rxdata>>1)^rxdata)&0x01;
-		//if((rxbitc&1)==1) { rxbyte = (rxbyte>>1) + ((value)<<8); } // mancester decoded data
-		//rxbyte = (rxbyte>>1) | (d<<8);
-		if( (rxbitc&1)==0 ) {
-			// "bit1"
-			rxbyte = (rxbyte<<1) | d;
-		} else {
-			// "bit2" ==> 01 or 10 => 1, otherweise => 0
-			rxbyte = rxbyte ^ d;
-		}
-		//
-		if(rxsearching) {
-			if( rxdata == 0xcccca64c || rxdata == 0x333359b3 ) {
-				rxsearching = false;
-				rxbitc = 0;
-				rxp = 0;
-#if 1
-                                int rssi=sx1278.getRSSI();
-                                int fei=sx1278.getFEI();
-                                int afc=sx1278.getAFC();
-                                Serial.print("Test: RSSI="); Serial.print(rssi);
-                                Serial.print(" FEI="); Serial.print(fei);
-                                Serial.print(" AFC="); Serial.println(afc);
-                                sonde.si()->rssi = rssi;
-                                sonde.si()->afc = afc;
-#endif
-			}
-		} else {
-			rxbitc = (rxbitc+1)%16; // 16;
-			if(rxbitc == 0) { // got 8 data bit
-				//Serial.printf("%03x ",rxbyte);
-				dataptr[rxp++] = rxbyte&0xff; // (rxbyte>>1)&0xff;
-#if 0
-				if(rxp==7 && dataptr[6] != 0x65) {
-					Serial.printf("wrong start: %02x\n",dataptr[6]);
-					rxsearching = true;
-				}
-#endif
-				if(rxp>=M20_FRAMELEN) {
-					rxsearching = true;
-					haveNewFrame = decodeframeM20(dataptr);
-				}
-			}
-		}
-	}
-}
-#endif
 
 M10M20 m10m20 = M10M20();

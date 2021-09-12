@@ -137,8 +137,8 @@ private:
 	static const char *trim(char *s) {
 		char *ret = s;
 		while(*ret && isspace(*ret)) { ret++; }
-		int lastidx;
 		while(1) {
+			int lastidx;
 			lastidx = strlen(ret)-1;
 			if(lastidx>=0 && isspace(ret[lastidx]))
 				ret[lastidx] = 0;

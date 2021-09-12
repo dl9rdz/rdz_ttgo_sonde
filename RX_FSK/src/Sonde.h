@@ -224,7 +224,6 @@ typedef struct st_rdzconfig {
 	// software configuration
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
-	int wifiap;				// enable/disable WiFi AccessPoint mode 0=disable
 	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
@@ -246,13 +245,25 @@ typedef struct st_rdzconfig {
 	// data feed configuration
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign
-	char passcode[9];		// APRS passcode
+	int passcode;		// APRS passcode
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 	struct st_mqtt mqtt;
 	struct st_sondehub sondehub;
 } RDZConfig;
+
+
+struct st_configitems {
+  const char *name;
+  const char *label;
+  int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
+  void *data;
+};
+
+// defined in RX_FSK.ino
+extern struct st_configitems config_list[];
+extern const int N_CONFIG;
 
 
 #define MAXSONDE 99
@@ -288,11 +299,6 @@ public:
 	void setup();
 	void receive();
 	uint16_t waitRXcomplete();
-	/* old and temp interface */
-#if 0
-	void processRXbyte(uint8_t data);
-	int  receiveFrame();
-#endif
 
 	SondeInfo *si();
 
