@@ -298,6 +298,7 @@ static void getmp3htime(uint8_t *buf) {
 	}
 	tt += gpstime;
 	si->time = tt;
+	si->vframe = tt - 315964800;
 	Serial.printf(" mp3h TIMESTAMP: %d\n", tt);
 }
 

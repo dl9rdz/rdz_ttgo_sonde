@@ -35,8 +35,6 @@
 
 #define SX1278FSK_debug_mode 0
 
-#define SX1278_SS SS
-
 //! MACROS //
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)  // read a bit
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))    // set bit to '1'
@@ -171,7 +169,9 @@ class SX1278FSK
 {
 public:
 	// class constructor
-   	SX1278FSK();
+  	SX1278FSK();
+
+	void setup(xSemaphoreHandle lock);
    	
 	// Turn on SX1278 module (return 0 on sucess, 1 otherwise)
 	uint8_t ON();
@@ -256,7 +256,7 @@ public:
 	// Receive a packet
         uint8_t receivePacketTimeout(uint32_t wait, byte *data);
 
-
+	xSemaphoreHandle _lock = NULL;
 
 #if 0
 	//! It gets the internal temperature of the module.

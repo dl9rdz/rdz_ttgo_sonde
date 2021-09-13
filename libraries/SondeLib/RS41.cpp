@@ -686,7 +686,7 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print("#");
 			uint16_t fnr = data[p]+(data[p+1]<<8);
 			Serial.print(fnr);
-			sonde.si()->frame = fnr;
+			sonde.si()->vframe = sonde.si()->frame = fnr;
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);

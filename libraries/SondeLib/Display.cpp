@@ -1,3 +1,4 @@
+#include "../../RX_FSK/features.h"
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
@@ -15,6 +16,7 @@ extern const char *version_id;
 #include <fonts/FreeMono12pt7b.h>
 #include <fonts/FreeSans9pt7b.h>
 #include <fonts/FreeSans12pt7b.h>
+#include <fonts/FreeSans18pt7b.h>
 #include <fonts/Picopixel.h>
 #include <fonts/Terminal11x16.h>
 
@@ -24,13 +26,16 @@ extern AXP20X_Class axp;
 extern bool axp192_found;
 extern SemaphoreHandle_t axpSemaphore;
 
+extern xSemaphoreHandle globalLock;
+#define SPI_MUTEX_LOCK() \
+  do                     \
+  {                      \
+  } while (xSemaphoreTake(globalLock, portMAX_DELAY) != pdPASS)
+#define SPI_MUTEX_UNLOCK() xSemaphoreGive(globalLock)
+
 struct GpsPos gpsPos;
 
 //SPIClass spiDisp(HSPI);
-
-const char *sondeTypeStr[NSondeTypes] = { "DFM ", "DFM9", "RS41", "RS92", "M10 ", "M20 ", "DFM6", "MP3H" };
-const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "DFM9 (old)", "RS41", "RS92", "M10 ", "M20 ", "DFM6 (old)", "MP3-H1" };
-const char sondeTypeChar[NSondeTypes] = { 'D', '9', '4', 'R', 'M', '2', '6', '3' };
 
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
@@ -248,11 +253,11 @@ void U8x8Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip
 	if(colskip) *colskip = 1;
 }
 
-void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	u8x8->drawString(x, y, s);
 }
 
-void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void U8x8Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
 	u8x8->drawTile(x, y, cnt, tile_ptr);
 }
 
@@ -274,7 +279,7 @@ void U8x8Display::welcome() {
 }
 
 static String previp;
-void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawIP(uint16_t x, uint16_t y, int16_t width, uint16_t fg, uint16_t bg) {
 	if(!previp.equals(sonde.ipaddr)) {
 		// ip address has changed
 		// create tiles
@@ -301,7 +306,7 @@ void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint1
 }
 
 // len must be multiple of 2, size is fixed for u8x8 display
-void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	for(int i=0; i<len; i+=2) {
 	        uint8_t tile[8];
 	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
@@ -317,6 +322,7 @@ const GFXfont *gfl[] = {
 	&FreeSans9pt7b,		// 5
 	&FreeSans12pt7b,	// 6
 	&Picopixel,             // 7
+	&FreeSans18pt7b,        // 8
 };
 struct gfxoffset_t {
 	uint8_t yofs, yclear;
@@ -341,10 +347,19 @@ Arduino_DataBus *bus;
 		
 void ILI9225Display::begin() {
 	Serial.println("ILI9225/ILI9341 init");
-	bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
-		sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
+	// On the M5, the display and the Lora chip are on the same SPI interface (VSPI default pins),
+	// we must use the same SPI bus with correct locking 
+	if(sonde.config.type == TYPE_M5_CORE2) {
+		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
+			sonde.config.oled_scl, sonde.config.oled_sda, 38, VSPI);
+	} else {
+		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
+			sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
+	}
 	if(_type == 3) 
 	  tft = new Arduino_ILI9341(bus, sonde.config.oled_rst);
+	else if(_type == 4) 
+	  tft = new Arduino_ILI9342(bus, sonde.config.oled_rst);
 	else 
 	  tft = new Arduino_ILI9225(bus, sonde.config.oled_rst);
 	Serial.println("ILI9225/ILI9341 init: done");
@@ -352,10 +367,14 @@ void ILI9225Display::begin() {
         tft->fillScreen(BLACK);
 	tft->setRotation(sonde.config.tft_orient);
 	tft->setTextWrap(false);
+	if(sonde.config.type == TYPE_M5_CORE2) 
+		tft->invertDisplay(true);
 }
 
 void ILI9225Display::clear() {
+	SPI_MUTEX_LOCK();
 	tft->fillScreen(BLACK);
+	SPI_MUTEX_UNLOCK();
 }
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
@@ -401,7 +420,7 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 
 // Note: alignright means that there is a box from x to x+(-width), with text right-justified
 //       x is the *left* corner! not the right...
-void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
 	if(width<0) {
@@ -410,6 +429,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	}
 	// Standard font
 	if(findex<3) {
+		SPI_MUTEX_LOCK();
 		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
 		// for gpx fonts and new library, cursor is at baseline!!
 		int h = 6; if(findex>1) h=12;
@@ -443,9 +463,11 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
         		//	tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
 			//}
 		}
+		SPI_MUTEX_UNLOCK();
 		return;
 	}
 	// GFX font
+	SPI_MUTEX_LOCK();
 	int16_t x1, y1;
 	if(1||width==WIDTH_AUTO || alignright) {
 		tft->getTextBounds(s, x, y + gfxoffsets[findex-3].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
@@ -513,10 +535,12 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	free(bitmap);
 #endif
 #endif
+	SPI_MUTEX_UNLOCK();
 }
 
-void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void ILI9225Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
+	SPI_MUTEX_LOCK();
         tft->startWrite();
         for(i=0; i<cnt*8; i++) {
                 uint8_t v = tile_ptr[i];
@@ -526,6 +550,7 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
                 }
         }
         tft->endWrite();
+	SPI_MUTEX_UNLOCK();
 #if 0
 	int i,j;
 	tft->startWrite();
@@ -543,18 +568,24 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
 }
 
 void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, boolean fill) {
+	SPI_MUTEX_LOCK();
 	if(fill)
 		tft->fillTriangle(x1, y1, x2, y2, x3, y3, color);
 	else
 		tft->drawTriangle(x1, y1, x2, y2, x3, y3, color);
+	SPI_MUTEX_UNLOCK();
 }
 
 void ILI9225Display::drawBitmap(uint16_t x1, uint16_t y1, const uint16_t* bitmap, int16_t w, int16_t h) {
+	SPI_MUTEX_LOCK();
 	tft->draw16bitRGBBitmap(x1, y1, bitmap, w, h);
+	SPI_MUTEX_UNLOCK();
 }
 
 void ILI9225Display::welcome() {
+	SPI_MUTEX_LOCK();
 	tft->fillScreen(0);
+	SPI_MUTEX_UNLOCK();
         setFont(6);
         drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);
@@ -570,7 +601,7 @@ void ILI9225Display::welcome() {
        	drawString(0, l+2*22, "by Hansi, DL9RDZ");
 }
 
-void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawIP(uint16_t x, uint16_t y, int16_t width, uint16_t fg, uint16_t bg) {
 	char buf[20];
 	if(sonde.isAP) strcpy(buf, "A "); else *buf=0;   
 	strncat(buf, sonde.ipaddr.c_str(), 16);
@@ -578,7 +609,7 @@ void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, ui
 }
 
 // size: 3=> 3x5 symbols; 4=> 4x7 symbols
-void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	if(size<3) size=3;
 	if(size>4) size=4;
 	const uint16_t width = len*(size+1);
@@ -605,7 +636,7 @@ void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uin
 #if 1
 #else
 // TO BE REMOVED
-void MY_ILI9225::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void MY_ILI9225::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
         startWrite();
         for(i=0; i<cnt*8; i++) {
@@ -665,7 +696,7 @@ RawDisplay *Display::rdis = NULL;
 //TODO: maybe merge with initFromFile later?
 void Display::init() {
 	Serial.printf("disptype is %d\n",sonde.config.disptype);
-	if(sonde.config.disptype==1 || sonde.config.disptype==3) {
+	if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) {
 		rdis = new ILI9225Display(sonde.config.disptype);
 	} else {
 		rdis = new U8x8Display(sonde.config.disptype);
@@ -914,6 +945,7 @@ int Display::getScreenIndex(int index) {
 		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
 		break;
 	case 3:		// ILI9341
+	case 4:		// ILI9342
 		index = 4;      // landscape mode (orient=1/3)
 		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
 		break;
@@ -1035,7 +1067,7 @@ void Display::initFromFile(int index) {
 				char text[61];
 				n=sscanf(s, "%f,%f,%f", &y, &x, &w);
 				sscanf(ptr+1, "%60[^\r\n]", text);
-				if(sonde.config.disptype==1 || sonde.config.disptype==3) { x*=xscale; y*=yscale; w*=xscale; }
+				if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) { x*=xscale; y*=yscale; w*=xscale; }
 				newlayouts[idx].de[what].x = x;
 				newlayouts[idx].de[what].y = y;
 				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
@@ -1193,6 +1225,7 @@ void Display::drawID(DispEntry *de) {
 }
 void Display::drawRSSI(DispEntry *de) {
 	rdis->setFont(de->fmt);
+	// TODO.... 3/4!!!!!
 	if(sonde.config.disptype!=1) {
 		snprintf(buf, 16, "-%d   ", sonde.si()->rssi/2);
 		int len=strlen(buf)-3;
@@ -1307,6 +1340,15 @@ void Display::drawKilltimer(DispEntry *de) {
 #define FAKEGPS 0
 
 extern int lastCourse; // from RX_FSK.ino
+
+
+float calcLatLonDist(float lat1, float lon1, float lat2, float lon2) {
+        float x = radians(lon1-lon2) * cos( radians((lat1+lat2)/2) );
+        float y = radians(lat2-lat1);
+        float d = sqrt(x*x+y*y)*EARTH_RADIUS;
+	return d;
+}
+
 void Display::calcGPS() {
 	// base data
 #if 0
@@ -1338,12 +1380,7 @@ static int tmpc=0;
 #endif
 	// distance
 	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-        	float lat1 = gpsPos.lat;
-        	float lat2 = sonde.si()->lat;
-        	float x = radians(gpsPos.lon-sonde.si()->lon) * cos( radians((lat1+lat2)/2) );
-        	float y = radians(lat2-lat1);
-        	float d = sqrt(x*x+y*y)*EARTH_RADIUS;
-		gpsDist = (int)d;
+		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->lat, sonde.si()->lon);
 	} else {
 		gpsDist = -1;
 	}
@@ -1523,8 +1560,20 @@ void Display::drawGPS(DispEntry *de) {
 void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
-	if(!axp192_found) return;
-
+	if (!axp192_found) {
+		if (sonde.config.batt_adc<0) return;
+		switch (de->extra[0])
+		{
+		case 'V':
+				val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+				snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
+			break;
+		default:
+			*buf = 0;
+		}
+		rdis->setFont(de->fmt);
+		drawString(de, buf);
+	} else {
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
@@ -1565,6 +1614,7 @@ void Display::drawBatt(DispEntry *de) {
 	xSemaphoreGive( axpSemaphore );
         rdis->setFont(de->fmt);
 	drawString(de, buf);
+	}
 }
 
 void Display::drawText(DispEntry *de) {

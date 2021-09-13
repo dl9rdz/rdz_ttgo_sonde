@@ -53,21 +53,21 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 8
-enum SondeType { STYPE_DFM, STYPE_DFM09_OLD, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_DFM06_OLD, STYPE_MP3H };
+#define NSondeTypes 6
+enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H };
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
 extern const char *manufacturer_string[NSondeTypes];
 
-#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM || (t)==STYPE_DFM09_OLD || (t)==STYPE_DFM06_OLD )
+#define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 
 typedef struct st_sondeinfo {
         // receiver configuration
 	bool active;
         SondeType type;
-	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, maybe add 1/2 for M10/M20 as well?*/
+	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
         float freq;
         // decoded ID
 	char typestr[5];			// decoded type (use type if *typestr==0)
@@ -86,8 +86,8 @@ typedef struct st_sondeinfo {
         uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old
 	// decoded GPS time
 	uint32_t time;
-	uint16_t sec;
 	uint32_t frame;
+	uint32_t vframe;		// vframe==frame if frame is unique/continous, otherweise vframe is derived from gps time
 	bool validTime;
         // RSSI from receiver
         int rssi;			// signal strength
@@ -187,14 +187,18 @@ struct st_sondehub {
 	int chase;
 	char host[64];
 	char callsign[64];
-	char lat[20];
-	char lon[20];
+	double lat;
+	double lon;
 	char alt[20];
 	char antenna[64];
 	char email[64];
 };
 
+// to be extended
+enum { TYPE_TTGO, TYPE_M5_CORE2 };
+
 typedef struct st_rdzconfig {
+	int type;			// autodetected type, TTGO or M5_CORE2
 	// hardware configuration
 	int button_pin;			// PIN port number menu button (+128 for touch mode)
 	int button2_pin;		// PIN port number menu button (+128 for touch mode)
@@ -212,6 +216,11 @@ typedef struct st_rdzconfig {
 	int tft_spifreq;		// SPI transfer speed (default 40M is out of spec for some TFT)
 	int gps_rxd;			// GPS module RXD pin. We expect 9600 baud NMEA data.
 	int gps_txd;			// GPS module TXD pin
+	int batt_adc;			// Pin for ADC battery measurement (GPIO35 on TTGO V2.1_1.6)
+	int sx1278_ss;			// SPI slave select for sx1278
+	int sx1278_miso;		// SPI MISO for sx1278
+	int sx1278_mosi;		// SPI MOSI for sx1278
+	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
 	int wifi;				// connect to known WLAN 0=skip
