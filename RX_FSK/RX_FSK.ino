@@ -3156,7 +3156,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   else if (chase == SH_LOC_FIXED) {
     if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
       sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s],",
+              "\"uploader_position\": [%.6f,%.6f,%s]",
               conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
       w += strlen(w);
     }
@@ -3367,7 +3367,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   else if (chase == SH_LOC_FIXED) {
     if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
       sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s],",
+              "\"uploader_position\": [%.6f,%.6f,%s]",
               conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
       w += strlen(w);
     }
