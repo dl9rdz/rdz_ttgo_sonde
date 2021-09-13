@@ -11,8 +11,8 @@
 
 #include "SX1278FSK.h"
 #include "SPI.h"
-#include <Sonde.h>
-#include <Display.h>
+#include "Sonde.h"
+#include "Display.h"
 
 
 #define SPI_MUTEX_LOCK() \
@@ -667,7 +667,7 @@ int8_t SX1278FSK::setMaxCurrent(uint8_t rate)
 		// Enable Over Current Protection
 		rate |= B00100000;
 
-		state = 1;
+		//state = 1;
 		st0 = readRegister(REG_OP_MODE);	// Save the previous status
 		writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);	// Set FSK Standby mode to write in registers
 		writeRegister(REG_OCP, rate);		// Modifying maximum current supply

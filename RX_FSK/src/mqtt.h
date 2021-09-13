@@ -13,7 +13,6 @@ public:
     TimerHandle_t mqttReconnectTimer;
     IPAddress ip;
     uint16_t port;
-    const char *id;
     const char *username;
     const char *password;
     const char *prefix;

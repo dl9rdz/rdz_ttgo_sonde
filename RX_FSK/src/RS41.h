@@ -25,6 +25,7 @@ private:
 	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
 	int decode41(byte *data, int maxlen);
 
+#if 0
 #define B 8
 #define S 4
 	uint8_t hamming_conf[ 7*B];  //  7*8=56
@@ -41,6 +42,7 @@ private:
               { 1, 1, 0, 1, 0, 0, 1, 0},
               { 1, 1, 1, 0, 0, 0, 0, 1}};
 	uint8_t He[8] = { 0x7, 0xB, 0xD, 0xE, 0x8, 0x4, 0x2, 0x1};  // Spalten von H:
+#endif
                                                             // 1-bit-error-Syndrome
 	boolean initialized = false;
 

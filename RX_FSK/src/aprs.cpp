@@ -235,28 +235,11 @@ extern int aprsstr_mon2kiss(const char *mon, char raw[], int raw_len)
 #define FEET (1.0/0.3048)
 #define KNOTS (1.851984)
 
-#define X2C_max_longcard		0xFFFFFFFFUL
-static uint32_t X2C_TRUNCC(double x, uint32_t min0, uint32_t max0)
-{
-        uint32_t i;
-
-        if (x < (double)min0)
-                i = (uint32_t)min0;
-        if (x > (double)max0)
-                i = (uint32_t)max0;
-
-        i = (uint32_t)x;
-        if ((double)i > x)
-                --i;
-        return i;
-}
-
-
 static uint32_t truncc(double r)
 {
    if (r<=0.0) return 0UL;
    else if (r>=2.E+9) return 2000000000UL;
-   else return (uint32_t)X2C_TRUNCC(r,0UL,X2C_max_longcard);
+   else return (uint32_t)r;
    return 0;
 } /* end truncc() */
 
@@ -273,7 +256,7 @@ static uint32_t dao91(double x)
 
 
 char b[201];
-char raw[201];
+//char raw[201];
 
 char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 // float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym, const char *comm)
@@ -310,11 +293,10 @@ char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 		i=strlen(b);
 		snprintf(b+i, APRS_MAXLEN-i, "/A=%06d", realcard(s->alt*FEET+0.5));
 	}
-	int dao=1;
-	if(dao) {
-		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(s->lat), 33+dao91(s->lon));
-	}
+	// always use DAO
+	i=strlen(b);
+	snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(s->lat), 33+dao91(s->lon));
+
 	strcat(b, "&");
 	char comm[100];
         snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, s->freq, sondeTypeStr[s->type]);
