@@ -3149,8 +3149,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
               "\"uploader_position\": [%.6f,%.6f,%d],"
               "\"mobile\": true",
               gpsPos.lat, gpsPos.lon, gpsPos.alt);
-      w += strlen(w);
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
   // Otherweise, in FIXED mode we send the fixed position from config (if specified)
   else if (chase == SH_LOC_FIXED) {
@@ -3158,8 +3160,10 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
       sprintf(w,
               "\"uploader_position\": [%.6f,%.6f,%s]",
               conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
-      w += strlen(w);
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
 
   // otherwise (in SH_LOC_NONE mode) we dont include any position info
@@ -3360,8 +3364,10 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
               "\"uploader_position\": [%.6f,%.6f,%d],"
               "\"mobile\": true",
               gpsPos.lat, gpsPos.lon, gpsPos.alt);
-      w += strlen(w);
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
   // Otherweise, in FIXED mode we send the fixed position from config (if specified)
   else if (chase == SH_LOC_FIXED) {
@@ -3369,8 +3375,10 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
       sprintf(w,
               "\"uploader_position\": [%.6f,%.6f,%s]",
               conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
-      w += strlen(w);
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
 
   // otherwise (in SH_LOC_NONE mode) we dont include any position info
