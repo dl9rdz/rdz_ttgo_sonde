@@ -1082,7 +1082,7 @@ void addSondeStatusKML(char *ptr, int i)
     return;
   }
 
-  sprintf(ptr + strlen(ptr), "<Placemark id=\"%s\"><name>%s</name><Point><coordinates>%.6f,%.6f,%.0f</coordinates></Point><description>%3.3f MHz, Type: %s, h=%.0fm</description></Placemark>",
+  sprintf(ptr + strlen(ptr), "<Placemark id=\"%s\"><name>%s</name><Point><altitudeMode>absolute</altitudeMode><coordinates>%.6f,%.6f,%.0f</coordinates></Point><description>%3.3f MHz, Type: %s, h=%.0fm</description></Placemark>",
           s->id, s->id,
           s->lon, s->lat, s->alt,
           s->freq, sondeTypeStr[s->type], s->alt);
