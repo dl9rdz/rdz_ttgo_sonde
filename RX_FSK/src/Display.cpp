@@ -1,4 +1,4 @@
-#include "../../RX_FSK/features.h"
+#include "../features.h"
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
@@ -12,13 +12,13 @@ int readLine(Stream &stream, char *buffer, int maxlen);
 extern const char *version_name;
 extern const char *version_id;
 
-#include <fonts/FreeMono9pt7b.h>
-#include <fonts/FreeMono12pt7b.h>
-#include <fonts/FreeSans9pt7b.h>
-#include <fonts/FreeSans12pt7b.h>
-#include <fonts/FreeSans18pt7b.h>
-#include <fonts/Picopixel.h>
-#include <fonts/Terminal11x16.h>
+#include "fonts/FreeMono9pt7b.h"
+#include "fonts/FreeMono12pt7b.h"
+#include "fonts/FreeSans9pt7b.h"
+#include "fonts/FreeSans12pt7b.h"
+#include "fonts/FreeSans18pt7b.h"
+#include "fonts/Picopixel.h"
+#include "fonts/Terminal11x16.h"
 
 extern Sonde sonde;
 
@@ -826,8 +826,9 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		// IP address / small always uses tiny font on TFT for backward compatibility
 		// Large font can be used arbitrarily
 		if(de->fmt==fontsma) de->fmt=0;
-		de->func = disp.drawIP; break;
+		de->func = disp.drawIP;
 		de->extra = strdup(text+1);
+		break;
 	case 's':
 		de->func = disp.drawSite;
 		de->extra = strdup(text+1);

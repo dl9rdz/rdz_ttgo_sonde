@@ -213,12 +213,11 @@ void Sonde::defaultConfig() {
 	//
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
-	strcpy(config.passcode, "---");
+	config.passcode = -1;
 	strcpy(config.mdnsname, "rdzsonde");
 	config.maxsonde=15;
 	config.debug=0;
 	config.wifi=1;
-	config.wifiap=1;
 	config.display[0]=0;
 	config.display[1]=1;
 	config.display[2]=-1;
@@ -261,6 +260,9 @@ void Sonde::defaultConfig() {
 	strcpy(config.mqtt.prefix, "rdz_sonde_server/");
 }
 
+extern struct st_configitems config_list[];
+extern const int N_CONFIG;
+
 void Sonde::setConfig(const char *cfg) {
 	while(*cfg==' '||*cfg=='\t') cfg++;
 	if(*cfg=='#') return;
@@ -270,180 +272,59 @@ void Sonde::setConfig(const char *cfg) {
 	*s=0; s--;
 	while(s>cfg && (*s==' '||*s=='\t')) { *s=0; s--; }
 	Serial.printf("configuration option '%s'=%s \n", cfg, val);
-	if(strcmp(cfg,"noisefloor")==0) {
-		config.noisefloor = atoi(val);
-		if(config.noisefloor==0) config.noisefloor=-130;
-	} else if(strcmp(cfg,"call")==0) {
-		strncpy(config.call, val, 9);
-		config.call[9]=0;
-	} else if(strcmp(cfg,"passcode")==0) {
-		strncpy(config.passcode, val, 9);
-	} else if(strcmp(cfg,"button_pin")==0) {
-		config.button_pin = atoi(val);
-	} else if(strcmp(cfg,"button2_pin")==0) {
-		config.button2_pin = atoi(val);
-	} else if(strcmp(cfg,"button2_axp")==0) {
-		config.button2_axp = atoi(val);
-	} else if(strcmp(cfg,"touch_thresh")==0) {
-		config.touch_thresh = atoi(val);
-	} else if(strcmp(cfg,"led_pout")==0) {
-		config.led_pout = atoi(val);
-	} else if(strcmp(cfg,"power_pout")==0) {
-		config.power_pout = atoi(val);
-	} else if(strcmp(cfg,"disptype")==0) {
-		config.disptype = atoi(val);
-	} else if(strcmp(cfg,"oled_sda")==0) {
-		config.oled_sda = atoi(val);
-	} else if(strcmp(cfg,"oled_scl")==0) {
-		config.oled_scl = atoi(val);
-	} else if(strcmp(cfg,"oled_rst")==0) {
-		config.oled_rst = atoi(val);
-	} else if(strcmp(cfg,"tft_rs")==0) {
-		config.tft_rs = atoi(val);
-	} else if(strcmp(cfg,"tft_cs")==0) {
-		config.tft_cs = atoi(val);
-	} else if(strcmp(cfg,"tft_orient")==0) {
-		config.tft_orient = atoi(val);
-	} else if(strcmp(cfg,"tft_spifreq")==0) {
-		config.tft_spifreq = atoi(val);
-	} else if(strcmp(cfg,"gps_rxd")==0) {
-		config.gps_rxd = atoi(val);
-	} else if(strcmp(cfg,"gps_txd")==0) {
-		config.gps_txd = atoi(val);
-	} else if(strcmp(cfg,"batt_adc")==0) {
-		config.batt_adc = atoi(val);
-	} else if(strcmp(cfg,"sx1278_ss")==0) {
-		config.sx1278_ss = atoi(val);
-	} else if(strcmp(cfg,"sx1278_miso")==0) {
-		config.sx1278_miso = atoi(val);
-	} else if(strcmp(cfg,"sx1278_mosi")==0) {
-		config.sx1278_mosi = atoi(val);
-	} else if(strcmp(cfg,"sx1278_sck")==0) {
-		config.sx1278_sck = atoi(val);
-	} else if(strcmp(cfg,"maxsonde")==0) {
-		config.maxsonde = atoi(val);
-		if(config.maxsonde>MAXSONDE) config.maxsonde=MAXSONDE;
-	} else if(strcmp(cfg,"debug")==0) {
-		config.debug = atoi(val);
-	} else if(strcmp(cfg,"wifi")==0) {
-		config.wifi = atoi(val);			
-	} else if(strcmp(cfg,"wifiap")==0) {
-		config.wifiap = atoi(val);
-	} else if(strcmp(cfg,"mdnsname")==0) {
-		strncpy(config.mdnsname, val, 14);
-	} else if(strcmp(cfg,"screenfile")==0) {
-		config.screenfile = atoi(val);
-	} else if(strcmp(cfg,"display")==0) {
-		int i = 0;
-		char *ptr;
-		while(val) {
-			ptr = strchr(val,',');
-			if(ptr) *ptr = 0;
-			config.display[i++] = atoi(val);
-			val = ptr?ptr+1:NULL;
-			Serial.printf("appending value %d  next is %s\n", config.display[i-1], val?val:"");
+
+	// new code: use config_list to find config entry...
+	int i;
+	for(i=0; i<N_CONFIG; i++) {
+		if(strcmp(cfg, config_list[i].name)!=0) continue;
+
+		if(config_list[i].type>0) {  // string with that length
+			strlcpy((char *)config_list[i].data, val, config_list[i].type+1);
+			break;
+		} 
+		switch(config_list[i].type) {
+		case 0:   // integer
+		case -4:  // integer (with "touch button" checkbox in web form)
+		case -3:  // integer (boolean on/off swith in web form)
+		case -2:  // integer (ID type)
+			*(int *)config_list[i].data = atoi(val);
+			if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+			break;
+		case -7:  // double
+			*(double *)config_list[i].data = *val==0 ? NAN : atof(val);
+			break;
+		case -6:  // display list
+		{
+			int idx = 0;
+			char *ptr;
+			while(val) {
+				ptr = strchr(val,',');
+				if(ptr) *ptr = 0;
+				config.display[idx++] = atoi(val);
+				val = ptr?ptr+1:NULL;
+				Serial.printf("appending value %d  next is %s\n", config.display[idx-1], val?val:"");
+			}
+			config.display[idx] = -1;
+			break;
 		}
-		config.display[i] = -1;
-	} else if (strcmp(cfg, "norx_timeout")==0) {
-		config.norx_timeout = atoi(val);
-	} else if(strcmp(cfg,"startfreq")==0) {
-		config.startfreq = atoi(val);
-	} else if(strcmp(cfg,"channelbw")==0) {
-		config.channelbw = atoi(val);	
-	} else if(strcmp(cfg,"spectrum")==0) {
-		config.spectrum = atoi(val);
-	} else if(strcmp(cfg,"marker")==0) {
-		config.marker = atoi(val);					
-	} else if(strcmp(cfg,"freqofs")==0) {
-		config.freqofs = atoi(val);
-	} else if(strcmp(cfg,"rs41.agcbw")==0) {
-		config.rs41.agcbw = atoi(val);
-	} else if(strcmp(cfg,"rs41.rxbw")==0) {
-		config.rs41.rxbw = atoi(val);
-	} else if(strcmp(cfg,"m10m20.agcbw")==0) {
-		config.m10m20.agcbw = atoi(val);
-	} else if(strcmp(cfg,"m10m20.rxbw")==0) {
-		config.m10m20.rxbw = atoi(val);
-	} else if(strcmp(cfg,"mp3h.agcbw")==0) {
-		config.mp3h.agcbw = atoi(val);
-	} else if(strcmp(cfg,"mp3h.rxbw")==0) {
-		config.mp3h.rxbw = atoi(val);
-	} else if(strcmp(cfg,"dfm.agcbw")==0) {
-		config.dfm.agcbw = atoi(val);
-	} else if(strcmp(cfg,"dfm.rxbw")==0) {
-		config.dfm.rxbw = atoi(val);
-	} else if(strcmp(cfg,"rs92.alt2d")==0) {
-		config.rs92.alt2d= atoi(val);
-	} else if(strcmp(cfg,"ephftp")==0) {
-		strncpy(config.ephftp, val, 40);
-	} else if(strcmp(cfg,"kisstnc.active")==0) {
-		config.kisstnc.active = atoi(val);
-	} else if(strcmp(cfg,"kisstnc.idformat")==0) {
-		config.kisstnc.idformat = atoi(val);
-	} else if(strcmp(cfg,"rs92.rxbw")==0) {
-		config.rs92.rxbw = atoi(val);
-	} else if(strcmp(cfg,"axudp.active")==0) {
-		config.udpfeed.active = atoi(val)>0;
-	} else if(strcmp(cfg,"axudp.host")==0) {
-		strncpy(config.udpfeed.host, val, 63);
-	} else if(strcmp(cfg,"axudp.port")==0) {
-		config.udpfeed.port = atoi(val);
-	} else if(strcmp(cfg,"axudp.symbol")==0) {
-		strncpy(config.udpfeed.symbol, val, 3);
-	} else if(strcmp(cfg,"axudp.highrate")==0) {
-		config.udpfeed.highrate = atoi(val);
-	} else if(strcmp(cfg,"axudp.idformat")==0) {
-		config.udpfeed.idformat = atoi(val);
-	} else if(strcmp(cfg,"tcp.active")==0) {
-		config.tcpfeed.active = atoi(val)>0;
-	} else if(strcmp(cfg,"tcp.host")==0) {
-		strncpy(config.tcpfeed.host, val, 63);
-	} else if(strcmp(cfg,"tcp.port")==0) {
-		config.tcpfeed.port = atoi(val);
-	} else if(strcmp(cfg,"tcp.symbol")==0) {
-		strncpy(config.tcpfeed.symbol, val, 3);
-	} else if(strcmp(cfg,"tcp.highrate")==0) {
-		config.tcpfeed.highrate = atoi(val);
-	} else if(strcmp(cfg,"tcp.idformat")==0) {
-		config.tcpfeed.idformat = atoi(val);
-	
-	} else if(strcmp(cfg,"mqtt.active")==0) {
-		config.mqtt.active = atoi(val)>0;
-	} else if(strcmp(cfg,"mqtt.id")==0) {
-		strncpy(config.mqtt.id, val, 63);
-	} else if(strcmp(cfg,"mqtt.host")==0) {
-		strncpy(config.mqtt.host, val, 63);
-	} else if(strcmp(cfg,"mqtt.port")==0) {
-		config.mqtt.port = atoi(val);
-	} else if(strcmp(cfg,"mqtt.username")==0) {
-		strncpy(config.mqtt.username, val, 63);
-	} else if(strcmp(cfg,"mqtt.password")==0) {
-		strncpy(config.mqtt.password, val, 63);
-	} else if(strcmp(cfg,"mqtt.prefix")==0) {
-		strncpy(config.mqtt.prefix, val, 63);
-	} else if(strcmp(cfg, "sondehub.active")==0) {
-		config.sondehub.active = atoi(val);
-	} else if(strcmp(cfg,"sondehub.chase")==0) {
-		config.sondehub.chase = atoi(val);
-	} else if(strcmp(cfg, "sondehub.host")==0) {
-		strncpy(config.sondehub.host, val, 63);
-	} else if(strcmp(cfg, "sondehub.callsign")==0) {
-		strncpy(config.sondehub.callsign, val, 63);
-	} else if(strcmp(cfg, "sondehub.lat")==0) {
-		config.sondehub.lat = *val==0 ? NAN : atof(val);
-		Serial.printf("lat is %f\n", config.sondehub.lat);
-	} else if(strcmp(cfg, "sondehub.lon")==0) {
-		config.sondehub.lon = *val==0 ? NAN : atof(val);
-		Serial.printf("lon is %f\n", config.sondehub.lon);
-	} else if(strcmp(cfg, "sondehub.alt")==0) {
-		strncpy(config.sondehub.alt, val, 19);
-	} else if(strcmp(cfg, "sondehub.antenna")==0) {
-		strncpy(config.sondehub.antenna, val, 63);
-	} else if(strcmp(cfg, "sondehub.email")==0) {
-		strncpy(config.sondehub.email, val, 63);
-	} else {
+		default:
+			// skipping non-supported types
+			break;
+		}
+
+		break;
+	}
+	if(i==N_CONFIG) {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
+#if 0
+	// currently not in config_list. Maybe add later.
+	} else if(strcmp(cfg,"axudp.symbol")==0) {
+		strncpy(config.udpfeed.symbol, val, 3);
+	} else if(strcmp(cfg,"tcp.symbol")==0) {
+		strncpy(config.tcpfeed.symbol, val, 3);
+	}
+#endif
 }
 
 void Sonde::setIP(String ip, bool AP) {

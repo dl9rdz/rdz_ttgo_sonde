@@ -1,7 +1,8 @@
 #include "Scanner.h"
-#include <SX1278FSK.h>
+
 #include <U8x8lib.h>
 
+#include "SX1278FSK.h"
 #include "Sonde.h"
 #include "Display.h"
 

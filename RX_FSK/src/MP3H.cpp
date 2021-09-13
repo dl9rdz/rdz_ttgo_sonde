@@ -359,7 +359,7 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 		si->id[7] = hex(n/0x10);
 		si->id[8] = hex(n);
 		si->id[9] = 0;
-		snprintf(si->ser, 12, "%d-%d", mp3hstate.id1, mp3hstate.id2);
+		snprintf(si->ser, 12, "%u-%u", mp3hstate.id1, mp3hstate.id2);
 		si->validID = true;
 	}
 
