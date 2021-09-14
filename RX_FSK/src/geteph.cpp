@@ -12,6 +12,9 @@ extern WiFiClient client;
 
 //static const char *ftpserver = "www.ngs.noaa.gov";
 char outbuf[128];
+uint8_t ephstate = EPH_NOTUSED;
+//enum EPHSTATE { EPH_NOTUSED, EPH_PENDING, EPH_TIMEERR, EPH_ERROR, EPH_EPHERROR, EPH_GOOD };
+char *ephtxt[] = { "Disabled", "Pending", "Time error", "Fetch error", "Read error", "Good" };
 
 uint8_t getreply() {
 	String s = client.readStringUntil('\n');
@@ -45,10 +48,12 @@ void writeFully(File &file, uint8_t *buf, size_t len)
 
 void geteph() {
 	// Set current time via network...	
+	ephstate = EPH_PENDING;
 	struct tm tinfo;
 	configTime(0, 0, "pool.ntp.org");
 	bool ok = getLocalTime(&tinfo, 2000);  // wait max 2 seconds to get current time via ntp
 	if(!ok) {
+		ephstate = EPH_TIMEERR;
 		Serial.println("Failed to get current date/time");
 		return;
 	}
@@ -66,6 +71,7 @@ void geteph() {
 		if(tsstr && strlen(tsstr)>=9) {
 			if(strcmp(nowstr, ts.c_str())<=0) {
 				Serial.println("local brdc is up to date\n");
+				ephstate = EPH_GOOD;
 				return;
 			}
 		}
@@ -221,6 +227,7 @@ void geteph() {
         snprintf(buf, 16, "Done: %d B    ",total);
         buf[16]=0;
         disp.rdis->drawString(0,5*dispys,buf);
+	ephstate = EPH_GOOD;
 	delay(1000);
 
 	free(obuf);

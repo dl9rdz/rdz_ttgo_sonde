@@ -159,6 +159,9 @@ String processor(const String& var) {
     snprintf(tmpstr, 128, "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
     return String(tmpstr);
   }
+  if (var == "EPHSTATE") {
+    return String(ephtxt[ephstate]);
+  }
   return String();
 }
 
@@ -2838,6 +2841,7 @@ void loopWifiScan() {
     }
     if (hasRS92) {
       geteph();
+      if(ephstate==EPH_PENDING) ephstate=EPH_ERROR;
       get_eph("/brdc");
     }
     delay(3000);
