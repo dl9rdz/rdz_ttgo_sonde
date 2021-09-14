@@ -1,1 +1,10 @@
 OTA display output fix for TFT
+Responsive menu for web interface (#161)
+
+* Responsive Web Interface menu.
+
+* Add active page indicator
+
+* Update style.css
+
+* Update index.html
