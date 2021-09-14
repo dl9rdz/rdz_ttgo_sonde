@@ -1,0 +1,27 @@
+
+RS41, RS92
+ID: R1234567 (letter, 7 digits)
+ShortID: Same as ID
+Serial: Same is ID
+
+DFM:
+ID: D12345678 (D + 8 ditis)
+ShortID: 12345678 (serial without "D")
+Serial: Same as ID
+
+M10:
+ID: ME96231F0 (ME + 7 hex digits)
+ShortID: M95231F0 (ID without "E")
+Serial: 9062104592 (10 numerical digits, as written on sonde)
+
+Serial on Sonde:  810 2 13028
+Data in frame:
+
+M10:
+APRS: MEAABCCCC,  AA=rx[95] in hex, B = rx[93] in hex, CCCC=rx[96:97| in hex
+fullID: A0B C DEEEE, A=rx[95]/16, B=rx[95] in hex, C=rx[93] in hex, C= rx[112:113]/8192&7 ; EEEE=rx[96:97]&8191
+
+M20:
+APRS: MEAABBBBB,  AA=rx[18] in hex, BBBBB=rx[19:20] in decimal
+fullID: AAA-B-CCCCC, AAA=rx[18]%128 in decimal, B=1+(rx[18]>>7), CCCCC=rx[19:20] in decimal
+

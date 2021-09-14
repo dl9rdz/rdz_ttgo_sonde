@@ -14,7 +14,7 @@ extern WiFiClient client;
 char outbuf[128];
 uint8_t ephstate = EPH_NOTUSED;
 //enum EPHSTATE { EPH_NOTUSED, EPH_PENDING, EPH_TIMEERR, EPH_ERROR, EPH_EPHERROR, EPH_GOOD };
-char *ephtxt[] = { "Disabled", "Pending", "Time error", "Fetch error", "Read error", "Good" };
+const char *ephtxt[] = { "Disabled", "Pending", "Time error", "Fetch error", "Read error", "Good" };
 
 uint8_t getreply() {
 	String s = client.readStringUntil('\n');

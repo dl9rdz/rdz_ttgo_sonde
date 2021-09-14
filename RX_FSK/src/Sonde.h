@@ -60,6 +60,8 @@ extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
 extern const char *manufacturer_string[NSondeTypes];
 
+#define ISOLED(cfg) ((cfg).disptype==0 || (cfg).disptype==2)
+
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 

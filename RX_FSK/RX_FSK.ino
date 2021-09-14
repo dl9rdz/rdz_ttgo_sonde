@@ -320,7 +320,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
     const char *fstr = fstring.c_str();
     const char *tstr = tstring.c_str();
     const char *sstr = sstring.c_str();
-    if(*tstr=='6' || *tstr=='9') tstr="D";
+    if (*tstr == '6' || *tstr == '9') tstr = "D";
     Serial.printf("Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
     char typech = tstr[0];
     file.printf("%3.3f %c %c %s\n", atof(fstr), typech, active ? '+' : '-', sstr);
@@ -1029,6 +1029,7 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   return "";
 }
 
+// will be removed. its now in data/upd.html (for GET; POST to update.html still handled here)
 const char *createUpdateForm(boolean run) {
   char *ptr = message;
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
@@ -1902,7 +1903,7 @@ void setup()
         Serial.println("AXP192 Begin FAIL");
       }
       axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-      if(sonde.config.type == TYPE_M5_CORE2) {
+      if (sonde.config.type == TYPE_M5_CORE2) {
         // Display backlight on M5 Core2
         axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
         axp.setDCDC3Voltage(3300);
@@ -1931,7 +1932,9 @@ void setup()
       delay(500);
     }
   }
-  if (sonde.config.batt_adc>=0) { pinMode(sonde.config.batt_adc, INPUT); }
+  if (sonde.config.batt_adc >= 0) {
+    pinMode(sonde.config.batt_adc, INPUT);
+  }
   if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
     pinMode(sonde.config.power_pout & 127, OUTPUT);
     digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
@@ -2027,11 +2030,11 @@ void setup()
 
 #if 1
 
-  if(sonde.config.type == TYPE_M5_CORE2) {
-        // Core2 uses Pin 38 for MISO
-        SPI.begin(18, 38, 23, -1);
+  if (sonde.config.type == TYPE_M5_CORE2) {
+    // Core2 uses Pin 38 for MISO
+    SPI.begin(18, 38, 23, -1);
   } else {
-        SPI.begin();
+    SPI.begin();
   }
   //Set most significant bit first
   SPI.setBitOrder(MSBFIRST);
@@ -2040,23 +2043,23 @@ void setup()
   //Set data mode
   SPI.setDataMode(SPI_MODE0);
 
-sx1278.setup(globalLock);
+  sx1278.setup(globalLock);
 
-int i=0;
-while(++i<3) {
-  delay(500);
-  // == check the radio chip by setting default frequency =========== //
-  sx1278.ON();
-  if (sx1278.setFrequency(402700000) == 0) {
-    Serial.println(F("Setting freq: SUCCESS "));
-  } else {
-    Serial.println(F("Setting freq: ERROR "));
+  int i = 0;
+  while (++i < 3) {
+    delay(500);
+    // == check the radio chip by setting default frequency =========== //
+    sx1278.ON();
+    if (sx1278.setFrequency(402700000) == 0) {
+      Serial.println(F("Setting freq: SUCCESS "));
+    } else {
+      Serial.println(F("Setting freq: ERROR "));
+    }
+    float f = sx1278.getFrequency();
+    Serial.print("Frequency set to ");
+    Serial.println(f);
+    // == check the radio chip by setting default frequency =========== //
   }
-  float f = sx1278.getFrequency();
-  Serial.print("Frequency set to ");
-  Serial.println(f);
-  // == check the radio chip by setting default frequency =========== //
-}
 #endif
 
   //sx1278.setLNAGain(-48);
@@ -2863,17 +2866,25 @@ void execOTA() {
   int contentLength = 0;
   bool isValidContentType = false;
   sonde.clearDisplay();
-  disp.rdis->setFont(FONT_SMALL);
-  disp.rdis->drawString(0, 0, "C:");
-  String dispHost = updateHost.substring(0, 14);
-  disp.rdis->drawString(2, 0, dispHost.c_str());
+  uint8_t dispxs, dispys;
+  if( ISOLED(sonde.config) ) {
+      disp.rdis->setFont(FONT_SMALL);
+      dispxs = dispys = 1;
+  } else {
+      disp.rdis->setFont(5);
+      dispxs = 18;
+      dispys = 20;
+  }
+
+  String dispHost = updateHost.substring(0, 16);
+  disp.rdis->drawString(0, 0, dispHost.c_str());
 
   Serial.println("Connecting to: " + updateHost);
   // Connect to Update host
   if (client.connect(updateHost.c_str(), updatePort)) {
     // Connection succeeded, fecthing the bin
     Serial.println("Fetching bin: " + String(*updateBin));
-    disp.rdis->drawString(0, 1, "Fetching update");
+    disp.rdis->drawString(0, 1 * dispys, "Fetching update");
 
     // Get the contents of the bin file
     client.print(String("GET ") + *updateBin + " HTTP/1.1\r\n" +
@@ -2966,22 +2977,22 @@ void execOTA() {
 
   // Check what is the contentLength and if content type is `application/octet-stream`
   Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
-  disp.rdis->drawString(0, 2, "Len: ");
+  disp.rdis->drawString(0, 2 * dispys, "Len: ");
   String cls = String(contentLength);
-  disp.rdis->drawString(5, 2, cls.c_str());
+  disp.rdis->drawString(5 * dispxs, 2 * dispys, cls.c_str());
 
   // check contentLength and content type
   if (contentLength && isValidContentType) {
     // Check if there is enough to OTA Update
     bool canBegin = Update.begin(contentLength);
-    disp.rdis->drawString(0, 4, "Starting update");
+    disp.rdis->drawString(0, 4 * dispys, "Starting update");
 
     // If yes, begin
     if (canBegin) {
       Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
       // No activity would appear on the Serial monitor
       // So be patient. This may take 2 - 5mins to complete
-      disp.rdis->drawString(0, 5, "Please wait!");
+      disp.rdis->drawString(0, 5 * dispys, "Please wait!");
       size_t written = Update.writeStream(client);
 
       if (written == contentLength) {
@@ -2996,7 +3007,7 @@ void execOTA() {
         Serial.println("OTA done!");
         if (Update.isFinished()) {
           Serial.println("Update successfully completed. Rebooting.");
-          disp.rdis->drawString(0, 7, "Rebooting....");
+          disp.rdis->drawString(0, 7 * dispys, "Rebooting....");
           delay(1000);
           ESP.restart();
         } else {
@@ -3223,7 +3234,9 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   struct tm ts;
   uint8_t realtype = s->type;
   // config setting M10 and M20 will both decode both types, so use the real type that was decoded
-  if(TYPE_IS_METEO(realtype)) { realtype = s->subtype==1 ? STYPE_M10 : STYPE_M20; }
+  if (TYPE_IS_METEO(realtype)) {
+    realtype = s->subtype == 1 ? STYPE_M10 : STYPE_M20;
+  }
 
   // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds
@@ -3237,7 +3250,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   while (client->available() > 0) {
     // data is available from remote server, process it...
-    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE-1);
+    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
     rs_msg[cnt] = 0;
     Serial.println(rs_msg);
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
