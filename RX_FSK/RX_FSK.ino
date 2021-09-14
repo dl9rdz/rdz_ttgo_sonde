@@ -3338,8 +3338,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // Only send temp & humidity if provided
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
     sprintf(w,
-            "\"temp\": %.1f,"
-            "\"humidity\": %.1f,",
+            "\"temp\": %.3f,"
+            "\"humidity\": %.3f,",
             float(s->temperature), float(s->relativeHumidity)
            );
     w += strlen(w);
