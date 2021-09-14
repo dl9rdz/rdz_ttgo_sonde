@@ -546,12 +546,6 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 	deinterleave(data, 7, hamming_conf);
 	deinterleave(data+7, 13, hamming_dat1);
 	deinterleave(data+20, 13, hamming_dat2);
-#if 0
-	Serial.print("RAWCFG:");
-	for(int i=0; i<7*8; i++) {
-		Serial.print(hamming_conf[i]?"1":"0");
-	}
-#endif
   
 	int ret0 = hamming(hamming_conf,  7, block_conf);
 	int ret1 = hamming(hamming_dat1, 13, block_dat1);
@@ -575,22 +569,6 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 // moved to a single function in Sonde(). This function can be used for additional
 // processing here, that takes too long for doing in the RX task loop
 int DFM::waitRXcomplete() {
-#if 0
-	int res=0;
-	uint32_t t0 = millis();
-	while( rxtask.receiveResult < 0 && millis()-t0 < 2000) { delay(50); }
-
-	if( rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) { 
-                res = RX_TIMEOUT;
-        } else if ( rxtask.receiveResult ==0) {
-                res = RX_OK;
-        } else {
-                res = RX_ERROR;
-        }
-        rxtask.receiveResult = -1;
-        Serial.printf("waitRXcomplete returning %d\n", res);
-        return res;
-#endif
 	return 0;
 }
 
