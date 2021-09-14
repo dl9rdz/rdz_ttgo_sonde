@@ -24,13 +24,11 @@ void MQTT::init(const char* host, uint16_t port, const char* id, const char *use
     this->password = password;
     this->prefix = prefix;
     
-    char buffer[20];
-    snprintf(buffer, 20, "%s%6ld", id, random(0, 1000));
-    this->id = buffer;
-
     Serial.println("[MQTT] pubsub client");
     mqttClient.setServer(ip, port);
-    mqttClient.setClientId(id);
+    char buffer[20];
+    snprintf(buffer, 20, "%s%6ld", id, random(0, 1000));
+    mqttClient.setClientId(buffer);
     if (strlen(password) > 0) {
         mqttClient.setCredentials(username, password);
     }
@@ -73,15 +71,15 @@ void MQTT::publishPacket(SondeInfo *s)
         "\"dir\": %.1f,"
         "\"sats\": %d,"
         "\"validPos\": %d,"
-        "\"time\": %d,"
-        "\"frame\": %d,"
+        "\"time\": %u,"
+        "\"frame\": %u,"
         "\"validTime\": %d,"
         "\"rssi\": %d,"
         "\"afc\": %d,"
         "\"rxStat\": \"%s\","
-        "\"rxStart\": %d,"
-        "\"norxStart\": %d,"
-        "\"viewStart\": %d,"
+        "\"rxStart\": %u,"
+        "\"norxStart\": %u,"
+        "\"viewStart\": %u,"
         "\"lastState\": %d,"
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"

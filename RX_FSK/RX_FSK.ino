@@ -1,32 +1,32 @@
-#include <axp20x.h>
 
 #include "features.h"
+#include "version.h"
 
+#include "axp20x.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
 #include <SPIFFS.h>
-//#include <U8x8lib.h>
-//#include <U8g2lib.h>
 #include <SPI.h>
 #include <Update.h>
 #include <ESPmDNS.h>
 #include <MicroNMEA.h>
 #include <Ticker.h>
-#include <SX1278FSK.h>
-#include <Sonde.h>
-#include <Display.h>
-#include <Scanner.h>
-#include <aprs.h>
-#include "version.h"
-#include "geteph.h"
-#include "rs92gps.h"
-#if FEATURE_MQTT
-#include "mqtt.h"
-#endif
 #include "esp_heap_caps.h"
+
+#include "src/SX1278FSK.h"
+#include "src/Sonde.h"
+#include "src/Display.h"
+#include "src/Scanner.h"
+#include "src/geteph.h"
+#include "src/rs92gps.h"
+#include "src/aprs.h"
+#if FEATURE_MQTT
+#include "src/mqtt.h"
+#endif
+
 //#define ESP_MEM_DEBUG 1
-int e;
+//int e;
 
 enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
 static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
@@ -60,7 +60,7 @@ WiFiClient client;
 WiFiClient shclient;	// Sondehub v2
 unsigned long time_last_update = 0;
 /* SH_LOC_OFF: never send position information to SondeHub
-   SH_LOC_FIXED: send fixed position (if specified in config) or GPS position (if there is a GPS fix) as fixed station position (no chase mode) to sondehub
+   SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
    SH_LOC_CHASE: always activate chase mode and send GPS position (if available)
    SH_LOC_AUTO: if there is no valid GPS position, or GPS position < MIN_LOC_AUTO_DIST away from known fixed position: use FIXED mode
                 otherwise, i.e. if there is a valid GPS position and (either no fixed position in config, or GPS position is far away from fixed position), use CHASE mode.
@@ -467,7 +467,7 @@ void addSondeStatus(char *ptr, int i)
   sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->lat, s->lon, s->alt);
   const time_t t = s->time;
   ts = *gmtime(&t);
-  sprintf(ptr + strlen(ptr), "<tr><td>Frame# %d, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
+  sprintf(ptr + strlen(ptr), "<tr><td>Frame# %u, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
           s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
   if (s->type == STYPE_RS41) {
     sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
@@ -547,13 +547,6 @@ void setupConfigData() {
 }
 
 
-struct st_configitems {
-  const char *name;
-  const char *label;
-  int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
-  void *data;
-};
-
 struct st_configitems config_list[] = {
   /* General config settings */
   {"", "Software configuration", -5, NULL},
@@ -585,7 +578,7 @@ struct st_configitems config_list[] = {
   {"", "Data feed configuration", -5, NULL},
   /* APRS settings */
   {"call", "Call", 8, sonde.config.call},
-  {"passcode", "Passcode", 8, sonde.config.passcode},
+  {"passcode", "Passcode", 0, &sonde.config.passcode},
   /* KISS tnc settings */
   {"kisstnc.active", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
   {"kisstnc.idformat", "KISS TNC ID Format", -2, &sonde.config.kisstnc.idformat},
@@ -655,7 +648,7 @@ struct st_configitems config_list[] = {
   {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
 #endif
 };
-const static int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
+const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
 void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
@@ -729,7 +722,7 @@ const char *createConfigForm() {
       case -6: // List of int8 values
         addConfigInt8List(ptr, i, config_list[i].label, (int8_t *)config_list[i].data);
         break;
-      case -3: // in/offt
+      case -3: // on/off
         addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
         break;
       case -2: // DFM format
@@ -2299,7 +2292,7 @@ void loopDecoder() {
 #endif
 
 #if FEATURE_MQTT
-    // send to MQTT if enabled
+    // send to MQTT if enabledson
     if (connected && mqttEnabled) {
       Serial.println("Sending sonde info via MQTT");
       mqttclient.publishPacket(s);
@@ -3122,40 +3115,55 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
           "{"
           "\"software_name\": \"%s\","
           "\"software_version\": \"%s\","
-          "\"uploader_callsign\": \"%s\","
-          "\"uploader_contact_email\": \"%s\",",
-          version_name, version_id, conf->callsign, conf->email);
+          "\"uploader_callsign\": \"%s\",",
+          version_name, version_id, conf->callsign);
   w += strlen(w);
 
-  // We send GPS position: (a) in CHASE mode, (b) in FIXED mode if no fixed location has been specified in config
-  if (chase == SH_LOC_CHASE || (chase == SH_LOC_FIXED && (isnan(conf->lat) || isnan(conf->lon)) ) ) {
+  // Only send email if provided
+  if (conf->email != '\0') {
+    sprintf(w,
+          "\"uploader_contact_email\": \"%s\",",
+          conf->email);
+    w += strlen(w);
+  }
+
+  // Only send antenna if provided
+  if (conf->antenna != '\0') {
+    sprintf(w,
+          "\"uploader_antenna\": \"%s\",",
+          conf->antenna);
+    w += strlen(w);
+  }
+
+  // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
+  if (chase == SH_LOC_CHASE) {
     if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
       sprintf(w,
               "\"uploader_position\": [%.6f,%.6f,%d],"
-              "\"uploader_antenna\": \"%s\","
-              "\"mobile\": true"
-              "}",
-              gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna);
+              "\"mobile\": true",
+              gpsPos.lat, gpsPos.lon, gpsPos.alt);
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
   // Otherweise, in FIXED mode we send the fixed position from config (if specified)
   else if (chase == SH_LOC_FIXED) {
     if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
       sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s],"
-              "\"uploader_antenna\": \"%s\""
-              "}",
-              conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null", conf->antenna);
+              "\"uploader_position\": [%.6f,%.6f,%s]",
+              conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
+  } else {
+    sprintf(w, "\"uploader_position\": [null,null,null]");
+    w += strlen(w);
   }
-  else {
-    // otherwise (in SH_LOC_NONE mode) we dont include any position info
-     sprintf(w,
-              "\"uploader_position\": [null,null,null],"
-              "\"uploader_antenna\": \"%s\""
-              "}",
-              conf->antenna);
-  }
+
+  // otherwise (in SH_LOC_NONE mode) we dont include any position info
+  sprintf(w, "}");
 
   client->println("PUT /listeners HTTP/1.1");
   client->print("Host: ");
@@ -3216,6 +3224,12 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds
   time_t t = s->time;
+
+  int chase = conf->chase;
+  // automatically decided if CHASE or FIXED mode is used (for config AUTO)
+  if (chase == SH_LOC_AUTO) {
+    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
+  }
 
   while (client->available() > 0) {
     // data is available from remote server, process it...
@@ -3287,33 +3301,30 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
           "\"manufacturer\": \"%s\","
           "\"serial\": \"%s\","
           "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
-          "\"lat\": %.6f,"
-          "\"lon\": %.6f,"
-          "\"alt\": %.3f,"
+          "\"lat\": %.5f,"
+          "\"lon\": %.5f,"
+          "\"alt\": %.5f,"
           "\"frequency\": %.3f,"
-          "\"vel_h\": %.3f,"
-          "\"vel_v\": %.3f,"
-          "\"heading\": %.3f,"
-          "\"rssi\": %.1f,",
+          "\"vel_h\": %.5f,"
+          "\"vel_v\": %.5f,"
+          "\"heading\": %.5f,"
+          "\"rssi\": %.1f,"
+          "\"frame\": %d,"
+          "\"type\": \"%s\",",
           version_name, version_id, conf->callsign,
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
           manufacturer_string[realtype], s->ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
           (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
-          (float)s->dir, -((float)s->rssi / 2)
+          (float)s->dir, -((float)s->rssi / 2), s->vframe, sondeTypeStrSH[realtype]
          );
   w += strlen(w);
 
+  // Only send sats if not M20
   if (realtype != STYPE_M20) {
     sprintf(w, "\"sats\": %d,", (int)s->sats);
     w += strlen(w);
   }
-
-  sprintf(w, "\"frame\": %d,", s->vframe);
-  w += strlen(w);
-
-  sprintf(w, "\"type\": \"%s\",", sondeTypeStrSH[realtype]);
-  w += strlen(w);
 
   /* if there is a subtype (DFM only) */
   if ( TYPE_IS_DFM(s->type) && s->subtype > 0 && s->subtype < 16 ) {
@@ -3324,6 +3335,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     w += strlen(w);
   }
 
+  // Only send temp & humidity if provided
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
     sprintf(w,
             "\"temp\": %.1f,"
@@ -3333,38 +3345,43 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     w += strlen(w);
   }
 
-  if ((conf->chase == 0) && (!isnan(conf->lat)) && (!isnan(conf->lon))) {
-    if (conf->alt[0] != '\0') {
+  // Only send antenna if provided
+  if (conf->antenna != '\0') {
+    sprintf(w,
+          "\"uploader_antenna\": \"%s\",",
+          conf->antenna);
+    w += strlen(w);
+  }
+
+  // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
+  if (chase == SH_LOC_CHASE) {
+    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
       sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s],"
-              "\"uploader_antenna\": \"%s\""
-              "}",
-              conf->lat, conf->lon, conf->alt, conf->antenna
-             );
+              "\"uploader_position\": [%.6f,%.6f,%d]",
+              gpsPos.lat, gpsPos.lon, gpsPos.alt);
     } else {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,null],"
-              "\"uploader_antenna\": \"%s\""
-              "}",
-              conf->lat, conf->lon, conf->antenna
-             );
+      sprintf(w, "\"uploader_position\": [null,null,null]");
     }
+    w += strlen(w);
   }
-  else if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
-    sprintf(w,
-            "\"uploader_position\": [%.6f,%.6f,%d],"
-            "\"uploader_antenna\": \"%s\""
-            "}",
-            gpsPos.lat, gpsPos.lon, gpsPos.alt, conf->antenna
-           );
+  // Otherweise, in FIXED mode we send the fixed position from config (if specified)
+  else if (chase == SH_LOC_FIXED) {
+    if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
+      sprintf(w,
+              "\"uploader_position\": [%.6f,%.6f,%s]",
+              conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
+    } else {
+      sprintf(w, "\"uploader_position\": [null,null,null]");
+    }
+    w += strlen(w);
+  } else {
+    sprintf(w, "\"uploader_position\": [null,null,null]");
+    w += strlen(w);
   }
-  else {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\""
-            "}",
-            conf->antenna
-           );
-  }
+
+  // otherwise (in SH_LOC_NONE mode) we dont include any position info
+  sprintf(w, "}");
+
   if (shState != SH_CONN_APPENDING) {
     sondehub_send_header(client, s, conf);
     sondehub_send_next(client, s, conf, rs_msg, strlen(rs_msg), 1);
