@@ -3124,7 +3124,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   w += strlen(w);
 
   // Only send email if provided
-  if (conf->email != '\0') {
+  if (strlen(conf->email) != 0) {
     sprintf(w,
           "\"uploader_contact_email\": \"%s\",",
           conf->email);
@@ -3132,7 +3132,7 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   }
 
   // Only send antenna if provided
-  if (conf->antenna != '\0') {
+  if (strlen(conf->antenna) != 0) {
     sprintf(w,
           "\"uploader_antenna\": \"%s\",",
           conf->antenna);
@@ -3342,15 +3342,15 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // Only send temp & humidity if provided
   if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
     sprintf(w,
-            "\"temp\": %.1f,"
-            "\"humidity\": %.1f,",
+            "\"temp\": %.3f,"
+            "\"humidity\": %.3f,",
             float(s->temperature), float(s->relativeHumidity)
            );
     w += strlen(w);
   }
 
   // Only send antenna if provided
-  if (conf->antenna != '\0') {
+  if (strlen(conf->antenna) != 0) {
     sprintf(w,
           "\"uploader_antenna\": \"%s\",",
           conf->antenna);
