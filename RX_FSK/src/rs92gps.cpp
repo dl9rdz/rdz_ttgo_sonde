@@ -50,13 +50,14 @@
 #include <SPIFFS.h>
 #include "nav_gps_vel.h"
 #include "rs92gps.h"
+#include "geteph.h"
 #include "Sonde.h"
 
 
 
 gpx_t gpx;
 
-int option_verbose = 0,  // ausfuehrliche Anzeige
+const int option_verbose = 0,  // ausfuehrliche Anzeige
     option_raw = 1,      // rohe Frames
     option_inv = 0,      // invertiert Signal
     option_res = 0,      // genauere Bitmessung
@@ -827,27 +828,33 @@ int naiv_2Dfix(int N, SAT_t sats[], double alt) {
 int get_GPSkoord(int N) {
     double lat, lon, alt, rx_cl_bias;
     double vH, vD, vU;
-    double lat1s, lon1s, alt1s,
-           lat0 , lon0 , alt0 , pos0_ecef[3];
-    double pos_ecef[3], pos1s_ecef[3], dpos_ecef[3],
+    double pos_ecef[3], dpos_ecef[3],
            vel_ecef[3], dvel_ecef[3];
     double gdop, gdop0 = 1000.0;
     //double hdop, vdop, pdop;
-    int i0, i1, i2, i3, j, k, n;
+    int i0, i1, i2, i3, j;
     int nav_ret = 0;
     int num = 0;
     SAT_t Sat_A[4];
+#if 0
+    int k, n;
+    double lat1s, lon1s, alt1s,
+           lat0 , lon0 , alt0 , pos0_ecef[3];
+    double pos1s_ecef[3];
     SAT_t Sat_B[12]; // N <= 12
     SAT_t Sat_B1s[12];
     SAT_t Sat_C[12]; // 11
-    double diter = 0;
     int exN = -1;
+#endif
+    double diter = 0;
 
+#if 0
     if (option_vergps == 8) {
         fprintf(stdout, "  sats: ");
         for (j = 0; j < N; j++) fprintf(stdout, "%02d ", prn[j]);
         fprintf(stdout, "\n");
     }
+#endif
 
     gpx.lat = gpx.lon = gpx.alt = 0;
 
@@ -878,6 +885,7 @@ int get_GPSkoord(int N) {
                     for (j=0; j<3; j++) vel_ecef[j] += dvel_ecef[j];
                     get_GPSvel(lat, lon, vel_ecef, &vH, &vD, &vU);
                 }
+#if 0
                 if (option_vergps == 8) {
                     // gdop = sqrt(DOP[0]+DOP[1]+DOP[2]+DOP[3]); // s.o.
                     //hdop = sqrt(DOP[0]+DOP[1]);
@@ -898,6 +906,7 @@ int get_GPSkoord(int N) {
                         fprintf(stdout, "\n");
                     }
                 }
+#endif
             }
             else gdop = -1;
 
@@ -921,6 +930,7 @@ int get_GPSkoord(int N) {
     }}}}
     }
 
+#if 0
     if (option_vergps == 8  ||  option_vergps == 2) {
 
         for (j = 0; j < N; j++) Sat_B[j] = sat[prn[j]];
@@ -1047,6 +1057,7 @@ int get_GPSkoord(int N) {
         }
 
     }
+#endif
 
     return num;
 }
@@ -1184,7 +1195,9 @@ void get_eph(const char *file) {
         if (ephs) {
             ephem = 1;
             almanac = 0;
-        }
+        } else {
+	    ephstate = EPH_EPHERROR;
+	}
 	Serial.printf("reading RNX done, result is %d, ephs=%p\n", ephem, ephs);
         if (!option_der) d_err = 1000;
 }
