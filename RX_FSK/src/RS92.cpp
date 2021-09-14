@@ -17,7 +17,6 @@
 #define RS92_DBG(x)
 #endif
 
-//static uint16_t CRCTAB[256];
 uint16_t *CRCTAB = NULL;
 
 #define X2C_DIVR(a, b) ((b) != 0.0f ? (a)/(b) : (a))
@@ -38,27 +37,6 @@ static uint32_t X2C_LSH(uint32_t a, int32_t length, int32_t n)
 		return 0;
 	return (a >> -n) & m;
 }
-
-#if 0
-static double atang2(double x, double y)
-{
-   double w;
-   if (fabs(x)>fabs(y)) {
-      w = (double)atan((float)(X2C_DIVL(y,x)));
-      if (x<0.0) {
-         if (y>0.0) w = 3.1415926535898+w;
-         else w = w-3.1415926535898;
-      }
-   }
-   else if (y!=0.0) {
-      w = (double)(1.5707963267949f-atan((float)(X2C_DIVL(x,
-                y))));
-      if (y<0.0) w = w-3.1415926535898;
-   }
-   else w = 0.0;
-   return w;
-} /* end atang2() */
-#endif
 
 static void Gencrctab(void)
 {
@@ -195,19 +173,6 @@ int RS92::setup(float frequency)
 #endif
         return res;
 }
-
-#if 0
-int RS92::setFrequency(float frequency) {
-	Serial.print("RS92: setting RX frequency to ");
-	Serial.println(frequency);
-	int res = sx1278.setFrequency(frequency);
-	// enable RX
-        sx1278.setPayloadLength(0);  // infinite for now...
-
-	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-	return res;
-}
-#endif
 
 uint32_t RS92::bits2val(const uint8_t *bits, int len) {
 	uint32_t val = 0;
@@ -448,34 +413,6 @@ void RS92::printRaw(uint8_t *data, int len)
 	Serial.println();
 }
 
-#if 0
-// I guess this is old copy&paste stuff from RS41??
-int RS92::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
-{
-	int i;
-	for(i=0; i<len*4; i++) {
-	       	bytes[i/8] = (bytes[i/8]<<1) | (bits[i]?1:0);
-	}
-	bytes[(i-1)/8] &= 0x0F;
-}
-
-static unsigned char lookup[16] = {
-0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
-0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf, };
-
-static uint8_t reverse(uint8_t n) {
-   return (lookup[n&0x0f] << 4) | lookup[n>>4];
-}
-
-
-static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
-                14U,249U,68U,198U,38U,33U,96U,194U,234U,121U,93U,109U,161U,
-                84U,105U,71U,12U,220U,232U,92U,241U,247U,118U,130U,127U,7U,
-                153U,162U,44U,147U,124U,48U,99U,245U,16U,46U,97U,208U,188U,
-                180U,182U,6U,170U,244U,35U,120U,110U,59U,174U,191U,123U,76U,
-		193U};
-#endif
-
 
 void RS92::stobyte92(uint8_t b)
 {
@@ -631,97 +568,9 @@ int RS92::waitRXcomplete() {
         si->time = (gpx.gpssec/1000) + 86382 + gpx.week*604800 + 315878400UL;
         si->validTime = true;	
 
-#if 0
-	int res=0;
-        uint32_t t0 = millis();
-        while( rxtask.receiveResult == 0xFFFF && millis()-t0 < 2000) { delay(20); }
-
-        if( rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) {
-                res = RX_TIMEOUT;
-        } else if ( rxtask.receiveResult==0) {
-                res = RX_OK;
-        } else {
-                res = RX_ERROR;
-        }
-        rxtask.receiveResult = 0xFFFF;
-        Serial.printf("RS92::waitRXcomplete returning %d (%s)\n", res, RXstr[res]);
-        return res;
-#endif
 	return 0;
 }
 
 
-#if 0
-int oldwaitRXcomplete() {
-	Serial.println("RS92: receive frame...\n");
-	sx1278receiveData = true;
-	delay(6000); // done in other task....
-	//sx1278receiveData = false;
-#if 0
-	//sx1278.setPayloadLength(518-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-	//sx1278.setPayloadLength(0);  // infinite for now...
-
-////// test code for continuous reception
-	//  sx1278.receive();  /// active FSK RX mode -- already done above...
-        uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);
-        unsigned long previous = millis();
-
-        byte ready=0;
-	uint32_t wait = 8000;
-        // while not yet done or FIFO not yet empty
-	// bit 6: FIFO Empty
-	// bit 2 payload ready
-	int by=0;
-        while( (!ready || bitRead(value,6)==0) && (millis() - previous < wait) )
-        {
-		if( bitRead(value, 7) ) { Serial.println("FIFO full"); }
-		if( bitRead(value, 4) ) { Serial.println("FIFO overflow"); }
-                if( bitRead(value,2)==1 ) ready=1;
-                if( bitRead(value, 6) == 0 ) { // FIFO not empty
-                        byte data = sx1278.readRegister(REG_FIFO);
-			process8N1data(data);
-			by++;
-#if 0
-                        if(di==1) {
-                                int rssi=getRSSI();
-                                int fei=getFEI();
-                                int afc=getAFC();
-                                Serial.print("Test: RSSI="); Serial.println(rssi);
-                                Serial.print("Test: FEI="); Serial.println(fei);
-                                Serial.print("Test: AFC="); Serial.println(afc);
-                                sonde.si()->rssi = rssi;
-                                sonde.si()->afc = afc;
-                        }
-                        if(di>520) {
-                                // TODO
-                                Serial.println("TOO MUCH DATA");
-                                break;
-                        }
-                        previous = millis(); // reset timeout after receiving data
-#endif
-                }
-                value = sx1278.readRegister(REG_IRQ_FLAGS2);
-        }
-	Serial.printf("processed %d bytes before end/timeout\n", by);
-#endif
-
-
-
-/////
-#if 0
-	int e = sx1278.receivePacketTimeout(1000, data+8);
-	if(e) { Serial.println("TIMEOUT"); return RX_TIMEOUT; } //if timeout... return 1
-
-	printRaw(data, RS92MAXLEN);
-	//for(int i=0; i<RS92MAXLEN; i++) { data[i] = reverse(data[i]); }
-	//printRaw(data, MAXLEN);
-	//for(int i=0; i<RS92MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
-	//printRaw(data, MAXLEN);
-	//int res = decode41(data, RS92MAXLEN);
-#endif
-	int res=0;
-	return res==0 ? RX_OK : RX_ERROR;
-}
-#endif
 
 RS92 rs92 = RS92();

@@ -55,11 +55,6 @@ private:
 	void process8N1data(uint8_t data);
 	void stobyte92(uint8_t byte);
         void decodeframe92(uint8_t *data);
-#if 0
-	void dogps(const uint8_t *sf, int sf_len,
-                struct CONTEXTR9 * cont, uint32_t * timems,
-                uint32_t * gpstime);
-#endif
 	uint32_t bits2val(const uint8_t *bits, int len);
 	void printRaw(uint8_t *data, int len);
 	int bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);

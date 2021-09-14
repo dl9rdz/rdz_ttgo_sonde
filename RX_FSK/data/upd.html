@@ -1,0 +1,36 @@
+<html><head>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+
+
+<form action="update.html" method="post"><p>Currently installed: devel20210908-B14</p>
+<p>
+Available master: <span id="masterDiv">(...checking...)</span>
+
+<br>
+Available devel: <span id="develDiv">(...checking...)</span>
+
+</p>
+<input type="submit" name="master" value="Master-Update"></input><br>
+<input type="submit" name="devel" value="Devel-Update"><br>
+<p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p></form>
+
+<script>
+const masterInfo = document.getElementById('masterDiv');
+const develInfo = document.getElementById('develDiv');
+
+let request = new XMLHttpRequest();
+request.open('GET', 'http://rdzsonde.mooo.com/master/update-info.html');
+request.onload = function() {
+  masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
+}
+request.send();
+let drequest = new XMLHttpRequest();
+drequest.open('GET', 'http://rdzsonde.mooo.com/devel/update-info.html');
+drequest.onload = function() {
+  develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
+}
+drequest.send();
+</script>
+</body></html>
