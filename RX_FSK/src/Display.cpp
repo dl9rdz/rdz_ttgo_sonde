@@ -336,6 +336,7 @@ const struct gfxoffset_t gfxoffsets[]={
         { 13, 18 },  // 17+13-12 "j" 
         { 17, 23 }, // 23+17-17
         {  4, 6},       // 6+4-4
+        { 25, 34 },   // 34 25 -25
 };
 static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 

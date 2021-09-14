@@ -1029,6 +1029,7 @@ const char *handleEditPost(AsyncWebServerRequest *request) {
   return "";
 }
 
+// will be removed. its now in data/upd.html (for GET; POST to update.html still handled here)
 const char *createUpdateForm(boolean run) {
   char *ptr = message;
   strcpy(ptr, "<html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
@@ -2865,17 +2866,25 @@ void execOTA() {
   int contentLength = 0;
   bool isValidContentType = false;
   sonde.clearDisplay();
-  disp.rdis->setFont(FONT_SMALL);
-  disp.rdis->drawString(0, 0, "C:");
-  String dispHost = updateHost.substring(0, 14);
-  disp.rdis->drawString(2, 0, dispHost.c_str());
+  uint8_t dispxs, dispys;
+  if( ISOLED(sonde.config) ) {
+      disp.rdis->setFont(FONT_SMALL);
+      dispxs = dispys = 1;
+  } else {
+      disp.rdis->setFont(5);
+      dispxs = 18;
+      dispys = 20;
+  }
+
+  String dispHost = updateHost.substring(0, 16);
+  disp.rdis->drawString(0, 0, dispHost.c_str());
 
   Serial.println("Connecting to: " + updateHost);
   // Connect to Update host
   if (client.connect(updateHost.c_str(), updatePort)) {
     // Connection succeeded, fecthing the bin
     Serial.println("Fetching bin: " + String(*updateBin));
-    disp.rdis->drawString(0, 1, "Fetching update");
+    disp.rdis->drawString(0, 1 * dispys, "Fetching update");
 
     // Get the contents of the bin file
     client.print(String("GET ") + *updateBin + " HTTP/1.1\r\n" +
@@ -2968,22 +2977,22 @@ void execOTA() {
 
   // Check what is the contentLength and if content type is `application/octet-stream`
   Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
-  disp.rdis->drawString(0, 2, "Len: ");
+  disp.rdis->drawString(0, 2 * dispys, "Len: ");
   String cls = String(contentLength);
-  disp.rdis->drawString(5, 2, cls.c_str());
+  disp.rdis->drawString(5 * dispxs, 2 * dispys, cls.c_str());
 
   // check contentLength and content type
   if (contentLength && isValidContentType) {
     // Check if there is enough to OTA Update
     bool canBegin = Update.begin(contentLength);
-    disp.rdis->drawString(0, 4, "Starting update");
+    disp.rdis->drawString(0, 4 * dispys, "Starting update");
 
     // If yes, begin
     if (canBegin) {
       Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
       // No activity would appear on the Serial monitor
       // So be patient. This may take 2 - 5mins to complete
-      disp.rdis->drawString(0, 5, "Please wait!");
+      disp.rdis->drawString(0, 5 * dispys, "Please wait!");
       size_t written = Update.writeStream(client);
 
       if (written == contentLength) {
@@ -2998,7 +3007,7 @@ void execOTA() {
         Serial.println("OTA done!");
         if (Update.isFinished()) {
           Serial.println("Update successfully completed. Rebooting.");
-          disp.rdis->drawString(0, 7, "Rebooting....");
+          disp.rdis->drawString(0, 7 * dispys, "Rebooting....");
           delay(1000);
           ESP.restart();
         } else {
