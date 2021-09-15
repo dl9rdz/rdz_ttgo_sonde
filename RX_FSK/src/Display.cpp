@@ -336,6 +336,7 @@ const struct gfxoffset_t gfxoffsets[]={
         { 13, 18 },  // 17+13-12 "j" 
         { 17, 23 }, // 23+17-17
         {  4, 6},       // 6+4-4
+        { 25, 34 },   // 34 25 -25
 };
 static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 
@@ -551,20 +552,6 @@ void ILI9225Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile
         }
         tft->endWrite();
 	SPI_MUTEX_UNLOCK();
-#if 0
-	int i,j;
-	tft->startWrite();
-	for(int i=0; i<cnt*8; i++) {
-		uint8_t v = tile_ptr[i];
-		for(j=0; j<8; j++) {
-			tft->drawPixel(8*x+i, 8*y+j, (v&0x01) ? COLOR_GREEN:COLOR_BLUE);
-			v >>= 1;
-		}
-	}
-	tft->endWrite();
-	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
-        //???u8x8->drawTile(x, y, cnt, tile_ptr);
-#endif
 }
 
 void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, boolean fill) {
@@ -1081,11 +1068,6 @@ void Display::initFromFile(int index) {
 				what++;
 				newlayouts[idx].de[what].func = NULL;
 			} else {
-#if 0
-				for(int i=0; i<12; i++) {
-					Serial.printf("action %d: %d\n", i, (int)newlayouts[idx].actions[i]);
-				}
-#endif
  				what=-1;
 			}
 			break;

@@ -17,18 +17,6 @@
 static byte data[800];
 static int dpos = 0;
 
-#if 0
-// subframe is never used?
-static byte subframe[51*16]; // 816 subframe bytes
-// this is moved to sondeInfo->extra
-static bool subframeReceived[51] = { false }; // do we have data for row
-static bool subframeComplete = false; // is the subframe complete
-// this is needed only locally, use a local variable on stack for that
-static bool validExternalTemperature = false; // have received all the calibration frames for the external temperature
-static bool validHumidity = false; // have received all the calibration frames for the humidity
-static bool validRAExternalTemperature = false; // have received all the calibration frames for the external temperature
-static bool validRAHumidity = false; // have received all the calibration frames for the humidity
-#endif
 
 // whole 51 row frame as C structure
 // taken from https://github.com/einergehtnochrein/ra-firmware
@@ -715,13 +703,6 @@ int RS41::decode41(byte *data, int maxlen)
 				sonde.si()->countKT = cntdown;
 				sonde.si()->crefKT = fnr;
 			}
-#if 0
-         // process this subframe 
-         int subframeOffset = 24; // 24 = 0x18, start of subframe data
-         byte receivedBytes[16];
-         memcpy( receivedBytes, data+p+subframeOffset, 16);
-         ProcessSubframe( receivedBytes, calnr );
-#endif
 			ProcessSubframe( data+p+24, calnr );
 
 			}
@@ -754,9 +735,11 @@ int RS41::decode41(byte *data, int maxlen)
 			   uint32_t tempHumiMain = getint24(data, 560, p+18);
 			   uint32_t tempHumiRef1 = getint24(data, 560, p+21);
 			   uint32_t tempHumiRef2 = getint24(data, 560, p+24);
+	    #if 0
 			   uint32_t pressureMain = getint24(data, 560, p+27);
 			   uint32_t pressureRef1 = getint24(data, 560, p+30);
 			   uint32_t pressureRef2 = getint24(data, 560, p+33);
+	    #endif
             #if 0
                Serial.printf( "External temp: tempMeasMain = %ld, tempMeasRef1 = %ld, tempMeasRef2 = %ld\n", tempMeasMain, tempMeasRef1, tempMeasRef2 );
                Serial.printf( "Rel  Humidity: humidityMain = %ld, humidityRef1 = %ld, humidityRef2 = %ld\n", humidityMain, humidityRef1, humidityRef2 );
@@ -856,22 +839,6 @@ int RS41::receive() {
 int RS41::waitRXcomplete() {
 	// Currently not used. can be used for additinoal post-processing
 	// (required for RS92 to avoid FIFO overrun in rx task)
-#if 0
-	int res;
-	uint32_t t0 = millis();
-	while(rxtask.receiveResult<0 && millis()-t0 < 3000) { delay(50); }
-
-	if(rxtask.receiveResult<0 || rxtask.receiveResult==RX_TIMEOUT) { 
-		res = RX_TIMEOUT;
-	} else if (rxtask.receiveResult==0) {
-		res = RX_OK;
-	} else {
-		res = RX_ERROR;
-	}
-	rxtask.receiveResult = -1;
-	Serial.printf("waitRXcomplete returning %d\n", res);
-	return res;
-#endif
 	return 0;
 }
 

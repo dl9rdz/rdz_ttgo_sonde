@@ -62,46 +62,6 @@ int MP3H::setup(float frequency)
                 return 1;
         }
 
-#if 0
-/// TODO: Maybe do this conditionally? -- maybe skip if afc if agcbw set to 0 or -1? 
-//// Step 1: Tentative AFC mode
-        sx1278.clearIRQFlags();
-        // preamble detector + AFC + AGC on
-        // wait for preamble interrupt within 2sec
-        sx1278.setBitrate(4800);
-        // DetectorOn=1, Preamble detector size 01, preamble tol 0x0A (10)
-        sx1278.setPreambleDetect(0x80 | 0x20 | 0x0A);
-        // Manual start RX, Enable Auto-AFC, Auto-AGC, RX Trigger (AGC+AFC)by preamble
-        sx1278.setRxConf(0x20 | 0x10 | 0x08 | 0x06);
-        // Packet config 1: fixed len, no mancecer, no crc, no address filter
-        // Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-        if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
-                MP3H_DBG(Serial.println("Setting Packet config FAILED"));
-                return 1;
-        }
-        // enable RX
-        sx1278.setPayloadLength(0);
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
-        unsigned long t0 = millis();
-        MP3H_DBG(Serial.printf("MP3H::setup() AFC preamble search start at %ld\n",t0));
-        while( millis() - t0 < 1000 ) {
-                uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS1);
-               if(value & 2) {
-                       int32_t afc = sx1278.getAFC();
-                       int16_t rssi = sx1278.getRSSI();
-                       Serial.printf("MP3H::setup: preamble: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
-                       sonde.sondeList[rxtask.currentSonde].rssi = rssi;
-                       sonde.sondeList[rxtask.currentSonde].afc = afc;
-                       break;
-               }
-               yield();
-        }
-        if( millis() - t0 >= 1000) {
-               Serial.println("Preamble scan for AFC: TIMEOUT\n");
-               return 1; // no preamble, so we may fail fast....
-        }
-#endif
-
 //// Step 2: Real reception
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
 	sx1278.setFSK();
