@@ -63,6 +63,8 @@ commit_website_files() {
   git add ${BRANCH}/${VERSION}-changelog.txt
   echo "<html><body><p>${VERSION}</p></body></html>" > ${BRANCH}/update-info.html
   git add ${BRANCH}/update-info.html
+  ${MYPATH}/scripts/makefsupdate.py ${MYPATH}/RX_FSK/data/ > ${BRANCH}/update.fs.bin
+  git add ${BRANCH}/update.fs.bin
   git commit --message "Travis build: $TRAVIS_BUILD_NUMBER"
 }
 upload_files() {
