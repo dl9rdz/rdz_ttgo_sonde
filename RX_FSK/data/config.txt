@@ -129,6 +129,7 @@ sondehub.lon=
 sondehub.alt=
 sondehub.antenna=
 sondehub.email=
+sondehub.fimport=0/100/60
 #-------------------------------#
 # EOF
 #-------------------------------#

@@ -21,6 +21,8 @@
 #include "src/geteph.h"
 #include "src/rs92gps.h"
 #include "src/aprs.h"
+#include "src/ShFreqImport.h"
+
 #if FEATURE_MQTT
 #include "src/mqtt.h"
 #endif
@@ -39,11 +41,13 @@ AXP20X_Class axp;
 SemaphoreHandle_t axpSemaphore;
 bool pmu_irq = false;
 
-String updateHost = "rdzsonde.mooo.com";
+const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
-String updateBinM = "/master/update.ino.bin";
-String updateBinD = "/devel/update.ino.bin";
-String *updateBin = &updateBinM;
+
+const char *updatePrefixM = "/master/";
+const char *updatePrefixD = "/devel/";
+const char *updatePrefix = updatePrefixM;
+
 
 #define LOCALUDPPORT 9002
 //Get real UTC time from NTP server
@@ -58,6 +62,7 @@ WiFiClient client;
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
 WiFiClient shclient;	// Sondehub v2
+char shImportInterval = 0, shImport = 0;
 unsigned long time_last_update = 0;
 /* SH_LOC_OFF: never send position information to SondeHub
    SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
@@ -145,6 +150,11 @@ String processor(const String& var) {
   }
   if (var == "VERSION_ID") {
     return String(version_id);
+  }
+  if (var == "FULLNAMEID") {
+    char tmp[128];
+    snprintf(tmp, 128, "%s-%c%d", version_id, SPIFFS_MAJOR+'A'-1, SPIFFS_MINOR);
+    return String(tmp);
   }
   if (var == "AUTODETECT_INFO") {
     char tmpstr[128];
@@ -258,9 +268,18 @@ void HTMLSAVEBUTTON(char *ptr) {
 const char *createQRGForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
-  strcat(ptr, "<script src=\"rdz.js\"/>  <script> window.onload = prep; </script></head>");
+  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
   HTMLBODY(ptr, "qrg.html");
   //strcat(ptr, "<body><form class=\"wrapper\" action=\"qrg.html\" method=\"post\"><div class=\"content\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
+  strcat(ptr, "<script>\nvar qrgs = [];\n");
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *si = &sonde.sondeList[i];
+    sprintf(ptr + strlen(ptr), "qrgs.push([%d, \"%.3f\", \"%s\", \"%c\"]);\n", si->active, si->freq, si->launchsite, sondeTypeChar[si->type] );
+  }
+  strcat(ptr, "</script>\n");
+  strcat(ptr, "<div id=\"divTable\"></div>");
+  strcat(ptr, "<script> qrgTable() </script>\n");
+#if 0
   strcat(ptr, "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     //String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
@@ -278,6 +297,7 @@ const char *createQRGForm() {
     //i + 1, s.c_str());
   }
   strcat(ptr, "</table>");
+#endif
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
@@ -490,8 +510,8 @@ const char *createStatusForm() {
   strcpy(ptr, HTMLHEAD);
   strcat(ptr, "<meta http-equiv=\"refresh\" content=\"5\"></head><body>");
 
-  for (int i = 0; i < sonde.nSonde; i++) {
-    int snum = (i + sonde.currentSonde) % sonde.nSonde;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
     if (sonde.sondeList[snum].active) {
       addSondeStatus(ptr, snum);
     }
@@ -547,6 +567,8 @@ void setupConfigData() {
     String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
+  int shII = atoi(sonde.config.sondehub.fimport);
+  if(shImportInterval > shII) shImportInterval = shII;
 }
 
 
@@ -649,6 +671,7 @@ struct st_configitems config_list[] = {
   {"sondehub.alt", "Altitude (optional, visible on SondeHub tracker)", 19, &sonde.config.sondehub.alt},
   {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
+  {"sondehub.fimport", "SondeHub freq import (interval/maxdist/maxage [min/km/min])", 18, &sonde.config.sondehub.fimport},
 #endif
 };
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -1055,14 +1078,14 @@ const char *handleUpdatePost(AsyncWebServerRequest *request) {
     Serial.println(param.c_str());
     if (param.equals("devel")) {
       Serial.println("equals devel");
-      updateBin = &updateBinD;
+      updatePrefix = updatePrefixD;
     }
     else if (param.equals("master")) {
       Serial.println("equals master");
-      updateBin = &updateBinM;
+      updatePrefix = updatePrefixM;
     }
   }
-  Serial.println("Updating: " + *updateBin);
+  Serial.printf("Updating: %supdate.ino.bin\n", updatePrefix);
   enterMode(ST_UPDATE);
   return "";
 }
@@ -1097,8 +1120,8 @@ const char *createKMLDynamic() {
 
   strcpy(ptr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>");
 
-  for (int i = 0; i < sonde.nSonde; i++) {
-    int snum = (i + sonde.currentSonde) % sonde.nSonde;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
     if (sonde.sondeList[snum].active) {
       addSondeStatusKML(ptr, snum);
     }
@@ -1289,6 +1312,10 @@ void SetupAsyncServer() {
     request->send(200, "application/vnd.google-earth.kml+xml", createKMLDynamic());
   });
 
+  server.on("/upd.html", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/upd.html", String(), false, processor);
+  });
+
   server.onNotFound([](AsyncWebServerRequest * request) {
     if (request->method() == HTTP_OPTIONS) {
       request->send(200);
@@ -1297,6 +1324,7 @@ void SetupAsyncServer() {
       if (url.endsWith(".gpx"))
         request->send(200, "application/gpx+xml", sendGPX(request));
       else {
+	// TODO: set correct type for .js
         request->send(SPIFFS, url, "text/html");
         Serial.printf("URL is %s\n", url.c_str());
         //request->send(404);
@@ -2266,6 +2294,11 @@ void loopDecoder() {
     }
     Serial.println("");
   }
+
+#if FEATURE_SONDEHUB
+  sondehub_handle_fimport(&shclient);
+#endif
+
   // wifi (axudp) or bluetooth (bttnc) active => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
   if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
@@ -2844,7 +2877,7 @@ void loopWifiScan() {
     }
     if (hasRS92) {
       geteph();
-      if(ephstate==EPH_PENDING) ephstate=EPH_ERROR;
+      if (ephstate == EPH_PENDING) ephstate = EPH_ERROR;
       get_eph("/brdc");
     }
     delay(3000);
@@ -2867,30 +2900,84 @@ void execOTA() {
   bool isValidContentType = false;
   sonde.clearDisplay();
   uint8_t dispxs, dispys;
-  if( ISOLED(sonde.config) ) {
-      disp.rdis->setFont(FONT_SMALL);
-      dispxs = dispys = 1;
+  if ( ISOLED(sonde.config) ) {
+    disp.rdis->setFont(FONT_SMALL);
+    dispxs = dispys = 1;
+    char uh[17];
+    strncpy(uh, updateHost, 17);
+    uh[16]=0;
+    disp.rdis->drawString(0, 0, uh);
   } else {
-      disp.rdis->setFont(5);
-      dispxs = 18;
-      dispys = 20;
+    disp.rdis->setFont(5);
+    dispxs = 18;
+    dispys = 20;
+    disp.rdis->drawString(0, 0, updateHost);
   }
 
-  String dispHost = updateHost.substring(0, 16);
-  disp.rdis->drawString(0, 0, dispHost.c_str());
-
-  Serial.println("Connecting to: " + updateHost);
+  Serial.print("Connecting to: "); Serial.println(updateHost);
   // Connect to Update host
-  if (client.connect(updateHost.c_str(), updatePort)) {
+  if (!client.connect(updateHost, updatePort)) {
+    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
+    return;
+  }
+
+  // First, update file system
+  Serial.println("Fetching fs update");
+  disp.rdis->drawString(0, 1 * dispys, "Fetching fs...");
+  client.printf("GET %supdate.fs.bin HTTP/1.1\r\n"
+                "Host: %s\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Connection: close\r\n\r\n", updatePrefix, updateHost);
+  // see if we get some data....
+
+  int type = 0;
+  int res = fetchHTTPheader(&type);
+  if(res < 0) { return; }
+  // process data...
+  while(client.available()) {
+    // get header...
+    char fn[128];
+    fn[0] = '/';
+    client.readBytesUntil('\n', fn+1, 128);
+    char *sz = strchr(fn, ' ');
+    if(!sz) { client.stop(); return; }
+    *sz = 0;
+    int len = atoi(sz+1);
+    Serial.printf("Updating file %s (%d bytes)\n", fn, len);
+    char fnstr[17];
+    memset(fnstr, ' ', 16);
+    strncpy(fnstr, fn, strlen(fn));
+    fnstr[16]=0;
+    disp.rdis->drawString(0, 2 * dispys, fnstr);
+    File f = SPIFFS.open(fn, FILE_WRITE);
+    // read sz bytes........
+    while(len>0) {
+	unsigned char buf[1024];
+	int r = client.read(buf, len>1024? 1024:len);
+	if(r==-1) { client.stop(); return; }
+	f.write(buf, r);
+	len -= r;
+    }
+  }
+  client.stop(); 
+
+  Serial.print("Connecting to: "); Serial.println(updateHost);
+  // Connect to Update host
+  if (!client.connect(updateHost, updatePort)) {
+    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
+    return;
+  }
+
     // Connection succeeded, fecthing the bin
-    Serial.println("Fetching bin: " + String(*updateBin));
-    disp.rdis->drawString(0, 1 * dispys, "Fetching update");
+    Serial.printf("Fetching bin: %supdate.ino.bin\n", updatePrefix);
+    disp.rdis->drawString(0, 3 * dispys, "Fetching update");
 
     // Get the contents of the bin file
-    client.print(String("GET ") + *updateBin + " HTTP/1.1\r\n" +
-                 "Host: " + updateHost + "\r\n" +
-                 "Cache-Control: no-cache\r\n" +
-                 "Connection: close\r\n\r\n");
+    client.printf("GET %supdate.ino.bin HTTP/1.1\r\n"
+                 "Host: %s\r\n"
+                 "Cache-Control: no-cache\r\n" 
+                 "Connection: close\r\n\r\n",
+	updatePrefix, updateHost);
 
     // Check what is being sent
     //    Serial.print(String("GET ") + bin + " HTTP/1.1\r\n" +
@@ -2898,101 +2985,27 @@ void execOTA() {
     //                 "Cache-Control: no-cache\r\n" +
     //                 "Connection: close\r\n\r\n");
 
-    unsigned long timeout = millis();
-    while (client.available() == 0) {
-      if (millis() - timeout > 5000) {
-        Serial.println("Client Timeout !");
-        client.stop();
-        return;
-      }
-    }
-    // Once the response is available,
-    // check stuff
-
-    /*
-       Response Structure
-        HTTP/1.1 200 OK
-        x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
-        x-amz-request-id: 2D56B47560B764EC
-        Date: Wed, 14 Jun 2017 03:33:59 GMT
-        Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
-        ETag: "d2afebbaaebc38cd669ce36727152af9"
-        Accept-Ranges: bytes
-        Content-Type: application/octet-stream
-        Content-Length: 357280
-        Server: AmazonS3
-
-        {{BIN FILE CONTENTS}}
-
-    */
-    while (client.available()) {
-      // read line till /n
-      String line = client.readStringUntil('\n');
-      // remove space, to check if the line is end of headers
-      line.trim();
-
-      // if the the line is empty,
-      // this is end of headers
-      // break the while and feed the
-      // remaining `client` to the
-      // Update.writeStream();
-      if (!line.length()) {
-        //headers ended
-        break; // and get the OTA started
-      }
-
-      // Check if the HTTP Response is 200
-      // else break and Exit Update
-      if (line.startsWith("HTTP/1.1")) {
-        if (line.indexOf("200") < 0) {
-          Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
-          break;
-        }
-      }
-
-      // extract headers here
-      // Start with content length
-      if (line.startsWith("Content-Length: ")) {
-        contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
-        Serial.println("Got " + String(contentLength) + " bytes from server");
-      }
-
-      // Next, the content type
-      if (line.startsWith("Content-Type: ")) {
-        String contentType = getHeaderValue(line, "Content-Type: ");
-        Serial.println("Got " + contentType + " payload.");
-        if (contentType == "application/octet-stream") {
-          isValidContentType = true;
-        }
-      }
-    }
-  } else {
-    // Connect to updateHost failed
-    // May be try?
-    // Probably a choppy network?
-    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
-    // retry??
-    // execOTA();
-  }
+  int validType = 0;
+  contentLength = fetchHTTPheader( &validType );
+  if(validType==1) isValidContentType = true;
 
   // Check what is the contentLength and if content type is `application/octet-stream`
   Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
-  disp.rdis->drawString(0, 2 * dispys, "Len: ");
+  disp.rdis->drawString(0, 4 * dispys, "Len: ");
   String cls = String(contentLength);
-  disp.rdis->drawString(5 * dispxs, 2 * dispys, cls.c_str());
+  disp.rdis->drawString(5 * dispxs, 4 * dispys, cls.c_str());
 
   // check contentLength and content type
   if (contentLength && isValidContentType) {
     // Check if there is enough to OTA Update
     bool canBegin = Update.begin(contentLength);
-    disp.rdis->drawString(0, 4 * dispys, "Starting update");
 
     // If yes, begin
     if (canBegin) {
+      disp.rdis->drawString(0, 5 * dispys, "Starting update");
       Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
       // No activity would appear on the Serial monitor
       // So be patient. This may take 2 - 5mins to complete
-      disp.rdis->drawString(0, 5 * dispys, "Please wait!");
       size_t written = Update.writeStream(client);
 
       if (written == contentLength) {
@@ -3031,6 +3044,77 @@ void execOTA() {
   enterMode(ST_DECODER);
 }
 
+int fetchHTTPheader(int *validType) {
+    int contentLength = -1;
+    unsigned long timeout = millis();
+    while (client.available() == 0) {
+      if (millis() - timeout > 5000) {
+        Serial.println("Client Timeout !");
+        client.stop();
+        return -1;
+      }
+    }
+    // Once the response is available, check stuff
+
+    /*
+       Response Structure
+        HTTP/1.1 200 OK
+        x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
+        x-amz-request-id: 2D56B47560B764EC
+        Date: Wed, 14 Jun 2017 03:33:59 GMT
+        Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
+        ETag: "d2afebbaaebc38cd669ce36727152af9"
+        Accept-Ranges: bytes
+        Content-Type: application/octet-stream
+        Content-Length: 357280
+        Server: AmazonS3
+
+        {{BIN FILE CONTENTS}}
+
+    */
+    while (client.available()) {
+      // read line till \n
+      String line = client.readStringUntil('\n');
+      // remove space, to check if the line is end of headers
+      line.trim();
+
+      // if the the line is empty,
+      // this is end of headers
+      // break the while and feed the
+      // remaining `client` to the
+      // Update.writeStream();
+      if (!line.length()) {
+        //headers ended
+        break; // and get the OTA started
+      }
+
+      // Check if the HTTP Response is 200
+      // else break and Exit Update
+      if (line.startsWith("HTTP/1.1")) {
+        if (line.indexOf("200") < 0) {
+          Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+          return -1;
+        }
+      }
+
+      // extract headers here
+      // Start with content length
+      if (line.startsWith("Content-Length: ")) {
+        contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
+        Serial.println("Got " + String(contentLength) + " bytes from server");
+      }
+
+      // Next, the content type
+      if (line.startsWith("Content-Type: ")) {
+        String contentType = getHeaderValue(line, "Content-Type: ");
+        Serial.println("Got " + contentType + " payload.");
+        if (contentType == "application/octet-stream") {
+          if(validType) *validType = 1;
+        }
+      }
+    }
+    return contentLength;
+}
 
 
 
@@ -3137,16 +3221,16 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   // Only send email if provided
   if (strlen(conf->email) != 0) {
     sprintf(w,
-          "\"uploader_contact_email\": \"%s\",",
-          conf->email);
+            "\"uploader_contact_email\": \"%s\",",
+            conf->email);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
     sprintf(w,
-          "\"uploader_antenna\": \"%s\",",
-          conf->antenna);
+            "\"uploader_antenna\": \"%s\",",
+            conf->antenna);
     w += strlen(w);
   }
 
@@ -3219,6 +3303,55 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
+void sondehub_handle_fimport(WiFiClient *client) {
+  if (sonde.config.sondehub.fimport[0] != '0') {
+    if (shImport == 0) {
+      sondehub_send_fimport(&shclient);
+    } else if (shImport == 1) {
+      int res = ShFreqImport::shImportHandleReply(&shclient);
+      if (res == 1) {
+        shImport = 2; // finished
+      }
+    } else if (shImport == 2) {
+      // waiting for next activation...
+      shImportInterval --;
+      if (shImportInterval <= 0) {
+        shImport = 0;
+      }
+    }
+  }
+}
+
+void sondehub_send_fimport(WiFiClient * client) {
+  if (shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK) {
+    // Currently busy with SondeHub data upload
+    // So do nothing here.
+    // sond_fimport will be re-sent later, when shState becomes SH_CONN_IDLE
+    return;
+  }
+  // It's time to run, so check prerequisites
+  float lat = sonde.config.sondehub.lat, lon = sonde.config.sondehub.lon;
+  if (gpsPos.valid) {
+    lat = gpsPos.lat;
+    lon = gpsPos.lon;
+  }
+
+  char *ptr = strchr(sonde.config.sondehub.fimport, '/');
+  shImportInterval = atoi(sonde.config.sondehub.fimport) * 60;
+  int maxdist = 200;
+  int maxage = 60;
+  if (ptr) {
+    maxdist = atoi(ptr + 1);
+    ptr = strchr(ptr + 1, '/');
+    if (ptr) maxage = atoi(ptr + 1);
+  }
+  if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && shImportInterval > 0 ) {
+    int res = ShFreqImport::shImportSendRequest(&shclient, lat, lon, maxdist, maxage);
+    if (res == 0) shImport = 1; // Request OK: wait for response
+    else shImport = 2;        // Request failed: wait interval, then retry
+  }
+}
+
 // in hours.... max allowed diff UTC <-> sonde time
 #define SONDEHUB_TIME_THRESHOLD (3)
 void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf) {
@@ -3248,7 +3381,9 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
-  while (client->available() > 0) {
+  // TODO: This should better be called not in sondehub_send_data, but somewhere where it is called even if no new data is decoded
+  // shImport==1: software is waiting for a reply to freq info requst, so reading data is handled elsewhere
+  while (shImport != 1 && client->available() > 0) {
     // data is available from remote server, process it...
     int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
     rs_msg[cnt] = 0;
@@ -3256,6 +3391,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
     if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
       shState = SH_CONN_IDLE;
+      sondehub_send_fimport(client);
     }
   }
 
@@ -3365,8 +3501,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
     sprintf(w,
-          "\"uploader_antenna\": \"%s\",",
-          conf->antenna);
+            "\"uploader_antenna\": \"%s\",",
+            conf->antenna);
     w += strlen(w);
   }
 
@@ -3400,7 +3536,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   sprintf(w, "}");
 
   if (shState != SH_CONN_APPENDING) {
-    sondehub_send_header(client, s, conf);
+    sondehub_send_header(client, s, conf, &timeinfo);
     sondehub_send_next(client, s, conf, rs_msg, strlen(rs_msg), 1);
     shState = SH_CONN_APPENDING;
     shStart = now;
@@ -3431,19 +3567,36 @@ void sondehub_finish_data(WiFiClient * client, SondeInfo * s, struct st_sondehub
   }
 }
 
-void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf) {
+static const char *DAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Noc", "Dec"};
+
+void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, struct tm *now) {
   Serial.print("PUT /sondes/telemetry HTTP/1.1\r\n"
                "Host: ");
   Serial.println(conf->host);
-  Serial.println("accept: text/plain\r\n"
+  Serial.print("accept: text/plain\r\n"
                  "Content-Type: application/json\r\n"
                  "Transfer-Encoding: chunked\r\n");
+
   client->print("PUT /sondes/telemetry HTTP/1.1\r\n"
                 "Host: ");
   client->println(conf->host);
-  client->println("accept: text/plain\r\n"
-                  "Content-Type: application/json\r\n"
-                  "Transfer-Encoding: chunked\r\n");
+  client->print("accept: text/plain\r\n"
+                "Content-Type: application/json\r\n"
+                "Transfer-Encoding: chunked\r\n");
+  if (now) {
+    Serial.printf("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+                  DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
+                  now->tm_hour, now->tm_min, now->tm_sec);
+    client->printf("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+                   DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
+                   now->tm_hour, now->tm_min, now->tm_sec);
+  }
+  client->print("User-agent: ");
+  client->print(version_name);
+  client->print("/");
+  client->println(version_id);
+  client->println(""); // another cr lf as indication of end of header
 }
 void sondehub_send_next(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, char *chunk, int chunklen, int first) {
   // send next chunk of JSON request

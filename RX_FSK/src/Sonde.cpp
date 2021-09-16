@@ -357,26 +357,26 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 // called by updateState (only)
 void Sonde::nextConfig() {
 	currentSonde++;
-	if(currentSonde>=nSonde) {
+	if(currentSonde>=config.maxsonde) {
 		currentSonde=0;
 	}
 	// Skip non-active entries (but don't loop forever if there are no active ones)
 	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[currentSonde].active) {
 			currentSonde++;
-			if(currentSonde>=nSonde) currentSonde=0;
+			if(currentSonde>=config.maxsonde) currentSonde=0;
 		}
 	}
 }
 void Sonde::nextRxSonde() {
 	rxtask.currentSonde++;
-	if(rxtask.currentSonde>=nSonde) {
+	if(rxtask.currentSonde>=config.maxsonde) {
 		rxtask.currentSonde=0;
 	}
 	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[rxtask.currentSonde].active) {
 			rxtask.currentSonde++;
-			if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+			if(rxtask.currentSonde>=config.maxsonde) rxtask.currentSonde=0;
 		}
 	}
 	Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
@@ -402,7 +402,7 @@ void Sonde::setup() {
 		for(int i=0; i<config.maxsonde - 1; i++) {
 			if(!sondeList[rxtask.currentSonde].active) {
 				rxtask.currentSonde++;
-				if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+				if(rxtask.currentSonde>=config.maxsonde) rxtask.currentSonde=0;
 			}
 		}
 		sonde.currentSonde = rxtask.currentSonde;

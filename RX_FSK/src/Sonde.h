@@ -2,6 +2,8 @@
 #ifndef Sonde_h
 #define Sonde_h
 
+#include <inttypes.h>
+
 enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
 extern uint8_t debug;
 
@@ -194,6 +196,7 @@ struct st_sondehub {
 	char alt[20];
 	char antenna[64];
 	char email[64];
+	char fimport[20];
 };
 
 // to be extended
