@@ -46,7 +46,6 @@ void ShFreqImport::setLabel(int idx, char *id, float lat, float lon) {
 }
 
 void ShFreqImport::usekeyvalue() {
-        printf("\nUSEKEYVALUE: key %s => value %s\n", keyword, value);
         if(strcmp(keyword,"lat")==0) lat = atof(value);
         if(strcmp(keyword,"lon")==0) lon = atof(value);
         if(strcmp(keyword,"frequency")==0) freq = atof(value);
@@ -56,7 +55,7 @@ void ShFreqImport::usekeyvalue() {
 /* populate qrg.txt with frequency of near sonde */
 void ShFreqImport::populate(char *id, float lat, float lon, float freq, const char *type) 
 {
-    printf(" ID %s:  %.5f, %.5f  f=%.3f, type=%s \n", id, lat, lon, freq, type);
+    //printf(" ID %s:  %.5f, %.5f  f=%.3f, type=%s \n", id, lat, lon, freq, type);
     // Skip if freq already exists
     int stype = stringToStype(type);
     if(stype<0) return;  // unsupported type
@@ -101,7 +100,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
 
 // clears all remaining automatically filled slots (no longer in SH data)
 void ShFreqImport::cleanup() {
-    Serial.println("Cleanup called ********");
+    //Serial.println("Cleanup called ********");
     for(int i=0; i<sonde.config.maxsonde; i++) {
 	if( (((inuse[i/8]>>(i&7))&1) == 0) && *sonde.sondeList[i].launchsite=='@' ) {
 	    Serial.printf("removing #%d\n", i);
@@ -176,7 +175,7 @@ int ShFreqImport::handleChar(char c) {
                 if(c=='}') {
                         // we have an ID and all key/value pairs, check if its good....
                         if( !isnan(lat) && !isnan(lon) && !isnan(freq) && type[0] ) {
-                                printf("populate %s %f %f %f %s\n", id, lat, lon, freq, type);
+                                printf("SondeHub import: populate %s %f %f %f %s\n", id, lat, lon, freq, type);
                                 populate(id, lat, lon, freq, type);
                         } else {
                                 printf("Skipping incomplete %s\n", id);
