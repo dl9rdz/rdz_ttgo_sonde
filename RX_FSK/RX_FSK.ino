@@ -149,6 +149,11 @@ String processor(const String& var) {
   if (var == "VERSION_ID") {
     return String(version_id);
   }
+  if (var == "FULLNAMEID") {
+    char tmp[128];
+    snprintf(tmp, 128, "%s-%c%d", version_id, SPIFFS_MAJOR+'A'-1, SPIFFS_MINOR);
+    return String(tmp);
+  }
   if (var == "AUTODETECT_INFO") {
     char tmpstr[128];
     const char *fpstr;
@@ -560,6 +565,8 @@ void setupConfigData() {
     String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
+  int shII = atoi(sonde.config.sondehub.fimport);
+  if(shImportInterval > shII) shImportInterval = shII;
 }
 
 
@@ -1303,6 +1310,10 @@ void SetupAsyncServer() {
     request->send(200, "application/vnd.google-earth.kml+xml", createKMLDynamic());
   });
 
+  server.on("/upd.html", HTTP_GET, [](AsyncWebServerRequest * request) {
+    request->send(SPIFFS, "/upd.html", String(), false, processor);
+  });
+
   server.onNotFound([](AsyncWebServerRequest * request) {
     if (request->method() == HTTP_OPTIONS) {
       request->send(200);
@@ -1311,6 +1322,7 @@ void SetupAsyncServer() {
       if (url.endsWith(".gpx"))
         request->send(200, "application/gpx+xml", sendGPX(request));
       else {
+	// TODO: set correct type for .js
         request->send(SPIFFS, url, "text/html");
         Serial.printf("URL is %s\n", url.c_str());
         //request->send(404);
@@ -3509,7 +3521,7 @@ void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub
   Serial.print("PUT /sondes/telemetry HTTP/1.1\r\n"
                "Host: ");
   Serial.println(conf->host);
-  Serial.println("accept: text/plain\r\n"
+  Serial.print("accept: text/plain\r\n"
                  "Content-Type: application/json\r\n"
                  "Transfer-Encoding: chunked\r\n");
 
