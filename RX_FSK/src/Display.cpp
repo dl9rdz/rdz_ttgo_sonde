@@ -1,4 +1,4 @@
-#include "../../RX_FSK/features.h"
+#include "../features.h"
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
@@ -12,12 +12,13 @@ int readLine(Stream &stream, char *buffer, int maxlen);
 extern const char *version_name;
 extern const char *version_id;
 
-#include <fonts/FreeMono9pt7b.h>
-#include <fonts/FreeMono12pt7b.h>
-#include <fonts/FreeSans9pt7b.h>
-#include <fonts/FreeSans12pt7b.h>
-#include <fonts/Picopixel.h>
-#include <fonts/Terminal11x16.h>
+#include "fonts/FreeMono9pt7b.h"
+#include "fonts/FreeMono12pt7b.h"
+#include "fonts/FreeSans9pt7b.h"
+#include "fonts/FreeSans12pt7b.h"
+#include "fonts/FreeSans18pt7b.h"
+#include "fonts/Picopixel.h"
+#include "fonts/Terminal11x16.h"
 
 extern Sonde sonde;
 
@@ -35,10 +36,6 @@ extern xSemaphoreHandle globalLock;
 struct GpsPos gpsPos;
 
 //SPIClass spiDisp(HSPI);
-
-const char *sondeTypeStr[NSondeTypes] = { "DFM ", "DFM9", "RS41", "RS92", "M10 ", "M20 ", "DFM6", "MP3H" };
-const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "DFM9 (old)", "RS41", "RS92", "M10 ", "M20 ", "DFM6 (old)", "MP3-H1" };
-const char sondeTypeChar[NSondeTypes] = { 'D', '9', '4', 'R', 'M', '2', '6', '3' };
 
 byte myIP_tiles[8*11];
 static uint8_t ap_tile[8]={0x00,0x04,0x22,0x92, 0x92, 0x22, 0x04, 0x00};
@@ -256,11 +253,11 @@ void U8x8Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip
 	if(colskip) *colskip = 1;
 }
 
-void U8x8Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	u8x8->drawString(x, y, s);
 }
 
-void U8x8Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void U8x8Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
 	u8x8->drawTile(x, y, cnt, tile_ptr);
 }
 
@@ -282,7 +279,7 @@ void U8x8Display::welcome() {
 }
 
 static String previp;
-void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawIP(uint16_t x, uint16_t y, int16_t width, uint16_t fg, uint16_t bg) {
 	if(!previp.equals(sonde.ipaddr)) {
 		// ip address has changed
 		// create tiles
@@ -309,7 +306,7 @@ void U8x8Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint1
 }
 
 // len must be multiple of 2, size is fixed for u8x8 display
-void U8x8Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat, uint16_t fg, uint16_t bg) {
+void U8x8Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t /*size*/, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	for(int i=0; i<len; i+=2) {
 	        uint8_t tile[8];
 	        *(uint32_t *)(&tile[0]) = *(uint32_t *)(&(stattiles[stat[i]]));
@@ -325,6 +322,7 @@ const GFXfont *gfl[] = {
 	&FreeSans9pt7b,		// 5
 	&FreeSans12pt7b,	// 6
 	&Picopixel,             // 7
+	&FreeSans18pt7b,        // 8
 };
 struct gfxoffset_t {
 	uint8_t yofs, yclear;
@@ -338,6 +336,7 @@ const struct gfxoffset_t gfxoffsets[]={
         { 13, 18 },  // 17+13-12 "j" 
         { 17, 23 }, // 23+17-17
         {  4, 6},       // 6+4-4
+        { 25, 34 },   // 34 25 -25
 };
 static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
 
@@ -422,7 +421,7 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 
 // Note: alignright means that there is a box from x to x+(-width), with text right-justified
 //       x is the *left* corner! not the right...
-void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
 	if(width<0) {
@@ -540,7 +539,7 @@ void ILI9225Display::drawString(uint8_t x, uint8_t y, const char *s, int16_t wid
 	SPI_MUTEX_UNLOCK();
 }
 
-void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void ILI9225Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
 	SPI_MUTEX_LOCK();
         tft->startWrite();
@@ -553,20 +552,6 @@ void ILI9225Display::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_p
         }
         tft->endWrite();
 	SPI_MUTEX_UNLOCK();
-#if 0
-	int i,j;
-	tft->startWrite();
-	for(int i=0; i<cnt*8; i++) {
-		uint8_t v = tile_ptr[i];
-		for(j=0; j<8; j++) {
-			tft->drawPixel(8*x+i, 8*y+j, (v&0x01) ? COLOR_GREEN:COLOR_BLUE);
-			v >>= 1;
-		}
-	}
-	tft->endWrite();
-	//tft->drawBitmap(x*8, y*8, tile_ptr, cnt*8, 8, COLOR_RED, COLOR_BLUE);
-        //???u8x8->drawTile(x, y, cnt, tile_ptr);
-#endif
 }
 
 void ILI9225Display::drawTriangle(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t x3, uint16_t y3, uint16_t color, boolean fill) {
@@ -603,7 +588,7 @@ void ILI9225Display::welcome() {
        	drawString(0, l+2*22, "by Hansi, DL9RDZ");
 }
 
-void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawIP(uint16_t x, uint16_t y, int16_t width, uint16_t fg, uint16_t bg) {
 	char buf[20];
 	if(sonde.isAP) strcpy(buf, "A "); else *buf=0;   
 	strncat(buf, sonde.ipaddr.c_str(), 16);
@@ -611,7 +596,7 @@ void ILI9225Display::drawIP(uint8_t x, uint8_t y, int16_t width, uint16_t fg, ui
 }
 
 // size: 3=> 3x5 symbols; 4=> 4x7 symbols
-void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg, uint16_t bg) {
+void ILI9225Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, uint8_t *stat, uint16_t fg, uint16_t bg) {
 	if(size<3) size=3;
 	if(size>4) size=4;
 	const uint16_t width = len*(size+1);
@@ -638,7 +623,7 @@ void ILI9225Display::drawQS(uint8_t x, uint8_t y, uint8_t len, uint8_t size, uin
 #if 1
 #else
 // TO BE REMOVED
-void MY_ILI9225::drawTile(uint8_t x, uint8_t y, uint8_t cnt, uint8_t *tile_ptr) {
+void MY_ILI9225::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
         int i,j;
         startWrite();
         for(i=0; i<cnt*8; i++) {
@@ -828,8 +813,9 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		// IP address / small always uses tiny font on TFT for backward compatibility
 		// Large font can be used arbitrarily
 		if(de->fmt==fontsma) de->fmt=0;
-		de->func = disp.drawIP; break;
+		de->func = disp.drawIP;
 		de->extra = strdup(text+1);
+		break;
 	case 's':
 		de->func = disp.drawSite;
 		de->extra = strdup(text+1);
@@ -1082,11 +1068,6 @@ void Display::initFromFile(int index) {
 				what++;
 				newlayouts[idx].de[what].func = NULL;
 			} else {
-#if 0
-				for(int i=0; i<12; i++) {
-					Serial.printf("action %d: %d\n", i, (int)newlayouts[idx].actions[i]);
-				}
-#endif
  				what=-1;
 			}
 			break;
@@ -1562,8 +1543,20 @@ void Display::drawGPS(DispEntry *de) {
 void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
-	if(!axp192_found) return;
-
+	if (!axp192_found) {
+		if (sonde.config.batt_adc<0) return;
+		switch (de->extra[0])
+		{
+		case 'V':
+				val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+				snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
+			break;
+		default:
+			*buf = 0;
+		}
+		rdis->setFont(de->fmt);
+		drawString(de, buf);
+	} else {
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
@@ -1604,6 +1597,7 @@ void Display::drawBatt(DispEntry *de) {
 	xSemaphoreGive( axpSemaphore );
         rdis->setFont(de->fmt);
 	drawString(de, buf);
+	}
 }
 
 void Display::drawText(DispEntry *de) {

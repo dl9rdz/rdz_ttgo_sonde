@@ -1,8 +1,6 @@
 let stypes=new Map();
 stypes.set('4', 'RS41');
 stypes.set('R', 'RS92');
-stypes.set('9', 'DFM9 (old)');
-stypes.set('6', 'DFM6 (old)');
 stypes.set('D', 'DFM');
 stypes.set('M', 'M10');
 stypes.set('2', 'M20');
