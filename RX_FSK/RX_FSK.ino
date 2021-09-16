@@ -21,6 +21,8 @@
 #include "src/geteph.h"
 #include "src/rs92gps.h"
 #include "src/aprs.h"
+#include "src/ShFreqImport.h"
+
 #if FEATURE_MQTT
 #include "src/mqtt.h"
 #endif
@@ -58,6 +60,7 @@ WiFiClient client;
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
 WiFiClient shclient;	// Sondehub v2
+char shImportInterval = 0, shImport = 0;
 unsigned long time_last_update = 0;
 /* SH_LOC_OFF: never send position information to SondeHub
    SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
@@ -258,9 +261,18 @@ void HTMLSAVEBUTTON(char *ptr) {
 const char *createQRGForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
-  strcat(ptr, "<script src=\"rdz.js\"/>  <script> window.onload = prep; </script></head>");
+  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
   HTMLBODY(ptr, "qrg.html");
   //strcat(ptr, "<body><form class=\"wrapper\" action=\"qrg.html\" method=\"post\"><div class=\"content\"><table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
+  strcat(ptr, "<script>\nvar qrgs = [];\n");
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *si = &sonde.sondeList[i];
+    sprintf(ptr + strlen(ptr), "qrgs.push([%d, \"%.3f\", \"%s\", \"%c\"]);\n", si->active, si->freq, si->launchsite, sondeTypeChar[si->type] );
+  }
+  strcat(ptr, "</script>\n");
+  strcat(ptr, "<div id=\"divTable\"></div>");
+  strcat(ptr, "<script> qrgTable() </script>\n");
+#if 0
   strcat(ptr, "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     //String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
@@ -278,6 +290,7 @@ const char *createQRGForm() {
     //i + 1, s.c_str());
   }
   strcat(ptr, "</table>");
+#endif
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
@@ -490,8 +503,8 @@ const char *createStatusForm() {
   strcpy(ptr, HTMLHEAD);
   strcat(ptr, "<meta http-equiv=\"refresh\" content=\"5\"></head><body>");
 
-  for (int i = 0; i < sonde.nSonde; i++) {
-    int snum = (i + sonde.currentSonde) % sonde.nSonde;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
     if (sonde.sondeList[snum].active) {
       addSondeStatus(ptr, snum);
     }
@@ -649,6 +662,7 @@ struct st_configitems config_list[] = {
   {"sondehub.alt", "Altitude (optional, visible on SondeHub tracker)", 19, &sonde.config.sondehub.alt},
   {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
+  {"sondehub.fimport", "SondeHub freq import (interval/maxdist/maxage [min/km/min])", 18, &sonde.config.sondehub.fimport},
 #endif
 };
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
@@ -1097,8 +1111,8 @@ const char *createKMLDynamic() {
 
   strcpy(ptr, "<?xml version=\"1.0\" encoding=\"UTF-8\"?><kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>");
 
-  for (int i = 0; i < sonde.nSonde; i++) {
-    int snum = (i + sonde.currentSonde) % sonde.nSonde;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
     if (sonde.sondeList[snum].active) {
       addSondeStatusKML(ptr, snum);
     }
@@ -2266,6 +2280,11 @@ void loopDecoder() {
     }
     Serial.println("");
   }
+
+#if FEATURE_SONDEHUB
+  sondehub_handle_fimport(&shclient);
+#endif
+
   // wifi (axudp) or bluetooth (bttnc) active => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
   if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
@@ -2844,7 +2863,7 @@ void loopWifiScan() {
     }
     if (hasRS92) {
       geteph();
-      if(ephstate==EPH_PENDING) ephstate=EPH_ERROR;
+      if (ephstate == EPH_PENDING) ephstate = EPH_ERROR;
       get_eph("/brdc");
     }
     delay(3000);
@@ -2867,13 +2886,13 @@ void execOTA() {
   bool isValidContentType = false;
   sonde.clearDisplay();
   uint8_t dispxs, dispys;
-  if( ISOLED(sonde.config) ) {
-      disp.rdis->setFont(FONT_SMALL);
-      dispxs = dispys = 1;
+  if ( ISOLED(sonde.config) ) {
+    disp.rdis->setFont(FONT_SMALL);
+    dispxs = dispys = 1;
   } else {
-      disp.rdis->setFont(5);
-      dispxs = 18;
-      dispys = 20;
+    disp.rdis->setFont(5);
+    dispxs = 18;
+    dispys = 20;
   }
 
   String dispHost = updateHost.substring(0, 16);
@@ -3137,16 +3156,16 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   // Only send email if provided
   if (strlen(conf->email) != 0) {
     sprintf(w,
-          "\"uploader_contact_email\": \"%s\",",
-          conf->email);
+            "\"uploader_contact_email\": \"%s\",",
+            conf->email);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
     sprintf(w,
-          "\"uploader_antenna\": \"%s\",",
-          conf->antenna);
+            "\"uploader_antenna\": \"%s\",",
+            conf->antenna);
     w += strlen(w);
   }
 
@@ -3219,6 +3238,55 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
+void sondehub_handle_fimport(WiFiClient *client) {
+  if (sonde.config.sondehub.fimport[0] != '0') {
+    if (shImport == 0) {
+      sondehub_send_fimport(&shclient);
+    } else if (shImport == 1) {
+      int res = ShFreqImport::shImportHandleReply(&shclient);
+      if (res == 1) {
+        shImport = 2; // finished
+      }
+    } else if (shImport == 2) {
+      // waiting for next activation...
+      shImportInterval --;
+      if (shImportInterval <= 0) {
+        shImport = 0;
+      }
+    }
+  }
+}
+
+void sondehub_send_fimport(WiFiClient * client) {
+  if (shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK) {
+    // Currently busy with SondeHub data upload
+    // So do nothing here.
+    // sond_fimport will be re-sent later, when shState becomes SH_CONN_IDLE
+    return;
+  }
+  // It's time to run, so check prerequisites
+  float lat = sonde.config.sondehub.lat, lon = sonde.config.sondehub.lon;
+  if (gpsPos.valid) {
+    lat = gpsPos.lat;
+    lon = gpsPos.lon;
+  }
+
+  char *ptr = strchr(sonde.config.sondehub.fimport, '/');
+  shImportInterval = atoi(sonde.config.sondehub.fimport) * 60;
+  int maxdist = 200;
+  int maxage = 60;
+  if (ptr) {
+    maxdist = atoi(ptr + 1);
+    ptr = strchr(ptr + 1, '/');
+    if (ptr) maxage = atoi(ptr + 1);
+  }
+  if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && shImportInterval > 0 ) {
+    int res = ShFreqImport::shImportSendRequest(&shclient, lat, lon, maxdist, maxage);
+    if (res == 0) shImport = 1; // Request OK: wait for response
+    else shImport = 2;        // Request failed: wait interval, then retry
+  }
+}
+
 // in hours.... max allowed diff UTC <-> sonde time
 #define SONDEHUB_TIME_THRESHOLD (3)
 void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf) {
@@ -3248,7 +3316,9 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
-  while (client->available() > 0) {
+  // TODO: This should better be called not in sondehub_send_data, but somewhere where it is called even if no new data is decoded
+  // shImport==1: software is waiting for a reply to freq info requst, so reading data is handled elsewhere
+  while (shImport != 1 && client->available() > 0) {
     // data is available from remote server, process it...
     int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
     rs_msg[cnt] = 0;
@@ -3256,6 +3326,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
     if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
       shState = SH_CONN_IDLE;
+      sondehub_send_fimport(client);
     }
   }
 
@@ -3365,8 +3436,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
     sprintf(w,
-          "\"uploader_antenna\": \"%s\",",
-          conf->antenna);
+            "\"uploader_antenna\": \"%s\",",
+            conf->antenna);
     w += strlen(w);
   }
 
@@ -3400,7 +3471,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   sprintf(w, "}");
 
   if (shState != SH_CONN_APPENDING) {
-    sondehub_send_header(client, s, conf);
+    sondehub_send_header(client, s, conf, &timeinfo);
     sondehub_send_next(client, s, conf, rs_msg, strlen(rs_msg), 1);
     shState = SH_CONN_APPENDING;
     shStart = now;
@@ -3431,19 +3502,36 @@ void sondehub_finish_data(WiFiClient * client, SondeInfo * s, struct st_sondehub
   }
 }
 
-void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf) {
+static const char *DAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Noc", "Dec"};
+
+void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, struct tm *now) {
   Serial.print("PUT /sondes/telemetry HTTP/1.1\r\n"
                "Host: ");
   Serial.println(conf->host);
   Serial.println("accept: text/plain\r\n"
                  "Content-Type: application/json\r\n"
                  "Transfer-Encoding: chunked\r\n");
+
   client->print("PUT /sondes/telemetry HTTP/1.1\r\n"
                 "Host: ");
   client->println(conf->host);
-  client->println("accept: text/plain\r\n"
-                  "Content-Type: application/json\r\n"
-                  "Transfer-Encoding: chunked\r\n");
+  client->print("accept: text/plain\r\n"
+                "Content-Type: application/json\r\n"
+                "Transfer-Encoding: chunked\r\n");
+  if (now) {
+    Serial.printf("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+                  DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
+                  now->tm_hour, now->tm_min, now->tm_sec);
+    client->printf("Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+                   DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
+                   now->tm_hour, now->tm_min, now->tm_sec);
+  }
+  client->print("User-agent: ");
+  client->print(version_name);
+  client->print("/");
+  client->println(version_id);
+  client->println(""); // another cr lf as indication of end of header
 }
 void sondehub_send_next(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, char *chunk, int chunklen, int first) {
   // send next chunk of JSON request
