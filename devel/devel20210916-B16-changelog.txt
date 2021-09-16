@@ -1,0 +1,1 @@
+OTA also for files (www/js/css)
