@@ -1,1 +1,2 @@
 fix #164
+(travis test for fs ota)
