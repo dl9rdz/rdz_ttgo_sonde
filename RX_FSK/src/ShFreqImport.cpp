@@ -129,7 +129,7 @@ int ShFreqImport::handleChar(char c) {
                 break;
         case COPYID:
                 // copy ID "A1234567" until second '"' is earched
-                if(c=='"') { id[idpos] = 0; printf("ID: %s\n", id); importState++; }
+                if(c=='"') { id[idpos] = 0; importState++; }
                 else id[idpos++] = c;
                 break;
         case AFTERID:
