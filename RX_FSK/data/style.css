@@ -300,6 +300,8 @@ p{
 /* Hide the link that should open and close the topnav on small screens */
 .topnav .icon {
   display: none;
+  padding-bottom: 12px;
+  padding-top: 11px;
 }
 
 /* When the screen is less than 600 pixels wide, hide all links, except for the first one ("Home"). Show the link that contains should open and close the topnav (.icon) */
