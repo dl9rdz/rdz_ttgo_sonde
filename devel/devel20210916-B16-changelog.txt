@@ -1,1 +1,4 @@
 OTA also for files (www/js/css)
+Fix padding on menu icon (#168)
+
+This is to fix alignment issues.
