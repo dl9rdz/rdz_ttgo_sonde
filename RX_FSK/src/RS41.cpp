@@ -82,20 +82,21 @@ struct subframeBuffer {
 
             float f152;
             uint8_t u156;
-            float f157;                         /* 0x157: ?? (Initialized by same value as calibU) */
-            uint8_t reserved15B[0x160-0x15B];
+            float f157;                         /* 0x157: ?? (Initialized by same value as calibU[0]) */
+            uint8_t reserved15B;                /* 0x15B: */
+            uint32_t reserved15C;               /* 0x15C: */
             float f160[35];
-            uint8_t startIWDG;                  /* 0x1EC: If ==0 or ==2: Watchdog IWDG will not be started */
+            uint8_t startIWDG;                  /* 0x1EC: If ==1 or ==2: Watchdog IWDG will not be started */
             uint8_t parameterSetupDone;         /* 0x1ED: Set (!=0) if parameter setup was done */
-            uint8_t reserved1EE;
-            uint8_t reserved1EF;
+            uint8_t enableTestMode;             /* 0x1EE: Test mode (service menu) (0=disabled, 1=enabled) */
+            uint8_t enableTX;                   /* 0x1EF: 0=TX disabled, 1=TX enabled (maybe this is autostart?) */
             float f1F0[8];
             float pressureLaunchSite[2];        /* 0x210: Pressure [hPa] at launch site */
-            struct {
+            struct __attribute__((__packed__)){
                 char variant[10];               /* 0x218: Sonde variant (e.g. "RS41-SG") */
                 uint8_t mainboard[10];          /* 0x222: Name of mainboard (e.g. "RSM412") */
             } names;
-            struct {
+            struct __attribute__((__packed__)){
                 uint8_t mainboard[9];           /* 0x22C: Serial number of mainboard (e.g. "L1123553") */
                 uint8_t text235[12];            /* 0x235: "0000000000" */
                 uint16_t reserved241;           /* 0x241: */
@@ -103,8 +104,7 @@ struct subframeBuffer {
                 uint16_t reserved24B;           /* 0x24B: */
             } serials;
             uint16_t reserved24D;               /* 0x24D: */
-            uint8_t reserved24F;
-            uint8_t reserved250;
+            uint16_t reserved24F;               /* 0x24F: */
             uint16_t reserved251;               /* 0x251: (Init value = 0x21A = 538) */
             uint8_t xdataUartBaud;              /* 0x253: 1=9k6, 2=19k2, 3=38k4, 4=57k6, 5=115k2 */
             uint8_t reserved254;
@@ -112,7 +112,9 @@ struct subframeBuffer {
             uint8_t reserved259;
             uint8_t reserved25A[0x25E -0x25A];
             float matrixP[18];                  /* 0x25E: Coefficients for pressure sensor polynomial */
-            float f2A6[17];
+            float vectorBp[3];                  /* 0x2A6: */
+            uint8_t reserved2B2[8];             /* 0x2B2: */
+            float matrixBt[12];                 /* 0x2BA: */
             uint8_t reserved2EA[0x2FA-0x2EA];
             uint16_t halfword2FA[9];
             float reserved30C;
@@ -447,21 +449,22 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    double z;
    double y;
    double x;
+   SondeInfo *si = sonde.si();
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
    if(x==0 && y==0 && z==0) {
       // RS41 sometimes sends frame with all 0
-      if(sonde.si()->validPos) sonde.si()->validPos |= 0x80; // flag as old
+      if(si->validPos) si->validPos |= 0x80; // flag as old
       return;
    }
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
-   sonde.si()->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
-   Serial.print(sonde.si()->lat);
+   si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
+   Serial.print(si->lat);
    Serial.print(" ");
-   sonde.si()->lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
-   Serial.print(sonde.si()->lon);
+   si->lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
+   Serial.print(si->lon);
    if (heig<1.E+5 && heig>(-1.E+5)) {
       Serial.print(" ");
       Serial.print((uint32_t)heig);
@@ -476,29 +479,29 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    vu = vx*cos(lat)*cos(long0)+vy*cos(lat)*sin(long0)+vz*sin(lat);
    dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
    if (dir<0.0) dir = 360.0+dir;
-   sonde.si()->dir = dir;
+   si->dir = dir;
    Serial.print(" ");
-   sonde.si()->hs = sqrt(vn*vn+ve*ve);
-   Serial.print(sonde.si()->hs*3.6);
+   si->hs = sqrt(vn*vn+ve*ve);
+   Serial.print(si->hs*3.6);
    Serial.print("km/h ");
    Serial.print(dir);
    Serial.print("deg ");
    Serial.print((float)vu);
-   sonde.si()->vs = vu;
+   si->vs = vu;
    Serial.print("m/s ");
    uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
    Serial.print(sats);
    Serial.print("Sats");
-   sonde.si()->sats = sats;
-   sonde.si()->alt = heig;
+   si->sats = sats;
+   si->alt = heig;
    if( 0==(int)(lat*10000) && 0==(int)(long0*10000) ) {
-      if(sonde.si()->validPos) {
+      if(si->validPos) {
 	// we have an old position, so keep previous position and mark it as old
-	sonde.si()->validPos |= 0x80;
+	si->validPos |= 0x80;
       }
    }
    else
-      sonde.si()->validPos = 0x7f;
+      si->validPos = 0x7f;
 } /* end posrs41() */
 
 void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
@@ -510,6 +513,7 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
       s = (struct subframeBuffer *)malloc( sizeof(struct subframeBuffer) );
       if(!s) { Serial.println("ProcessSubframe: out of memory"); return; }
       sonde.si()->extra = s;
+      s->valid = 0;
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
@@ -600,17 +604,36 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
    /* Compute absolute capacitance from the known references */
    float C = calibration->value.refCapLow
             + (calibration->value.refCapHigh - calibration->value.refCapLow) * current;
+
    /* Apply calibration */
    float Cp = ( C / calibration->value.calibU[0] - 1.0f) * calibration->value.calibU[1];
 
-   int j, k;
+   /* Compensation for low temperature and pressure at altitude */
+   float estimatedPressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->alt );
+
+   float Tp = (sensorTemp - 20.0f) / 180.0f;
    float sum = 0;
+   float powc = 1.0f;
+   float p = estimatedPressure / 1000.0f;
+   for ( int i = 0; i < 3; i++) {
+      float l = 0;
+      float powt = 1.0f;
+      for ( int j = 0; j < 4; j++) {
+         l += calibration->value.matrixBt[4*i+j] * powt;
+         powt *= Tp;
+      }
+      float x = calibration->value.vectorBp[i];
+      sum += l * (x * p / (1.0f + x * p) - x * powc / (1.0f + x));
+      powc *= Cp;
+   }
+   Cp -= sum;
+
    float xj = 1.0f;
-   for (j = 0; j < 7; j++) {
+   for ( int j = 0; j < 7; j++) {
       float yk = 1.0f;
-      for (k = 0; k < 6; k++) {
+      for ( int k = 0; k < 6; k++) {
          sum += xj * yk * calibration->value.matrixU[j][k];
-         yk *= ( sensorTemp - 20.0f) / 180.0f;
+         yk *= Tp;
       }
       xj *= Cp;
    }
@@ -632,6 +655,7 @@ int RS41::decode41(byte *data, int maxlen)
 {
 	char buf[128];	
 	int crcok = 0;
+	SondeInfo *si = sonde.si();
 
 	int32_t corr = reedsolomon41(data, 560, 131);  // try short frame first
 	if(corr<0) {
@@ -674,34 +698,39 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print("#");
 			uint16_t fnr = data[p]+(data[p+1]<<8);
 			Serial.print(fnr);
-			sonde.si()->vframe = sonde.si()->frame = fnr;
+			si->vframe = si->frame = fnr;
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
-			sonde.si()->type=STYPE_RS41;
-			strncpy(sonde.si()->id, (const char *)(data+p+2), 8);
-			sonde.si()->id[8]=0;
-			strncpy(sonde.si()->ser, (const char *)(data+p+2), 8);
-			sonde.si()->ser[8]=0;
-			sonde.si()->validID=true;
+			si->type=STYPE_RS41;
+			if(strncmp(si->id, (const char *)(data+p+2), 8)) {
+				// ID changed, i.e. new sonde on same frequency. clear calibration data
+				struct subframeBuffer *sub = (struct subframeBuffer *)si->extra;
+				if(sub) { sub->valid = 0; }
+			}
+			strncpy(si->id, (const char *)(data+p+2), 8);
+			si->id[8]=0;
+			strncpy(si->ser, (const char *)(data+p+2), 8);
+			si->ser[8]=0;
+			si->validID=true;
 			int calnr = data[p+23];
 			// not sure about this
 			if(calnr==0x31) {
 				uint16_t bt = data[p+30] + 256*data[p+31];
-				sonde.si()->burstKT = bt;
+				si->burstKT = bt;
 			}
 			// this should be right...
 			if(calnr==0x02) {
 				uint16_t kt = data[p+31] + 256*data[p+32];
-				sonde.si()->launchKT = kt;
+				si->launchKT = kt;
 			}
 			// and this seems fine as well...
 			if(calnr==0x32) {
 				uint16_t cntdown = data[p+24] + (data[p+25]<<8);
 				uint16_t min = cntdown - (cntdown/3600)*3600;
 				Serial.printf("Countdown value: %d\n [%2d:%02d:%02d]", cntdown, cntdown/3600, min/60, min-(min/60)*60);
-				sonde.si()->countKT = cntdown;
-				sonde.si()->crefKT = fnr;
+				si->countKT = cntdown;
+				si->crefKT = fnr;
 			}
 			ProcessSubframe( data+p+24, calnr );
 
@@ -717,8 +746,8 @@ int RS41::decode41(byte *data, int maxlen)
 			// unix epoch starts jan 1st 1970 0:00
 			// gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
 			// subtracting 86400 yields 315878400UL
-			sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
-			sonde.si()->validTime = true;
+			si->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+			si->validTime = true;
 			}
 			break;
 		case '{': // pos
@@ -746,35 +775,23 @@ int RS41::decode41(byte *data, int maxlen)
                Serial.printf( "Humid  sensor: tempHumiMain = %ld, tempHumiRef1 = %ld, tempHumiRef2 = %ld\n", tempHumiMain, tempHumiRef1, tempHumiRef2 );
                Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
             #endif
-   	    struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
-#if 0
-            // for a valid temperature, require rLow rHigh (frames 3 4) TaylorT (frames 4 5), polyT (frames 5 6 7), 
-            validExternalTemperature = subframeReceived[3] && subframeReceived[4] && subframeReceived[5]
-                                          && subframeReceived[6] && subframeReceived[7];
-
-            // for a valid RA humidity, valid temperature, calibU (frame 7) matrixU (frame 7-12), taylorTU (frame 12 13),
-            //       calTU (frame 13) polyTrh (frame 13 14) 
-            validHumidity = validExternalTemperature && subframeReceived[0x08] && subframeReceived[0x09] && subframeReceived[0x0A]
-                                 && subframeReceived[0x0B] && subframeReceived[0x0C] && subframeReceived[0x0D] && subframeReceived[0x0E]
-                                 && subframeReceived[0x0F] && subframeReceived[0x10] && subframeReceived[0x11] && subframeReceived[0x12];
-#else
-	    // check for bits 3, 4, 5, 6, and 7 set
-	    bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
-	    bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FF8) == 0x7FF8;
-#endif
+   	    struct subframeBuffer *calibration = (struct subframeBuffer *)si->extra;
+	        // check for bits 3 through 20 set and 37 through 46
+	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
+	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;
 
             if ( validExternalTemperature ) {
-               sonde.si()->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
+               si->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
                                  calibration->value.calT, calibration->value.taylorT, calibration->value.polyT );
-               Serial.printf("External temperature = %f\n", sonde.si()->temperature );
+               Serial.printf("External temperature = %f\n", si->temperature );
             }
 
             if ( validHumidity && validExternalTemperature ) {
-               sonde.si()->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
+               si->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
-               Serial.printf("Humidity Sensor temperature = %f\n", sonde.si()->tempRHSensor );
-               sonde.si()->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, sonde.si()->tempRHSensor, sonde.si()->temperature );
-               Serial.printf("Relative humidity = %f\n", sonde.si()->relativeHumidity );
+               Serial.printf("Humidity Sensor temperature = %f\n", si->tempRHSensor );
+               si->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, si->tempRHSensor, si->temperature );
+               Serial.printf("Relative humidity = %f\n", si->relativeHumidity );
             }
          }
          break;
