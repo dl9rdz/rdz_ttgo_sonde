@@ -82,20 +82,21 @@ struct subframeBuffer {
 
             float f152;
             uint8_t u156;
-            float f157;                         /* 0x157: ?? (Initialized by same value as calibU) */
-            uint8_t reserved15B[0x160-0x15B];
+            float f157;                         /* 0x157: ?? (Initialized by same value as calibU[0]) */
+            uint8_t reserved15B;                /* 0x15B: */
+            uint32_t reserved15C;               /* 0x15C: */
             float f160[35];
-            uint8_t startIWDG;                  /* 0x1EC: If ==0 or ==2: Watchdog IWDG will not be started */
+            uint8_t startIWDG;                  /* 0x1EC: If ==1 or ==2: Watchdog IWDG will not be started */
             uint8_t parameterSetupDone;         /* 0x1ED: Set (!=0) if parameter setup was done */
-            uint8_t reserved1EE;
-            uint8_t reserved1EF;
+            uint8_t enableTestMode;             /* 0x1EE: Test mode (service menu) (0=disabled, 1=enabled) */
+            uint8_t enableTX;                   /* 0x1EF: 0=TX disabled, 1=TX enabled (maybe this is autostart?) */
             float f1F0[8];
             float pressureLaunchSite[2];        /* 0x210: Pressure [hPa] at launch site */
-            struct {
+            struct __attribute__((__packed__)){
                 char variant[10];               /* 0x218: Sonde variant (e.g. "RS41-SG") */
                 uint8_t mainboard[10];          /* 0x222: Name of mainboard (e.g. "RSM412") */
             } names;
-            struct {
+            struct __attribute__((__packed__)){
                 uint8_t mainboard[9];           /* 0x22C: Serial number of mainboard (e.g. "L1123553") */
                 uint8_t text235[12];            /* 0x235: "0000000000" */
                 uint16_t reserved241;           /* 0x241: */
@@ -103,8 +104,7 @@ struct subframeBuffer {
                 uint16_t reserved24B;           /* 0x24B: */
             } serials;
             uint16_t reserved24D;               /* 0x24D: */
-            uint8_t reserved24F;
-            uint8_t reserved250;
+            uint16_t reserved24F;               /* 0x24F: */
             uint16_t reserved251;               /* 0x251: (Init value = 0x21A = 538) */
             uint8_t xdataUartBaud;              /* 0x253: 1=9k6, 2=19k2, 3=38k4, 4=57k6, 5=115k2 */
             uint8_t reserved254;
@@ -112,7 +112,9 @@ struct subframeBuffer {
             uint8_t reserved259;
             uint8_t reserved25A[0x25E -0x25A];
             float matrixP[18];                  /* 0x25E: Coefficients for pressure sensor polynomial */
-            float f2A6[17];
+            float vectorBp[3];                  /* 0x2A6: */
+            uint8_t reserved2B2[8];             /* 0x2B2: */
+            float matrixBt[12];                 /* 0x2BA: */
             uint8_t reserved2EA[0x2FA-0x2EA];
             uint16_t halfword2FA[9];
             float reserved30C;
@@ -510,6 +512,7 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
       s = (struct subframeBuffer *)malloc( sizeof(struct subframeBuffer) );
       if(!s) { Serial.println("ProcessSubframe: out of memory"); return; }
       sonde.si()->extra = s;
+      s->valid = 0;
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
@@ -600,17 +603,36 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
    /* Compute absolute capacitance from the known references */
    float C = calibration->value.refCapLow
             + (calibration->value.refCapHigh - calibration->value.refCapLow) * current;
+
    /* Apply calibration */
    float Cp = ( C / calibration->value.calibU[0] - 1.0f) * calibration->value.calibU[1];
 
-   int j, k;
+   /* Compensation for low temperature and pressure at altitude */
+   float estimatedPressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->alt );
+
+   float Tp = (sensorTemp - 20.0f) / 180.0f;
    float sum = 0;
+   float powc = 1.0f;
+   float p = estimatedPressure / 1000.0f;
+   for ( int i = 0; i < 3; i++) {
+      float l = 0;
+      float powt = 1.0f;
+      for ( int j = 0; j < 4; j++) {
+         l += calibration->value.matrixBt[4*i+j] * powt;
+         powt *= Tp;
+      }
+      float x = calibration->value.vectorBp[i];
+      sum += l * (x * p / (1.0f + x * p) - x * powc / (1.0f + x));
+      powc *= Cp;
+   }
+   Cp -= sum;
+
    float xj = 1.0f;
-   for (j = 0; j < 7; j++) {
+   for ( int j = 0; j < 7; j++) {
       float yk = 1.0f;
-      for (k = 0; k < 6; k++) {
+      for ( int k = 0; k < 6; k++) {
          sum += xj * yk * calibration->value.matrixU[j][k];
-         yk *= ( sensorTemp - 20.0f) / 180.0f;
+         yk *= Tp;
       }
       xj *= Cp;
    }
@@ -747,21 +769,9 @@ int RS41::decode41(byte *data, int maxlen)
                Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
             #endif
    	    struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
-#if 0
-            // for a valid temperature, require rLow rHigh (frames 3 4) TaylorT (frames 4 5), polyT (frames 5 6 7), 
-            validExternalTemperature = subframeReceived[3] && subframeReceived[4] && subframeReceived[5]
-                                          && subframeReceived[6] && subframeReceived[7];
-
-            // for a valid RA humidity, valid temperature, calibU (frame 7) matrixU (frame 7-12), taylorTU (frame 12 13),
-            //       calTU (frame 13) polyTrh (frame 13 14) 
-            validHumidity = validExternalTemperature && subframeReceived[0x08] && subframeReceived[0x09] && subframeReceived[0x0A]
-                                 && subframeReceived[0x0B] && subframeReceived[0x0C] && subframeReceived[0x0D] && subframeReceived[0x0E]
-                                 && subframeReceived[0x0F] && subframeReceived[0x10] && subframeReceived[0x11] && subframeReceived[0x12];
-#else
-	    // check for bits 3, 4, 5, 6, and 7 set
-	    bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
-	    bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FF8) == 0x7FF8;
-#endif
+	        // check for bits 3 through 20 set and 37 through 46
+	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
+	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;
 
             if ( validExternalTemperature ) {
                sonde.si()->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
