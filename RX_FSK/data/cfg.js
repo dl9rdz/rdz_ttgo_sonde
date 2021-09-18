@@ -1,10 +1,18 @@
 var cfgs = [
-[ "", "Software configuration" ],
-[ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=auto client/AP on startup" ],
+[ "", "General configuration" ],
+[ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP autoselect on startup)" ],
+[ "mdnsname", "Network mDNS name"],
+[ "ephftp", "FTP server for ephemeris data (RS92 decoder)"],
 [ "debug", "Debug mode (0/1)" ],
-[ "maxsonde", "max. number of QRG entries (must be <100)" ],
+[ "maxsonde", "Maxumum number of QRG entries (must be <100)" ],
+[ "rxlat", "Receiver fixed latitude"],
+[ "rxlon", "Receiver fixed longitude"],
+[ "rxalt", "Receiver fixed altitude"],
+[ "", "OLED/TFT display configuration" ],
 [ "screenfile", "Screen config (0=automatic; 1-5=predefined; other=custom)" ],
 [ "display", "Display screens (scan, default, ...)" ],
+[ "norx_timeout", "No-RX-timeout in seconds (-1=disabled)"],
+[ "tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3"],
 [ "", "Spectrum display settings" ],
 [ "spectrum", "Show spectrum on start (-1=no, 0=forever, >0=time [sec])" ],
 [ "startfreq", "Start frequency (MHz, default 400)" ],
@@ -23,38 +31,48 @@ var cfgs = [
 [ "m10m20.rxbw", "M10/M20 RX bandwidth"],
 [ "mp3h.agcbw", "MP3H AGC bandwidth"],
 [ "mp3h.rxbw", "MP3H RX bandwidth"],
-[ "ephftp", "FTP for eph (RS92)"],
-[ "", "Data feed configuration"],
+[ "", "KISS TNC/AXUDP/AXTCP data feed configuration"],
 [ "call", "Call"],
 [ "passcode", "Passcode"],
 [ "kisstnc.active", "KISS TNC (port 14590) (needs reboot)"],
-[ "kisstnc.idformat", "KISS TNC ID Format"],
+[ "kisstnc.idformat", "KISS TNC ID format"],
 [ "axudp.active", "AXUDP active"],
-[ "axudp.host", "AXUDP Host"],
-[ "axudp.port", "AXUDP Port"],
-[ "axudp.idformat", "DFM ID Format"],
+[ "axudp.host", "AXUDP host"],
+[ "axudp.port", "AXUDP port"],
+[ "axudp.idformat", "DFM ID format"],
 [ "axudp.highrate", "Rate limit"],
 [ "tcp.active", "APRS TCP active"],
-[ "tcp.host", "ARPS TCP Host"],
-[ "tcp.port", "APRS TCP Port"],
-[ "tcp.idformat", "DFM ID Format"],
+[ "tcp.host", "ARPS TCP host"],
+[ "tcp.port", "APRS TCP port"],
+[ "tcp.idformat", "DFM ID format"],
 [ "tcp.highrate", "Rate limit"],
-[ "mqtt.active", "MQTT Active (needs reboot)"],
+[ "", "MQTT data feed configuration"],
+[ "mqtt.active", "MQTT active (needs reboot)"],
 [ "mqtt.id", "MQTT client ID"],
 [ "mqtt.host", "MQTT server hostname"],
-[ "mqtt.port", "MQTT Port"],
-[ "mqtt.username", "MQTT Username"],
-[ "mqtt.password", "MQTT Password"],
-[ "mqtt.prefix", "MQTT Prefix"],
+[ "mqtt.port", "MQTT port"],
+[ "mqtt.username", "MQTT username"],
+[ "mqtt.password", "MQTT password"],
+[ "mqtt.prefix", "MQTT prefix"],
+[ "", "SondeHub settings"],
+[ "sondehub.active", "SondeHub reporting (0=disabled, 1=active)"],
+[ "sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
+[ "sondehub.host", "SondeHub host (DO NOT CHANGE)"],
+[ "sondehub.callsign", "Callsign"],
+[ "sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)"],
+[ "sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)"],
+[ "", "SondeHub frequency import" ],
+[ "sondehub.fiactive", "SondeHub frequency import active (0=disabled, 1=active)" ],
+[ "sondehub.fiinterval", "Import frequency (minutes, &geq; 5)" ],
+[ "sondehub.fimaxdist", "Import maximum distance (km, &leq; 500)" ],
+[ "sondehub.fimaxage", "Import maximum age (hours, &leq; 24)" ],
 [ "", "Hardware configuration (requires reboot)"],
 [ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342)"],
-[ "norx_timeout", "No-RX-Timeout in seconds (-1=disabled)"],
 [ "oled_sda", "OLED SDA/TFT SDA"],
 [ "oled_scl", "OLED SCL/TFT CLK"],
 [ "oled_rst", "OLED RST/TFT RST (needs reboot)"],
 [ "tft_rs", "TFT RS"],
 [ "tft_cs", "TFT CS"],
-[ "tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3"],
 [ "tft_spifreq", "TFT SPI speed"],
 [ "button_pin", "Button input port"],
 [ "button2_pin", "Button 2 input port"],
@@ -69,26 +87,10 @@ var cfgs = [
 [ "sx1278_miso", "SX1278 MISO"],
 [ "sx1278_mosi", "SX1278 MOSI"],
 [ "sx1278_sck", "SX1278 SCK"],
-[ "mdnsname", "mDNS name"],
-[ "", "SondeHub settings"],
-[ "sondehub.active", "SondeHub reporting (0=disabled, 1=active)"],
-[ "sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
-[ "sondehub.host", "SondeHub host (DO NOT CHANGE)"],
-[ "sondehub.callsign", "Callsign"],
-[ "sondehub.lat", "Latitude (optional, required to show station on SondeHub Tracker)"],
-[ "sondehub.lon", "Longitude (optional, required to show station on SondeHub Tracker)"],
-[ "sondehub.alt", "Altitude (optional, visible on SondeHub tracker)"],
-[ "sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)"],
-[ "sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)"],
-[ "", "SondeHub frequency import" ],]
-[ "sondehub.fiactive", "SondeHub frequency import active (0=disabled, 1=active)" ],
-[ "sondehub.fiinterval", "Import frequency (minutes, &geq;5)" ],
-[ "sondehub.fimaxdist", "Import maximum distance (km, &leq;500)" ],
-[ "sondehub.fimaxage", "Import maximum age (hours, &leq;24" ],
 ];
 
 function mkcfg(id, key, label, value) {
- var s = "<tr class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + value + "\"/></td></tr>\n";
+ var s = "<tr style=\"visibility: collapse;\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + value + "\"/></td></tr>\n";
  return s;
 }
 function mkcfgbtn(id, key, label, value) {
@@ -98,13 +100,13 @@ function mkcfgbtn(id, key, label, value) {
     touch = " checked";
     v = v & 127;
   }
-  var s = "<tr class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + v + "\"/>";
+  var s = "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + v + "\"/>";
   s += "<input type=\"checkbox\" name=\"" + key + "#\" "+touch+"> Touch</td></tr>\n";
   return s;
 }
 
 function mksep(id,label) {
-  return "<tr class=\"cfgheader\"><th align=\"left\" colspan=\"2\">"+label+"</th></tr>\n";
+  return "<tr class=\"cfgheader\"><th class=\"cfg\" align=\"left\" colspan=\"2\">"+label+"</th></tr>\n";
 }
 function rowdisp(id,disp) {
   var matches = document.querySelectorAll("tr."+id);
@@ -122,10 +124,14 @@ function configTable() {
     var key = cfgs[i][0];
     var lbl = cfgs[i][1];
     if(key) {
-        if(key=="button_pin" || key=="button2_pin")
+        if(key=="button_pin" || key=="button2_pin") {
 	  tab += mkcfgbtn("s"+id, key, lbl, cf.get(key));
-	else
+	} else if (key=="display") {
           tab += mkcfg("s"+id, key, lbl, cf.get(key));
+	  tab += "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>"+scr+"</td><td></td></tr>"
+	} else {
+          tab += mkcfg("s"+id, key, lbl, cf.get(key));
+	}
     } else {
         id++;
         tab += mksep("s"+id, lbl);
@@ -137,11 +143,11 @@ function configTable() {
   // enable collapse / expand of items below a header
   var acc = document.getElementsByClassName("cfgheader");
   for(i=0; i<acc.length; i++) {
-    acc[i].firstChild.innerHTML = "\u2212 " + acc[i].firstChild.innerHTML;
+    acc[i].firstChild.innerHTML = "[+] " + acc[i].firstChild.innerHTML;
     acc[i].addEventListener("click", function() {
-      achar = "\u2212";
-      if(this.classList.toggle("active")) achar = "+";
-      this.firstChild.innerHTML = achar + this.firstChild.innerHTML.substring(1);
+      achar = "[+]";
+      if(this.classList.toggle("active")) achar = "[\u2212]";
+      this.firstChild.innerHTML = achar + this.firstChild.innerHTML.substring(3);
       var panel = this;
       console.log(panel);
       while( panel = panel.nextElementSibling) {
@@ -156,4 +162,5 @@ function configTable() {
       }
     });
   }
+  acc[0].click();
 }

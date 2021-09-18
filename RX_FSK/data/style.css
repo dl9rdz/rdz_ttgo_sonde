@@ -10,6 +10,10 @@ body, html {
 .cfgpanel {
 }
 
+th.cfg {
+  padding:5pt
+}
+
 .hamburger {
   position: relative;
   display: inline-block;

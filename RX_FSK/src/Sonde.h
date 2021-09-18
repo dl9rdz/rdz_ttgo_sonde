@@ -191,9 +191,6 @@ struct st_sondehub {
 	int chase;
 	char host[64];
 	char callsign[64];
-	double lat;
-	double lon;
-	char alt[20];
 	char antenna[64];
 	char email[64];
         int fiactive;
@@ -231,6 +228,9 @@ typedef struct st_rdzconfig {
 	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
+	double rxlat;
+	double rxlon;
+	double rxalt;
 	int wifi;				// connect to known WLAN 0=skip
 	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
@@ -295,6 +295,7 @@ public:
 
 	Sonde();
 	void defaultConfig();
+	void checkConfig();
 	void setConfig(const char *str);
 
 	void clearSonde();

@@ -263,6 +263,13 @@ void Sonde::defaultConfig() {
 extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
+void Sonde::checkConfig() {
+	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
+	if(config.sondehub.fimaxdist>500) config.sondehub.fimaxdist = 500;
+	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
+	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
+}
 void Sonde::setConfig(const char *cfg) {
 	while(*cfg==' '||*cfg=='\t') cfg++;
 	if(*cfg=='#') return;
@@ -288,10 +295,11 @@ void Sonde::setConfig(const char *cfg) {
 		case -3:  // integer (boolean on/off swith in web form)
 		case -2:  // integer (ID type)
 			*(int *)config_list[i].data = atoi(val);
-			if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
 			break;
 		case -7:  // double
-			*(double *)config_list[i].data = *val==0 ? NAN : atof(val);
+			double d = atof(val);
+			if(*val == 0 || d==0) d = NAN;
+			*(double *)config_list[i].data = d;
 			break;
 		case -6:  // display list
 		{
