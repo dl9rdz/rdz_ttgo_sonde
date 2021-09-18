@@ -2466,7 +2466,7 @@ void loopDecoder() {
   }
 
 #if FEATURE_SONDEHUB
-  sondehub_handle_fimport(&shclient);
+  sondehub_reply_handler(&shclient);
 #endif
 
   // wifi (axudp) or bluetooth (bttnc) active => send packet
@@ -3482,24 +3482,52 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
-void sondehub_handle_fimport(WiFiClient *client) {
-  if (sonde.config.sondehub.fiactive)  {
-    Serial.printf("shimp: %d %d\n", shImport, shImportInterval);
-    if (shImport == 0) {
-      sondehub_send_fimport(&shclient);
-    } else if (shImport == 1) {
-      int res = ShFreqImport::shImportHandleReply(&shclient);
+void sondehub_reply_handler(WiFiClient *client) {
+  // sondehub handler for tasks to be done even if no data is to be sent:
+  //   process response messages from sondehub
+  //   request frequency list (if active)
+#define MSG_SIZE 550
+  char rs_msg[MSG_SIZE];
+
+  if(shImport==1) { // we are waiting for a reply to a sondehub frequency import request
+    // while we are waiting, we do nothing else with sondehub...
+    int res = ShFreqImport::shImportHandleReply(&shclient);
       Serial.printf("ret: %d\n", res);
+      // res==0 means more data is expected, res==1 means complete reply received (or error)
       if (res == 1) {
         shImport = 2; // finished
         shImportInterval = sonde.config.sondehub.fiinterval * 60;
       }
-    } else if (shImport == 2) {
-      // waiting for next activation...
+  }
+  else {
+    // any reply here belongs to normal telemetry upload, lets just print it.
+    // and wait for a valid HTTP response
+    while(client->available() > 0) {
+      // data is available from remote server, process it...
+      int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
+      rs_msg[cnt] = 0;
+      Serial.println(rs_msg);
+      // If something that looks like a valid HTTP response is received, we are ready to send the next data item
+      if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
+        shState = SH_CONN_IDLE;
+      }
+    }
+  }
+
+  // send import requests if needed
+  if (sonde.config.sondehub.fiactive)  {
+    if (shImport == 2) {
+      Serial.printf("next sondehub frequncy import in %d seconds\n", shImportInterval);
       shImportInterval --;
       if (shImportInterval <= 0) {
         shImport = 0;
       }
+    }
+    else if (shImport == 0) {
+      if(shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK) 
+        Serial.printf("Time to request next sondehub import.... but still busy with upload request");
+      else
+        sondehub_send_fimport(&shclient);
     }
   }
 }
@@ -3538,7 +3566,6 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // max age of data in JSON request (in seconds)
 #define SONDEHUB_MAXAGE 15
 
-#define MSG_SIZE 550
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
@@ -3558,20 +3585,6 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
-  // TODO: This should better be called not in sondehub_send_data, but somewhere where it is called even if no new data is decoded
-  // shImport==1: software is waiting for a reply to freq info requst, so reading data is handled elsewhere
-  while (shImport != 1 && client->available() > 0) {
-    // data is available from remote server, process it...
-    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
-    rs_msg[cnt] = 0;
-    Serial.println(rs_msg);
-    // If something that looks like a valid HTTP response is received, we are ready to send the next data item
-    if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
-      shState = SH_CONN_IDLE;
-      if ( sonde.config.sondehub.fiactive && shImport==0 )
-        sondehub_send_fimport(client);
-    }
-  }
 
   struct tm timeinfo;
   time_t now;

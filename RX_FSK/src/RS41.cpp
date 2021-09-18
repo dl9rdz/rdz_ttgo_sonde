@@ -499,7 +499,7 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
-   Serial.printf("subframe %d; valid: %x\n", subframeNumber, s->valid);
+   Serial.printf("subframe %d; valid: %x%032x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
    // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
 
    #if 0
