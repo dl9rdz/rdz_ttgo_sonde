@@ -297,10 +297,12 @@ void Sonde::setConfig(const char *cfg) {
 			*(int *)config_list[i].data = atoi(val);
 			break;
 		case -7:  // double
+		{
 			double d = atof(val);
 			if(*val == 0 || d==0) d = NAN;
 			*(double *)config_list[i].data = d;
 			break;
+		}
 		case -6:  // display list
 		{
 			int idx = 0;
