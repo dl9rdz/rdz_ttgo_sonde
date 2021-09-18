@@ -4,6 +4,12 @@ body, html {
 	font-family: Arial;
 }
 
+.active, .cfgheader:hover {
+  background-color: #ccc;
+}
+.cfgpanel {
+}
+
 .hamburger {
   position: relative;
   display: inline-block;

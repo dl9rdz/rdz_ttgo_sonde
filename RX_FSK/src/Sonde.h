@@ -196,7 +196,10 @@ struct st_sondehub {
 	char alt[20];
 	char antenna[64];
 	char email[64];
-	char fimport[20];
+        int fiactive;
+	int fiinterval;
+	int fimaxdist;
+	int fimaxage;
 };
 
 // to be extended
@@ -261,7 +264,7 @@ typedef struct st_rdzconfig {
 
 struct st_configitems {
   const char *name;
-  const char *label;
+  //  const char *label; => now handled in JS
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };

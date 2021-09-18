@@ -129,7 +129,13 @@ sondehub.lon=
 sondehub.alt=
 sondehub.antenna=
 sondehub.email=
-sondehub.fimport=0/100/60
+#-------------------------------#
+# Sondehub freq import settings
+#-------------------------------#
+shfimp.active=0
+shfimp.interval=60
+shfimp.maxdist=150
+shfimp.maxage=6
 #-------------------------------#
 # EOF
 #-------------------------------#

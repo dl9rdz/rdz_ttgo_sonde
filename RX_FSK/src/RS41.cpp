@@ -195,9 +195,6 @@ static void Gencrctab(void)
 
 int RS41::setup(float frequency) 
 {
-#if RS41_DEBUG
-	Serial.println("Setup sx1278 for RS41 sonde");
-#endif
 	if(!initialized) {
 		Gencrctab();
 		initrsc();
@@ -216,11 +213,6 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
 		return 1;
 	}
-#if RS41_DEBUG
-	float br = sx1278.getBitrate();
-	Serial.print("Exact bitrate is ");
-	Serial.println(br);
-#endif
 
 	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
 		RS41_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs41.agcbw));
@@ -255,21 +247,11 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
-#if RS41_DEBUG
-	Serial.print("RS41: setting RX frequency to ");
-	Serial.println(frequency);
-#endif
 	int retval = sx1278.setFrequency(frequency);
 	dpos = 0;
 
-#if RS41_DEBUG
-	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
-#endif
         sx1278.clearIRQFlags();
 
-	// the following is already done in receivePacketTimeout()
-	// sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-        // sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	return retval;
 }
 

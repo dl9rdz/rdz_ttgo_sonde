@@ -13,6 +13,7 @@
 #include <MicroNMEA.h>
 #include <Ticker.h>
 #include "esp_heap_caps.h"
+#include "soc/rtc_wdt.h"
 
 #include "src/SX1278FSK.h"
 #include "src/Sonde.h"
@@ -567,11 +568,12 @@ void setupConfigData() {
     String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
-  int shII = atoi(sonde.config.sondehub.fimport);
+  int shII = sonde.config.sondehub.fiinterval * 60;
   if(shImportInterval > shII) shImportInterval = shII;
 }
 
 
+#if 0
 struct st_configitems config_list[] = {
   /* General config settings */
   {"", "Software configuration", -5, NULL},
@@ -672,9 +674,115 @@ struct st_configitems config_list[] = {
   {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
   {"sondehub.fimport", "SondeHub freq import (interval/maxdist/maxage [min/km/min])", 18, &sonde.config.sondehub.fimport},
+};
+#endif
+#else
+struct st_configitems config_list[] = {
+  /* General config settings */
+  {"wifi", 0, &sonde.config.wifi},
+  {"debug", 0, &sonde.config.debug},
+  {"maxsonde", 0, &sonde.config.maxsonde},
+  {"screenfile", 0, &sonde.config.screenfile},
+  {"display", -6, sonde.config.display},
+  /* Spectrum display settings */
+  {"spectrum", 0, &sonde.config.spectrum},
+  {"startfreq", 0, &sonde.config.startfreq},
+  {"channelbw", 0, &sonde.config.channelbw},
+  {"marker", 0, &sonde.config.marker},
+  {"noisefloor", 0, &sonde.config.noisefloor},
+  /* decoder settings */
+  {"freqofs", 0, &sonde.config.freqofs},
+  {"rs41.agcbw", 0, &sonde.config.rs41.agcbw},
+  {"rs41.rxbw", 0, &sonde.config.rs41.rxbw},
+  {"rs92.rxbw", 0, &sonde.config.rs92.rxbw},
+  {"rs92.alt2d", 0, &sonde.config.rs92.alt2d},
+  {"dfm.agcbw", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", 0, &sonde.config.dfm.rxbw},
+  {"m10m20.agcbw", 0, &sonde.config.m10m20.agcbw},
+  {"m10m20.rxbw", 0, &sonde.config.m10m20.rxbw},
+  {"mp3h.agcbw", 0, &sonde.config.mp3h.agcbw},
+  {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
+  {"ephftp", 39, &sonde.config.ephftp},
+  /* APRS settings */
+  {"call", 8, sonde.config.call},
+  {"passcode", 0, &sonde.config.passcode},
+  /* KISS tnc settings */
+  {"kisstnc.active", 0, &sonde.config.kisstnc.active},
+  {"kisstnc.idformat", -2, &sonde.config.kisstnc.idformat},
+  /* AXUDP settings */
+  {"axudp.active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host", 63, sonde.config.udpfeed.host},
+  {"axudp.port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate", 0, &sonde.config.udpfeed.highrate},
+  /* APRS TCP settings, current not used */
+  {"tcp.active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
+
+#if FEATURE_MQTT
+  /* MQTT */
+  {"mqtt.active", 0, &sonde.config.mqtt.active},
+  {"mqtt.id", 63, &sonde.config.mqtt.id},
+  {"mqtt.host", 63, &sonde.config.mqtt.host},
+  {"mqtt.port", 0, &sonde.config.mqtt.port},
+  {"mqtt.username", 63, &sonde.config.mqtt.username},
+  {"mqtt.password", 63, &sonde.config.mqtt.password},
+  {"mqtt.prefix", 63, &sonde.config.mqtt.prefix},
+#endif
+
+  /* Hardware dependeing settings */
+  {"disptype", 0, &sonde.config.disptype},
+  {"norx_timeout", 0, &sonde.config.norx_timeout},
+  {"oled_sda", 0, &sonde.config.oled_sda},
+  {"oled_scl", 0, &sonde.config.oled_scl},
+  {"oled_rst", 0, &sonde.config.oled_rst},
+  {"tft_rs", 0, &sonde.config.tft_rs},
+  {"tft_cs", 0, &sonde.config.tft_cs},
+  {"tft_orient", 0, &sonde.config.tft_orient},
+  {"tft_spifreq", 0, &sonde.config.tft_spifreq},
+  {"button_pin", -4, &sonde.config.button_pin},
+  {"button2_pin", -4, &sonde.config.button2_pin},
+  {"button2_axp", 0, &sonde.config.button2_axp},
+  {"touch_thresh", 0, &sonde.config.touch_thresh},
+  {"power_pout", 0, &sonde.config.power_pout},
+  {"led_pout", 0, &sonde.config.led_pout},
+  {"gps_rxd", 0, &sonde.config.gps_rxd},
+  {"gps_txd", 0, &sonde.config.gps_txd},
+  {"batt_adc", 0, &sonde.config.batt_adc},
+#if 1
+  {"sx1278_ss", 0, &sonde.config.sx1278_ss},
+  {"sx1278_miso", 0, &sonde.config.sx1278_miso},
+  {"sx1278_mosi", 0, &sonde.config.sx1278_mosi},
+  {"sx1278_sck", 0, &sonde.config.sx1278_sck},
+#endif
+  {"mdnsname", 14, &sonde.config.mdnsname},
+
+#if FEATURE_SONDEHUB
+  /* SondeHub settings */
+  {"sondehub.active", 0, &sonde.config.sondehub.active},
+  {"sondehub.chase", 0, &sonde.config.sondehub.chase},
+  {"sondehub.host", 63, &sonde.config.sondehub.host},
+  {"sondehub.callsign", 63, &sonde.config.sondehub.callsign},
+  {"sondehub.lat", -7, &sonde.config.sondehub.lat},
+  {"sondehub.lon", -7, &sonde.config.sondehub.lon},
+  {"sondehub.alt", 19, &sonde.config.sondehub.alt},
+  {"sondehub.antenna", 63, &sonde.config.sondehub.antenna},
+  {"sondehub.email", 63, &sonde.config.sondehub.email},
+  {"sondehub.fiactive", 0, &sonde.config.sondehub.fimactitve},
+  {"sondehub.fiinterval", 0, &sonde.config.sondehub.fiinterval},
+  {"sondehub.fimaxdist", 0, &sonde.config.sondehub.fimaxdist},
+  {"sondehub.fimaxage", 0, &sonde.config.sondehub.fimaxage},
 #endif
 };
+#endif
+
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
+
+#if 0
+// old code, no longer needed (in js now)
 
 void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
@@ -733,11 +841,46 @@ void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
   }
   strcat(ptr, "\"/></td></tr>\n");
 }
+#endif
 
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
   HTMLBODY(ptr, "config.html");
+  strcat(ptr, "<div id=\"cfgtab\"></div>");
+  strcat(ptr, "<script src=\"cfg.js\"></script>");
+  strcat(ptr, "<script>\n");
+  strcat(ptr, "var cf=new Map();\n");
+  for(int i=0; i< N_CONFIG; i++) {
+    sprintf(ptr + strlen(ptr), "cf.set(\"%s\", \"", config_list[i].name);
+    switch(config_list[i].type) {
+    case -4:
+    case -3:
+    case -2:
+    case 0:
+      sprintf(ptr + strlen(ptr), "%d", *(int *)config_list[i].data);
+      break;
+    case -6: // list
+      {
+ 	int8_t *l = (int8_t *)config_list[i].data;
+        if(*l==-1) strcat(ptr, "0");
+        else { sprintf(ptr + strlen(ptr), "%d", l[0]); l++; }
+	while(*l != -1) {
+	  sprintf(ptr + strlen(ptr), ",%d", *l); 
+	  l++;
+	}
+      }
+      break;
+    case -7: // double
+      sprintf(ptr + strlen(ptr), "%f", *(double *)config_list[i].data);
+      break;
+    default: // string
+      strcat(ptr, (char *)config_list[i].data);
+    }
+    strcat(ptr, "\");\n");
+  }
+  strcat(ptr, "configTable();\n </script>");
+#if 0
   strcat(ptr, "<table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     Serial.printf("%d: %s -- %d\n", i, config_list[i].label, strlen(ptr));
@@ -773,6 +916,7 @@ const char *createConfigForm() {
   }
   strcat(ptr, "</table>");
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
+#endif
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
   Serial.printf("Config form: size=%d bytes\n", strlen(message));
@@ -791,8 +935,8 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   }
 #endif
   Serial.println("File open for writing.");
-#if 1
   int params = request->params();
+#if 0
   for (int i = 0; i < params; i++) {
     String param = request->getParam(i)->name();
     Serial.println(param.c_str());
@@ -801,13 +945,26 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   for (int i = 0; i < params; i++) {
     String strlabel = request->getParam(i)->name();
     const char *label = strlabel.c_str();
+    if(label[strlen(label)-1]=='#') continue;
+#if 0
     if (strncmp(label, "CFG", 3) != 0) continue;
     int idx = atoi(label + 3);
     Serial.printf("idx is %d\n", idx);
     if (config_list[idx].type == -1) continue; // skip separator entries, should not happen
+#endif
     AsyncWebParameter *value = request->getParam(label, true);
     if (!value) continue;
     String strvalue = value->value();
+    if( strcmp(label, "button_pin") == 0 ||
+	strcmp(label, "button2_pin") == 0) {
+       AsyncWebParameter *touch = request->getParam(strlabel+"#", true);
+       if(touch) {
+	 int i = atoi(strvalue.c_str());
+         if(i != -1 && i != 255) i += 128;
+	 strvalue = String(i);
+       }
+    }
+#if 0
     if (config_list[idx].type == -4) {  // input button port with "touch" checkbox
       char tmp[10];
       snprintf(tmp, 10, "TO%d", idx);
@@ -819,7 +976,10 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
       }
     }
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
-    int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+#endif
+    Serial.printf("Processing %s=%s\n", label, strvalue.c_str());
+    //int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    int wlen = f.printf("%s=%s\n", label, strvalue.c_str());
     Serial.printf("Written bytes: %d\n", wlen);
   }
   Serial.printf("Flushing file\n");
@@ -1750,9 +1910,11 @@ void IRAM_ATTR button2ISR() {
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
+#if 0
   int x = digitalRead(button1.pin);
   Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
   Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
+#endif
   return p;
 }
 
@@ -1863,7 +2025,7 @@ void setup()
 {
   char buf[12];
   // Open serial communications and wait for port to open:
-  Serial.begin(115200);
+  Serial.begin(921600 /*115200*/);
   for (int i = 0; i < 39; i++) {
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
@@ -2242,9 +2404,19 @@ void loopDecoder() {
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
+#if 0
+  static int i=0;
+  if(i++>20) {
+    i=0;
+    rtc_wdt_protect_off();
+    rtc_wdt_disable();
+    heap_caps_dump(MALLOC_CAP_8BIT);
+  }
+#endif
+
   if (action != ACT_NONE) {
     int newact = sonde.updateState(action);
-    Serial.printf("MAIN: loopDecoder: action %s (%d) => %d  [current: main=%d, rxtask=%d]\n", action2text(action), action, newact, sonde.currentSonde, rxtask.currentSonde);
+    Serial.printf("MAIN: loopDecoder: action %02x (%s) => %d  [current: main=%d, rxtask=%d]\n", action, action2text(action), newact, sonde.currentSonde, rxtask.currentSonde);
     action = newact;
     if (action != 255) {
       if (action == ACT_DISPLAY_SPECTRUM) {
@@ -3304,7 +3476,7 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                   };
 
 void sondehub_handle_fimport(WiFiClient *client) {
-  if (sonde.config.sondehub.fimport[0] != '0') {
+  if (sonde.config.sondehub.fiactive)  {
     if (shImport == 0) {
       sondehub_send_fimport(&shclient);
     } else if (shImport == 1) {
@@ -3336,15 +3508,9 @@ void sondehub_send_fimport(WiFiClient * client) {
     lon = gpsPos.lon;
   }
 
-  char *ptr = strchr(sonde.config.sondehub.fimport, '/');
-  shImportInterval = atoi(sonde.config.sondehub.fimport) * 60;
-  int maxdist = 200;
-  int maxage = 60;
-  if (ptr) {
-    maxdist = atoi(ptr + 1);
-    ptr = strchr(ptr + 1, '/');
-    if (ptr) maxage = atoi(ptr + 1);
-  }
+  int maxdist = sonde.config.sondehub.fimaxdist;      // km
+  int maxage = sonde.config.sondehub.fimaxage * 60;   // fimaxage is hours, shImportSendRequest uses minutes
+  int shImportInterval = sonde.config.sondehub.fiinterval * 60;  // shImportInterval is in seconds, fiinterval in minutes
   if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && shImportInterval > 0 ) {
     int res = ShFreqImport::shImportSendRequest(&shclient, lat, lon, maxdist, maxage);
     if (res == 0) shImport = 1; // Request OK: wait for response
@@ -3391,7 +3557,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
     if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
       shState = SH_CONN_IDLE;
-      sondehub_send_fimport(client);
+      if( sonde.config.sondehub.fiactive)
+	sondehub_send_fimport(client);
     }
   }
 
