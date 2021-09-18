@@ -1,1 +1,2 @@
 fix issue #172 with negative lat on livemap
+fix #165
