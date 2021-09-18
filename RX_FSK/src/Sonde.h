@@ -274,7 +274,7 @@ extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
 
-#define MAXSONDE 99
+#define MAXSONDE 50
 
 extern int fingerprintValue[];
 extern const char *fingerprintText[];

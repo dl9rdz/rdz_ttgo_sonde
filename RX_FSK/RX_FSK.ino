@@ -310,13 +310,11 @@ const char *createQRGForm() {
 const char *handleQRGPost(AsyncWebServerRequest *request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
-#if 1
   File file = SPIFFS.open("/qrg.txt", "w");
   if (!file) {
     Serial.println("Error while opening '/qrg.txt' for writing");
     return "Error while opening '/qrg.txt' for writing";
   }
-#endif
   Serial.println("Handling post request");
 #if 0
   int params = request->params();
@@ -349,9 +347,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
   }
   file.close();
 
-  Serial.println("Channel setup finished");
-  Serial.println();
-  delay(500);
+  Serial.println("Channel setup finished\n");
   setupChannelList();
   return "";
 }
@@ -2283,16 +2279,8 @@ void setup()
 
 
   // == setup default channel list if qrg.txt read fails =========== //
-  setupChannelList();
-#if 0
   sonde.clearSonde();
-  sonde.addSonde(402.700, STYPE_RS41);
-  sonde.addSonde(405.700, STYPE_RS41);
-  sonde.addSonde(405.900, STYPE_RS41);
-  sonde.addSonde(403.450, STYPE_DFM09);
-  Serial.println("No channel config file, using defaults!");
-  Serial.println();
-#endif
+  setupChannelList();
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
 #ifndef DISABLE_SX1278
@@ -3580,7 +3568,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     // If something that looks like a valid HTTP response is received, we are ready to send the next data item
     if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
       shState = SH_CONN_IDLE;
-      if ( sonde.config.sondehub.fiactive)
+      if ( sonde.config.sondehub.fiactive && shImport==0 )
         sondehub_send_fimport(client);
     }
   }

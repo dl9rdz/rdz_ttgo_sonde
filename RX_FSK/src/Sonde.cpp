@@ -80,6 +80,10 @@ void Sonde::defaultConfig() {
 
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
+	for(int i=0; i<(MAXSONDE+1); i++) {
+		sondeList[i].freq=400;
+		sondeList[i].type=STYPE_RS41;
+	}
 	config.touch_thresh = 70;
 	config.led_pout = -1;
 	config.power_pout = -1;
@@ -353,14 +357,17 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	// reset all data if type or frequency has changed
 	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].freq) {
+	    //TODO: Check for potential race condition with decoders
+	    // do not clear extra while decoder is potentiall still accessing it!
+	    if(sondeList[nSonde].extra) free(sondeList[nSonde].extra);
     	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
+	    sondeList[nSonde].type = type;
+	    sondeList[nSonde].typestr[0] = 0;
+	    sondeList[nSonde].freq = frequency;
+	    memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	}
-	sondeList[nSonde].type = type;
-	sondeList[nSonde].typestr[0] = 0;
-	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
-	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
 
