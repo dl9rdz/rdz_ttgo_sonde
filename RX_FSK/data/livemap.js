@@ -40,7 +40,8 @@ $(document).ready(function(){
       }
   };
 
-  map.setView([51.163361,10.447683], 5); // Mitte DE
+  if(mapcenter) map.setView(mapcenter, 5); 
+  else map.setView([51.163361,10.447683], 5); // Mitte DE
 
 var reddot = '<span class="ldot rbg"></span>';
 var yellowdot = '<span class="ldot ybg"></span>';

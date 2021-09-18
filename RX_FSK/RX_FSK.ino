@@ -147,6 +147,18 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
+  if (var == "MAPCENTER") {
+     double lat, lon;
+     if(gpsPos.valid) { lat=gpsPos.lat; lon=gpsPos.lon; }
+     else { lat = sonde.config.rxlat; lon = sonde.config.rxlon; }
+     if( !isnan(lat) && !isnan(lon) ) {
+	char p[40];
+	snprintf(p, 40, "%g,%g", lat, lon);
+	return String(p);
+     } else {
+	return String("48,13");
+     }
+  }
   if (var == "VERSION_NAME") {
     return String(version_name);
   }
