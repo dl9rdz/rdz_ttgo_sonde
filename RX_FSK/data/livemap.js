@@ -70,11 +70,12 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
+  console.log(data);
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
   if (data.lat == '0.000000') { return false; }
-  if (data.id) {
+  if (data.res == 0) {
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
     $('#sonde_climb').html(data.climb);
@@ -155,9 +156,10 @@ headtxt = function(data,stat) {
 
   draw = function(data) {
     var stat;
+    console.log(data);
     if (data.id) {
-
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
+      if ((data.lat != '0.000000' && data.lon != '0.000000') && (data.res==0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);
@@ -231,8 +233,10 @@ headtxt = function(data,stat) {
 
   get_data = function() {
       $('#status').html(reddot);
+      console.log("get_data called");
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
+        console.log(data);
         if (data.sonde) {
           draw(data.sonde);
         } else {

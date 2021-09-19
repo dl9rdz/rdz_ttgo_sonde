@@ -23,6 +23,7 @@
 #include "src/rs92gps.h"
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
+#include "src/RS41.h"
 
 #if FEATURE_MQTT
 #include "src/mqtt.h"
@@ -536,11 +537,9 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  if (s->validID) {
-    sprintf(ptr + strlen(ptr), "\"sonde\": {\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\", \"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f }", s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs);
-  } else {
-    sprintf(ptr + strlen(ptr), "\"sonde\": {\"launchsite\": \"%s\",\"freq\": %3.3f, \"type\": \"%s\" }", s->launchsite, s->freq, sondeTypeStr[s->type]);
-  }
+  sprintf(ptr + strlen(ptr), "\"res\": %d, \"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
+    "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\" }", 
+    s->rxStat[0], s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite);
 
   if (sonde.config.gps_rxd < 0) {
     // gps disabled
@@ -3689,6 +3688,12 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (t) sprintf(w, "\"subtype\": \"%s\",", t);
     else sprintf(w, "\"subtype\": \"DFMx%X\",", s->subtype); // Unknown subtype
     w += strlen(w);
+  } else if ( s->type == STYPE_RS41 ) {
+    char buf[11];
+    if(RS41::getSubtype(buf, 11, s)==0) {
+      sprintf(w, "\"subtype\": \"%s\",", buf);
+      w += strlen(w);
+    }
   }
 
   // Only send temp if provided

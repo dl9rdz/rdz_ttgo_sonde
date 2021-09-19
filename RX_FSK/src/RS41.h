@@ -15,6 +15,7 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+#include "Sonde.h"
 
 /* Main class */
 class RS41
@@ -60,6 +61,8 @@ public:
 	int receive();
 	int waitRXcomplete();
 	//int receiveFrame();
+
+	static int getSubtype(char *buf, int buflen, SondeInfo *si);
 
 	int use_ecc = 1;
 };

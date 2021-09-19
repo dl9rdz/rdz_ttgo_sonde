@@ -829,16 +829,42 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 int RS41::receive() {
 	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
+#if 1
 	if(e) { /*Serial.println("TIMEOUT");*/ return RX_TIMEOUT; } 
 
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
         return decode41(data, RS41MAXLEN);
+#else
+	// FAKE testing data
+	SondeInfo *si = sonde.si();
+	si->lat = 48;
+	si->lon = -100;
+	si->alt = 30000;
+	si->vs = 3.4;
+	si->validPos = 0x7f;
+	si->validID = 1;
+	strcpy(si->id, "A1234");
+	return 0;
+#endif
 }
 
 int RS41::waitRXcomplete() {
 	// Currently not used. can be used for additinoal post-processing
 	// (required for RS92 to avoid FIFO overrun in rx task)
+	return 0;
+}
+
+// copy variant string to buf (max buflen chars; buflen should be 11
+// return 0 if subtype is available, -1 if not
+int RS41::getSubtype(char *buf, int buflen, SondeInfo *si) {
+	struct subframeBuffer *sf = (struct subframeBuffer *)si->extra;
+	if(!sf) return -1;
+	if( (sf->valid & (3<<21)) != (3<<21) ) return -1;   // or 1 instead of 3 for the first 8 chars only, as in autorx?
+	if(buflen>11) buflen=11;			    // then buflen should be capped at 9 (8+trailing \0)
+	strncpy(buf, sf->value.names.variant, buflen);
+	buf[buflen-1]=0;
+	if(*buf==0) return -1;
 	return 0;
 }
 
