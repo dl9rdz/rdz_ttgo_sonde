@@ -3410,17 +3410,13 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 
   // Only send email if provided
   if (strlen(conf->email) != 0) {
-    sprintf(w,
-            "\"uploader_contact_email\": \"%s\",",
-            conf->email);
+    sprintf(w, "\"uploader_contact_email\": \"%s\",", conf->email);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
@@ -3718,9 +3714,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
   if (chase == SH_LOC_CHASE) {
     if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%d]",
-              gpsPos.lat, gpsPos.lon, gpsPos.alt);
+      sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", gpsPos.lat, gpsPos.lon, gpsPos.alt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
     }
