@@ -3493,7 +3493,7 @@ void sondehub_reply_handler(WiFiClient *client) {
   // sondehub handler for tasks to be done even if no data is to be sent:
   //   process response messages from sondehub
   //   request frequency list (if active)
-#define MSG_SIZE 550
+#define MSG_SIZE 1000
   char rs_msg[MSG_SIZE];
 
   if(shImport==1) { // we are waiting for a reply to a sondehub frequency import request
