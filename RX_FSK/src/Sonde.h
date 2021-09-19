@@ -191,12 +191,12 @@ struct st_sondehub {
 	int chase;
 	char host[64];
 	char callsign[64];
-	double lat;
-	double lon;
-	char alt[20];
 	char antenna[64];
 	char email[64];
-	char fimport[20];
+        int fiactive;
+	int fiinterval;
+	int fimaxdist;
+	int fimaxage;
 };
 
 // to be extended
@@ -228,6 +228,9 @@ typedef struct st_rdzconfig {
 	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
+	double rxlat;
+	double rxlon;
+	double rxalt;
 	int wifi;				// connect to known WLAN 0=skip
 	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
@@ -261,7 +264,7 @@ typedef struct st_rdzconfig {
 
 struct st_configitems {
   const char *name;
-  const char *label;
+  //  const char *label; => now handled in JS
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };
@@ -271,7 +274,7 @@ extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
 
-#define MAXSONDE 99
+#define MAXSONDE 50
 
 extern int fingerprintValue[];
 extern const char *fingerprintText[];
@@ -292,6 +295,7 @@ public:
 
 	Sonde();
 	void defaultConfig();
+	void checkConfig();
 	void setConfig(const char *str);
 
 	void clearSonde();

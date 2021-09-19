@@ -114,10 +114,12 @@ void ShFreqImport::cleanup() {
 #define BUFLEN 128
 #define VALLEN 20
 int ShFreqImport::handleChar(char c) {
+	Serial.print(c);
         switch(importState) {
         case START:
                 // wait for initial '{'
                 if(c=='{') {
+			Serial.println("{ found");
                         lat = NAN; lon = NAN; freq = NAN; *type = 0;
                         importState++; 
                 }       
@@ -125,7 +127,11 @@ int ShFreqImport::handleChar(char c) {
         case BEFOREID:
                 // what for first '"' in { "A1234567" : { ... } }; or detect end
                 if(c=='"') { idpos = 0; importState++; }
-                if(c=='}') { importState = ENDREACHED; }
+                if(c=='}') {
+			importState = ENDREACHED; 
+			cleanup();
+			return 1;
+		}
                 break;
         case COPYID:
                 // copy ID "A1234567" until second '"' is earched
@@ -196,6 +202,7 @@ int ShFreqImport::handleChar(char c) {
                 else if (c=='}') { importState = ENDREACHED; cleanup(); return 1; }
                 break;
         case ENDREACHED:
+		Serial.println("REPLY: END REACHED");
                 return 1;
         }       
         return 0;
@@ -228,6 +235,7 @@ int ShFreqImport::shImportSendRequest(WiFiClient *client, float lat, float lon, 
 
 // return 0 if more data should be read (later), 1 if finished (close connection...)
 int ShFreqImport::shImportHandleReply(WiFiClient *client) {
+	if(!client->connected()) return 1;
 	while(client->available()) {
 		int res = handleChar(client->read());
 		if(res) return res;

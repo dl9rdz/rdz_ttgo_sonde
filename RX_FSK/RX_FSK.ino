@@ -13,6 +13,7 @@
 #include <MicroNMEA.h>
 #include <Ticker.h>
 #include "esp_heap_caps.h"
+#include "soc/rtc_wdt.h"
 
 #include "src/SX1278FSK.h"
 #include "src/Sonde.h"
@@ -22,6 +23,7 @@
 #include "src/rs92gps.h"
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
+#include "src/RS41.h"
 
 #if FEATURE_MQTT
 #include "src/mqtt.h"
@@ -62,7 +64,8 @@ WiFiClient client;
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
 WiFiClient shclient;	// Sondehub v2
-char shImportInterval = 0, shImport = 0;
+int shImportInterval = 0;
+char shImport = 0;
 unsigned long time_last_update = 0;
 /* SH_LOC_OFF: never send position information to SondeHub
    SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
@@ -73,8 +76,8 @@ unsigned long time_last_update = 0;
 enum { SH_LOC_OFF, SH_LOC_FIXED, SH_LOC_CHASE, SH_LOC_AUTO };
 /* auto mode is chase if valid GPS position and (no fixed location entered OR valid GPS position and distance in lat/lon deg to fixed location > threshold) */
 #define MIN_LOC_AUTO_DIST 200   /* meter */
-#define SH_LOC_AUTO_IS_CHASE ( gpsPos.valid && ( (isnan(sonde.config.sondehub.lat) || isnan(sonde.config.sondehub.lon) ) ||  \
-                               calcLatLonDist( gpsPos.lat, gpsPos.lon, sonde.config.sondehub.lat, sonde.config.sondehub.lon ) > MIN_LOC_AUTO_DIST ) )
+#define SH_LOC_AUTO_IS_CHASE ( gpsPos.valid && ( (isnan(sonde.config.rxlat) || isnan(sonde.config.rxlon) ) ||  \
+                               calcLatLonDist( gpsPos.lat, gpsPos.lon, sonde.config.rxlat, sonde.config.rxlon ) > MIN_LOC_AUTO_DIST ) )
 #endif
 extern float calcLatLonDist(float lat1, float lon1, float lat2, float lon2);
 
@@ -145,6 +148,18 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
 // Replaces placeholder with LED state value
 String processor(const String& var) {
   Serial.println(var);
+  if (var == "MAPCENTER") {
+     double lat, lon;
+     if(gpsPos.valid) { lat=gpsPos.lat; lon=gpsPos.lon; }
+     else { lat = sonde.config.rxlat; lon = sonde.config.rxlon; }
+     if( !isnan(lat) && !isnan(lon) ) {
+	char p[40];
+	snprintf(p, 40, "%g,%g", lat, lon);
+	return String(p);
+     } else {
+	return String("48,13");
+     }
+  }
   if (var == "VERSION_NAME") {
     return String(version_name);
   }
@@ -153,7 +168,7 @@ String processor(const String& var) {
   }
   if (var == "FULLNAMEID") {
     char tmp[128];
-    snprintf(tmp, 128, "%s-%c%d", version_id, SPIFFS_MAJOR+'A'-1, SPIFFS_MINOR);
+    snprintf(tmp, 128, "%s-%c%d", version_id, SPIFFS_MAJOR + 'A' - 1, SPIFFS_MINOR);
     return String(tmp);
   }
   if (var == "AUTODETECT_INFO") {
@@ -308,13 +323,11 @@ const char *createQRGForm() {
 const char *handleQRGPost(AsyncWebServerRequest *request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
-#if 1
   File file = SPIFFS.open("/qrg.txt", "w");
   if (!file) {
     Serial.println("Error while opening '/qrg.txt' for writing");
     return "Error while opening '/qrg.txt' for writing";
   }
-#endif
   Serial.println("Handling post request");
 #if 0
   int params = request->params();
@@ -347,9 +360,7 @@ const char *handleQRGPost(AsyncWebServerRequest *request) {
   }
   file.close();
 
-  Serial.println("Channel setup finished");
-  Serial.println();
-  delay(500);
+  Serial.println("Channel setup finished\n");
   setupChannelList();
   return "";
 }
@@ -422,14 +433,14 @@ const char *createSondeHubMap() {
   HTMLBODY(ptr, "map.html");
   if (!sonde.config.sondehub.active) {
     strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->ser == 0) && ( !isnan(sonde.config.sondehub.lat))) {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+    if ((*s->ser == 0) && ( !isnan(sonde.config.rxlat))) {
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
     } else {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
     }
   } else {
-    if ((*s->ser == 0) && (!isnan(sonde.config.sondehub.lat))) {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.sondehub.lat, sonde.config.sondehub.lon);
+    if ((*s->ser == 0) && (!isnan(sonde.config.rxlat))) {
+      sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
     } else {
       sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
     }
@@ -526,11 +537,9 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  if (s->validID) {
-    sprintf(ptr + strlen(ptr), "\"sonde\": {\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\", \"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f }", s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs);
-  } else {
-    sprintf(ptr + strlen(ptr), "\"sonde\": {\"launchsite\": \"%s\",\"freq\": %3.3f, \"type\": \"%s\" }", s->launchsite, s->freq, sondeTypeStr[s->type]);
-  }
+  sprintf(ptr + strlen(ptr), "\"res\": %d, \"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
+    "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\" }", 
+    s->rxStat[0], s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite);
 
   if (sonde.config.gps_rxd < 0) {
     // gps disabled
@@ -567,11 +576,12 @@ void setupConfigData() {
     String line = readLine(file);  //file.readStringUntil('\n');
     sonde.setConfig(line.c_str());
   }
-  int shII = atoi(sonde.config.sondehub.fimport);
-  if(shImportInterval > shII) shImportInterval = shII;
+  sonde.checkConfig(); // eliminate invalid entries
+  shImportInterval = 5;   // refresh now in 5 seconds
 }
 
 
+#if 0
 struct st_configitems config_list[] = {
   /* General config settings */
   {"", "Software configuration", -5, NULL},
@@ -672,9 +682,115 @@ struct st_configitems config_list[] = {
   {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
   {"sondehub.fimport", "SondeHub freq import (interval/maxdist/maxage [min/km/min])", 18, &sonde.config.sondehub.fimport},
+};
+#endif
+#else
+struct st_configitems config_list[] = {
+  /* General config settings */
+  {"wifi", 0, &sonde.config.wifi},
+  {"debug", 0, &sonde.config.debug},
+  {"maxsonde", 0, &sonde.config.maxsonde},
+  {"rxlat", -7, &sonde.config.rxlat},
+  {"rxlon", -7, &sonde.config.rxlon},
+  {"rxalt", -7, &sonde.config.rxalt},
+  {"screenfile", 0, &sonde.config.screenfile},
+  {"display", -6, sonde.config.display},
+  /* Spectrum display settings */
+  {"spectrum", 0, &sonde.config.spectrum},
+  {"startfreq", 0, &sonde.config.startfreq},
+  {"channelbw", 0, &sonde.config.channelbw},
+  {"marker", 0, &sonde.config.marker},
+  {"noisefloor", 0, &sonde.config.noisefloor},
+  /* decoder settings */
+  {"freqofs", 0, &sonde.config.freqofs},
+  {"rs41.agcbw", 0, &sonde.config.rs41.agcbw},
+  {"rs41.rxbw", 0, &sonde.config.rs41.rxbw},
+  {"rs92.rxbw", 0, &sonde.config.rs92.rxbw},
+  {"rs92.alt2d", 0, &sonde.config.rs92.alt2d},
+  {"dfm.agcbw", 0, &sonde.config.dfm.agcbw},
+  {"dfm.rxbw", 0, &sonde.config.dfm.rxbw},
+  {"m10m20.agcbw", 0, &sonde.config.m10m20.agcbw},
+  {"m10m20.rxbw", 0, &sonde.config.m10m20.rxbw},
+  {"mp3h.agcbw", 0, &sonde.config.mp3h.agcbw},
+  {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
+  {"ephftp", 39, &sonde.config.ephftp},
+  /* APRS settings */
+  {"call", 8, sonde.config.call},
+  {"passcode", 0, &sonde.config.passcode},
+  /* KISS tnc settings */
+  {"kisstnc.active", 0, &sonde.config.kisstnc.active},
+  {"kisstnc.idformat", -2, &sonde.config.kisstnc.idformat},
+  /* AXUDP settings */
+  {"axudp.active", -3, &sonde.config.udpfeed.active},
+  {"axudp.host", 63, sonde.config.udpfeed.host},
+  {"axudp.port", 0, &sonde.config.udpfeed.port},
+  {"axudp.idformat", -2, &sonde.config.udpfeed.idformat},
+  {"axudp.highrate", 0, &sonde.config.udpfeed.highrate},
+  /* APRS TCP settings, current not used */
+  {"tcp.active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.host", 63, sonde.config.tcpfeed.host},
+  {"tcp.port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
+
+#if FEATURE_MQTT
+  /* MQTT */
+  {"mqtt.active", 0, &sonde.config.mqtt.active},
+  {"mqtt.id", 63, &sonde.config.mqtt.id},
+  {"mqtt.host", 63, &sonde.config.mqtt.host},
+  {"mqtt.port", 0, &sonde.config.mqtt.port},
+  {"mqtt.username", 63, &sonde.config.mqtt.username},
+  {"mqtt.password", 63, &sonde.config.mqtt.password},
+  {"mqtt.prefix", 63, &sonde.config.mqtt.prefix},
+#endif
+
+  /* Hardware dependeing settings */
+  {"disptype", 0, &sonde.config.disptype},
+  {"norx_timeout", 0, &sonde.config.norx_timeout},
+  {"oled_sda", 0, &sonde.config.oled_sda},
+  {"oled_scl", 0, &sonde.config.oled_scl},
+  {"oled_rst", 0, &sonde.config.oled_rst},
+  {"tft_rs", 0, &sonde.config.tft_rs},
+  {"tft_cs", 0, &sonde.config.tft_cs},
+  {"tft_orient", 0, &sonde.config.tft_orient},
+  {"tft_spifreq", 0, &sonde.config.tft_spifreq},
+  {"button_pin", -4, &sonde.config.button_pin},
+  {"button2_pin", -4, &sonde.config.button2_pin},
+  {"button2_axp", 0, &sonde.config.button2_axp},
+  {"touch_thresh", 0, &sonde.config.touch_thresh},
+  {"power_pout", 0, &sonde.config.power_pout},
+  {"led_pout", 0, &sonde.config.led_pout},
+  {"gps_rxd", 0, &sonde.config.gps_rxd},
+  {"gps_txd", 0, &sonde.config.gps_txd},
+  {"batt_adc", 0, &sonde.config.batt_adc},
+#if 1
+  {"sx1278_ss", 0, &sonde.config.sx1278_ss},
+  {"sx1278_miso", 0, &sonde.config.sx1278_miso},
+  {"sx1278_mosi", 0, &sonde.config.sx1278_mosi},
+  {"sx1278_sck", 0, &sonde.config.sx1278_sck},
+#endif
+  {"mdnsname", 14, &sonde.config.mdnsname},
+
+#if FEATURE_SONDEHUB
+  /* SondeHub settings */
+  {"sondehub.active", 0, &sonde.config.sondehub.active},
+  {"sondehub.chase", 0, &sonde.config.sondehub.chase},
+  {"sondehub.host", 63, &sonde.config.sondehub.host},
+  {"sondehub.callsign", 63, &sonde.config.sondehub.callsign},
+  {"sondehub.antenna", 63, &sonde.config.sondehub.antenna},
+  {"sondehub.email", 63, &sonde.config.sondehub.email},
+  {"sondehub.fiactive", 0, &sonde.config.sondehub.fiactive},
+  {"sondehub.fiinterval", 0, &sonde.config.sondehub.fiinterval},
+  {"sondehub.fimaxdist", 0, &sonde.config.sondehub.fimaxdist},
+  {"sondehub.fimaxage", 0, &sonde.config.sondehub.fimaxage},
 #endif
 };
+#endif
+
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
+
+#if 0
+// old code, no longer needed (in js now)
 
 void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
@@ -733,11 +849,55 @@ void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
   }
   strcat(ptr, "\"/></td></tr>\n");
 }
+#endif
 
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
   HTMLBODY(ptr, "config.html");
+  strcat(ptr, "<div id=\"cfgtab\"></div>");
+  strcat(ptr, "<script src=\"cfg.js\"></script>");
+  strcat(ptr, "<script>\n");
+  sprintf(ptr + strlen(ptr), "var scr=\"Using /screens%d.txt", Display::getScreenIndex(sonde.config.screenfile));
+  for (int i = 0; i < disp.nLayouts; i++) {
+    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label); 
+  }
+  strcat(ptr, "\";\n");
+  strcat(ptr, "var cf=new Map();\n");
+  for (int i = 0; i < N_CONFIG; i++) {
+    sprintf(ptr + strlen(ptr), "cf.set(\"%s\", \"", config_list[i].name);
+    switch (config_list[i].type) {
+      case -4:
+      case -3:
+      case -2:
+      case 0:
+        sprintf(ptr + strlen(ptr), "%d", *(int *)config_list[i].data);
+        break;
+      case -6: // list
+        {
+          int8_t *l = (int8_t *)config_list[i].data;
+          if (*l == -1) strcat(ptr, "0");
+          else {
+            sprintf(ptr + strlen(ptr), "%d", l[0]);
+            l++;
+          }
+          while (*l != -1) {
+            sprintf(ptr + strlen(ptr), ",%d", *l);
+            l++;
+          }
+        }
+        break;
+      case -7: // double
+        if (!isnan(*(double *)config_list[i].data))
+          sprintf(ptr + strlen(ptr), "%g", *(double *)config_list[i].data);
+        break;
+      default: // string
+        strcat(ptr, (char *)config_list[i].data);
+    }
+    strcat(ptr, "\");\n");
+  }
+  strcat(ptr, "configTable();\n </script>");
+#if 0
   strcat(ptr, "<table><tr><th>Option</th><th>Value</th></tr>");
   for (int i = 0; i < N_CONFIG; i++) {
     Serial.printf("%d: %s -- %d\n", i, config_list[i].label, strlen(ptr));
@@ -773,6 +933,7 @@ const char *createConfigForm() {
   }
   strcat(ptr, "</table>");
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
+#endif
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
   Serial.printf("Config form: size=%d bytes\n", strlen(message));
@@ -791,8 +952,8 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   }
 #endif
   Serial.println("File open for writing.");
-#if 1
   int params = request->params();
+#if 0
   for (int i = 0; i < params; i++) {
     String param = request->getParam(i)->name();
     Serial.println(param.c_str());
@@ -801,13 +962,26 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
   for (int i = 0; i < params; i++) {
     String strlabel = request->getParam(i)->name();
     const char *label = strlabel.c_str();
+    if (label[strlen(label) - 1] == '#') continue;
+#if 0
     if (strncmp(label, "CFG", 3) != 0) continue;
     int idx = atoi(label + 3);
     Serial.printf("idx is %d\n", idx);
     if (config_list[idx].type == -1) continue; // skip separator entries, should not happen
+#endif
     AsyncWebParameter *value = request->getParam(label, true);
     if (!value) continue;
     String strvalue = value->value();
+    if ( strcmp(label, "button_pin") == 0 ||
+         strcmp(label, "button2_pin") == 0) {
+      AsyncWebParameter *touch = request->getParam(strlabel + "#", true);
+      if (touch) {
+        int i = atoi(strvalue.c_str());
+        if (i != -1 && i != 255) i += 128;
+        strvalue = String(i);
+      }
+    }
+#if 0
     if (config_list[idx].type == -4) {  // input button port with "touch" checkbox
       char tmp[10];
       snprintf(tmp, 10, "TO%d", idx);
@@ -819,7 +993,10 @@ const char *handleConfigPost(AsyncWebServerRequest *request) {
       }
     }
     Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
-    int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+#endif
+    Serial.printf("Processing %s=%s\n", label, strvalue.c_str());
+    //int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
+    int wlen = f.printf("%s=%s\n", label, strvalue.c_str());
     Serial.printf("Written bytes: %d\n", wlen);
   }
   Serial.printf("Flushing file\n");
@@ -1324,7 +1501,7 @@ void SetupAsyncServer() {
       if (url.endsWith(".gpx"))
         request->send(200, "application/gpx+xml", sendGPX(request));
       else {
-	// TODO: set correct type for .js
+        // TODO: set correct type for .js
         request->send(SPIFFS, url, "text/html");
         Serial.printf("URL is %s\n", url.c_str());
         //request->send(404);
@@ -1750,9 +1927,11 @@ void IRAM_ATTR button2ISR() {
 int getKeyPress() {
   KeyPress p = button1.pressed;
   button1.pressed = KP_NONE;
+#if 0
   int x = digitalRead(button1.pin);
   Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
   Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
+#endif
   return p;
 }
 
@@ -1863,7 +2042,7 @@ void setup()
 {
   char buf[12];
   // Open serial communications and wait for port to open:
-  Serial.begin(115200);
+  Serial.begin(921600 /*115200*/);
   for (int i = 0; i < 39; i++) {
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
@@ -2111,16 +2290,8 @@ void setup()
 
 
   // == setup default channel list if qrg.txt read fails =========== //
-  setupChannelList();
-#if 0
   sonde.clearSonde();
-  sonde.addSonde(402.700, STYPE_RS41);
-  sonde.addSonde(405.700, STYPE_RS41);
-  sonde.addSonde(405.900, STYPE_RS41);
-  sonde.addSonde(403.450, STYPE_DFM09);
-  Serial.println("No channel config file, using defaults!");
-  Serial.println();
-#endif
+  setupChannelList();
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
 #ifndef DISABLE_SX1278
@@ -2242,9 +2413,19 @@ void loopDecoder() {
   action = (int)(res >> 8);
   // TODO: update displayed sonde?
 
+#if 0
+  static int i = 0;
+  if (i++ > 20) {
+    i = 0;
+    rtc_wdt_protect_off();
+    rtc_wdt_disable();
+    heap_caps_dump(MALLOC_CAP_8BIT);
+  }
+#endif
+
   if (action != ACT_NONE) {
     int newact = sonde.updateState(action);
-    Serial.printf("MAIN: loopDecoder: action %s (%d) => %d  [current: main=%d, rxtask=%d]\n", action2text(action), action, newact, sonde.currentSonde, rxtask.currentSonde);
+    Serial.printf("MAIN: loopDecoder: action %02x (%s) => %d  [current: main=%d, rxtask=%d]\n", action, action2text(action), newact, sonde.currentSonde, rxtask.currentSonde);
     action = newact;
     if (action != 255) {
       if (action == ACT_DISPLAY_SPECTRUM) {
@@ -2296,7 +2477,7 @@ void loopDecoder() {
   }
 
 #if FEATURE_SONDEHUB
-  sondehub_handle_fimport(&shclient);
+  sondehub_reply_handler(&shclient);
 #endif
 
   // wifi (axudp) or bluetooth (bttnc) active => send packet
@@ -2905,7 +3086,7 @@ void execOTA() {
     dispxs = dispys = 1;
     char uh[17];
     strncpy(uh, updateHost, 17);
-    uh[16]=0;
+    uh[16] = 0;
     disp.rdis->drawString(0, 0, uh);
   } else {
     disp.rdis->setFont(5);
@@ -2932,34 +3113,42 @@ void execOTA() {
 
   int type = 0;
   int res = fetchHTTPheader(&type);
-  if(res < 0) { return; }
+  if (res < 0) {
+    return;
+  }
   // process data...
-  while(client.available()) {
+  while (client.available()) {
     // get header...
     char fn[128];
     fn[0] = '/';
-    client.readBytesUntil('\n', fn+1, 128);
+    client.readBytesUntil('\n', fn + 1, 128);
     char *sz = strchr(fn, ' ');
-    if(!sz) { client.stop(); return; }
+    if (!sz) {
+      client.stop();
+      return;
+    }
     *sz = 0;
-    int len = atoi(sz+1);
+    int len = atoi(sz + 1);
     Serial.printf("Updating file %s (%d bytes)\n", fn, len);
     char fnstr[17];
     memset(fnstr, ' ', 16);
     strncpy(fnstr, fn, strlen(fn));
-    fnstr[16]=0;
+    fnstr[16] = 0;
     disp.rdis->drawString(0, 2 * dispys, fnstr);
     File f = SPIFFS.open(fn, FILE_WRITE);
     // read sz bytes........
-    while(len>0) {
-	unsigned char buf[1024];
-	int r = client.read(buf, len>1024? 1024:len);
-	if(r==-1) { client.stop(); return; }
-	f.write(buf, r);
-	len -= r;
+    while (len > 0) {
+      unsigned char buf[1024];
+      int r = client.read(buf, len > 1024 ? 1024 : len);
+      if (r == -1) {
+        client.stop();
+        return;
+      }
+      f.write(buf, r);
+      len -= r;
     }
   }
-  client.stop(); 
+  client.stop();
 
   Serial.print("Connecting to: "); Serial.println(updateHost);
   // Connect to Update host
@@ -2968,26 +3157,26 @@ void execOTA() {
     return;
   }
 
-    // Connection succeeded, fecthing the bin
-    Serial.printf("Fetching bin: %supdate.ino.bin\n", updatePrefix);
-    disp.rdis->drawString(0, 3 * dispys, "Fetching update");
+  // Connection succeeded, fecthing the bin
+  Serial.printf("Fetching bin: %supdate.ino.bin\n", updatePrefix);
+  disp.rdis->drawString(0, 3 * dispys, "Fetching update");
 
-    // Get the contents of the bin file
-    client.printf("GET %supdate.ino.bin HTTP/1.1\r\n"
-                 "Host: %s\r\n"
-                 "Cache-Control: no-cache\r\n" 
-                 "Connection: close\r\n\r\n",
-	updatePrefix, updateHost);
+  // Get the contents of the bin file
+  client.printf("GET %supdate.ino.bin HTTP/1.1\r\n"
+                "Host: %s\r\n"
+                "Cache-Control: no-cache\r\n"
+                "Connection: close\r\n\r\n",
+                updatePrefix, updateHost);
 
-    // Check what is being sent
-    //    Serial.print(String("GET ") + bin + " HTTP/1.1\r\n" +
-    //                 "Host: " + host + "\r\n" +
-    //                 "Cache-Control: no-cache\r\n" +
-    //                 "Connection: close\r\n\r\n");
+  // Check what is being sent
+  //    Serial.print(String("GET ") + bin + " HTTP/1.1\r\n" +
+  //                 "Host: " + host + "\r\n" +
+  //                 "Cache-Control: no-cache\r\n" +
+  //                 "Connection: close\r\n\r\n");
 
   int validType = 0;
   contentLength = fetchHTTPheader( &validType );
-  if(validType==1) isValidContentType = true;
+  if (validType == 1) isValidContentType = true;
 
   // Check what is the contentLength and if content type is `application/octet-stream`
   Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
@@ -3045,75 +3234,75 @@ void execOTA() {
 }
 
 int fetchHTTPheader(int *validType) {
-    int contentLength = -1;
-    unsigned long timeout = millis();
-    while (client.available() == 0) {
-      if (millis() - timeout > 5000) {
-        Serial.println("Client Timeout !");
-        client.stop();
+  int contentLength = -1;
+  unsigned long timeout = millis();
+  while (client.available() == 0) {
+    if (millis() - timeout > 5000) {
+      Serial.println("Client Timeout !");
+      client.stop();
+      return -1;
+    }
+  }
+  // Once the response is available, check stuff
+
+  /*
+     Response Structure
+      HTTP/1.1 200 OK
+      x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
+      x-amz-request-id: 2D56B47560B764EC
+      Date: Wed, 14 Jun 2017 03:33:59 GMT
+      Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
+      ETag: "d2afebbaaebc38cd669ce36727152af9"
+      Accept-Ranges: bytes
+      Content-Type: application/octet-stream
+      Content-Length: 357280
+      Server: AmazonS3
+
+      {{BIN FILE CONTENTS}}
+
+  */
+  while (client.available()) {
+    // read line till \n
+    String line = client.readStringUntil('\n');
+    // remove space, to check if the line is end of headers
+    line.trim();
+
+    // if the the line is empty,
+    // this is end of headers
+    // break the while and feed the
+    // remaining `client` to the
+    // Update.writeStream();
+    if (!line.length()) {
+      //headers ended
+      break; // and get the OTA started
+    }
+
+    // Check if the HTTP Response is 200
+    // else break and Exit Update
+    if (line.startsWith("HTTP/1.1")) {
+      if (line.indexOf("200") < 0) {
+        Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
         return -1;
       }
     }
-    // Once the response is available, check stuff
 
-    /*
-       Response Structure
-        HTTP/1.1 200 OK
-        x-amz-id-2: NVKxnU1aIQMmpGKhSwpCBh8y2JPbak18QLIfE+OiUDOos+7UftZKjtCFqrwsGOZRN5Zee0jpTd0=
-        x-amz-request-id: 2D56B47560B764EC
-        Date: Wed, 14 Jun 2017 03:33:59 GMT
-        Last-Modified: Fri, 02 Jun 2017 14:50:11 GMT
-        ETag: "d2afebbaaebc38cd669ce36727152af9"
-        Accept-Ranges: bytes
-        Content-Type: application/octet-stream
-        Content-Length: 357280
-        Server: AmazonS3
+    // extract headers here
+    // Start with content length
+    if (line.startsWith("Content-Length: ")) {
+      contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
+      Serial.println("Got " + String(contentLength) + " bytes from server");
+    }
 
-        {{BIN FILE CONTENTS}}
-
-    */
-    while (client.available()) {
-      // read line till \n
-      String line = client.readStringUntil('\n');
-      // remove space, to check if the line is end of headers
-      line.trim();
-
-      // if the the line is empty,
-      // this is end of headers
-      // break the while and feed the
-      // remaining `client` to the
-      // Update.writeStream();
-      if (!line.length()) {
-        //headers ended
-        break; // and get the OTA started
-      }
-
-      // Check if the HTTP Response is 200
-      // else break and Exit Update
-      if (line.startsWith("HTTP/1.1")) {
-        if (line.indexOf("200") < 0) {
-          Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
-          return -1;
-        }
-      }
-
-      // extract headers here
-      // Start with content length
-      if (line.startsWith("Content-Length: ")) {
-        contentLength = atoi((getHeaderValue(line, "Content-Length: ")).c_str());
-        Serial.println("Got " + String(contentLength) + " bytes from server");
-      }
-
-      // Next, the content type
-      if (line.startsWith("Content-Type: ")) {
-        String contentType = getHeaderValue(line, "Content-Type: ");
-        Serial.println("Got " + contentType + " payload.");
-        if (contentType == "application/octet-stream") {
-          if(validType) *validType = 1;
-        }
+    // Next, the content type
+    if (line.startsWith("Content-Type: ")) {
+      String contentType = getHeaderValue(line, "Content-Type: ");
+      Serial.println("Got " + contentType + " payload.");
+      if (contentType == "application/octet-stream") {
+        if (validType) *validType = 1;
       }
     }
-    return contentLength;
+  }
+  return contentLength;
 }
 
 
@@ -3220,17 +3409,13 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 
   // Only send email if provided
   if (strlen(conf->email) != 0) {
-    sprintf(w,
-            "\"uploader_contact_email\": \"%s\",",
-            conf->email);
+    sprintf(w, "\"uploader_contact_email\": \"%s\",", conf->email);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
@@ -3248,10 +3433,11 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
   }
   // Otherweise, in FIXED mode we send the fixed position from config (if specified)
   else if (chase == SH_LOC_FIXED) {
-    if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s]",
-              conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
+    if ((!isnan(sonde.config.rxlat)) && (!isnan(sonde.config.rxlon))) {
+      if (isnan(sonde.config.rxalt))
+        sprintf(w, "\"uploader_position\": [%.6f,%.6f,null]", sonde.config.rxlat, sonde.config.rxlon);
+      else
+        sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", sonde.config.rxlat, sonde.config.rxlon, (int)sonde.config.rxalt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
     }
@@ -3303,21 +3489,52 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
-void sondehub_handle_fimport(WiFiClient *client) {
-  if (sonde.config.sondehub.fimport[0] != '0') {
-    if (shImport == 0) {
-      sondehub_send_fimport(&shclient);
-    } else if (shImport == 1) {
-      int res = ShFreqImport::shImportHandleReply(&shclient);
+void sondehub_reply_handler(WiFiClient *client) {
+  // sondehub handler for tasks to be done even if no data is to be sent:
+  //   process response messages from sondehub
+  //   request frequency list (if active)
+#define MSG_SIZE 550
+  char rs_msg[MSG_SIZE];
+
+  if(shImport==1) { // we are waiting for a reply to a sondehub frequency import request
+    // while we are waiting, we do nothing else with sondehub...
+    int res = ShFreqImport::shImportHandleReply(&shclient);
+      Serial.printf("ret: %d\n", res);
+      // res==0 means more data is expected, res==1 means complete reply received (or error)
       if (res == 1) {
         shImport = 2; // finished
+        shImportInterval = sonde.config.sondehub.fiinterval * 60;
       }
-    } else if (shImport == 2) {
-      // waiting for next activation...
+  }
+  else {
+    // any reply here belongs to normal telemetry upload, lets just print it.
+    // and wait for a valid HTTP response
+    while(client->available() > 0) {
+      // data is available from remote server, process it...
+      int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
+      rs_msg[cnt] = 0;
+      Serial.println(rs_msg);
+      // If something that looks like a valid HTTP response is received, we are ready to send the next data item
+      if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
+        shState = SH_CONN_IDLE;
+      }
+    }
+  }
+
+  // send import requests if needed
+  if (sonde.config.sondehub.fiactive)  {
+    if (shImport == 2) {
+      Serial.printf("next sondehub frequncy import in %d seconds\n", shImportInterval);
       shImportInterval --;
       if (shImportInterval <= 0) {
         shImport = 0;
       }
+    }
+    else if (shImport == 0) {
+      if(shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK) 
+        Serial.printf("Time to request next sondehub import.... but still busy with upload request");
+      else
+        sondehub_send_fimport(&shclient);
     }
   }
 }
@@ -3330,22 +3547,17 @@ void sondehub_send_fimport(WiFiClient * client) {
     return;
   }
   // It's time to run, so check prerequisites
-  float lat = sonde.config.sondehub.lat, lon = sonde.config.sondehub.lon;
+  float lat = sonde.config.rxlat, lon = sonde.config.rxlon;
   if (gpsPos.valid) {
     lat = gpsPos.lat;
     lon = gpsPos.lon;
   }
 
-  char *ptr = strchr(sonde.config.sondehub.fimport, '/');
-  shImportInterval = atoi(sonde.config.sondehub.fimport) * 60;
-  int maxdist = 200;
-  int maxage = 60;
-  if (ptr) {
-    maxdist = atoi(ptr + 1);
-    ptr = strchr(ptr + 1, '/');
-    if (ptr) maxage = atoi(ptr + 1);
-  }
-  if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && shImportInterval > 0 ) {
+  int maxdist = sonde.config.sondehub.fimaxdist;      // km
+  int maxage = sonde.config.sondehub.fimaxage * 60;   // fimaxage is hours, shImportSendRequest uses minutes
+  int fiinterval = sonde.config.sondehub.fiinterval;
+  Serial.printf("shimp : %f %f %d %d %d\n", lat, lon, maxdist, maxage, shImportInterval);
+  if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && fiinterval > 0 ) {
     int res = ShFreqImport::shImportSendRequest(&shclient, lat, lon, maxdist, maxage);
     if (res == 0) shImport = 1; // Request OK: wait for response
     else shImport = 2;        // Request failed: wait interval, then retry
@@ -3361,7 +3573,6 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   // max age of data in JSON request (in seconds)
 #define SONDEHUB_MAXAGE 15
 
-#define MSG_SIZE 550
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
@@ -3381,19 +3592,6 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
-  // TODO: This should better be called not in sondehub_send_data, but somewhere where it is called even if no new data is decoded
-  // shImport==1: software is waiting for a reply to freq info requst, so reading data is handled elsewhere
-  while (shImport != 1 && client->available() > 0) {
-    // data is available from remote server, process it...
-    int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
-    rs_msg[cnt] = 0;
-    Serial.println(rs_msg);
-    // If something that looks like a valid HTTP response is received, we are ready to send the next data item
-    if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
-      shState = SH_CONN_IDLE;
-      sondehub_send_fimport(client);
-    }
-  }
 
   struct tm timeinfo;
   time_t now;
@@ -3486,32 +3684,42 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     if (t) sprintf(w, "\"subtype\": \"%s\",", t);
     else sprintf(w, "\"subtype\": \"DFMx%X\",", s->subtype); // Unknown subtype
     w += strlen(w);
+  } else if ( s->type == STYPE_RS41 ) {
+    char buf[11];
+    if(RS41::getSubtype(buf, 11, s)==0) {
+      sprintf(w, "\"subtype\": \"%s\",", buf);
+      w += strlen(w);
+    }
   }
 
-  // Only send temp & humidity if provided
-  if (((int)s->temperature != 0) && ((int)s->relativeHumidity != 0)) {
-    sprintf(w,
-            "\"temp\": %.3f,"
-            "\"humidity\": %.3f,",
-            float(s->temperature), float(s->relativeHumidity)
-           );
+  // Only send temp if provided
+  if ((int)s->temperature != 0) {
+    sprintf(w, "\"temp\": %.3f,", float(s->temperature));
+    w += strlen(w);
+  }
+	
+  // Only send humidity if provided
+  if ((int)s->relativeHumidity != 0) {
+    sprintf(w, "\"humidity\": %.3f,", float(s->relativeHumidity));
+    w += strlen(w);
+  }
+	
+  // Only send burst timer if RS41 and not 0
+  if ((realtype == STYPE_RS41) && ((int)s->burstKT != 0)) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->burstKT);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
   // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
   if (chase == SH_LOC_CHASE) {
     if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%d]",
-              gpsPos.lat, gpsPos.lon, gpsPos.alt);
+      sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", gpsPos.lat, gpsPos.lon, gpsPos.alt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
     }
@@ -3519,10 +3727,11 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
   // Otherweise, in FIXED mode we send the fixed position from config (if specified)
   else if (chase == SH_LOC_FIXED) {
-    if ((!isnan(conf->lat)) && (!isnan(conf->lon))) {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%s]",
-              conf->lat, conf->lon, conf->alt[0] ? conf->alt : "null");
+    if ((!isnan(sonde.config.rxlat)) && (!isnan(sonde.config.rxlon))) {
+      if (isnan(sonde.config.rxalt))
+        sprintf(w, "\"uploader_position\": [%.6f,%.6f,null]", sonde.config.rxlat, sonde.config.rxlon);
+      else
+        sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", sonde.config.rxlat, sonde.config.rxlon, (int)sonde.config.rxalt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
     }
@@ -3575,8 +3784,8 @@ void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub
                "Host: ");
   Serial.println(conf->host);
   Serial.print("accept: text/plain\r\n"
-                 "Content-Type: application/json\r\n"
-                 "Transfer-Encoding: chunked\r\n");
+               "Content-Type: application/json\r\n"
+               "Transfer-Encoding: chunked\r\n");
 
   client->print("PUT /sondes/telemetry HTTP/1.1\r\n"
                 "Host: ");

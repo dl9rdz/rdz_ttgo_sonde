@@ -195,9 +195,6 @@ static void Gencrctab(void)
 
 int RS41::setup(float frequency) 
 {
-#if RS41_DEBUG
-	Serial.println("Setup sx1278 for RS41 sonde");
-#endif
 	if(!initialized) {
 		Gencrctab();
 		initrsc();
@@ -216,11 +213,6 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
 		return 1;
 	}
-#if RS41_DEBUG
-	float br = sx1278.getBitrate();
-	Serial.print("Exact bitrate is ");
-	Serial.println(br);
-#endif
 
 	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
 		RS41_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs41.agcbw));
@@ -255,21 +247,11 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
-#if RS41_DEBUG
-	Serial.print("RS41: setting RX frequency to ");
-	Serial.println(frequency);
-#endif
 	int retval = sx1278.setFrequency(frequency);
 	dpos = 0;
 
-#if RS41_DEBUG
-	RS41_DBG(Serial.println("Setting SX1278 config for RS41 finished\n"); Serial.println());
-#endif
         sx1278.clearIRQFlags();
 
-	// the following is already done in receivePacketTimeout()
-	// sx1278.setPayloadLength(RS41MAXLEN-8);    // Expect 320-8 bytes or 518-8 bytes (8 byte header)
-        // sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
 	return retval;
 }
 
@@ -517,6 +499,7 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
+   Serial.printf("subframe %d; valid: %x%032x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
    // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
 
    #if 0
@@ -846,16 +829,42 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 int RS41::receive() {
 	sx1278.setPayloadLength(RS41MAXLEN-8); 
 	int e = sx1278.receivePacketTimeout(1000, data+8);
+#if 1
 	if(e) { /*Serial.println("TIMEOUT");*/ return RX_TIMEOUT; } 
 
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = reverse(data[i]); }
         for(int i=0; i<RS41MAXLEN; i++) { data[i] = data[i] ^ scramble[i&0x3F]; }
         return decode41(data, RS41MAXLEN);
+#else
+	// FAKE testing data
+	SondeInfo *si = sonde.si();
+	si->lat = 48;
+	si->lon = -100;
+	si->alt = 30000;
+	si->vs = 3.4;
+	si->validPos = 0x7f;
+	si->validID = 1;
+	strcpy(si->id, "A1234");
+	return 0;
+#endif
 }
 
 int RS41::waitRXcomplete() {
 	// Currently not used. can be used for additinoal post-processing
 	// (required for RS92 to avoid FIFO overrun in rx task)
+	return 0;
+}
+
+// copy variant string to buf (max buflen chars; buflen should be 11
+// return 0 if subtype is available, -1 if not
+int RS41::getSubtype(char *buf, int buflen, SondeInfo *si) {
+	struct subframeBuffer *sf = (struct subframeBuffer *)si->extra;
+	if(!sf) return -1;
+	if( (sf->valid & (3<<21)) != (3<<21) ) return -1;   // or 1 instead of 3 for the first 8 chars only, as in autorx?
+	if(buflen>11) buflen=11;			    // then buflen should be capped at 9 (8+trailing \0)
+	strncpy(buf, sf->value.names.variant, buflen);
+	buf[buflen-1]=0;
+	if(*buf==0) return -1;
 	return 0;
 }
 

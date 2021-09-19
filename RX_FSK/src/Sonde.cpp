@@ -80,6 +80,10 @@ void Sonde::defaultConfig() {
 
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
+	for(int i=0; i<(MAXSONDE+1); i++) {
+		sondeList[i].freq=400;
+		sondeList[i].type=STYPE_RS41;
+	}
 	config.touch_thresh = 70;
 	config.led_pout = -1;
 	config.power_pout = -1;
@@ -263,6 +267,13 @@ void Sonde::defaultConfig() {
 extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
+void Sonde::checkConfig() {
+	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
+	if(config.sondehub.fimaxdist>500) config.sondehub.fimaxdist = 500;
+	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
+	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
+}
 void Sonde::setConfig(const char *cfg) {
 	while(*cfg==' '||*cfg=='\t') cfg++;
 	if(*cfg=='#') return;
@@ -288,11 +299,14 @@ void Sonde::setConfig(const char *cfg) {
 		case -3:  // integer (boolean on/off swith in web form)
 		case -2:  // integer (ID type)
 			*(int *)config_list[i].data = atoi(val);
-			if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
 			break;
 		case -7:  // double
-			*(double *)config_list[i].data = *val==0 ? NAN : atof(val);
+		{
+			double d = atof(val);
+			if(*val == 0 || d==0) d = NAN;
+			*(double *)config_list[i].data = d;
 			break;
+		}
 		case -6:  // display list
 		{
 			int idx = 0;
@@ -343,14 +357,17 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	// reset all data if type or frequency has changed
 	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].freq) {
+	    //TODO: Check for potential race condition with decoders
+	    // do not clear extra while decoder is potentiall still accessing it!
+	    if(sondeList[nSonde].extra) free(sondeList[nSonde].extra);
     	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
+	    sondeList[nSonde].type = type;
+	    sondeList[nSonde].typestr[0] = 0;
+	    sondeList[nSonde].freq = frequency;
+	    memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	}
-	sondeList[nSonde].type = type;
-	sondeList[nSonde].typestr[0] = 0;
-	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
-	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
 
@@ -379,7 +396,7 @@ void Sonde::nextRxSonde() {
 			if(rxtask.currentSonde>=config.maxsonde) rxtask.currentSonde=0;
 		}
 	}
-	Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
+	//Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
 }
 void Sonde::nextRxFreq(int addkhz) {
 	// last entry is for the variable frequency
@@ -409,7 +426,7 @@ void Sonde::setup() {
 	}
 
 	// update receiver config
-	Serial.print("Sonde.setup() on sonde index ");
+	Serial.print("Sonde::setup() start on index ");
 	Serial.println(rxtask.currentSonde);
 	switch(sondeList[rxtask.currentSonde].type) {
 	case STYPE_RS41:
@@ -433,7 +450,7 @@ void Sonde::setup() {
 	int freq = (int)sx1278.getFrequency();
 	int afcbw = (int)sx1278.getAFCBandwidth();
 	int rxbw = (int)sx1278.getRxBandwidth();
-	Serial.printf("Sonde.setup(): Freq %d, AFC BW: %d, RX BW: %d\n", freq, afcbw, rxbw);
+	Serial.printf("Sonde::setup() done: Type %s Freq %f, AFC BW: %d, RX BW: %d\n", sondeTypeStr[sondeList[rxtask.currentSonde].type], 0.000001*freq, afcbw, rxbw);
 
 	// reset rxtimer / norxtimer state
 	sonde.sondeList[sonde.currentSonde].lastState = -1;
@@ -472,7 +489,7 @@ void Sonde::receive() {
                 }
         } else { // RX not ok
 		if(res==RX_ERROR) flashLed(100);
-		Serial.printf("RX result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
+		//Serial.printf("Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
                         si->lastState = 0;
@@ -509,8 +526,8 @@ void Sonde::receive() {
 			rxtask.activate = ACT_SONDE(rxtask.currentSonde);
 		}
 	}
+	Serial.printf("Sonde:receive(): result %d (%s), event %02x => action %02x\n", res, (res<=3)?RXstr[res]:"?", event, action);
 	res = (action<<8) | (res&0xff);
-	Serial.printf("Sonde:receive(): Event %02x: action %02x, res %02x => %04x\n", event, action, res&0xff, res);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -574,22 +591,22 @@ uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
-		Serial.println("Sonde.timeoutEvent: View");
+		Serial.println("Sonde::timeoutEvent: View");
 		return EVT_VIEWTO;
 	}
 	if(si->lastState==1 && disp.layout->timeouts[1]>=0 && now - si->rxStart >= disp.layout->timeouts[1]) {
-		Serial.println("Sonde.timeoutEvent: RX");
+		Serial.println("Sonde::timeoutEvent: RX");
 		return EVT_RXTO;
 	}
 	if(si->lastState==0 && disp.layout->timeouts[2]>=0 && now - si->norxStart >= disp.layout->timeouts[2]) {
-		Serial.println("Sonde.timeoutEvent: NORX");
+		Serial.println("Sonde::timeoutEvent: NORX");
 		return EVT_NORXTO;
 	}
 	return 0;
 }
 
 uint8_t Sonde::updateState(uint8_t event) {
-	Serial.printf("Sonde::updateState for event %d\n", event);
+	//Serial.printf("Sonde::updateState for event %02x\n", event);
 	// No change
 	if(event==ACT_NONE) return 0xFF;
 

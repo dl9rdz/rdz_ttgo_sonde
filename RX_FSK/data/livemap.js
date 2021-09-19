@@ -40,7 +40,8 @@ $(document).ready(function(){
       }
   };
 
-  map.setView([51.163361,10.447683], 5); // Mitte DE
+  if(mapcenter) map.setView(mapcenter, 5); 
+  else map.setView([51.163361,10.447683], 5); // Mitte DE
 
 var reddot = '<span class="ldot rbg"></span>';
 var yellowdot = '<span class="ldot ybg"></span>';
@@ -69,11 +70,12 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
+  console.log(data);
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
   if (data.lat == '0.000000') { return false; }
-  if (data.id) {
+  if (data.res == 0) {
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
     $('#sonde_climb').html(data.climb);
@@ -154,9 +156,10 @@ headtxt = function(data,stat) {
 
   draw = function(data) {
     var stat;
+    console.log(data);
     if (data.id) {
-
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
+      if ((data.lat != '0.000000' && data.lon != '0.000000') && (data.res==0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);
@@ -230,8 +233,10 @@ headtxt = function(data,stat) {
 
   get_data = function() {
       $('#status').html(reddot);
+      console.log("get_data called");
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
+        console.log(data);
         if (data.sonde) {
           draw(data.sonde);
         } else {
@@ -321,7 +326,7 @@ headtxt = function(data,stat) {
     var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
       az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
     var url = 'https://predict.cusf.co.uk/api/v1/';
-    url += '?launch_latitude='+data.lat + '&launch_longitude='+fix_lon(data.lon);
+    url += '?launch_latitude='+data.lat + '&launch_longitude='+tawhiri_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
     url += '&ascent_rate='+ascent + '&burst_altitude=' + burst + '&descent_rate='+descent;
 
@@ -333,11 +338,11 @@ headtxt = function(data,stat) {
   draw_predict = function(prediction,data) {
     var ascending = prediction.prediction[0].trajectory;
     var highest = ascending[ascending.length-1];
-    var highest_location = [highest.latitude,fix_lon(highest.longitude)];
+    var highest_location = [highest.latitude,sanitize_lon(highest.longitude)];
 
     var descending = prediction.prediction[1].trajectory;
     var landing = descending[descending.length-1];
-    var landing_location = [landing.latitude,fix_lon(landing.longitude)];
+    var landing_location = [landing.latitude,sanitize_lon(landing.longitude)];
 
     if (!marker_landing) {
       marker_landing = L.marker(landing_location,{icon: icon_landing}).addTo(map)
@@ -353,7 +358,7 @@ headtxt = function(data,stat) {
     dots_predict=[];
 
     if (data.climb > 0) {
-      ascending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
+      ascending.forEach(p => dots_predict.push([p.latitude,sanitize_lon(p.longitude)]));
 
       if (!marker_burst) {
         marker_burst = L.marker(highest_location,{icon:icon_burst}).addTo(map).bindPopup(poptxt('burst',highest),{closeOnClick:false, autoPan:false});
@@ -365,7 +370,7 @@ headtxt = function(data,stat) {
       }
     }
 
-    descending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
+    descending.forEach(p => dots_predict.push([p.latitude,sanitize_lon(p.longitude)]));
     line_predict.setLatLngs(dots_predict);
 
     if (data.climb > 0) {
@@ -378,16 +383,19 @@ headtxt = function(data,stat) {
     clearTimeout(predictor);
     predictor = setTimeout(function() {get_predict(last_data);}, predictor_time*1000);
   };
-  
-  fix_lon = function(lon) {
+
+  sanitize_lon = function(lon) {
     if (lon > 180) { return lon - 360; }
+    return lon;
+  }
+  tawhiri_lon = function(lon) {
     if (lon < 0) { return lon + 360; }
     return lon;
-  };
+  }  
 
   poptxt = function(t,i) {
     var lat_input = (i.id)?i.lat:i.latitude;
-    var lon_input = (i.id)?i.lon:i.longitude;
+    var lon_input = sanitize_lon((i.id)?i.lon:i.longitude);
 
     var lat = Math.round(lat_input * 1000000) / 1000000;
     var lon = Math.round(lon_input * 1000000) / 1000000;

@@ -24,6 +24,9 @@
 #oled_rst=16
 #tft_rs=2
 #tft_cs=0
+rxlat=
+rxlon=
+rxalt=
 tft_orient=1
 #tft_spifreq=40000000
 #gps_rxd=-1
@@ -124,12 +127,15 @@ sondehub.active=0
 sondehub.chase=3
 sondehub.host=api.v2.sondehub.org
 sondehub.callsign=CHANGEME_RDZTTGO
-sondehub.lat=
-sondehub.lon=
-sondehub.alt=
 sondehub.antenna=
 sondehub.email=
-sondehub.fimport=0/100/60
+#-------------------------------#
+# Sondehub freq import settings
+#-------------------------------#
+shfimp.active=0
+shfimp.interval=60
+shfimp.maxdist=150
+shfimp.maxage=6
 #-------------------------------#
 # EOF
 #-------------------------------#
