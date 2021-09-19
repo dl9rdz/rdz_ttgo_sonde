@@ -3409,17 +3409,13 @@ void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
 
   // Only send email if provided
   if (strlen(conf->email) != 0) {
-    sprintf(w,
-            "\"uploader_contact_email\": \"%s\",",
-            conf->email);
+    sprintf(w, "\"uploader_contact_email\": \"%s\",", conf->email);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
@@ -3698,36 +3694,32 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   // Only send temp if provided
   if ((int)s->temperature != 0) {
-    sprintf(w,
-            "\"temp\": %.3f,",
-            float(s->temperature)
-           );
+    sprintf(w, "\"temp\": %.3f,", float(s->temperature));
     w += strlen(w);
   }
 	
   // Only send humidity if provided
   if ((int)s->relativeHumidity != 0) {
-    sprintf(w,
-            "\"humidity\": %.3f,",
-            float(s->relativeHumidity)
-           );
+    sprintf(w, "\"humidity\": %.3f,", float(s->relativeHumidity));
+    w += strlen(w);
+  }
+	
+  // Only send burst timer if RS41 and not 0
+  if ((realtype == STYPE_RS41) && ((int)s->burstKT != 0)) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->burstKT);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
   // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
   if (chase == SH_LOC_CHASE) {
     if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
-      sprintf(w,
-              "\"uploader_position\": [%.6f,%.6f,%d]",
-              gpsPos.lat, gpsPos.lon, gpsPos.alt);
+      sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", gpsPos.lat, gpsPos.lon, gpsPos.alt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
     }
