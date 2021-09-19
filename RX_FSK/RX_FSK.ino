@@ -537,13 +537,12 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  sprintf(ptr + strlen(ptr), "\"res\": %d, \"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
-    "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\" }", 
-    s->rxStat[0], s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite);
+  sprintf(ptr + strlen(ptr), "\"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
+    "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }", 
+    s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite, s->rxStat[0]);
 
-  if (sonde.config.gps_rxd < 0) {
-    // gps disabled
-  } else {
+  if (gpsPos.valid) {
+#if 0
     long sat = nmea.getNumSatellites();
     long speed = nmea.getSpeed();
     long dir = nmea.getCourse();
@@ -555,7 +554,14 @@ const char *createLiveJson() {
     uint8_t hdop = nmea.getHDOP();
     if (valid) {
       strcat(ptr, ",");
-      sprintf(ptr + strlen(ptr), "\"gps\": {\"lat\": %ld, \"lon\": %ld, \"alt\": %ld, \"sat\": %ld, \"speed\": %ld, \"dir\": %ld, \"hdop\": %d }", lat, lon, alt, sat, speed, dir, hdop);
+#endif
+    sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
+    //}
+  } else {
+    // no GPS position, but maybe a fixed position
+    if ((!isnan(sonde.config.rxlat)) && (!isnan(sonde.config.rxlon))) {
+      int alt = isnan(sonde.config.rxalt) ? 0 : (int)sonde.config.rxalt;
+      sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": 0, \"speed\": 0, \"dir\": 0, \"hdop\": 0 }", sonde.config.rxlat, sonde.config.rxlon, alt);
     }
 
   }
@@ -1688,6 +1694,9 @@ void gpsTask(void *parameter) {
             }
           }
         }
+	gpsPos.hdop = nmea.getHDOP();
+	gpsPos.sat = nmea.getNumSatellites();
+	gpsPos.speed = nmea.getSpeed() / 1000.0 * 0.514444; // speed is in m/s  nmea.getSpeed is in 0.001 knots
 #ifdef DEBUG_GPS
         uint8_t hdop = nmea.getHDOP();
         Serial.printf(" =>: valid: %d  N %f  E %f  alt %d  course:%d dop:%d\n", gpsPos.valid ? 1 : 0, gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, hdop);
