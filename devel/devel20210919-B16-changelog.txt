@@ -1,1 +1,2 @@
 larger buffer for sh messages
+fixed pos used for live map if no gps pos available
