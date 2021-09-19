@@ -3693,27 +3693,25 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   // Only send temp if provided
   if ((int)s->temperature != 0) {
-    sprintf(w,
-            "\"temp\": %.3f,",
-            float(s->temperature)
-           );
+    sprintf(w, "\"temp\": %.3f,", float(s->temperature));
     w += strlen(w);
   }
 	
   // Only send humidity if provided
   if ((int)s->relativeHumidity != 0) {
-    sprintf(w,
-            "\"humidity\": %.3f,",
-            float(s->relativeHumidity)
-           );
+    sprintf(w, "\"humidity\": %.3f,", float(s->relativeHumidity));
+    w += strlen(w);
+  }
+	
+  // Only send burst timer if provided
+  if ((int)s->burstKT < 30600) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->burstKT);
     w += strlen(w);
   }
 
   // Only send antenna if provided
   if (strlen(conf->antenna) != 0) {
-    sprintf(w,
-            "\"uploader_antenna\": \"%s\",",
-            conf->antenna);
+    sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
     w += strlen(w);
   }
 
