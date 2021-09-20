@@ -47,7 +47,7 @@ install:
   - arduino --pref "build.path=$PWD/build" --save-prefs
   - arduino --install-boards esp32:esp32:1.0.6 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
-  - arduino --install-library "U8g2:2.28.8"
+  - arduino --install-library "U8g2:2.29.11"
   - arduino --install-library "MicroNMEA"
   - arduino --install-library "GFX Library for Arduino"
 script:
