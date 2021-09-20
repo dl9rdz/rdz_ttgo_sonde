@@ -70,11 +70,11 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
-  console.log(data);
+  //console.log(data);
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
-  if (data.lat == '0.000000') { return false; }
+  //if (data.lat == '0.000000') { return false; }
   if (data.res == 0) {
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
@@ -156,7 +156,7 @@ headtxt = function(data,stat) {
 
   draw = function(data) {
     var stat;
-    console.log(data);
+    //console.log(data);
     if (data.id) {
       // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
       if ((data.lat != '0.000000' && data.lon != '0.000000') && (data.res==0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
@@ -201,7 +201,7 @@ headtxt = function(data,stat) {
   circ_gps = false;
 
   gps = function(e) {
-    gps_location = [e.lat/1000000,e.lon/1000000];
+    gps_location = [e.lat,e.lon];
     gps_accuracy = e.hdop*2;
 
     if (last_data && last_data.lat != '0.000000') {
@@ -233,10 +233,9 @@ headtxt = function(data,stat) {
 
   get_data = function() {
       $('#status').html(reddot);
-      console.log("get_data called");
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
-        console.log(data);
+        //console.log(data);
         if (data.sonde) {
           draw(data.sonde);
         } else {
@@ -408,7 +407,7 @@ headtxt = function(data,stat) {
     if (t == 'burst') { return '<div class="i_burst"><b>💥 Predicted Burst:</b><br />'+fd(i.datetime)+' in '+mr(i.altitude)+'m'+add+'</div>'; }
     if (t == 'highest') { return '<div class="i_burst"><b>💥 Burst:</b> '+mr(i.altitude)+'m'+add+'</div>';}
     if (t == 'landing') { return '<div class="i_landing"><b>🎯 Predicted Landing:</b><br />'+fd(i.datetime)+' at '+mr(i.altitude)+'m'+add+'</div>'; }
-    if (t == 'gps') { return '<div class="i_gps">Position: '+(i.lat/1000000)+','+(i.lon/1000000)+'<br />Altitude: '+mr(i.alt/1000)+'m<br />Speed: '+mr(i.speed/1000 * 1.852 * 10)/10+'km/h '+mr(i.dir/1000)+'°<br />Sat: '+i.sat+' Hdop:'+(i.hdop/10)+'</div>'; }
+    if (t == 'gps') { return '<div class="i_gps">Position: '+(i.lat)+','+(i.lon)+'<br />Altitude: '+i.alt+'m<br />Speed: '+mr(i.speed * 3.6 * 10)/10+'km/h '+i.dir+'°<br />Sat: '+i.sat+' Hdop:'+(i.hdop/10)+'</div>'; }
   };
 
   fd = function(date) {
