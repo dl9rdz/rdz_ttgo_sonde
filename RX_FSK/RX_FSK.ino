@@ -3715,8 +3715,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 	
   // Only send burst timer if RS41 and not 0
-  if ((realtype == STYPE_RS41) && ((int)s->burstKT != 0)) {
-    sprintf(w, "\"burst_timer\": %d,", (int)s->burstKT);
+  if ((realtype == STYPE_RS41) && ((int)s->countKT != 0)) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->countKT);
     w += strlen(w);
   }
 
