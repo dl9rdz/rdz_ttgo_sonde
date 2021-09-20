@@ -500,6 +500,8 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
    Serial.printf("subframe %d; valid: %x%032x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
+   for(int i=0; i<16; i++) { Serial.printf("%02x[%c]", subframeBytes[i],( subframeBytes[i]>20 && subframeBytes[i]<127)? subframeBytes[i] : '.'); }
+   Serial.println("");
    // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
 
    #if 0
@@ -865,6 +867,7 @@ int RS41::getSubtype(char *buf, int buflen, SondeInfo *si) {
 	strncpy(buf, sf->value.names.variant, buflen);
 	buf[buflen-1]=0;
 	if(*buf==0) return -1;
+	Serial.printf("subframe valid: %x%032x; subtype=%s\n", (uint32_t)(sf->valid>>32), (uint32_t)sf->valid, buf);
 	return 0;
 }
 
