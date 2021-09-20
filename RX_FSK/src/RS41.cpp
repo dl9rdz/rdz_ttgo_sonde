@@ -499,7 +499,7 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
-   Serial.printf("subframe %d; valid: %x%032x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
+   Serial.printf("subframe %d; valid: %x%08x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
    for(int i=0; i<16; i++) { Serial.printf("%02x[%c]", subframeBytes[i],( subframeBytes[i]>20 && subframeBytes[i]<127)? subframeBytes[i] : '.'); }
    Serial.println("");
    // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
@@ -862,12 +862,12 @@ int RS41::waitRXcomplete() {
 int RS41::getSubtype(char *buf, int buflen, SondeInfo *si) {
 	struct subframeBuffer *sf = (struct subframeBuffer *)si->extra;
 	if(!sf) return -1;
-	if( (sf->valid & (3<<21)) != (3<<21) ) return -1;   // or 1 instead of 3 for the first 8 chars only, as in autorx?
+	if( ( (sf->valid>>0x21) &3) != 3 ) return -1;   // or 1 instead of 3 for the first 8 chars only, as in autorx?
 	if(buflen>11) buflen=11;			    // then buflen should be capped at 9 (8+trailing \0)
 	strncpy(buf, sf->value.names.variant, buflen);
 	buf[buflen-1]=0;
 	if(*buf==0) return -1;
-	Serial.printf("subframe valid: %x%032x; subtype=%s\n", (uint32_t)(sf->valid>>32), (uint32_t)sf->valid, buf);
+	Serial.printf("subframe valid: %x%08x; subtype=%s\n", (uint32_t)(sf->valid>>32), (uint32_t)sf->valid, buf);
 	return 0;
 }
 
