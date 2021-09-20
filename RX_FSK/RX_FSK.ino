@@ -2051,7 +2051,7 @@ void setup()
 {
   char buf[12];
   // Open serial communications and wait for port to open:
-  Serial.begin(921600 /*115200*/);
+  Serial.begin(/*921600 */115200);
   for (int i = 0; i < 39; i++) {
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
@@ -2428,6 +2428,7 @@ void loopDecoder() {
     i = 0;
     rtc_wdt_protect_off();
     rtc_wdt_disable();
+    // Requires serial speed 921600, otherweise interrupt wdt will occur
     heap_caps_dump(MALLOC_CAP_8BIT);
   }
 #endif
@@ -3714,8 +3715,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 	
   // Only send burst timer if RS41 and not 0
-  if ((realtype == STYPE_RS41) && ((int)s->burstKT != 0)) {
-    sprintf(w, "\"burst_timer\": %d,", (int)s->burstKT);
+  if ((realtype == STYPE_RS41) && ((int)s->countKT != 0)) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->countKT);
     w += strlen(w);
   }
 

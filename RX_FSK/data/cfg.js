@@ -4,7 +4,7 @@ var cfgs = [
 [ "mdnsname", "Network mDNS name"],
 [ "ephftp", "FTP server for ephemeris data (RS92 decoder)"],
 [ "debug", "Debug mode (0/1)" ],
-[ "maxsonde", "Maxumum number of QRG entries (must be &leg;50)" ],
+[ "maxsonde", "Maximum number of QRG entries (must be &leq; 50)" ],
 [ "rxlat", "Receiver fixed latitude"],
 [ "rxlon", "Receiver fixed longitude"],
 [ "rxalt", "Receiver fixed altitude"],
