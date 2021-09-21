@@ -24,6 +24,9 @@
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
+#if FEATURE_CHASEMAPPER
+#include "src/Chasemapper.h"
+#endif
 
 #if FEATURE_MQTT
 #include "src/mqtt.h"
@@ -537,7 +540,7 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  sprintf(ptr + strlen(ptr), "\"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
+  sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
     "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }", 
     s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite, s->rxStat[0]);
 
@@ -738,7 +741,12 @@ struct st_configitems config_list[] = {
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
-
+#if FEATURE_CHASEMAPPER
+  /* Chasemapper settings */
+  {"cm.active", -3, &sonde.config.cm.active},
+  {"cm.host", 63, &sonde.config.cm.host},
+  {"cm.port", 0, &sonde.config.cm.port},
+#endif
 #if FEATURE_MQTT
   /* MQTT */
   {"mqtt.active", 0, &sonde.config.mqtt.active},
@@ -2514,6 +2522,11 @@ void loopDecoder() {
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
       }
+#if FEATURE_CHASEMAPPER
+      if (sonde.config.cm.active) {
+	Chasemapper::send(udp, s);
+      }
+#endif
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
