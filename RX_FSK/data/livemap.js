@@ -74,7 +74,7 @@ headtxt = function(data,stat) {
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
-  if (data.lat == '0.000000') { return false; }
+  //if (data.lat == '0.000000') { return false; }
   if (data.id) {
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
