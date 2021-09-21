@@ -3,6 +3,7 @@
 #define Sonde_h
 
 #include <inttypes.h>
+#include <Arduino.h>
 
 enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
 extern uint8_t debug;
@@ -103,7 +104,7 @@ typedef struct st_sondeinfo {
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
 	// shut down timers, currently only for RS41; -1=disabled
-	int16_t launchKT, burstKT, countKT;
+	uint16_t launchKT, burstKT, countKT;
 	uint16_t crefKT; // frame number in which countKT was last sent
 	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
         void *extra;
@@ -186,6 +187,12 @@ struct st_mqtt {
 	char prefix[64];
 };
 
+struct st_cm {
+	int active;
+	char host[64];
+	int port;
+};
+
 struct st_sondehub {
 	int active;
 	int chase;
@@ -259,6 +266,7 @@ typedef struct st_rdzconfig {
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 	struct st_mqtt mqtt;
 	struct st_sondehub sondehub;
+	struct st_cm cm;
 } RDZConfig;
 
 
