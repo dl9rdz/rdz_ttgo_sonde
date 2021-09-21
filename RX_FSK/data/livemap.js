@@ -86,8 +86,10 @@ headtxt = function(data,stat) {
     $('#sonde_rssi').html(data.rssi / 2 );
     $('#sonde_detail').show();
   } else {
+    if (!data.id) {
     $('#sonde_id').html(data.launchsite.trim());
     // $('#sonde_detail').hide();
+    }
   }
   $('#sonde_freq').html(data.freq);
   $('#sonde_type').html(data.type);
