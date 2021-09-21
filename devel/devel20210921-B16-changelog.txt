@@ -7,3 +7,4 @@ LiveMap updates to include last received datetime, heading and rssi (#182)
 * Further fixes
 
 Co-authored-by: dl9rdz <dl9rdz@darc.de>
+Add battery voltage (#183)
