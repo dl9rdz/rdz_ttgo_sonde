@@ -2,3 +2,4 @@ don't use u8g2 2.31.1 due to https://github.com/olikraus/u8g2/issues/1594
 fix RS41 subtype
 really fix RS41 subtype
 sync sh import / sh telemetry
+keep data on livemap - restore old behaviour
