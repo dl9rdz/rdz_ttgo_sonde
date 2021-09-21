@@ -1,2 +1,9 @@
 +Chasemapper udp support
 Update README.md
+LiveMap updates to include last received datetime, heading and rssi (#182)
+
+* Add direction, UTC datetime and rssi to livemap
+
+* Further fixes
+
+Co-authored-by: dl9rdz <dl9rdz@darc.de>

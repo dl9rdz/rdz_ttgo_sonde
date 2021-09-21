@@ -1,4 +1,4 @@
-livemap.js 18162
+livemap.js 18488
 try {
   var check = $(document);
 } catch (e) {
@@ -47,11 +47,12 @@ $(document).ready(function(){
 var reddot = '<span class="ldot rbg"></span>';
 var yellowdot = '<span class="ldot ybg"></span>';
 var greendot = '<span class="ldot gbg"></span>';
+var lastframe = 0;
 
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
 var header = '';
 header += '<div id="sonde_main"><b>rdzTTGOSonde LiveMap</b><br />🎈 <b><span id="sonde_id"></span> - <span id="sonde_freq"></span> MHz - <span id="sonde_type"></span></b></div>';
-header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h</div>';
+header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h | <span id="sonde_dir"></span>°<br /><span id="sonde_time"></span> | -<span id="sonde_rssi"></span>dBm</div>';
 header += '<div id="sonde_status"><span id="sonde_statbar"></span></div>';
 header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
 
@@ -75,16 +76,19 @@ headtxt = function(data,stat) {
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
-  //if (data.lat == '0.000000') { return false; }
-  if (data.id) {
+  if (data.id && data.vframe != lastframe ) {
+    lastframe = data.vframe;
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
     $('#sonde_climb').html(data.climb);
     $('#sonde_speed').html( mr(data.speed * 3.6 * 10) / 10 );
+    $('#sonde_dir').html(data.dir);
+    $('#sonde_time').html(new Date(data.time * 1000).toISOString());
+    $('#sonde_rssi').html(data.rssi / 2 );
     $('#sonde_detail').show();
   } else {
     $('#sonde_id').html(data.launchsite.trim());
-    $('#sonde_detail').hide();
+    // $('#sonde_detail').hide();
   }
   $('#sonde_freq').html(data.freq);
   $('#sonde_type').html(data.type);
@@ -160,7 +164,7 @@ headtxt = function(data,stat) {
     //console.log(data);
     if (data.id) {
       // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (data.res==0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      if ((data.lat != '0.000000' && data.lon != '0.000000') && (lastframe != 0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);
@@ -181,10 +185,13 @@ headtxt = function(data,stat) {
         }
         dots.push(location);
         line.setLatLngs(dots);
+      }
+      if (data.res == 0) {
         storage_write(data);
         $('#status').html(greendot);
         stat = 1;
-      } else {
+      }
+      else {
         $('#status').html(yellowdot);
         stat = 0;
       }
