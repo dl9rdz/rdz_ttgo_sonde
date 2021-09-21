@@ -11,7 +11,8 @@ It also supports feeding data to external applications using WiFi (NOT bluetooth
 - AXUDP (for aprsmap application by oe5dxl, among others)
 - KISS TNC (aprs format, mainly useful for APRSdroid app)
 - MQTT
-- SondeHub tracker (experimental)
+- SondeHub tracker
+- Chasemapper UDP (experimental)
 
 
 Please consult the Wiki at https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Supported-boards
