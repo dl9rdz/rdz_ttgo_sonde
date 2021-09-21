@@ -540,7 +540,7 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  sprintf(ptr + strlen(ptr), "\"rssi\": %d, \"sonde\": {\"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
+  sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
     "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }", 
     s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite, s->rxStat[0]);
 
