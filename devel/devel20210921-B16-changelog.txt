@@ -9,3 +9,4 @@ LiveMap updates to include last received datetime, heading and rssi (#182)
 Co-authored-by: dl9rdz <dl9rdz@darc.de>
 Add battery voltage (#183)
 send batt to sondehub; count down (burst_timer) only if fresh
+Merge branch 'eben80-patch-1' into devel
