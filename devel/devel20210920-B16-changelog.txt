@@ -3,3 +3,4 @@ fix RS41 subtype
 really fix RS41 subtype
 sync sh import / sh telemetry
 keep data on livemap - restore old behaviour
+(good for now)
