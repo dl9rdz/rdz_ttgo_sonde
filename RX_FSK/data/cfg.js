@@ -1,5 +1,5 @@
 var cfgs = [
-[ "", "General configuration" ],
+[ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP autoselect on startup)" ],
 [ "mdnsname", "Network mDNS name"],
 [ "ephftp", "FTP server for ephemeris data (RS92 decoder)"],
@@ -8,18 +8,18 @@ var cfgs = [
 [ "rxlat", "Receiver fixed latitude"],
 [ "rxlon", "Receiver fixed longitude"],
 [ "rxalt", "Receiver fixed altitude"],
-[ "", "OLED/TFT display configuration" ],
+[ "", "OLED/TFT display configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Display-configuration" ],
 [ "screenfile", "Screen config (0=automatic; 1-5=predefined; other=custom)" ],
 [ "display", "Display screens (scan, default, ...)" ],
 [ "norx_timeout", "No-RX-timeout in seconds (-1=disabled)"],
 [ "tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3"],
-[ "", "Spectrum display settings" ],
+[ "", "Spectrum display configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Spectrum-configuration" ],
 [ "spectrum", "Show spectrum on start (-1=no, 0=forever, >0=time [sec])" ],
 [ "startfreq", "Start frequency (MHz, default 400)" ],
 [ "channelbw", "Bandwidth (kHz)" ],
 [ "marker", "Spectrum MHz marker" ],   // maybe remove, assume always ==1?
 [ "noisefloor", "Spectrum noisefloor" ],
-[ "", "Receiver configuration" ],
+[ "", "Receiver configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Receiver-configuration" ],
 [ "freqofs", "RX frequency offset (Hz)"],
 [ "rs41.agcbw", "RS41 AGC bandwidth"],
 [ "rs41.rxbw", "RS41 RX bandwidth"],
@@ -31,7 +31,7 @@ var cfgs = [
 [ "m10m20.rxbw", "M10/M20 RX bandwidth"],
 [ "mp3h.agcbw", "MP3H AGC bandwidth"],
 [ "mp3h.rxbw", "MP3H RX bandwidth"],
-[ "", "KISS TNC/AXUDP/AXTCP data feed configuration"],
+[ "", "KISS TNC/AXUDP/AXTCP data feed configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Data-feed-configuration"],
 [ "call", "Call"],
 [ "passcode", "Passcode"],
 [ "kisstnc.active", "KISS TNC (port 14590) (needs reboot)"],
@@ -46,7 +46,7 @@ var cfgs = [
 [ "tcp.port", "APRS TCP port"],
 [ "tcp.idformat", "DFM ID format"],
 [ "tcp.highrate", "Rate limit"],
-[ "", "MQTT data feed configuration"],
+[ "", "MQTT data feed configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/MQTT-configuration"],
 [ "mqtt.active", "MQTT active (needs reboot)"],
 [ "mqtt.id", "MQTT client ID"],
 [ "mqtt.host", "MQTT server hostname"],
@@ -54,23 +54,23 @@ var cfgs = [
 [ "mqtt.username", "MQTT username"],
 [ "mqtt.password", "MQTT password"],
 [ "mqtt.prefix", "MQTT prefix"],
-[ "", "Chasemapper settings"],
+[ "", "Chasemapper settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Chasemapper-configuration"],
 [ "cm.active", "Chasemapper active (0=disabled, 1=active)"],
 [ "cm.host", "Chasemapper UDP host"],
 [ "cm.port", "Chasemapper UDP port"],
-[ "", "SondeHub settings"],
+[ "", "SondeHub settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-settings"],
 [ "sondehub.active", "SondeHub reporting (0=disabled, 1=active)"],
 [ "sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
 [ "sondehub.host", "SondeHub host (DO NOT CHANGE)"],
 [ "sondehub.callsign", "Callsign"],
 [ "sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)"],
 [ "sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)"],
-[ "", "SondeHub frequency import" ],
+[ "", "SondeHub frequency import", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-import" ],
 [ "sondehub.fiactive", "SondeHub frequency import active (0=disabled, 1=active)" ],
 [ "sondehub.fiinterval", "Import frequency (minutes, &geq; 5)" ],
 [ "sondehub.fimaxdist", "Import maximum distance (km, &leq; 500)" ],
 [ "sondehub.fimaxage", "Import maximum age (hours, &leq; 24)" ],
-[ "", "Hardware configuration (requires reboot)"],
+[ "", "Hardware configuration (requires reboot)", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Hardware-configuration"],
 [ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342)"],
 [ "oled_sda", "OLED SDA/TFT SDA"],
 [ "oled_scl", "OLED SCL/TFT CLK"],
@@ -109,8 +109,8 @@ function mkcfgbtn(id, key, label, value) {
   return s;
 }
 
-function mksep(id,label) {
-  return "<tr class=\"cfgheader\"><th class=\"cfg\" align=\"left\" colspan=\"2\">"+label+"</th></tr>\n";
+function mksep(id,label,url) {
+  return "<tr class=\"cfgheader\"><th class=\"cfg\" align=\"left\" colspan=\"2\">"+label+" <a href=\""+url+"\" target=\”_blank\">[wiki]</a></th></tr>\n";
 }
 function rowdisp(id,disp) {
   var matches = document.querySelectorAll("tr."+id);
@@ -138,7 +138,7 @@ function configTable() {
 	}
     } else {
         id++;
-        tab += mksep("s"+id, lbl);
+        tab += mksep("s"+id, lbl, cfgs[i][2]);
     }
   }
   tab += "</table>";
@@ -148,7 +148,8 @@ function configTable() {
   var acc = document.getElementsByClassName("cfgheader");
   for(i=0; i<acc.length; i++) {
     acc[i].firstChild.innerHTML = "[+] " + acc[i].firstChild.innerHTML;
-    acc[i].addEventListener("click", function() {
+    acc[i].addEventListener("click", function(e) {
+      if(e.target.nodeName=="A") return;
       achar = "[+]";
       if(this.classList.toggle("active")) achar = "[\u2212]";
       this.firstChild.innerHTML = achar + this.firstChild.innerHTML.substring(3);
