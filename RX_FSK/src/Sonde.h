@@ -111,6 +111,7 @@ typedef struct st_sondeinfo {
 	float temperature = -300.0; // platinum resistor temperature
 	float tempRHSensor = -300.0; // temperature of relative humidity sensor
 	float relativeHumidity = -1.0; // relative humidity
+	float batteryVoltage = -1;
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 

@@ -687,6 +687,7 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
+         sonde.si()->batteryVoltage = data[p+10] / 10.0f;
 			si->type=STYPE_RS41;
 			if(strncmp(si->id, (const char *)(data+p+2), 8)) {
 				// ID changed, i.e. new sonde on same frequency. clear calibration data
