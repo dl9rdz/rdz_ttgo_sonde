@@ -14,7 +14,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 	sprintf(buf, "{ \"type\": \"PAYLOAD_SUMMARY\","
 		"\"callsign\": \"%s\","
 		"\"latitude\": %g,"
-		"\"longidude\": %g,"
+		"\"longitude\": %g,"
 		"\"altitude\": %d,"
 		"\"speed\": %d,"
 		"\"heading\": %d,"

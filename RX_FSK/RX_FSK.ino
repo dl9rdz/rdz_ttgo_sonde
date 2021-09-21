@@ -24,6 +24,9 @@
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
+#if FEATURE_CHASEMAPPER
+#include "src/Chasemapper.h"
+#endif
 
 #if FEATURE_MQTT
 #include "src/mqtt.h"
@@ -738,7 +741,12 @@ struct st_configitems config_list[] = {
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
   {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
-
+#if FEATURE_CHASEMAPPER
+  /* Chasemapper settings */
+  {"cm.active", -3, &sonde.config.cm.active},
+  {"cm.host", 63, &sonde.config.cm.host},
+  {"cm.port", 0, &sonde.config.cm.port},
+#endif
 #if FEATURE_MQTT
   /* MQTT */
   {"mqtt.active", 0, &sonde.config.mqtt.active},
@@ -2514,6 +2522,11 @@ void loopDecoder() {
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
       }
+#if FEATURE_CHASEMAPPER
+      if (sonde.config.cm.active) {
+	Chasemapper::send(udp, s);
+      }
+#endif
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
