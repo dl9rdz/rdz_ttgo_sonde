@@ -46,6 +46,7 @@ $(document).ready(function(){
 var reddot = '<span class="ldot rbg"></span>';
 var yellowdot = '<span class="ldot ybg"></span>';
 var greendot = '<span class="ldot gbg"></span>';
+var lastframe = 0;
 
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
 var header = '';
@@ -74,8 +75,8 @@ headtxt = function(data,stat) {
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
-  //if (data.lat == '0.000000') { return false; }
-  if (data.res == 0) {
+  if (data.id && data.vframe != lastframe ) {
+    lastframe = data.vframe;
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
     $('#sonde_climb').html(data.climb);
@@ -162,7 +163,7 @@ headtxt = function(data,stat) {
     //console.log(data);
     if (data.id) {
       // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (data.res==0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      if ((data.lat != '0.000000' && data.lon != '0.000000') && (lastframe != 0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);
@@ -183,10 +184,13 @@ headtxt = function(data,stat) {
         }
         dots.push(location);
         line.setLatLngs(dots);
+      }
+      if (data.res == 0) {
         storage_write(data);
         $('#status').html(greendot);
         stat = 1;
-      } else {
+      }
+      else {
         $('#status').html(yellowdot);
         stat = 0;
       }
