@@ -1,0 +1,1 @@
+fix temp/hum empty check in sync with recent updates
