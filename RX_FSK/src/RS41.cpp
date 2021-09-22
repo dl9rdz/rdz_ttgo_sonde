@@ -435,11 +435,15 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
-   if(x==0 && y==0 && z==0) {
+   uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
+   Serial.printf("x:%g, y:%g, z:%g  sats:%d\n", x, y, z, sats);
+   if( sats<4 || (x==0 && y==0 && z==0) ) {
       // RS41 sometimes sends frame with all 0
+      // or, if sats<4, data is simply garbage. do not use.
       if(si->validPos) si->validPos |= 0x80; // flag as old
       return;
    }
+   si->sats = sats;
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
    si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
@@ -471,10 +475,6 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    Serial.print((float)vu);
    si->vs = vu;
    Serial.print("m/s ");
-   uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
-   Serial.print(sats);
-   Serial.print("Sats");
-   si->sats = sats;
    si->alt = heig;
    if( 0==(int)(lat*10000) && 0==(int)(long0*10000) ) {
       if(si->validPos) {
@@ -639,7 +639,7 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
 int RS41::decode41(byte *data, int maxlen)
 {
 	char buf[128];	
-	int crcok = 0;
+	int crcok = 1;
 	SondeData *si = &(sonde.si()->d);
 
 	int32_t corr = reedsolomon41(data, 560, 131);  // try short frame first
@@ -675,8 +675,8 @@ int RS41::decode41(byte *data, int maxlen)
 		// check CRC
 		if(!crcrs(data, 560, p, p+len)) {
 			Serial.println("###CRC ERROR###");
+			crcok = 0;
 		} else {	
-		crcok = 1;
 		switch(typ) {
 		case 'y': // name
 			{
@@ -791,7 +791,7 @@ int RS41::decode41(byte *data, int maxlen)
 		p += len;
 		Serial.println();
 	}
-	return crcok ? 0 : -1;
+	return crcok ? 0 : RX_ERROR;
 }
 void RS41::printRaw(uint8_t *data, int len)
 {
