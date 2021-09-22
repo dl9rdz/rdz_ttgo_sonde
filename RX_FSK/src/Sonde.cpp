@@ -667,6 +667,14 @@ uint8_t Sonde::updateState(uint8_t event) {
 	return 0xFF;
 }
 
+void Sonde::clearAllData(SondeInfo *si) {
+	// set everything to 0
+	memset(si->id, 0, offsetof(SondeInfo, extra)-offsetof(SondeInfo, id));
+	// set floats to NaN
+	si->lat = si->lon = si->alt = si->vs = si->hs = si->dir = NAN;
+	si->temperature = si->temRHSensor = si->relativeHumidity = si->batteryVoltage = NAN;
+}
+
 void Sonde::updateDisplayPos() {
 	disp.updateDisplayPos();
 }
