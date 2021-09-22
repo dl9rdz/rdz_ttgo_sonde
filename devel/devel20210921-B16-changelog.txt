@@ -10,3 +10,4 @@ Co-authored-by: dl9rdz <dl9rdz@darc.de>
 Add battery voltage (#183)
 send batt to sondehub; count down (burst_timer) only if fresh
 Merge branch 'eben80-patch-1' into devel
+some internal reorg that should not break anything but make it easier later to decouple decoding from updating global data, solving part of issue 186
