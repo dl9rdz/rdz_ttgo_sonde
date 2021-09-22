@@ -65,7 +65,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
     // update label if its a dynamic SH entry
     int i;
     for(i=0; i<sonde.config.maxsonde; i++) {
-	if( abs(sonde.sondeList[i].freq-freq)<0.0015 ) { // exists already, max error 1500 Hz
+	if( abs(sonde.sondeList[i].freq-freq)<0.003 ) { // exists already, max error 3000 Hz
 	    Serial.printf("id %s close to %d\n", id, i);
 	    if( sonde.sondeList[i].type == stype) {
 		char *l = sonde.sondeList[i].launchsite;
@@ -103,6 +103,8 @@ void ShFreqImport::cleanup() {
     //Serial.println("Cleanup called ********");
     for(int i=0; i<sonde.config.maxsonde; i++) {
 	if( (((inuse[i/8]>>(i&7))&1) == 0) && *sonde.sondeList[i].launchsite=='@' ) {
+	    // Don't remove the currently active entry
+	    if(i==sonde.currentSonde) continue;
 	    Serial.printf("removing #%d\n", i);
 	    sonde.sondeList[i].launchsite[0] = 0;
 	    sonde.sondeList[i].active = 0;

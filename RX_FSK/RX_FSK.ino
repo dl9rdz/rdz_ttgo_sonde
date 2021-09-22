@@ -436,16 +436,16 @@ const char *createSondeHubMap() {
   HTMLBODY(ptr, "map.html");
   if (!sonde.config.sondehub.active) {
     strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->ser == 0) && ( !isnan(sonde.config.rxlat))) {
+    if ((*s->d.ser == 0) && ( !isnan(sonde.config.rxlat))) {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
     } else {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s-> ser);
+      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s->d.ser);
     }
   } else {
-    if ((*s->ser == 0) && (!isnan(sonde.config.rxlat))) {
+    if ((*s->d.ser == 0) && (!isnan(sonde.config.rxlat))) {
       sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
     } else {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s-> ser);
+      sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s->d.ser);
     }
   }
   HTMLBODYEND(ptr);
@@ -497,24 +497,24 @@ void addSondeStatus(char *ptr, int i)
   SondeInfo *s = &sonde.sondeList[i];
   strcat(ptr, "<table>");
   sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[s->type],
-          s->validID ? s->id : "<?""?>");
-  if (s->validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H) ) {
-    sprintf(ptr + strlen(ptr), " (ser: %s)", s->ser);
+          s->d.validID ? s->d.id : "<?""?>");
+  if (s->d.validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H) ) {
+    sprintf(ptr + strlen(ptr), " (ser: %s)", s->d.ser);
   }
-  sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->lat, s->lon, s->alt);
-  const time_t t = s->time;
+  sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->d.lat, s->d.lon, s->d.alt);
+  const time_t t = s->d.time;
   ts = *gmtime(&t);
   sprintf(ptr + strlen(ptr), "<tr><td>Frame# %u, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
-          s->frame, s->sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
+          s->d.frame, s->d.sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
   if (s->type == STYPE_RS41) {
     sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
-            s->burstKT, s->launchKT, s->countKT, ((uint16_t)s->frame - s->crefKT));
+            s->d.burstKT, s->d.launchKT, s->d.countKT, ((uint16_t)s->d.frame - s->d.crefKT));
   }
-  sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->lat, s->lon);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://radiosondy.info/sonde_archive.php?sondenumber=%s\">radiosondy.info</a> - ", s->id);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->ser);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->lat, s->lon);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->lat, s->lon);
+  sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->d.lat, s->d.lon);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://radiosondy.info/sonde_archive.php?sondenumber=%s\">radiosondy.info</a> - ", s->d.id);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->d.ser);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->d.lat, s->d.lon);
+  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->d.lat, s->d.lon);
 
   strcat(ptr, "</table><p/>\n");
 }
@@ -542,7 +542,7 @@ const char *createLiveJson() {
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
     "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }", 
-    s->rssi, s->vframe, s->time, s->id, s->freq, sondeTypeStr[s->type], s->lat, s->lon, s->alt, s->hs, s->dir, s->vs, s->launchsite, s->rxStat[0]);
+    s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type], s->d.lat, s->d.lon, s->d.alt, s->d.hs, s->d.dir, s->d.vs, s->launchsite, s->rxStat[0]);
 
   if (gpsPos.valid) {
 #if 0
@@ -1295,15 +1295,15 @@ void addSondeStatusKML(char *ptr, int i)
 {
   SondeInfo *s = &sonde.sondeList[i];
 
-  if (!s->validID)
+  if (!s->d.validID)
   {
     return;
   }
 
   sprintf(ptr + strlen(ptr), "<Placemark id=\"%s\"><name>%s</name><Point><altitudeMode>absolute</altitudeMode><coordinates>%.6f,%.6f,%.0f</coordinates></Point><description>%3.3f MHz, Type: %s, h=%.0fm</description></Placemark>",
-          s->id, s->id,
-          s->lon, s->lat, s->alt,
-          s->freq, sondeTypeStr[s->type], s->alt);
+          s->d.id, s->d.id,
+          s->d.lon, s->d.lat, s->d.alt,
+          s->freq, sondeTypeStr[s->type], s->d.alt);
 }
 
 const char *createKMLDynamic() {
@@ -1333,8 +1333,8 @@ const char *sendGPX(AsyncWebServerRequest * request) {
     return "ERROR";
   }
   SondeInfo *si = &sonde.sondeList[index];
-  strcpy(si->id, "test");
-  si->lat = 48; si->lon = 11; si->alt = 500;
+  strcpy(si->d.id, "test");
+  si->d.lat = 48; si->d.lon = 11; si->d.alt = 500;
   snprintf(ptr, 10240, "<?xml version='1.0' encoding='UTF-8'?>\n"
            "<gpx version=\"1.1\" creator=\"http://rdzsonde.local\" xmlns=\"http://www.topografix.com/GPX/1/1\" "
            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
@@ -1344,7 +1344,7 @@ const char *sendGPX(AsyncWebServerRequest * request) {
            "<author>rdzTTGOsonde</author>\n"
            "</metadata>\n"
            "<wpt lat=\"%f\" lon=\"%f\">\n  <ele>%f</ele>\n  <name>%s</name>\n  <sym>Radio Beacon</sym><type>Sonde</type>\n"
-           "</wpt></gpx>\n", index, si->id, si->lat, si->lon, si->alt, si->id);
+           "</wpt></gpx>\n", index, si->d.id, si->d.lat, si->d.lon, si->d.alt, si->d.id);
   Serial.println(message);
   return message;
 }
@@ -2504,7 +2504,7 @@ void loopDecoder() {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
 
-    if (s->validID && ((s->validPos & 0x03) == 0x03)) {
+    if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
       const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
       if (connected)  {
         char raw[201];
@@ -2551,7 +2551,7 @@ void loopDecoder() {
     Serial.println("Sending position via TCP as rdzJSON");
     char raw[1024];
     char gps[128];
-    const char *typestr = s->typestr;
+    const char *typestr = s->d.typestr;
     if (*typestr == 0) typestr = sondeTypeStr[s->type];
     // TODO: only if GPS is valid...
     if (gpsPos.valid) {
@@ -2597,27 +2597,27 @@ void loopDecoder() {
                        typestr,
                        (int)s->active,
                        s->freq,
-                       s->id,
-                       s->ser,
-                       (int)s->validID,
+                       s->d.id,
+                       s->d.ser,
+                       (int)s->d.validID,
                        s->launchsite,
-                       s->lat,
-                       s->lon,
-                       s->alt,
-                       s->vs,
-                       s->hs,
-                       s->dir,
-                       s->sats,
-                       s->validPos,
-                       s->time,
-                       s->frame,
-                       (int)s->validTime,
+                       s->d.lat,
+                       s->d.lon,
+                       s->d.alt,
+                       s->d.vs,
+                       s->d.hs,
+                       s->d.dir,
+                       s->d.sats,
+                       s->d.validPos,
+                       s->d.time,
+                       s->d.frame,
+                       (int)s->d.validTime,
                        s->rssi,
                        s->afc,
-                       s->launchKT,
-                       s->burstKT,
-                       s->countKT,
-                       s->crefKT,
+                       s->d.launchKT,
+                       s->d.burstKT,
+                       s->d.countKT,
+                       s->d.crefKT,
                        gps
                       );
     //Serial.println("Writing rdzclient...");
@@ -3603,12 +3603,12 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   uint8_t realtype = s->type;
   // config setting M10 and M20 will both decode both types, so use the real type that was decoded
   if (TYPE_IS_METEO(realtype)) {
-    realtype = s->subtype == 1 ? STYPE_M10 : STYPE_M20;
+    realtype = s->d.subtype == 1 ? STYPE_M10 : STYPE_M20;
   }
 
-  // For DFM, s->time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
+  // For DFM, s->d.time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds
-  time_t t = s->time;
+  time_t t = s->d.time;
 
   int chase = conf->chase;
   // automatically decided if CHASE or FIXED mode is used (for config AUTO)
@@ -3627,11 +3627,11 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
-  if (*s->ser == 0) return;	// Don't send anything without serial number
-  if (((int)s->lat == 0) && ((int)s->lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
-  if ((int)s->alt > 50000) return;	// If alt is too high don't send to SondeHub
+  if (*s->d.ser == 0) return;	// Don't send anything without serial number
+  if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
+  if ((int)s->d.alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information
-  if ( realtype != STYPE_M20 && (int)s->sats < 4) return;	// If not enough sats don't send to SondeHub
+  if ( realtype != STYPE_M20 && (int)s->d.sats < 4) return;	// If not enough sats don't send to SondeHub
 
   // If not connected to sondehub, try reconnecting.
   // TODO: do this outside of main loop
@@ -3651,8 +3651,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     return;
   }
 
-  if ( abs(now - (time_t)s->time) > (3600 * SONDEHUB_TIME_THRESHOLD) ) {
-    Serial.printf("Sonde time %d too far from current UTC time %ld", s->time, now);
+  if ( abs(now - (time_t)s->d.time) > (3600 * SONDEHUB_TIME_THRESHOLD) ) {
+    Serial.printf("Sonde time %d too far from current UTC time %ld", s->d.time, now);
     return;
   }
 
@@ -3688,25 +3688,25 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
           "\"type\": \"%s\",",
           version_name, version_id, conf->callsign,
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
-          manufacturer_string[realtype], s->ser,
+          manufacturer_string[realtype], s->d.ser,
           ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
-          (float)s->lat, (float)s->lon, (float)s->alt, (float)s->freq, (float)s->hs, (float)s->vs,
-          (float)s->dir, -((float)s->rssi / 2), s->vframe, sondeTypeStrSH[realtype]
+          (float)s->d.lat, (float)s->d.lon, (float)s->d.alt, (float)s->freq, (float)s->d.hs, (float)s->d.vs,
+          (float)s->d.dir, -((float)s->rssi / 2), s->d.vframe, sondeTypeStrSH[realtype]
          );
   w += strlen(w);
 
   // Only send sats if not M20
   if (realtype != STYPE_M20) {
-    sprintf(w, "\"sats\": %d,", (int)s->sats);
+    sprintf(w, "\"sats\": %d,", (int)s->d.sats);
     w += strlen(w);
   }
 
   /* if there is a subtype (DFM only) */
-  if ( TYPE_IS_DFM(s->type) && s->subtype > 0 && s->subtype < 16 ) {
-    const char *t = dfmSubtypeStrSH[s->subtype];
+  if ( TYPE_IS_DFM(s->type) && s->d.subtype > 0 && s->d.subtype < 16 ) {
+    const char *t = dfmSubtypeStrSH[s->d.subtype];
     // as in https://github.com/projecthorus/radiosonde_auto_rx/blob/e680221f69a568e1fdb24e76db679233f32cb027/auto_rx/autorx/sonde_specific.py#L84
     if (t) sprintf(w, "\"subtype\": \"%s\",", t);
-    else sprintf(w, "\"subtype\": \"DFMx%X\",", s->subtype); // Unknown subtype
+    else sprintf(w, "\"subtype\": \"DFMx%X\",", s->d.subtype); // Unknown subtype
     w += strlen(w);
   } else if ( s->type == STYPE_RS41 ) {
     char buf[11];
@@ -3717,26 +3717,26 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   // Only send temp if provided
-  if ((int)s->temperature != 0) {
-    sprintf(w, "\"temp\": %.3f,", float(s->temperature));
+  if ((int)s->d.temperature != 0) {
+    sprintf(w, "\"temp\": %.1f,", float(s->d.temperature));
     w += strlen(w);
   }
 	
   // Only send humidity if provided
-  if ((int)s->relativeHumidity != 0) {
-    sprintf(w, "\"humidity\": %.3f,", float(s->relativeHumidity));
+  if ((int)s->d.relativeHumidity != 0) {
+    sprintf(w, "\"humidity\": %.1f,", float(s->d.relativeHumidity));
     w += strlen(w);
   }
 	
   // Only send burst timer if RS41 and fresh within the last 51s
-  if ((realtype == STYPE_RS41) && (s->crefKT > 0) && (s->vframe - s->crefKT < 51)) {
-    sprintf(w, "\"burst_timer\": %d,", (int)s->countKT);
+  if ((realtype == STYPE_RS41) && (s->d.crefKT > 0) && (s->d.vframe - s->d.crefKT < 51)) {
+    sprintf(w, "\"burst_timer\": %d,", (int)s->d.countKT);
     w += strlen(w);
   }
 
   // Only send battery if provided
-  if (s->batteryVoltage > 0) {
-    sprintf(w, "\"batt\": %.2f,", s->batteryVoltage);
+  if (s->d.batteryVoltage > 0) {
+    sprintf(w, "\"batt\": %.2f,", s->d.batteryVoltage);
     w += strlen(w);
   }
 

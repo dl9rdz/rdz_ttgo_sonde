@@ -280,7 +280,9 @@ int M10M20::decodeframeM10(uint8_t *data) {
 
 	if(data[1]==0x9F && data[2]==0x20) {
 		Serial.println("Decoding...");
-		SondeInfo *si = sonde.si();
+		//SondeInfo *si = sonde.si();
+		SondeData *si = &(sonde.si()->d);
+		
 		// Its a M10
 		// getid...
 		char ids[12];
@@ -295,7 +297,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[7] = hex(id/16);
 		ids[8] = hex(id);
 		ids[9] = 0;
-		strncpy(sonde.si()->id, ids, 10);
+		strncpy(si->id, ids, 10);
 		ids[0] = hex(data[95]/16);
 		ids[1] = dez((data[95]&0x0f)/10);
 		ids[2] = dez((data[95]&0x0f));
@@ -396,15 +398,15 @@ void M10M20::processM10data(uint8_t dt)
 				// 45 20 7x => M20
 				if(rxp==2 && dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
 				if(isM20) {
-					memcpy(sonde.si()->typestr, "M20 ", 5);
-					sonde.si()->subtype = 2;
+					memcpy(sonde.si()->d.typestr, "M20 ", 5);
+					sonde.si()->d.subtype = 2;
 					if(rxp>=M20_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM20(dataptr);
 					}
 				} else {
-					memcpy(sonde.si()->typestr, "M10 ", 5);
-					sonde.si()->subtype = 1;
+					memcpy(sonde.si()->d.typestr, "M10 ", 5);
+					sonde.si()->d.subtype = 1;
 					if(rxp>=M10_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM10(dataptr);
@@ -472,7 +474,8 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	int repl = 0;
 	bool crcok = false;
 	bool crcbok = false;
-	SondeInfo *si = sonde.si();
+	//SondeInfo *si = sonde.si();
+	SondeData *si = &(sonde.si()->d);
 	// error correction, inspired by oe5dxl's sondeudp
 	// check first block
 	uint8_t s[200];
@@ -569,7 +572,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
  	uint32_t tow = getint24(data+15);
         uint16_t week = getint16(data+26);
         si->time = (tow+week*604800+315964800)-18;
-	si->vframe = sonde.si()->time - 315964800;
+	si->vframe =si->time - 315964800;
                 
         si->validTime = true;
 	}
