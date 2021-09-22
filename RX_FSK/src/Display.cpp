@@ -1125,41 +1125,41 @@ void Display::drawString(DispEntry *de, const char *str) {
 
 void Display::drawLat(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!sonde.si()->d.validPos) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
-	snprintf(buf, 16, "%2.5f", sonde.si()->lat);
+	snprintf(buf, 16, "%2.5f", sonde.si()->d.lat);
 	drawString(de,buf);
 }
 void Display::drawLon(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!sonde.si()->d.validPos) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
-	snprintf(buf, 16, "%2.5f", sonde.si()->lon);
+	snprintf(buf, 16, "%2.5f", sonde.si()->d.lon);
 	drawString(de,buf);
 }
 void Display::drawAlt(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!sonde.si()->d.validPos) {
 	   drawString(de,"     ");
 	   return;
 	}
-	float alt = sonde.si()->alt;
+	float alt = sonde.si()->d.alt;
 	//testing only....   alt += 30000-454;
 	snprintf(buf, 16, alt>=1000?"   %5.0fm":"   %3.1fm", alt);
 	drawString(de,buf+strlen(buf)-6);
 }
 void Display::drawHS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!sonde.si()->d.validPos) {
 	   drawString(de,"     ");
 	   return;
 	}
 	boolean is_ms = (de->extra && de->extra[0]=='m')?true:false;  // m/s or km/h
-	float hs = sonde.si()->hs;
+	float hs = sonde.si()->d.hs;
 	if(!is_ms) hs = hs * 3.6;
 	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
 	snprintf(buf, 16, hs>99?" %3.0f":" %2.1f", hs);
@@ -1169,11 +1169,11 @@ void Display::drawHS(DispEntry *de) {
 }
 void Display::drawVS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!sonde.si()->d.validPos) {
 	   drawString(de,"     ");
 	   return;
 	}
-	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
+	snprintf(buf, 16, "  %+2.1f", sonde.si()->d.vs);
 	DebugPrintf(DEBUG_DISPLAY, "drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
 	if(de->extra) { strcat(buf, de->extra); }
 	drawString(de, buf+strlen(buf)-5- (de->extra?strlen(de->extra):0) );
@@ -1181,29 +1181,29 @@ void Display::drawVS(DispEntry *de) {
 }
 void Display::drawID(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validID) {
+	if(!sonde.si()->d.validID) {
 		drawString(de, "nnnnnnnn ");
 		return;
 	}
 	if(de->extra && de->extra[0]=='n') {
 		// real serial number, as printed on sonde, can be up to 11 digits long
-		drawString(de, sonde.si()->ser);
+		drawString(de, sonde.si()->d.ser);
 	} else if (de->extra && de->extra[0]=='s') {
 		// short ID, max 8 digits (no initial "D" for DFM, "M" instead of "ME" for M10)
 		if( TYPE_IS_DFM(sonde.si()->type) ) {
-			drawString(de, sonde.si()->id+1);
+			drawString(de, sonde.si()->d.id+1);
 		} else if (TYPE_IS_METEO(sonde.si()->type)) {
 			char sid[9];
 			sid[0]='M';
-			memcpy(sid+1, sonde.si()->id+2, 8);
+			memcpy(sid+1, sonde.si()->d.id+2, 8);
 			sid[8] = 0;
 			drawString(de, sid);
 		} else {
-			drawString(de, sonde.si()->id);
+			drawString(de, sonde.si()->d.id);
 		}
 	} else {
 		// dxlAPRS sonde number, max 9 digits, as used on aprs.fi and radiosondy.info
-		drawString(de, sonde.si()->id);
+		drawString(de, sonde.si()->d.id);
 	}
 }
 void Display::drawRSSI(DispEntry *de) {
@@ -1230,7 +1230,7 @@ void Display::drawQS(DispEntry *de) {
 
 void Display::drawType(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	const char *typestr = sonde.si()->typestr;
+	const char *typestr = sonde.si()->d.typestr;
 	if(*typestr==0) typestr = sondeTypeStr[sonde.si()->type];
         drawString(de, typestr);
 }
@@ -1289,9 +1289,9 @@ void Display::drawKilltimer(DispEntry *de) {
 	rdis->setFont(de->fmt);
 	uint16_t value=0;
 	switch(de->extra[0]) {
-	case 'l': value = sonde.si()->launchKT; break;
-	case 'b': value = sonde.si()->burstKT; break;
-	case 'c': value = sonde.si()->countKT; break;
+	case 'l': value = sonde.si()->d.launchKT; break;
+	case 'b': value = sonde.si()->d.burstKT; break;
+	case 'c': value = sonde.si()->d.countKT; break;
 	}
 	// format: 4=h:mm; 6=h:mm:ss; s=sssss
 	uint16_t h=value/3600;
@@ -1362,17 +1362,17 @@ static int tmpc=0;
 #endif
 #endif
 	// distance
-	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->lat, sonde.si()->lon);
+	if( gpsPos.valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
+		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->d.lat, sonde.si()->d.lon);
 	} else {
 		gpsDist = -1;
 	}
 	// bearing
-	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
+	if( gpsPos.valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
                 float lat1 = radians(gpsPos.lat);
-                float lat2 = radians(sonde.si()->lat);
+                float lat2 = radians(sonde.si()->d.lat);
                 float lon1 = radians(gpsPos.lon);
-                float lon2 = radians(sonde.si()->lon);
+                float lon2 = radians(sonde.si()->d.lon);
                 float y = sin(lon2-lon1)*cos(lat2);
                 float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
                 float dir = atan2(y, x)/PI*180;
@@ -1425,7 +1425,7 @@ void Display::drawGPS(DispEntry *de) {
 		{
 		// distance
 		// equirectangular approximation is good enough
-		if( (sonde.si()->validPos&0x03)!=0x03 ) {
+		if( (sonde.si()->d.validPos&0x03)!=0x03 ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else if(!gpsPos.valid) {
@@ -1448,7 +1448,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'I':
 		// dIrection
-		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->d.validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1460,7 +1460,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'B':
 		// relative bearing
-		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( (!gpsPos.valid) || ((sonde.si()->d.validPos&0x03)!=0x03 ) ) {
 			drawString(de, "---");
 			break;
 		}
@@ -1491,9 +1491,9 @@ void Display::drawGPS(DispEntry *de) {
 		int angN, angA, angB;   // angle of north, array, bullet
 		int validA, validB;     // 0: no, 1: yes, -1: old
 		if(circinfo->arr=='C') {  angA=gpsPos.course; validA=disp.gpsCourseOld?-1:1; }
-		else { angA=disp.gpsDir; validA=sonde.si()->validPos?(rxgood?1:-1):0; }
+		else { angA=disp.gpsDir; validA=sonde.si()->d.validPos?(rxgood?1:-1):0; }
 		if(circinfo->bul=='C') {  angB=gpsPos.course; validB=disp.gpsCourseOld?-1:1; }
-		else { angB=disp.gpsDir; validB=sonde.si()->validPos?(rxgood?1:-1):0; }
+		else { angB=disp.gpsDir; validB=sonde.si()->d.validPos?(rxgood?1:-1):0; }
 		if(circinfo->top=='N') {
 			angN = 0;
 		} else {

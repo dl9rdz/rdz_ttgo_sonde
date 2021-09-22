@@ -199,7 +199,8 @@ extern double atang2(double x, double y);
 
 
 void calcgps(uint8_t *buf) {
-	SondeInfo *si = sonde.si();
+	//SondeInfo *si = sonde.si();
+	SondeData *si =&(sonde.si()->d);
 	double wx = i4(buf+pos_GPSecefX) * 0.01;
 	double wy = i4(buf+pos_GPSecefY) * 0.01;
 	double wz = i4(buf+pos_GPSecefZ) * 0.01;
@@ -237,7 +238,8 @@ static uint32_t getgpstime(uint8_t *buf) {
 }
 // unix time stamp from date and time info in frame. 
 static void getmp3htime(uint8_t *buf) {
-	SondeInfo *si = sonde.si();
+	//SondeInfo *si = sonde.si();
+	SondeData *si =&(sonde.si()->d);
 
 	// gpsdate from CFG frame 15 (0 if not yet received)
 	uint32_t gpsdate = mp3hstate.gpsdate;
@@ -285,7 +287,8 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 	}
 	
 	// data is a frame with correct CRC
-	SondeInfo *si = sonde.si();
+	//SondeInfo *si = sonde.si();
+	SondeData *si =&(sonde.si()->d);
 	uint8_t cnt = data[pos_CNT1] & 0x0F;
 	uint32_t cfg = u4(data+pos_CFG);
 	if(cnt==15) {
@@ -307,7 +310,7 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 	// get id
 	if((mp3hstate.idok&3) == 3) {
 		//...
-		si->type = STYPE_MP3H;
+		//si->type = STYPE_MP3H;
 		uint32_t n = mp3hstate.id1*100000 + mp3hstate.id2;
 		si->id[0] = 'M';
 		si->id[1] = 'R';
@@ -504,13 +507,13 @@ int MP3H::receive() {
 				if(haveNewFrame != 1) {
 					Serial.printf("hNF: %d (ERROR)\n", haveNewFrame);
 					retval = RX_ERROR;
-				} else if (sonde.si()->time == lastFrame) { // same frame number as seen before => skip
+				} else if (sonde.si()->d.time == lastFrame) { // same frame number as seen before => skip
 					Serial.printf("Skipping frame with frame# %d\n", lastFrame);
 					// nothing, wait for next, "new" frame
 				} else {  // good and new frame, return it.
 					Serial.println("Good frame");
 					haveNewFrame = 0;
-					lastFrame = sonde.si()->time;
+					lastFrame = sonde.si()->d.time;
 					return RX_OK;
 				}
 				haveNewFrame = 0;

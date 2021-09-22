@@ -431,7 +431,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    double z;
    double y;
    double x;
-   SondeInfo *si = sonde.si();
+   SondeData *si = &(sonde.si()->d);
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
@@ -594,7 +594,7 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
    float Cp = ( C / calibration->value.calibU[0] - 1.0f) * calibration->value.calibU[1];
 
    /* Compensation for low temperature and pressure at altitude */
-   float estimatedPressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->alt );
+   float estimatedPressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->d.alt );
 
    float Tp = (sensorTemp - 20.0f) / 180.0f;
    float sum = 0;
@@ -640,7 +640,7 @@ int RS41::decode41(byte *data, int maxlen)
 {
 	char buf[128];	
 	int crcok = 0;
-	SondeInfo *si = sonde.si();
+	SondeData *si = &(sonde.si()->d);
 
 	int32_t corr = reedsolomon41(data, 560, 131);  // try short frame first
 	if(corr<0) {
@@ -682,8 +682,8 @@ int RS41::decode41(byte *data, int maxlen)
 			{
 			if(strncmp(si->id, (const char *)(data+p+2), 8)) {
 				// ID changed, i.e. new sonde on same frequency. clear calibration and all other data
-				sonde.clearAllData(si);
-				struct subframeBuffer *sub = (struct subframeBuffer *)si->extra;
+				sonde.clearAllData(sonde.si());
+				struct subframeBuffer *sub = (struct subframeBuffer *)sonde.si()->extra;
 				if(sub) { sub->valid = 0; }
 			}
 			Serial.print("#");
@@ -694,7 +694,7 @@ int RS41::decode41(byte *data, int maxlen)
 			snprintf(buf, 10, "%.8s ", data+p+2);
 			Serial.print(buf);
 			si->batteryVoltage = data[p+10] / 10.0f;
-			si->type=STYPE_RS41;
+			// not needed, if we end up here, the type has to be RS41.... si->type=STYPE_RS41;
 			strncpy(si->id, (const char *)(data+p+2), 8);
 			si->id[8]=0;
 			strncpy(si->ser, (const char *)(data+p+2), 8);
@@ -762,7 +762,7 @@ int RS41::decode41(byte *data, int maxlen)
                Serial.printf( "Humid  sensor: tempHumiMain = %ld, tempHumiRef1 = %ld, tempHumiRef2 = %ld\n", tempHumiMain, tempHumiRef1, tempHumiRef2 );
                Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
             #endif
-   	    struct subframeBuffer *calibration = (struct subframeBuffer *)si->extra;
+   	    struct subframeBuffer *calibration = (struct subframeBuffer *)(sonde.si()->extra);
 	        // check for bits 3 through 20 set and 37 through 46
 	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
 	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;

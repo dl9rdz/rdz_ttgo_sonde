@@ -362,9 +362,10 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	    if(sondeList[nSonde].extra) free(sondeList[nSonde].extra);
     	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
 	    sondeList[nSonde].type = type;
-	    sondeList[nSonde].typestr[0] = 0;
+	    sondeList[nSonde].d.typestr[0] = 0;
 	    sondeList[nSonde].freq = frequency;
 	    memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
+	    clearAllData(sondeList+nSonde);
 	}
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
@@ -669,10 +670,10 @@ uint8_t Sonde::updateState(uint8_t event) {
 
 void Sonde::clearAllData(SondeInfo *si) {
 	// set everything to 0
-	memset(si->id, 0, offsetof(SondeInfo, extra)-offsetof(SondeInfo, id));
+	memset(&(si->d), 0, sizeof(SondeData));
 	// set floats to NaN
-	si->lat = si->lon = si->alt = si->vs = si->hs = si->dir = NAN;
-	si->temperature = si->temRHSensor = si->relativeHumidity = si->batteryVoltage = NAN;
+	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
+	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.batteryVoltage = NAN;
 }
 
 void Sonde::updateDisplayPos() {

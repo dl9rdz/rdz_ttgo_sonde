@@ -74,28 +74,8 @@ extern const char *manufacturer_string[NSondeTypes];
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 
-typedef struct st_sondeinfo {
-	// First part: static configuration, not decoded data. 
-        // receiver configuration
-	bool active;
-        SondeType type;
-        float freq;
-	char launchsite[18];		
-
-	// Second part: internal decoder state. no need to clear this on new sonde
-        // RSSI from receiver
-        int rssi;			// signal strength
-	int32_t afc;			// afc correction value
-	// statistics
-	uint8_t rxStat[20];
-	uint32_t rxStart;    		// millis() timestamp of continuous rx start
-	uint32_t norxStart;		// millis() timestamp of continuous no rx start
-	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
-	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
-
-	// Third part: decoded data. Clear if reception of a new sonde has started
+typedef struct st_sondedata {
         // decoded ID
-	// id must be the start of decoded data, extra indicates the end.
         char id[10];
 	char ser[12];
         bool validID;
@@ -123,6 +103,31 @@ typedef struct st_sondeinfo {
 	float tempRHSensor = -300.0; // temperature of relative humidity sensor
 	float relativeHumidity = -1.0; // relative humidity
 	float batteryVoltage = -1;
+} SondeData;
+
+typedef struct st_sondeinfo {
+	// First part: static configuration, not decoded data. 
+        // receiver configuration
+	bool active;
+        SondeType type;
+        float freq;
+	char launchsite[18];		
+
+	// Second part: internal decoder state. no need to clear this on new sonde
+        // RSSI from receiver
+        int rssi;			// signal strength
+	int32_t afc;			// afc correction value
+	// statistics
+	uint8_t rxStat[20];
+	uint32_t rxStart;    		// millis() timestamp of continuous rx start
+	uint32_t norxStart;		// millis() timestamp of continuous no rx start
+	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
+	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
+
+	// Third part: decoded data. Clear if reception of a new sonde has started
+	SondeData d;
+
+	// Decoder-specific data, dynamically allocated (for RS41: calibration data)
         void *extra;
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
@@ -331,6 +336,7 @@ public:
 	uint16_t waitRXcomplete();
 
 	SondeInfo *si();
+	void clearAllData(SondeInfo *si);
 
 	uint8_t timeoutEvent(SondeInfo *si);
 	uint8_t updateState(uint8_t event);

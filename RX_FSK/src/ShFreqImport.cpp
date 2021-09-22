@@ -104,7 +104,7 @@ void ShFreqImport::cleanup() {
     for(int i=0; i<sonde.config.maxsonde; i++) {
 	if( (((inuse[i/8]>>(i&7))&1) == 0) && *sonde.sondeList[i].launchsite=='@' ) {
 	    // Don't remove the currently active entry
-	    if(i==currentSonde) continue;
+	    if(i==sonde.currentSonde) continue;
 	    Serial.printf("removing #%d\n", i);
 	    sonde.sondeList[i].launchsite[0] = 0;
 	    sonde.sondeList[i].active = 0;

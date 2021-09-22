@@ -51,8 +51,9 @@ void MQTT::publishUptime()
     mqttClient.publish(topic, 1, 1, payload);
 }
 
-void MQTT::publishPacket(SondeInfo *s)
+void MQTT::publishPacket(SondeInfo *si)
 {
+    SondeData *s = &(si->d);
     mqttClient.connect(); // ensure we've got connection
 
     char payload[1024];
@@ -86,12 +87,12 @@ void MQTT::publishPacket(SondeInfo *s)
         "\"countKT\": %d,"
         "\"crefKT\": %d"
         "}",
-        (int)s->active,
-        s->freq,
+        (int)si->active,
+        si->freq,
         s->id,
         s->ser,
         (int)s->validID,
-        s->launchsite,
+        si->launchsite,
         s->lat,
         s->lon,
         s->alt,
@@ -103,13 +104,13 @@ void MQTT::publishPacket(SondeInfo *s)
         s->time,
         s->frame,
         (int)s->validTime,
-        s->rssi,
-        s->afc,
-        s->rxStat,
-        s->rxStart,
-        s->norxStart,
-        s->viewStart,
-        s->lastState,
+        si->rssi,
+        si->afc,
+        si->rxStat,
+        si->rxStart,
+        si->norxStart,
+        si->viewStart,
+        si->lastState,
         s->launchKT,
         s->burstKT,
         s->countKT,
