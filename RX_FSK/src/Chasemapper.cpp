@@ -20,8 +20,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		"\"heading\": %d,"
 		"\"time\": \"%02d:%02d:%02d\","
 		"\"model\": \"%s\","
-		"\"freq\": \"%.3f MHz\","
-		"\"temp\": %g }",
+		"\"freq\": \"%.3f MHz\"",
 		si->d.ser,
 		si->d.lat,
 		si->d.lon,
@@ -30,8 +29,11 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		(int)si->d.dir,
 		tim.tm_hour, tim.tm_min, tim.tm_sec,
 		sondeTypeStrSH[realtype],
-		si->freq,
-		si->d.temperature);
+		si->freq);
+	if( !isnan(si->d.temperature) ) {
+		sprintf(buf + strlen(buf), ", \"temp\": %g", si->d.temperature);
+	}
+	strcat(buf, "}");
 	Serial.printf("Sending chasemapper json: %s\n", buf);
 	udp.beginPacket(sonde.config.cm.host, sonde.config.cm.port);
 	udp.write((const uint8_t *)buf, strlen(buf));
