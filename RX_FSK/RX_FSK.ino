@@ -3552,7 +3552,12 @@ void sondehub_reply_handler(WiFiClient * client) {
       }
       if (cnt >= MSG_SIZE - 1) {
         cnt = 0;
+        Serial.println("(overlong line from network, ignoring)");
       }
+    }
+    if (cnt > 0) {
+      rs_msg[cnt + 1] = 0;
+      Serial.println(rs_msg);
     }
   }
   // send import requests if needed
