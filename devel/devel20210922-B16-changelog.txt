@@ -1,2 +1,3 @@
 fix temp/hum empty check in sync with recent updates
 Enhanced network handling for sondehub
+don't send NaN in LiveMap JSON
