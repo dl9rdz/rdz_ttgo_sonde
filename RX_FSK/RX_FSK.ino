@@ -152,16 +152,22 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
 String processor(const String& var) {
   Serial.println(var);
   if (var == "MAPCENTER") {
-     double lat, lon;
-     if(gpsPos.valid) { lat=gpsPos.lat; lon=gpsPos.lon; }
-     else { lat = sonde.config.rxlat; lon = sonde.config.rxlon; }
-     if( !isnan(lat) && !isnan(lon) ) {
-	char p[40];
-	snprintf(p, 40, "%g,%g", lat, lon);
-	return String(p);
-     } else {
-	return String("48,13");
-     }
+    double lat, lon;
+    if (gpsPos.valid) {
+      lat = gpsPos.lat;
+      lon = gpsPos.lon;
+    }
+    else {
+      lat = sonde.config.rxlat;
+      lon = sonde.config.rxlon;
+    }
+    if ( !isnan(lat) && !isnan(lon) ) {
+      char p[40];
+      snprintf(p, 40, "%g,%g", lat, lon);
+      return String(p);
+    } else {
+      return String("48,13");
+    }
   }
   if (var == "VERSION_NAME") {
     return String(version_name);
@@ -541,8 +547,8 @@ const char *createLiveJson() {
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
-    "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }", 
-    s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type], s->d.lat, s->d.lon, s->d.alt, s->d.hs, s->d.dir, s->d.vs, s->launchsite, s->rxStat[0]);
+          "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }",
+          s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type], s->d.lat, s->d.lon, s->d.alt, s->d.hs, s->d.dir, s->d.vs, s->launchsite, s->rxStat[0]);
 
   if (gpsPos.valid) {
 #if 0
@@ -555,8 +561,8 @@ const char *createLiveJson() {
     /*bool b = */nmea.getAltitude(alt);
     bool valid = nmea.isValid();
     uint8_t hdop = nmea.getHDOP();
-    if (valid) {
-      strcat(ptr, ",");
+    //if (valid) {
+    //  strcat(ptr, ",");
 #endif
     sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
     //}
@@ -814,7 +820,7 @@ void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%d\"/></td></tr>\n",
           label, idx, *value);
 }
-void addConfigDblEntry(char *ptr, int idx, const char *label, double *value) {
+void addConfigDblEntry(char *ptr, int idx, const char *label, double * value) {
   sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%f\"/></td></tr>\n",
           label, idx, *value);
 }
@@ -874,7 +880,7 @@ const char *createConfigForm() {
   strcat(ptr, "<script>\n");
   sprintf(ptr + strlen(ptr), "var scr=\"Using /screens%d.txt", Display::getScreenIndex(sonde.config.screenfile));
   for (int i = 0; i < disp.nLayouts; i++) {
-    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label); 
+    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label);
   }
   strcat(ptr, "\";\n");
   strcat(ptr, "var cf=new Map();\n");
@@ -955,7 +961,7 @@ const char *createConfigForm() {
 }
 
 
-const char *handleConfigPost(AsyncWebServerRequest *request) {
+const char *handleConfigPost(AsyncWebServerRequest * request) {
   // parameters: a_i, f_1, t_i  (active/frequency/type)
   Serial.println("Handling post request");
 #if 1
@@ -1049,7 +1055,7 @@ const char *createControlForm() {
 }
 
 
-const char *handleControlPost(AsyncWebServerRequest *request) {
+const char *handleControlPost(AsyncWebServerRequest * request) {
   Serial.println("Handling post request");
   int params = request->params();
   for (int i = 0; i < params; i++) {
@@ -1095,7 +1101,7 @@ const char *handleControlPost(AsyncWebServerRequest *request) {
   return "";
 }
 
-void handleUpload(AsyncWebServerRequest *request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
+void handleUpload(AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
   static File file;
   if (!index) {
     Serial.printf("UploadStart: %s\n", filename.c_str());
@@ -1115,7 +1121,7 @@ void handleUpload(AsyncWebServerRequest *request, String filename, size_t index,
 }
 
 
-int streamEditForm(int &state, File &file, String filename, char *buffer, size_t maxlen, size_t index) {
+int streamEditForm(int &state, File & file, String filename, char *buffer, size_t maxlen, size_t index) {
   Serial.printf("streamEdit: state=%d  max:%d idx:%d\n", state, maxlen, index);
   int i = 0;
   switch (state) {
@@ -1190,7 +1196,7 @@ const char *createEditForm(String filename) {
 }
 
 
-const char *handleEditPost(AsyncWebServerRequest *request) {
+const char *handleEditPost(AsyncWebServerRequest * request) {
   Serial.println("Handling post request");
   int params = request->params();
   Serial.printf("Post:, %d params\n", params);
@@ -1261,7 +1267,7 @@ const char *createUpdateForm(boolean run) {
   return message;
 }
 
-const char *handleUpdatePost(AsyncWebServerRequest *request) {
+const char *handleUpdatePost(AsyncWebServerRequest * request) {
   Serial.println("Handling post request");
   int params = request->params();
   for (int i = 0; i < params; i++) {
@@ -1702,9 +1708,9 @@ void gpsTask(void *parameter) {
             }
           }
         }
-	gpsPos.hdop = nmea.getHDOP();
-	gpsPos.sat = nmea.getNumSatellites();
-	gpsPos.speed = nmea.getSpeed() / 1000.0 * 0.514444; // speed is in m/s  nmea.getSpeed is in 0.001 knots
+        gpsPos.hdop = nmea.getHDOP();
+        gpsPos.sat = nmea.getNumSatellites();
+        gpsPos.speed = nmea.getSpeed() / 1000.0 * 0.514444; // speed is in m/s  nmea.getSpeed is in 0.001 knots
 #ifdef DEBUG_GPS
         uint8_t hdop = nmea.getHDOP();
         Serial.printf(" =>: valid: %d  N %f  E %f  alt %d  course:%d dop:%d\n", gpsPos.valid ? 1 : 0, gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, hdop);
@@ -2524,7 +2530,7 @@ void loopDecoder() {
       }
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
-	Chasemapper::send(udp, s);
+        Chasemapper::send(udp, s);
       }
 #endif
     }
@@ -3379,7 +3385,7 @@ void loop() {
  	Update station data to the sondehub v2 DB
 */
 /* which_pos: 0=none, 1=fixed, 2=gps */
-void sondehub_station_update(WiFiClient *client, struct st_sondehub *conf) {
+void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
 #define STATION_DATA_LEN 300
   char data[STATION_DATA_LEN];
   char *w;
@@ -3507,35 +3513,51 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     NULL, NULL
                                   };
 
-void sondehub_reply_handler(WiFiClient *client) {
+void sondehub_reply_handler(WiFiClient * client) {
   // sondehub handler for tasks to be done even if no data is to be sent:
   //   process response messages from sondehub
   //   request frequency list (if active)
 #define MSG_SIZE 1000
   char rs_msg[MSG_SIZE];
 
-  if(shImport==1) { // we are waiting for a reply to a sondehub frequency import request
+  if (shImport == 1) { // we are waiting for a reply to a sondehub frequency import request
     // while we are waiting, we do nothing else with sondehub...
     int res = ShFreqImport::shImportHandleReply(&shclient);
-      Serial.printf("ret: %d\n", res);
-      // res==0 means more data is expected, res==1 means complete reply received (or error)
-      if (res == 1) {
-        shImport = 2; // finished
-        shImportInterval = sonde.config.sondehub.fiinterval * 60;
-      }
+    Serial.printf("ret: %d\n", res);
+    // res==0 means more data is expected, res==1 means complete reply received (or error)
+    if (res == 1) {
+      shImport = 2; // finished
+      shImportInterval = sonde.config.sondehub.fiinterval * 60;
+    }
   }
   else {
     // any reply here belongs to normal telemetry upload, lets just print it.
     // and wait for a valid HTTP response
-    while(client->available() > 0) {
+    int cnt = 0;
+    while (client->available() > 0) {
       // data is available from remote server, process it...
-      int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
-      rs_msg[cnt] = 0;
-      Serial.println(rs_msg);
-      // If something that looks like a valid HTTP response is received, we are ready to send the next data item
-      if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
-        shState = SH_CONN_IDLE;
+      // readBytesUntil may wait for up to 1 second if enough data is not available...
+      // int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
+      int c = client->read();
+      if (c < 0) break; // should never happen in available() returned >0 right before....
+      rs_msg[cnt++] = c;
+      if (c == '\n') {
+        rs_msg[cnt] = 0;
+        Serial.println(rs_msg);
+        // If something that looks like a valid HTTP response is received, we are ready to send the next data item
+        if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
+          shState = SH_CONN_IDLE;
+        }
+        cnt = 0;
       }
+      if (cnt >= MSG_SIZE - 1) {
+        cnt = 0;
+        Serial.println("(overlong line from network, ignoring)");
+      }
+    }
+    if (cnt > 0) {
+      rs_msg[cnt + 1] = 0;
+      Serial.println(rs_msg);
     }
   }
   // send import requests if needed
@@ -3548,7 +3570,7 @@ void sondehub_reply_handler(WiFiClient *client) {
       }
     }
     else if (shImport == 0) {
-      if(shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK) 
+      if (shState == SH_CONN_APPENDING || shState == SH_CONN_WAITACK)
         Serial.printf("Time to request next sondehub import.... but still busy with upload request");
       else
         sondehub_send_fimport(&shclient);
@@ -3557,7 +3579,7 @@ void sondehub_reply_handler(WiFiClient *client) {
 
   // also handle periodic station updates here...
   // interval check moved to sondehub_station_update to avoid having to calculate distance in auto mode twice
-  if(shState == SH_CONN_IDLE) {
+  if (shState == SH_CONN_IDLE) {
     // (do not set station update while a telemetry report is being sent
     sondehub_station_update(&shclient, &sonde.config.sondehub);
   }
@@ -3710,24 +3732,24 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     w += strlen(w);
   } else if ( s->type == STYPE_RS41 ) {
     char buf[11];
-    if(RS41::getSubtype(buf, 11, s)==0) {
+    if (RS41::getSubtype(buf, 11, s) == 0) {
       sprintf(w, "\"subtype\": \"%s\",", buf);
       w += strlen(w);
     }
   }
 
   // Only send temp if provided
-  if ((int)s->d.temperature != 0) {
-    sprintf(w, "\"temp\": %.1f,", float(s->d.temperature));
+  if (!isnan(s->d.temperature)) {
+    sprintf(w, "\"temp\": %.1f,", s->d.temperature);
     w += strlen(w);
   }
-	
+
   // Only send humidity if provided
-  if ((int)s->d.relativeHumidity != 0) {
-    sprintf(w, "\"humidity\": %.1f,", float(s->d.relativeHumidity));
+  if (!isnan(s->d.relativeHumidity)) {
+    sprintf(w, "\"humidity\": %.1f,", s->d.relativeHumidity);
     w += strlen(w);
   }
-	
+
   // Only send burst timer if RS41 and fresh within the last 51s
   if ((realtype == STYPE_RS41) && (s->d.crefKT > 0) && (s->d.vframe - s->d.crefKT < 51)) {
     sprintf(w, "\"burst_timer\": %d,", (int)s->d.countKT);
@@ -3809,7 +3831,7 @@ void sondehub_finish_data(WiFiClient * client, SondeInfo * s, struct st_sondehub
 static const char *DAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Noc", "Dec"};
 
-void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, struct tm *now) {
+void sondehub_send_header(WiFiClient * client, SondeInfo * s, struct st_sondehub * conf, struct tm * now) {
   Serial.print("PUT /sondes/telemetry HTTP/1.1\r\n"
                "Host: ");
   Serial.println(conf->host);

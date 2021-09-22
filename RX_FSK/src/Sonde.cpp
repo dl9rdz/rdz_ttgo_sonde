@@ -79,10 +79,12 @@ void Sonde::defaultConfig() {
 	Serial.printf("Board fingerprint is %d\n", fingerprint);
 
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
+	// addSonde should initialize everything anyway, so this should not strictly be necessary, but does no harm either
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	for(int i=0; i<(MAXSONDE+1); i++) {
 		sondeList[i].freq=400;
 		sondeList[i].type=STYPE_RS41;
+		clearAllData(&sondeList[i]);
 	}
 	config.touch_thresh = 70;
 	config.led_pout = -1;
