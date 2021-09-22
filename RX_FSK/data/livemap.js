@@ -162,10 +162,10 @@ headtxt = function(data,stat) {
 
   draw = function(data) {
     var stat;
-    //console.log(data);
+    console.log(data);
     if (data.id) {
       // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (lastframe != 0)) { //JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      if ((data.lat && data.lon && data.alt) && (lastframe != 0)) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);

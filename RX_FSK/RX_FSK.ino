@@ -546,24 +546,23 @@ const char *createLiveJson() {
   strcpy(ptr, "{");
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
-  sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\","
-          "\"lat\": %.6f, \"lon\": %.6f, \"alt\": %.0f, \"speed\": %.1f, \"dir\": %.0f, \"climb\": %.1f, \"launchsite\": \"%s\", \"res\": %d }",
-          s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type], s->d.lat, s->d.lon, s->d.alt, s->d.hs, s->d.dir, s->d.vs, s->launchsite, s->rxStat[0]);
+  sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\"",
+          s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type]);
+
+  if ( !isnan(s->d.lat) && !isnan(s->d.lon) )
+    sprintf(ptr + strlen(ptr), ", \"lat\": %.6f, \"lon\": %.6f", s->d.lat, s->d.lon);
+  if ( !isnan(s->d.alt) )
+    sprintf(ptr + strlen(ptr), ", \"alt\": %.0f", s->d.alt);
+  if ( !isnan(s->d.dir) )
+    sprintf(ptr + strlen(ptr), ", \"dir\": %.0f", s->d.dir);
+  if ( !isnan(s->d.vs) )
+    sprintf(ptr + strlen(ptr), ", \"climb\": %.1f", s->d.vs);
+  if ( !isnan(s->d.hs) )
+    sprintf(ptr + strlen(ptr), ", \"speed\": %.1f", s->d.hs);
+
+  sprintf(ptr + strlen(ptr), ", \"launchsite\": \"%s\", \"res\": %d }", s->launchsite, s->rxStat[0]);
 
   if (gpsPos.valid) {
-#if 0
-    long sat = nmea.getNumSatellites();
-    long speed = nmea.getSpeed();
-    long dir = nmea.getCourse();
-    long lat = nmea.getLatitude();
-    long lon = nmea.getLongitude();
-    long alt = -1;
-    /*bool b = */nmea.getAltitude(alt);
-    bool valid = nmea.isValid();
-    uint8_t hdop = nmea.getHDOP();
-    //if (valid) {
-    //  strcat(ptr, ",");
-#endif
     sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
     //}
   } else {
