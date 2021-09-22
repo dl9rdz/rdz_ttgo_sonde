@@ -209,6 +209,7 @@ void DFM::finddfname(uint8_t *b)
 	uint32_t i;
 	uint8_t ix;
 	uint16_t d;
+	SondeData *sd = &(sonde.si()->d);
 
 	st = b[0];    /* frame start byte */
 	ix = b[3];    /* hi/lo part of ser;  (LSB due to our bitsToBytes...) */
@@ -242,10 +243,10 @@ void DFM::finddfname(uint8_t *b)
 							chkid >>= 4;
 						}
 						if(i==6) {
-							snprintf(sonde.si()->id, 10, "D%x ", id);
-							sonde.si()->validID = true;
-							sonde.si()->subtype = (st>>4)&0x0F;
-							strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
+							snprintf(sd->id, 10, "D%x ", id);
+							sd->validID = true;
+							sd->subtype = (st>>4)&0x0F;
+							strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
 							return;
 						}
 						dfmstate.lastfrcnt = 0;
@@ -291,12 +292,12 @@ void DFM::finddfname(uint8_t *b)
 					dfmstate.idcnt1 = dfmstate.cnt[2*i+1];
 					dfmstate.nameregok = i;
 					// generate id.....
-					snprintf(sonde.si()->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
+					snprintf(sd->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
 					Serial.print("\nNEW AUTOID:");
-					Serial.println(sonde.si()->id);
-					sonde.si()->validID = true;
-					sonde.si()->subtype = (st>>4)&0x0F;
-					strncpy(sonde.si()->typestr, typestr[ (st>>4)&0x0F ], 5);
+					Serial.println(sd->id);
+					sd->validID = true;
+					sd->subtype = (st>>4)&0x0F;
+					strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
 				}
 				if(dfmstate.nameregok==i) {
 					Serial.print(" ID OK");
@@ -327,7 +328,7 @@ void DFM::decodeCFG(uint8_t *cfg)
 	// new ID
 	finddfname(cfg);
 	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
-	memcpy(sonde.si()->ser, sonde.si()->id+1, 9);
+	memcpy(sonde.si()->d.ser, sonde.si()->d.id+1, 9);
 }
 
 static int bitCount(int x) {
@@ -342,7 +343,8 @@ uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
 void DFM::decodeDAT(uint8_t *dat)
 {
-	SondeInfo *si = sonde.si();
+	// TODO: Here we need to work on a shadow copy of SondeData in order to prevent concurrent changes while using data in main loop
+	SondeData *si = &(sonde.si()->d);
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
 	// We can have a 8 and 0 subframe in a single frame. So do the reset only for dat>0
 	if( !(dat[6]==0 && dfmstate.lastdat==8) ) { // if we have DAT8 + DAT0, don't reset before returing the 8 frame...

@@ -258,8 +258,9 @@ static uint32_t dao91(double x)
 char b[201];
 //char raw[201];
 
-char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
+char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
 // float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym, const char *comm)
+	SondeData *s = &(si->d);
 	*b=0;
 	aprsstr_append(b, usercall);
 	aprsstr_append(b, ">");
@@ -299,9 +300,9 @@ char *aprs_senddata(SondeInfo *s, const char *usercall, const char *sym) {
 
 	strcat(b, "&");
 	char comm[100];
-        snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, s->freq, sondeTypeStr[s->type]);
+        snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, si->freq, sondeTypeStr[si->type]);
 	strcat(b, comm);
-	if( TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) ) {
+	if( TYPE_IS_DFM(si->type) || TYPE_IS_METEO(si->type) ) {
 		snprintf(comm, 100, " ser=%s", s->ser);
 		strcat(b, comm);
 	}

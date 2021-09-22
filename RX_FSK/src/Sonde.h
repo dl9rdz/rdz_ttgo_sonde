@@ -14,7 +14,13 @@ extern uint8_t debug;
 
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
-// RX_OK: header and data ok
+// RX_PARTIAL: header detected, some data ok, some with errors
+//	For RS41: Some blocks with CRC error, some blocks ok in a single frame
+//      For DFM: In +- 1s, some but not all DAT-subframes 1,2,3,4,5,6,7,8 received
+//      For RS92 ??? unclear
+//      For M10/M20 its always all or nothing, no PARTIAL data 
+//      For MP3H its alway all or nothing, no PARTIAL data
+// RX_OK: header and all data ok
 enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN, RX_NOPOS };
 #define RX_UPDATERSSI 0xFFFE
 
@@ -68,18 +74,13 @@ extern const char *manufacturer_string[NSondeTypes];
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
 
-typedef struct st_sondeinfo {
-        // receiver configuration
-	bool active;
-        SondeType type;
-	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
-        float freq;
+typedef struct st_sondedata {
         // decoded ID
-	char typestr[5];			// decoded type (use type if *typestr==0)
         char id[10];
 	char ser[12];
         bool validID;
-	char launchsite[18];		
+	char typestr[5];			// decoded type (use type if *typestr==0)
+	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
         // decoded position
         float lat;			// latitude
         float lon;			// longitude
@@ -94,6 +95,25 @@ typedef struct st_sondeinfo {
 	uint32_t frame;
 	uint32_t vframe;		// vframe==frame if frame is unique/continous, otherweise vframe is derived from gps time
 	bool validTime;
+	// shut down timers, currently only for RS41; -1=disabled
+	uint16_t launchKT, burstKT, countKT;
+	uint16_t crefKT; // frame number in which countKT was last sent
+	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
+	float temperature = -300.0; // platinum resistor temperature
+	float tempRHSensor = -300.0; // temperature of relative humidity sensor
+	float relativeHumidity = -1.0; // relative humidity
+	float batteryVoltage = -1;
+} SondeData;
+
+typedef struct st_sondeinfo {
+	// First part: static configuration, not decoded data. 
+        // receiver configuration
+	bool active;
+        SondeType type;
+        float freq;
+	char launchsite[18];		
+
+	// Second part: internal decoder state. no need to clear this on new sonde
         // RSSI from receiver
         int rssi;			// signal strength
 	int32_t afc;			// afc correction value
@@ -103,15 +123,12 @@ typedef struct st_sondeinfo {
 	uint32_t norxStart;		// millis() timestamp of continuous no rx start
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
-	// shut down timers, currently only for RS41; -1=disabled
-	uint16_t launchKT, burstKT, countKT;
-	uint16_t crefKT; // frame number in which countKT was last sent
-	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
+
+	// Third part: decoded data. Clear if reception of a new sonde has started
+	SondeData d;
+
+	// Decoder-specific data, dynamically allocated (for RS41: calibration data)
         void *extra;
-	float temperature = -300.0; // platinum resistor temperature
-	float tempRHSensor = -300.0; // temperature of relative humidity sensor
-	float relativeHumidity = -1.0; // relative humidity
-	float batteryVoltage = -1;
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 
@@ -319,6 +336,7 @@ public:
 	uint16_t waitRXcomplete();
 
 	SondeInfo *si();
+	void clearAllData(SondeInfo *si);
 
 	uint8_t timeoutEvent(SondeInfo *si);
 	uint8_t updateState(uint8_t event);
