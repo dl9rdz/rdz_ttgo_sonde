@@ -3527,15 +3527,24 @@ void sondehub_reply_handler(WiFiClient *client) {
   else {
     // any reply here belongs to normal telemetry upload, lets just print it.
     // and wait for a valid HTTP response
+    int cnt = 0;
     while(client->available() > 0) {
       // data is available from remote server, process it...
-      int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
-      rs_msg[cnt] = 0;
-      Serial.println(rs_msg);
-      // If something that looks like a valid HTTP response is received, we are ready to send the next data item
-      if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
-        shState = SH_CONN_IDLE;
+      // readBytesUntil may wait for up to 1 second if enough data is not available...
+      // int cnt = client->readBytesUntil('\n', rs_msg, MSG_SIZE - 1);
+      int c = client->read();
+      if(c<0) break; // should never happen in available() returned >0 right before....
+      rs_msg[cnt++] = c;
+      if(c=='\n') {
+	 rs_msg[cnt] = 0;
+	 Serial.println(rs_msg);
+         // If something that looks like a valid HTTP response is received, we are ready to send the next data item
+         if (shState == SH_CONN_WAITACK && cnt > 11 && strncmp(rs_msg, "HTTP/1", 6) == 0) {
+           shState = SH_CONN_IDLE;
+         }
+         cnt=0;
       }
+      if(cnt>=MSG_SIZE-1) { cnt=0; }
     }
   }
   // send import requests if needed
