@@ -298,7 +298,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
 	i=strlen(b);
 	snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(s->lat), 33+dao91(s->lon));
 
-	strcat(b, "&");
+	// ??? strcat(b, "&");
 	char comm[100];
         snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, si->freq, sondeTypeStr[si->type]);
 	strcat(b, comm);
