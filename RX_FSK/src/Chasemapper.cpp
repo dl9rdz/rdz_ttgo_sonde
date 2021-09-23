@@ -13,8 +13,8 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 	}
 	sprintf(buf, "{ \"type\": \"PAYLOAD_SUMMARY\","
 		"\"callsign\": \"%s\","
-		"\"latitude\": %g,"
-		"\"longitude\": %g,"
+		"\"latitude\": %.5f,"
+		"\"longitude\": %.5f,"
 		"\"altitude\": %d,"
 		"\"speed\": %d,"
 		"\"heading\": %d,"
@@ -31,7 +31,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		sondeTypeStrSH[realtype],
 		si->freq);
 	if( !isnan(si->d.temperature) ) {
-		sprintf(buf + strlen(buf), ", \"temp\": %g", si->d.temperature);
+		sprintf(buf + strlen(buf), ", \"temp\": %.1f", si->d.temperature);
 	}
 	strcat(buf, "}");
 	Serial.printf("Sending chasemapper json: %s\n", buf);
