@@ -554,6 +554,36 @@ static float _RS41_waterVaporSaturationPressure (float Tcelsius)
     return p / 100.0f;
 }
 
+#define PM(x) calibration->value.matrixP[x]
+// CALIB_P: matrixP (frames 0x25..0x2A) and type (frame 0x21)
+#define CALIB_P ((0x3Fll<<0x25)|(1ll<<0x21))
+float GetRAP( uint32_t m, uint32_t m1, uint32_t m2, int16_t ptraw) {
+   struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
+   float pt = (float)ptraw*0.01;
+   float pw[6];
+   pw[0] = PM(0) + pt*PM(7) + pt*pt*PM(11) + pt*pt*pt*PM(15);
+   pw[1] = PM(1) + pt*PM(8) + pt*pt*PM(12) + pt*pt*pt*PM(16);
+   pw[2] = PM(2) + pt*PM(9) + pt*pt*PM(13) + pt*pt*pt*PM(17);
+   pw[3] = PM(3) + pt*PM(10)+ pt*pt*PM(14);
+   pw[4] = PM(4);
+   pw[5] = PM(5);
+   float f = (float)m; //meas[9];
+   float f1 = (float)m1; //meas[10];
+   float f2 = (float)m2;  //meas[11];
+   float r = f-f1;
+   if(r!=0.0) {
+      r = (f2-f1) * PM(6) / r;
+      float xx = 1.0;
+      float p = 0.0;
+      for(int i=0; i<=5; i++) {
+         p += pw[i] * xx;
+         xx = xx * r;
+      }
+      return p;
+   }
+   return NAN;
+}
+
 // taken from https://github.com/einergehtnochrein/ra-firmware
 float GetRATemp( uint32_t measuredCurrent, uint32_t refMin, uint32_t refMax, float calT, float taylorT[3], float polyT[6] ) {
    struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
@@ -751,11 +781,10 @@ int RS41::decode41(byte *data, int maxlen)
 			   uint32_t tempHumiMain = getint24(data, 560, p+18);
 			   uint32_t tempHumiRef1 = getint24(data, 560, p+21);
 			   uint32_t tempHumiRef2 = getint24(data, 560, p+24);
-	    #if 0
 			   uint32_t pressureMain = getint24(data, 560, p+27);
 			   uint32_t pressureRef1 = getint24(data, 560, p+30);
 			   uint32_t pressureRef2 = getint24(data, 560, p+33);
-	    #endif
+			   int16_t  ptraw = getint16(data, 560, p+38);
             #if 0
                Serial.printf( "External temp: tempMeasMain = %ld, tempMeasRef1 = %ld, tempMeasRef2 = %ld\n", tempMeasMain, tempMeasRef1, tempMeasRef2 );
                Serial.printf( "Rel  Humidity: humidityMain = %ld, humidityRef1 = %ld, humidityRef2 = %ld\n", humidityMain, humidityRef1, humidityRef2 );
@@ -766,6 +795,13 @@ int RS41::decode41(byte *data, int maxlen)
 	        // check for bits 3 through 20 set and 37 through 46
 	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
 	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;
+
+		 bool validPressure = calibration!=NULL && (calibration->valid & CALIB_P)==CALIB_P && calibration->value.names.variant[7]=='P';
+
+	    if ( validPressure ) {
+	       si->pressure = GetRAP( pressureMain, pressureRef1, pressureRef2, ptraw );
+	       Serial.printf("Pressure sensor = %f\n", si->pressure);
+	    }
 
             if ( validExternalTemperature ) {
                si->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
