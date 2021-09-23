@@ -2,3 +2,4 @@ fix temp/hum empty check in sync with recent updates
 Enhanced network handling for sondehub
 don't send NaN in LiveMap JSON
 chasemapper position accuracy fixed
+RS41 P to sondehub
