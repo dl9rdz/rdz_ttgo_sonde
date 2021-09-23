@@ -24,7 +24,7 @@ for details on supported boards, and additional setup instructions.
 Manufacturer | Model | Position | Temperature | Humidity | Pressure
 -------------|-------|----------|-------------|----------|----------
 Vaisala | RS92-SGP/NGP | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
-Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :x:
+Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:
 Graw | DFM06/09/17 | :heavy_check_mark: | :x: | :x: | :x:
 Meteomodem | M10 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteomodem | M20 | :heavy_check_mark: | :x: | :x: | Not Sent
