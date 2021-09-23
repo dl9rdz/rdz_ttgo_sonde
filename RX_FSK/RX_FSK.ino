@@ -1,4 +1,3 @@
-
 #include "features.h"
 #include "version.h"
 
@@ -90,6 +89,8 @@ WiFiClient tncclient;
 // JSON over TCP for communicating with my kotlin andoird test stuff
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
+// APRS over TCP for radiosondy.info etc
+AsyncClient tcpclient;
 
 #if FEATURE_MQTT
 unsigned long lastMqttUptime = 0;
@@ -2510,7 +2511,7 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
-      const char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
+      char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -2526,6 +2527,22 @@ void loopDecoder() {
         int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
+      }
+      if(sonde.config.tcpfeed.active) {
+	  static unsigned long lasttcp = 0;
+	  static bool loginok = false;
+	  if( tcpclient.disconnected()) {
+	      tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
+	  }
+	  else if( tcpclient.connected() ) {
+	      unsigned long now = millis();
+	      if( (now-lasttcp) > sonde.config.tcpfeed.highrate*1000L ) {
+		  strcat(str,"\r\n");
+		  Serial.print(str);
+		  tcpclient.write(str, strlen(str));
+		  lasttcp = now;
+	      }
+	  }
       }
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
@@ -2759,6 +2776,15 @@ void enableNetwork(bool enable) {
     MDNS.end();
     connected = false;
   }
+  tcpclient.onConnect([](void *arg, AsyncClient *s) {
+    Serial.write("APRS: TCP connected\n");
+    char buf[128];
+    snprintf(buf, 128, "user %s pass %d vers %s %s\r\n", sonde.config.call, sonde.config.passcode, version_name, version_id);
+    s->write(buf, strlen(buf));
+  });
+  tcpclient.onData([](void *arg, AsyncClient *c, void *data, size_t len) {
+    Serial.write((const uint8_t *)data, len);
+  });
   Serial.println("enableNetwork done");
 }
 
