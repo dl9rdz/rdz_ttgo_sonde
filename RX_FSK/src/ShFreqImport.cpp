@@ -90,6 +90,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
 	return;
     } // no more free slots
 
+    sonde.clearAllData(&sonde.sondeList[ppos]);
     sonde.sondeList[ppos].active = 1;
     sonde.sondeList[ppos].freq = freq;
     sonde.sondeList[ppos].type = (SondeType)stype;

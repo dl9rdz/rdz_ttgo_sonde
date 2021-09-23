@@ -676,7 +676,7 @@ void Sonde::clearAllData(SondeInfo *si) {
 	memset(&(si->d), 0, sizeof(SondeData));
 	// set floats to NaN
 	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
-	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.batteryVoltage = NAN;
+	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
 }
 
 void Sonde::updateDisplayPos() {
