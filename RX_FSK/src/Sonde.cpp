@@ -273,6 +273,7 @@ void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
 	if(config.sondehub.fimaxdist>500) config.sondehub.fimaxdist = 500;
+	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
 	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
 	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
 }
@@ -675,7 +676,7 @@ void Sonde::clearAllData(SondeInfo *si) {
 	memset(&(si->d), 0, sizeof(SondeData));
 	// set floats to NaN
 	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
-	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.batteryVoltage = NAN;
+	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
 }
 
 void Sonde::updateDisplayPos() {
