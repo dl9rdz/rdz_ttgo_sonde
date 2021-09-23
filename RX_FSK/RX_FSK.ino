@@ -3749,6 +3749,12 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
     w += strlen(w);
   }
 
+  // Only send pressure if provided
+  if (!isnan(s->d.pressure)) {
+    sprintf(w, "\"pressure\": %.1f,", s->d.pressure);
+    w += strlen(w);
+  }
+
   // Only send burst timer if RS41 and fresh within the last 51s
   if ((realtype == STYPE_RS41) && (s->d.crefKT > 0) && (s->d.vframe - s->d.crefKT < 51)) {
     sprintf(w, "\"burst_timer\": %d,", (int)s->d.countKT);
