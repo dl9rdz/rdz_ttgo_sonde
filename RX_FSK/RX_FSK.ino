@@ -3751,7 +3751,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   // Only send pressure if provided
   if (!isnan(s->d.pressure)) {
-    sprintf(w, "\"pressure\": %.1f,", s->d.pressure);
+    sprintf(w, "\"pressure\": %.2f,", s->d.pressure);
     w += strlen(w);
   }
 
