@@ -99,9 +99,10 @@ typedef struct st_sondedata {
 	uint16_t launchKT, burstKT, countKT;
 	uint16_t crefKT; // frame number in which countKT was last sent
 	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
-	float temperature = -300.0; // platinum resistor temperature
-	float tempRHSensor = -300.0; // temperature of relative humidity sensor
-	float relativeHumidity = -1.0; // relative humidity
+	float temperature; // platinum resistor temperature
+	float tempRHSensor; // temperature of relative humidity sensor
+	float relativeHumidity; // relative humidity
+	float pressure;
 	float batteryVoltage = -1;
 } SondeData;
 
