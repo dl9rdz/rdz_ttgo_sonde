@@ -310,7 +310,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
 	if( !isnan(s->relativeHumidity) ) {
 		sprintf(b+strlen(b), "h=%.1f%% ", s->relativeHumidity);
 	}
-	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, sondeTypeStr[si->type]);
+	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, sondeTypeStr[sonde.realType(si)]);
 	if( s->countKT != 0xffff && s->vframe - s->crefKT < 51 ) {
 		sprintf(b+strlen(b), "TxOff=%dh%dm ", s->countKT/3600, (s->countKT-s->countKT/3600*3600)/60);
 	}

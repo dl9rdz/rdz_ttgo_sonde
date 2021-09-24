@@ -328,6 +328,25 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		if(dir<0) dir+=360;
 		si->dir = dir;
 		si->validPos = 0x3f;
+		// m10 temp
+		const float p0 = 1.07303516e-03, p1 = 2.41296733e-04, p2 = 2.26744154e-06, p3 = 6.52855181e-08;
+  		const float Rs[3] = { 12.1e3 ,  36.5e3 ,  475.0e3 }; 
+  		const float Rp[3] = { 1e20   , 330.0e3 , 2000.0e3 };
+		uint8_t sct = data[62];
+		float rt = getint16(data+63) & (0xFFF);
+		float T = NAN;
+		if(rt!=0 && sct<3) {
+			rt = (4095-rt)/rt - (Rs[sct]/Rp[sct]);
+			if(rt>0) {
+				rt = Rs[sct] / rt;
+				if(rt>0) {
+					rt = log(rt);
+					rt = 1/( p0 + p1*rt + p2*rt*rt + p3*rt*rt*rt ) - 273.15;
+					if(rt>-99 && rt<50) { T = rt; }
+				}
+			}
+		}
+		si->temperature = T;
 
  		uint32_t gpstime = getint32(data+10);
                 uint16_t gpsweek = getint16(data+32);
