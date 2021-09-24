@@ -44,7 +44,7 @@
 # S scan list entry info:  l/empty: launch site name, #=entry nr, t=total entries, a=active entries, /: #/t  
 # K RS41 kill timer values: Kl launch timer, Kb burst timer, Kc kill countdown
 #   format: K_4: h:mm k_6: h:mm:ss k_s: sssss,  nothing shown for other sonde
-# Mx telemetry value x (t temp p preassure h hyg) [not yet implemented, maybe some day in future]
+# Mx telemetry value x (t temp p preassure h hyg b batt) 
 # Gx  GPS-related data
 #     raw data from GPS:  GA, GO, GH, GC: LAtitude, lOngitude, Altutide(Height), Course over ground
 #     relative to sonde:  GD, GI, GB: Distance, dIrection (absolute), relative Bearing
@@ -571,3 +571,32 @@ color=639AFF
 color=FF0000,000000
 12.7,0.4=Q4
 12.7,18=bVV
+
+#################
+@TelemetryData
+scale=22,13
+timer=-1,-1,N
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,0
+fonts=5,6
+color=FFD700
+0,0,10.5=Is
+color=0000FF
+0,11,-5.5=f
+1,0,4=t
+1,10.5,-6=c
+color=00ff00
+2,0,7=L
+3,0,7=O
+color=FFA500
+2,9.5,-7=a
+2.8,9.5,-7=vm/s
+color=AA5522
+3.6,9.5,-7=hkkm/h
+color=FFFFFF
+4.4,0=xTelemetry Data:
+5.3,0=Mt C
+5.3,9=Mh%rH
+6.5,0=MphPa
+6.5,11=MbV

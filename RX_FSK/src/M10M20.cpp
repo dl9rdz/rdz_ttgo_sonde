@@ -333,7 +333,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
   		const float Rs[3] = { 12.1e3 ,  36.5e3 ,  475.0e3 }; 
   		const float Rp[3] = { 1e20   , 330.0e3 , 2000.0e3 };
 		uint8_t sct = data[62];
-		float rt = getint16(data+63) & (0xFFF);
+		float rt = getint16_r(data+63) & (0xFFF);
 		float T = NAN;
 		if(rt!=0 && sct<3) {
 			rt = (4095-rt)/rt - (Rs[sct]/Rp[sct]);

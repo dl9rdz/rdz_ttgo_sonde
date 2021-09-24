@@ -26,7 +26,7 @@ Manufacturer | Model | Position | Temperature | Humidity | Pressure
 Vaisala | RS92-SGP/NGP | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
 Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark:
 Graw | DFM06/09/17 | :heavy_check_mark: | :x: | :x: | :x:
-Meteomodem | M10 | :heavy_check_mark: | :x: | :x: | Not Sent
+Meteomodem | M10 | :heavy_check_mark: | :heavy_checkmark: | :x: | Not Sent
 Meteomodem | M20 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteo-Radiy | MP3-H1 (MRZ-H1) | :heavy_check_mark: | :x: | :x: | :x: 
 

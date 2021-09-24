@@ -809,6 +809,10 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->extra = strdup(text+1);
 		//Serial.printf("parsing 'f' entry: extra is '%s'\n", de->extra);
 		break;
+	case 'm':
+		de->func = disp.drawTelemetry;
+		de->extra = strdup(text+1);
+		break;
 	case 'n':
 		// IP address / small always uses tiny font on TFT for backward compatibility
 		// Large font can be used arbitrarily
@@ -1283,6 +1287,45 @@ void Display::drawSite(DispEntry *de) {
 	drawString(de, buf);
 }
 void Display::drawTelemetry(DispEntry *de) {
+	rdis->setFont(de->fmt);
+	float value=0;
+	memset(buf, ' ', 16);
+	switch(de->extra[0]) {
+	case 't':
+		value = sonde.si()->d.temperature;
+		if(!isnan(value)) {
+			sprintf(buf, "%5.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
+		break;
+	case 'p':
+		value = sonde.si()->d.pressure;
+		if(!isnan(value)) {
+			if(value>=1000) sprintf(buf, "%6.1f", value);
+			else sprintf(buf, "%6.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[6+strlen(de->extra+1)] = 0;
+		break;
+	case 'h':
+		value = sonde.si()->d.relativeHumidity;
+		if(!isnan(value)) {
+			sprintf(buf, "%4.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[4+strlen(de->extra+1)] = 0;
+		break;
+	case 'b':
+		value = sonde.si()->d.batteryVoltage;
+		if(!isnan(value)) {
+			snprintf(buf, 5, "%4.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
+		break;
+	}
+	drawString(de,buf);
 }
 
 void Display::drawKilltimer(DispEntry *de) {
