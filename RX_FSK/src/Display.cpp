@@ -1289,26 +1289,40 @@ void Display::drawSite(DispEntry *de) {
 void Display::drawTelemetry(DispEntry *de) {
 	rdis->setFont(de->fmt);
 	float value=0;
+	memset(buf, ' ', 16);
 	switch(de->extra[0]) {
 	case 't':
 		value = sonde.si()->d.temperature;
-		if(value!=0xffff) snprintf(buf, 8, "%3.2f", value);
-		else strcpy(buf, "       ");
+		if(!isnan(value)) {
+			sprintf(buf, "%5.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
 		break;
 	case 'p':
 		value = sonde.si()->d.pressure;
-		if(value!=0xffff) snprintf(buf, 7, "%4.2f", value);
-		else strcpy(buf, "      ");
+		if(!isnan(value)) {
+			if(value>=1000) sprintf(buf, "%6.1f", value);
+			else sprintf(buf, "%6.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[6+strlen(de->extra+1)] = 0;
 		break;
 	case 'h':
 		value = sonde.si()->d.relativeHumidity;
-		if(value!=0xffff) snprintf(buf, 5, "%3.1f", value);
-		else strcpy(buf, "     ");
+		if(!isnan(value)) {
+			sprintf(buf, "%4.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[4+strlen(de->extra+1)] = 0;
 		break;
 	case 'b':
 		value = sonde.si()->d.batteryVoltage;
-		if(value!=0xffff) snprintf(buf, 5, "%1.2f", value);
-		else strcpy(buf, "    ");
+		if(!isnan(value)) {
+			snprintf(buf, 5, "%4.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
 		break;
 	}
 	drawString(de,buf);
