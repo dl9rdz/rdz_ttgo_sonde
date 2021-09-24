@@ -2585,6 +2585,14 @@ void loopDecoder() {
     } else {
       *gps = 0;
     }
+    //maintain backwords compatibility
+    float lat = isnan(s->d.lat)?0:s->d.lat;
+    float lon = isnan(s->d.lon)?0:s->d.lon;
+    float alt = isnan(s->d.alt)?-1:s->d.alt;
+    float vs = isnan(s->d.vs)?0:s->d.vs;
+    float hs = isnan(s->d.hs)?0:s->d.hs;
+    float dir = isnan(s->d.dir)?0:s->d.dir;
+
     //
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
@@ -2622,12 +2630,12 @@ void loopDecoder() {
                        s->d.ser,
                        (int)s->d.validID,
                        s->launchsite,
-                       s->d.lat,
-                       s->d.lon,
-                       s->d.alt,
-                       s->d.vs,
-                       s->d.hs,
-                       s->d.dir,
+                       lat,
+                       lon,
+                       alt,
+                       vs,
+                       hs,
+                       dir,
                        s->d.sats,
                        s->d.validPos,
                        s->d.time,
