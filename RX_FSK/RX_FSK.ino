@@ -503,7 +503,7 @@ void addSondeStatus(char *ptr, int i)
   struct tm ts;
   SondeInfo *s = &sonde.sondeList[i];
   strcat(ptr, "<table>");
-  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[s->type],
+  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[sonde.realType(s)],
           s->d.validID ? s->d.id : "<?""?>");
   if (s->d.validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H) ) {
     sprintf(ptr + strlen(ptr), " (ser: %s)", s->d.ser);
@@ -548,7 +548,7 @@ const char *createLiveJson() {
 
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\"",
-          s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[s->type]);
+          s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[sonde.realType(s)]);
 
   if ( !isnan(s->d.lat) && !isnan(s->d.lon) )
     sprintf(ptr + strlen(ptr), ", \"lat\": %.6f, \"lon\": %.6f", s->d.lat, s->d.lon);
@@ -1309,7 +1309,7 @@ void addSondeStatusKML(char *ptr, int i)
   sprintf(ptr + strlen(ptr), "<Placemark id=\"%s\"><name>%s</name><Point><altitudeMode>absolute</altitudeMode><coordinates>%.6f,%.6f,%.0f</coordinates></Point><description>%3.3f MHz, Type: %s, h=%.0fm</description></Placemark>",
           s->d.id, s->d.id,
           s->d.lon, s->d.lat, s->d.alt,
-          s->freq, sondeTypeStr[s->type], s->d.alt);
+          s->freq, sondeTypeStr[sonde.realType(s)], s->d.alt);
 }
 
 const char *createKMLDynamic() {
@@ -2528,21 +2528,20 @@ void loopDecoder() {
         Serial.print("sending: "); Serial.println(raw);
         tncclient.write(raw, rawlen);
       }
-      if(sonde.config.tcpfeed.active) {
-	  static unsigned long lasttcp = 0;
-	  static bool loginok = false;
-	  if( tcpclient.disconnected()) {
-	      tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
-	  }
-	  else if( tcpclient.connected() ) {
-	      unsigned long now = millis();
-	      if( (now-lasttcp) > sonde.config.tcpfeed.highrate*1000L ) {
-		  strcat(str,"\r\n");
-		  Serial.print(str);
-		  tcpclient.write(str, strlen(str));
-		  lasttcp = now;
-	      }
-	  }
+      if (sonde.config.tcpfeed.active) {
+        static unsigned long lasttcp = 0;
+        if ( tcpclient.disconnected()) {
+          tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
+        }
+        else if ( tcpclient.connected() ) {
+          unsigned long now = millis();
+          if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
+            strcat(str, "\r\n");
+            Serial.print(str);
+            tcpclient.write(str, strlen(str));
+            lasttcp = now;
+          }
+        }
       }
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
@@ -2574,7 +2573,7 @@ void loopDecoder() {
     char raw[1024];
     char gps[128];
     const char *typestr = s->d.typestr;
-    if (*typestr == 0) typestr = sondeTypeStr[s->type];
+    if (*typestr == 0) typestr = sondeTypeStr[sonde.realType(s)];
     // TODO: only if GPS is valid...
     if (gpsPos.valid) {
       snprintf(gps, 128, ", \"gpslat\": %f,"
@@ -2586,6 +2585,14 @@ void loopDecoder() {
     } else {
       *gps = 0;
     }
+    //maintain backwords compatibility
+    float lat = isnan(s->d.lat)?0:s->d.lat;
+    float lon = isnan(s->d.lon)?0:s->d.lon;
+    float alt = isnan(s->d.alt)?-1:s->d.alt;
+    float vs = isnan(s->d.vs)?0:s->d.vs;
+    float hs = isnan(s->d.hs)?0:s->d.hs;
+    float dir = isnan(s->d.dir)?0:s->d.dir;
+
     //
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
@@ -2623,12 +2630,12 @@ void loopDecoder() {
                        s->d.ser,
                        (int)s->d.validID,
                        s->launchsite,
-                       s->d.lat,
-                       s->d.lon,
-                       s->d.alt,
-                       s->d.vs,
-                       s->d.hs,
-                       s->d.dir,
+                       lat,
+                       lon,
+                       alt,
+                       vs,
+                       hs,
+                       dir,
                        s->d.sats,
                        s->d.validPos,
                        s->d.time,
@@ -2776,13 +2783,13 @@ void enableNetwork(bool enable) {
     MDNS.end();
     connected = false;
   }
-  tcpclient.onConnect([](void *arg, AsyncClient *s) {
+  tcpclient.onConnect([](void *arg, AsyncClient * s) {
     Serial.write("APRS: TCP connected\n");
     char buf[128];
     snprintf(buf, 128, "user %s pass %d vers %s %s\r\n", sonde.config.call, sonde.config.passcode, version_name, version_id);
     s->write(buf, strlen(buf));
   });
-  tcpclient.onData([](void *arg, AsyncClient *c, void *data, size_t len) {
+  tcpclient.onData([](void *arg, AsyncClient * c, void *data, size_t len) {
     Serial.write((const uint8_t *)data, len);
   });
   Serial.println("enableNetwork done");
@@ -3647,11 +3654,8 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
-  uint8_t realtype = s->type;
   // config setting M10 and M20 will both decode both types, so use the real type that was decoded
-  if (TYPE_IS_METEO(realtype)) {
-    realtype = s->d.subtype == 1 ? STYPE_M10 : STYPE_M20;
-  }
+  uint8_t realtype = sonde.realType(s);
 
   // For DFM, s->d.time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
   // For all others, sec should always be 0 and time the exact time in seconds

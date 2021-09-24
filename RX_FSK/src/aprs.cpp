@@ -17,6 +17,7 @@
 #include <inttypes.h>
 #include "aprs.h"
 
+extern const char *version_name;
 #if 0
 int openudp(const char *ip, int port, struct sockaddr_in *si) {
 	int fd;
@@ -255,11 +256,10 @@ static uint32_t dao91(double x)
 } /* end dao91() */
 
 
-char b[201];
+char b[251];
 //char raw[201];
 
 char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
-// float lat, float lon, float alt, float speed, float dir, float climb, const char *type, const char *objname, const char *usercall, const char *sym, const char *comm)
 	SondeData *s = &(si->d);
 	*b=0;
 	aprsstr_append(b, usercall);
@@ -288,7 +288,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
 	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, s->lon<0?'W':'E', sym[1]);
 	if(s->hs>0.5) {
 		i=strlen(b);
-		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(s->dir+1.5), realcard(s->hs*1.0/KNOTS+0.5));
+		snprintf(b+i, APRS_MAXLEN-i, "%03d/%03d", realcard(s->dir+1.5), realcard(s->hs*3.6/KNOTS+0.5));
 	}
 	if(s->alt>0.5) {
 		i=strlen(b);
@@ -299,13 +299,25 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
 	snprintf(b+i, APRS_MAXLEN-i, "!w%c%c!", 33+dao91(s->lat), 33+dao91(s->lon));
 
 	// ??? strcat(b, "&");
-	char comm[100];
-        snprintf(comm, 100, "Clb=%.1fm/s %.3fMHz Type=%s", s->vs, si->freq, sondeTypeStr[si->type]);
-	strcat(b, comm);
-	if( TYPE_IS_DFM(si->type) || TYPE_IS_METEO(si->type) ) {
-		snprintf(comm, 100, " ser=%s", s->ser);
-		strcat(b, comm);
+	i=strlen(b);
+        i += snprintf(b+i, APRS_MAXLEN-i, "Clb=%.1fm/s ", s->vs );
+	if( !isnan(s->pressure) ) {
+		sprintf(b+strlen(b), "p=%.1fhPa ", s->pressure);
 	}
+	if( !isnan(s->temperature) ) {
+		sprintf(b+strlen(b), "t=%.1fC ", s->temperature);
+	}
+	if( !isnan(s->relativeHumidity) ) {
+		sprintf(b+strlen(b), "h=%.1f%% ", s->relativeHumidity);
+	}
+	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, sondeTypeStr[sonde.realType(si)]);
+	if( s->countKT != 0xffff && s->vframe - s->crefKT < 51 ) {
+		sprintf(b+strlen(b), "TxOff=%dh%dm ", s->countKT/3600, (s->countKT-s->countKT/3600*3600)/60);
+	}
+	if( TYPE_IS_DFM(si->type) || TYPE_IS_METEO(si->type) ) {
+		sprintf(b + strlen(b), "ser=%s ", s->ser);
+	}
+	sprintf(b + strlen(b), "%s", version_name);
 	return b;
 }
 
