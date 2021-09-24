@@ -2530,7 +2530,6 @@ void loopDecoder() {
       }
       if(sonde.config.tcpfeed.active) {
 	  static unsigned long lasttcp = 0;
-	  static bool loginok = false;
 	  if( tcpclient.disconnected()) {
 	      tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
 	  }
