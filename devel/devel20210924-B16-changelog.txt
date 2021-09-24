@@ -1,1 +1,2 @@
 meteo in aprs frames
+use correct M10/M20 type everywhere
