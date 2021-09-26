@@ -613,7 +613,7 @@ float GetRATemp( uint32_t measuredCurrent, uint32_t refMin, uint32_t refMax, flo
 }
 
 // taken from https://github.com/einergehtnochrein/ra-firmware
-float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, float sensorTemp, float externalTemp ) {
+float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, float sensorTemp, float externalTemp, float pressure ) {
    struct subframeBuffer *calibration = (struct subframeBuffer *)sonde.si()->extra;
    float current = float( humCurrent - humMin) / float( humMax - humMin );
    /* Compute absolute capacitance from the known references */
@@ -624,12 +624,15 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
    float Cp = ( C / calibration->value.calibU[0] - 1.0f) * calibration->value.calibU[1];
 
    /* Compensation for low temperature and pressure at altitude */
-   float estimatedPressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->d.alt );
+   if(isnan(pressure)) {
+      // if no pressure is available (non-SGP), estimate based on altitude
+      pressure = 1013.25f * expf(-1.18575919e-4f * sonde.si()->d.alt );
+   }
 
    float Tp = (sensorTemp - 20.0f) / 180.0f;
    float sum = 0;
    float powc = 1.0f;
-   float p = estimatedPressure / 1000.0f;
+   float p = pressure / 1000.0f;
    for ( int i = 0; i < 3; i++) {
       float l = 0;
       float powt = 1.0f;
@@ -792,10 +795,13 @@ int RS41::decode41(byte *data, int maxlen)
                Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
             #endif
    	    struct subframeBuffer *calibration = (struct subframeBuffer *)(sonde.si()->extra);
-	        // check for bits 3 through 20 set and 37 through 46
+		 // temp: 0xF8==bits 3..7 : we need refResistorlow/high, taylorT, polyT
 	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
-	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;
 
+		 // humidity:  bits 3..20 and 37..46.  and bit 33 (variant)
+	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE2001FFFF8) == 0x7FE2001FFFF8;
+
+		 // pressure:  bits 33 and 37..42 (variant; x25..x2a: matrixP)    /// CALIB_P is    0x7E200000000)
 		 bool validPressure = calibration!=NULL && (calibration->valid & CALIB_P)==CALIB_P && calibration->value.names.variant[7]=='P';
 
 	    if ( validPressure ) {
@@ -813,7 +819,7 @@ int RS41::decode41(byte *data, int maxlen)
                si->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
                Serial.printf("Humidity Sensor temperature = %f\n", si->tempRHSensor );
-               si->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, si->tempRHSensor, si->temperature );
+               si->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, si->tempRHSensor, si->temperature, si->pressure );
                Serial.printf("Relative humidity = %f\n", si->relativeHumidity );
             }
          }
