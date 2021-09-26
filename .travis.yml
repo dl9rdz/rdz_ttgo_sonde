@@ -52,8 +52,12 @@ install:
   - arduino --install-library "GFX Library for Arduino"
 script:
   - arduino --board esp32:esp32:t-beam --verify $PWD/RX_FSK/RX_FSK.ino
-  - find build
-  - find /home/travis/.arduino15/packages/esp32/hardware/esp32/
+  - ESPPATH=`arduino --get-pref runtime.tools.xtensa-esp32-elf-gcc.path`
+  - $ESPPATH/bin/xtensa-esp32-elf-c++ -c RX_FSK/src/fonts/fonts.cpp -o /tmp/fonts.o
+  - $ESPPATH/bin/xtensa-esp32-elf-ld -T fontlink.ld --oformat=binary -o /tmp/fonts.bin /tmp/fonts.o
+  - ls -la /tmp/fonts.bin
+  #- find build
+  #- find /home/travis/.arduino15/packages/esp32/hardware/esp32/
   - $PWD/scripts/makeimage.py $ESP32TOOLS $PWD/build/RX_FSK.ino.bin $PWD/RX_FSK/data $PWD/out.bin
 after_success:
   - .travis/push.sh  

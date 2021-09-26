@@ -1742,6 +1742,21 @@ void initGPS() {
     if (testfile && !testfile.isDirectory()) {
       testfile.close();
       Serial.println("GPS resetting baud to 9k6...");
+ /* TODO: debug:
+  *  Sometimes I have seen the Serial2.begin to cause a reset
+  *  Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
+  * Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
+  * #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+  * #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
+  * #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
+  * #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
+  * #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+  * #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+  * #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+  * #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+  * #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+  * #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
+  */
       Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
       delay(200);
