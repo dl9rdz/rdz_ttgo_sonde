@@ -10,3 +10,16 @@
 
 #define FEATURE_RS92 1
 
+/* Most recent version support fonts in a dedicated flash parition "fonts".
+ * This is incomabtible (in terms of code and flash layout) to previous versions.
+ * If LEGACY_FONTS_IN_CODEBIN is sets, fonts are also included in the bin image.
+ * This maintains compatibility for OTA with previous versions (in which case the
+ * bin image fonts will be used as before).
+ * The code automatically uses fonts in flash partition if that exists, otherwise
+ * fonts in code.
+ * The flash partition fonts support latin15 codeset (instead of 7bit ascii).
+ * Also, it is easier to use different fonts :) just flash the font partition w/ something else...
+ * This option will likely be removed post-master1.0
+ */
+#define LEGACY_FONTS_IN_CODEBIN 1
+
