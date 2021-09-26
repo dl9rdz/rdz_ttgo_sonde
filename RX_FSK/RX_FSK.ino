@@ -3518,9 +3518,16 @@ void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
   Serial.println(data);
   Serial.println("Waiting for response");
   // TODO: better do this asyncrhonously
-  String response = client->readString();
-  Serial.println(response);
-  Serial.println("Response done...");
+  // At least, do this safely. See Notes-on-Using-WiFiClient.txt for details
+  // If any of the client->print failed before (remote end closed connection),
+  // then calling client->read will cause a LoadProhibited exception
+  if(client->connected()) {
+    String response = client->readString();
+    Serial.println(response);
+    Serial.println("Response done...");
+  } else {
+    Serial.println("SH client connection closed\n");
+  }
   //client->stop();
 }
 
