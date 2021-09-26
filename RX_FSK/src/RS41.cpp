@@ -798,9 +798,8 @@ int RS41::decode41(byte *data, int maxlen)
 		 // temp: 0xF8==bits 3..7 : we need refResistorlow/high, taylorT, polyT
 	         bool validExternalTemperature = calibration!=NULL && (calibration->valid & 0xF8) == 0xF8;
 
-		 // humidity:  bits 3..20 and 37..46.
-		 // (note: we check validPressure below as well, thus we only calculate humidity of bit 33 (variant) is available as well)
-	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE0001FFFF8) == 0x7FE0001FFFF8;
+		 // humidity:  bits 3..20 and 37..46.  and bit 33 (variant)
+	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE2001FFFF8) == 0x7FE2001FFFF8;
 
 		 // pressure:  bits 33 and 37..42 (variant; x25..x2a: matrixP)    /// CALIB_P is    0x7E200000000)
 		 bool validPressure = calibration!=NULL && (calibration->valid & CALIB_P)==CALIB_P && calibration->value.names.variant[7]=='P';
@@ -816,7 +815,7 @@ int RS41::decode41(byte *data, int maxlen)
                Serial.printf("External temperature = %f\n", si->temperature );
             }
 
-            if ( validHumidity && validExternalTemperature & validPressure ) {
+            if ( validHumidity && validExternalTemperature ) {
                si->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
                Serial.printf("Humidity Sensor temperature = %f\n", si->tempRHSensor );
