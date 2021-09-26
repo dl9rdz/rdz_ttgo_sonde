@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import os
+import os.path
 import sys
 import csv
 import subprocess
@@ -29,6 +30,9 @@ data_dir = sys.argv[3]
 file_out = sys.argv[4]
 
 partition = esp32tools + "/partitions/default.csv"
+if os.path.isfile("RX_FSK/partitions.csv"):
+  partition = "RX_FSK/partitions.csv"
+
 with open(partition, 'rb') as csvfile:
 	partreader = csv.reader(csvfile, delimiter=',')
 	for row in partreader:
