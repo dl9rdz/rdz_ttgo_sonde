@@ -1896,8 +1896,10 @@ void checkTouchStatus() {
 }
 
 unsigned long bdd1, bdd2;
+static bool b1wasdown = false;
 void IRAM_ATTR buttonISR() {
   if (digitalRead(button1.pin) == 0) { // Button down
+    b1wasdown = true;
     unsigned long now = my_millis();
     if (now - button1.keydownTime < 500) {
       // Double press
@@ -1910,6 +1912,8 @@ void IRAM_ATTR buttonISR() {
     button1.numberKeyPresses += 1;
     button1.keydownTime = now;
   } else { //Button up
+    if(!b1wasdown) return;
+    b1wasdown = false;
     unsigned long now = my_millis();
     if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
     unsigned int elapsed = now - button1.keydownTime;
@@ -1967,7 +1971,7 @@ int getKeyPress() {
   button1.pressed = KP_NONE;
 #if 0
   int x = digitalRead(button1.pin);
-  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\n", bdd1, bdd2);
   Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
 #endif
   return p;
