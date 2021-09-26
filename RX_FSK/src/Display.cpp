@@ -1460,15 +1460,15 @@ void Display::calcGPS() {
 	}
 	// distance
 	if( valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->d.lat, sonde.si()->d.lon);
+		gpsDist = (int)calcLatLonDist(mylat, mylon, sonde.si()->d.lat, sonde.si()->d.lon);
 	} else {
 		gpsDist = -1;
 	}
 	// bearing
 	if( valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
-                float lat1 = radians(gpsPos.lat);
+                float lat1 = radians(mylat);
                 float lat2 = radians(sonde.si()->d.lat);
-                float lon1 = radians(gpsPos.lon);
+                float lon1 = radians(mylon);
                 float lon2 = radians(sonde.si()->d.lon);
                 float y = sin(lon2-lon1)*cos(lat2);
                 float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
