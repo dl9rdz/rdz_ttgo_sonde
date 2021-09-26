@@ -319,6 +319,8 @@ public:
 	// moved to heap, saving space in .bss
 	//SondeInfo sondeList[MAXSONDE+1];
 	SondeInfo *sondeList;
+	// helper function for type string
+	static SondeType realType(SondeInfo *si);
 
 	Sonde();
 	void defaultConfig();
