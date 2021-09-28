@@ -717,7 +717,7 @@ void Sonde::clearDisplay() {
 }
 
 SondeType Sonde::realType(SondeInfo *si) {
-	if(TYPE_IS_METEO(si->type)) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
+	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
 	else return si->type;
 }
 
