@@ -62,8 +62,8 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 6
-enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H };
+#define NSondeTypes 7
+enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H };
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
@@ -72,7 +72,7 @@ extern const char *manufacturer_string[NSondeTypes];
 #define ISOLED(cfg) ((cfg).disptype==0 || (cfg).disptype==2)
 
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
-#define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
+#define TYPE_IS_METEO(t) ( (t)==STYPE_M10M20 || (t)==STYPE_M10 || (t)==STYPE_M20 )
 
 typedef struct st_sondedata {
         // decoded ID
