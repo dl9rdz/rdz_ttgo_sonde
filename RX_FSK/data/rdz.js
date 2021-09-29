@@ -2,8 +2,8 @@ let stypes=new Map();
 stypes.set('4', 'RS41');
 stypes.set('R', 'RS92');
 stypes.set('D', 'DFM');
-stypes.set('M', 'M10');
-stypes.set('2', 'M20');
+stypes.set('M', 'M10/M20');
+//stypes.set('2', 'M10/M20');
 stypes.set('3', 'MP3H');
 
 /* (no longer) Used by qrg.html in RX_FSK.ino */
@@ -11,6 +11,7 @@ function prep() {
   var stlist=document.querySelectorAll("input.stype");
   for(txt of stlist){
     var val=txt.getAttribute('value'); var nam=txt.getAttribute('name'); 
+    if(val=='2') { val='M'; }
     var sel=document.createElement('select');
     sel.setAttribute('name',nam);
     for(stype of stypes) { 
