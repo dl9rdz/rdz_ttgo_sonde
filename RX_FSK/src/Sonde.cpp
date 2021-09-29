@@ -21,8 +21,8 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
 // Dependency to enum SondeType
-const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "M10 ", "M20 ", "MP3H" };
-const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10 ", "M20 ", "MP3-H1" };
+const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "Mxx ", "M10 ", "M20 ", "MP3H" };
+const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10/M20", "M10 ", "M20 ", "MP3-H1" };
 const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', '2', '3' };
 const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
 
@@ -444,6 +444,7 @@ void Sonde::setup() {
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		m10m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_MP3H:
@@ -474,6 +475,7 @@ void Sonde::receive() {
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		res = m10m20.receive();
 		break;
 	case STYPE_DFM:
@@ -572,6 +574,7 @@ rxloop:
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		m10m20.waitRXcomplete();
 		break;
 	case STYPE_DFM:
@@ -717,7 +720,7 @@ void Sonde::clearDisplay() {
 }
 
 SondeType Sonde::realType(SondeInfo *si) {
-	if(TYPE_IS_METEO(si->type)) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
+	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
 	else return si->type;
 }
 

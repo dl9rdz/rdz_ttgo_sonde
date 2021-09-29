@@ -253,10 +253,10 @@ void setupChannelList() {
       type = STYPE_DFM;
     }
     else if (space[1] == 'M') {
-      type = STYPE_M10;
+      type = STYPE_M10M20;
     }
     else if (space[1] == '2') {
-      type = STYPE_M20;
+      type = STYPE_M10M20;
     }
     else if (space[1] == '3') {
       type = STYPE_MP3H;
@@ -1896,8 +1896,10 @@ void checkTouchStatus() {
 }
 
 unsigned long bdd1, bdd2;
+static bool b1wasdown = false;
 void IRAM_ATTR buttonISR() {
   if (digitalRead(button1.pin) == 0) { // Button down
+    b1wasdown = true;
     unsigned long now = my_millis();
     if (now - button1.keydownTime < 500) {
       // Double press
@@ -1910,6 +1912,8 @@ void IRAM_ATTR buttonISR() {
     button1.numberKeyPresses += 1;
     button1.keydownTime = now;
   } else { //Button up
+    if(!b1wasdown) return;
+    b1wasdown = false;
     unsigned long now = my_millis();
     if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
     unsigned int elapsed = now - button1.keydownTime;
@@ -1967,7 +1971,7 @@ int getKeyPress() {
   button1.pressed = KP_NONE;
 #if 0
   int x = digitalRead(button1.pin);
-  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\b", bdd1, bdd2);
+  Serial.printf("Debug: bdd1=%ld, bdd2=%ld\n", bdd1, bdd2);
   Serial.printf("button1 press (dbl:%d) (now:%d): %d at %ld (%d)\n", button1.doublepress, x, p, button1.keydownTime, button1.numberKeyPresses);
 #endif
   return p;
@@ -3554,8 +3558,8 @@ enum SHState { SH_DISCONNECTED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, 
 SHState shState = SH_DISCONNECTED;
 time_t shStart = 0;
 
-/* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
-const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "M10", "M20", "MRZ" };
+/* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
+const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
 const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM06",  // 0x06
                                     "PS15",   // 0x07
