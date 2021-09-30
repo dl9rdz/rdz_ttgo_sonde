@@ -68,7 +68,7 @@ var cfgs = [
 [ "", "SondeHub frequency import", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-import" ],
 [ "sondehub.fiactive", "SondeHub frequency import active (0=disabled, 1=active)" ],
 [ "sondehub.fiinterval", "Import frequency (minutes, &geq; 5)" ],
-[ "sondehub.fimaxdist", "Import maximum distance (km, &leq; 500)" ],
+[ "sondehub.fimaxdist", "Import maximum distance (km, &leq; 700)" ],
 [ "sondehub.fimaxage", "Import maximum age (hours, &leq; 48)" ],
 [ "", "Hardware configuration (requires reboot)", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Hardware-configuration"],
 [ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342)"],
