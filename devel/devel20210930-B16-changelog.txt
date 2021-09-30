@@ -1,1 +1,2 @@
 DFM: check for bit errors
+; dfm +temp, +bat
