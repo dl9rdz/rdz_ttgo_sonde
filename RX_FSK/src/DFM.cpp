@@ -14,6 +14,18 @@
 
 #define DFM_FRAMELEN 33
 
+
+/*
+ * observed DAT patterns for DFM-9:
+ * A: 0+1; 2+3; 4+5; 6+7; 8+0	=> keep frame in shadowFrame
+ * B: 1+2; 3+4; 5+6; 7+8	=> all good => keep date in shadowDate
+ * C: 0+1; 2+3; 4+5; 6+7; 8+15  => all good => keep date in shadowDate
+ * D: 0+1; 2+3; 4+5; 6+7; 0+1	=> use shadowDate
+ * not seen:5+6; 7+1
+ * values:
+ * 0:packet counter; 1:utc-msec; 2:lat,vh; 3:lon,dir, 4:alt,vv, 8=utc-date(day-hh-mm)
+ */
+
 // single data structure, search restarts after decoder change
 static struct st_dfmstat {
 	int idcnt0;
@@ -24,10 +36,13 @@ static struct st_dfmstat {
 	uint16_t dat[50*2];
 	uint8_t cnt[50*2];
 	uint16_t good;
+	uint32_t datesec;
+	uint8_t frame;
 	uint16_t msec;
 	uint8_t nameregok;
 	uint8_t nameregtop;
 	uint8_t lastdat;
+	uint8_t cycledone; // 0=no; 1=OK, 2=partially/with errors
 } dfmstate;
 
 int DFM::setup(float frequency, int type) 
@@ -332,6 +347,8 @@ void DFM::decodeCFG(uint8_t *cfg)
 	memcpy(sonde.si()->d.ser, sonde.si()->d.id+1, 9);
 }
 
+#if 0
+// not used any more
 static int bitCount(int x) {
     int m4 = 0x1 | (0x1<<8) | (0x1<<16) | (0x1<<24);
     int m1 = 0xFF; 
@@ -339,6 +356,7 @@ static int bitCount(int x) {
     int s1 = (s4&m1) + ((s4>>8)&m1) + ((s4>>16)&m1) + ((s4>>24)&m1);
     return s1;
 }
+#endif
 
 uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
@@ -347,24 +365,64 @@ void DFM::decodeDAT(uint8_t *dat)
 	// TODO: Here we need to work on a shadow copy of SondeData in order to prevent concurrent changes while using data in main loop
 	SondeData *si = &(sonde.si()->d);
 	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
-	// We can have a 8 and 0 subframe in a single frame. So do the reset only for dat>0
-	if( !(dat[6]==0 && dfmstate.lastdat==8) ) { // if we have DAT8 + DAT0, don't reset before returing the 8 frame...
-	    if(dat[6] < dfmstate.lastdat) dfmstate.good = 0; // next iteration detected
-        }
-	dfmstate.lastdat = dat[6];
+
+	// We handle this case already here, because we need to update dfmstate.datesec before the cycle complete handling 
+	if( dat[6]==8 ) {
+		int y = (dat[0]<<4) + (dat[1]>>4);
+		int m = dat[1]&0x0F;
+		int d = dat[2]>>3;
+		int h = ((dat[2]&0x07)<<2) + (dat[3]>>6);
+		int mi = (dat[3]&0x3F);
+		Serial.printf("Date: %04d-%02d-%02d %02d:%02dz ", y, m, d, h, mi);
+		si->sats = dat[4];
+		si->validPos |= 0x40;
+		// convert to unix time
+		int tt = (y-1970)*365 + (y-1969)/4; // days since 1970
+		if(m<=12) { tt += MON[m]; if((y%4)==0 && m>2) tt++; }
+		tt = (tt+d-1)*(60*60*24) + h*3600 + mi*60;
+		dfmstate.datesec = tt;
+		dfmstate.good |= 0x100;
+	}
+	else if( dat[6]>8 ) return; // we ignore those...
+
+	/* Here we update data that should be updated only after receiving a "complete" frame (mainly for consistent SondeHub exports)
+	 * We do this (a) when there is a DAT8 block and (b) when there is wrap from DAT7 to DAT0, for these fields:
+	 * => frame
+	 * => vframe (only used for SondeHub as virtual frame number)
+	 * => time (calculated with using date and msec)
+	 * [assuming that if there is no DAT8, then the date value did not change.]
+	 */
+
+	if( dat[6]==8 || dat[6] < dfmstate.lastdat) { // After DAT8, or after a "warp around"
+		if( dfmstate.good&1 ) si->frame = dfmstate.frame;
+		if( (dfmstate.good&0x102)==0x102 ) {
+			si->time = dfmstate.datesec + dfmstate.msec/1000;
+	 		// Lets be consistent with autorx: the timestamp uses the msec value truncated to seconds,
+    			// whereas the virtual frame number for DFM uses the msec value rounded to full seconds.
+			// Actually, tt is real UTC, and the transformation to GPS seconds lacks adjusting for leap seconds
+			si->vframe = dfmstate.datesec + (dfmstate.msec+500)/1000 - 315964800;
+		}
+		// All fields updated? 1=OK, 2=with errors
+		Serial.printf("Cycle done: good is %x\n", dfmstate.good);
+		dfmstate.cycledone = ((dfmstate.good&0x11F)==0x11F) ? 1 : 2; 
+		dfmstate.good = 0;
+		dfmstate.lastdat = 0;
+	} else {
+		dfmstate.lastdat = dat[6];
+	}
 	dfmstate.good |= (1<<dat[6]);
 	switch(dat[6]) {
 	case 0:
 		Serial.print("Packet counter: "); Serial.print(dat[3]);	
-		si->frame = dat[3];
+		dfmstate.frame = dat[3];
 		break;
 	case 1:
 		{
 		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
 		Serial.print("UTC-msec: "); Serial.print(val);
 		dfmstate.msec = val; 
-		uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
-		si->sats = bitCount(tmp); 
+		//uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
+		//si->sats = bitCount(tmp); 
 		}
 		break;
 	case 2:
@@ -376,7 +434,7 @@ void DFM::decodeDAT(uint8_t *dat)
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
 		si->lat = lat*0.0000001;
 		si->hs = vh*0.01;
-		si->validPos |= 0x11; 
+		if(lat!=0 || vh!=0) si->validPos |= 0x11;  else si->validPos &= ~0x11;
 		}
 		break;
 	case 3:
@@ -384,11 +442,11 @@ void DFM::decodeDAT(uint8_t *dat)
 		float lon, dir;
 		lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
 		dir = ((uint16_t)dat[4]<<8) + dat[5];
-		Serial.print("GPS-lon: "); Serial.print(lon*0.0000001);
-		Serial.print(", dir: "); Serial.print(dir*0.01);
 		si->lon = lon*0.0000001;
 		si->dir = dir*0.01;
-		si->validPos |= 0x42;
+		Serial.print("GPS-lon: "); Serial.print(si->lon);
+		Serial.print(", dir: "); Serial.print(si->dir);
+		if(lon != 0 || dir != 0) si->validPos |= 0x22; else si->validPos &= ~0x22;
 		}
 		break;
 	case 4:
@@ -400,38 +458,18 @@ void DFM::decodeDAT(uint8_t *dat)
 		Serial.print(", vv: "); Serial.print(vv*0.01);
 		si->alt = alt*0.01;
 		si->vs = vv*0.01;
-		si->validPos |= 0x0C;
+		if(alt!=0 || vv != 0) si->validPos |= 0x0C; else si->validPos &= ~0x0C;
 		}
 		break;
 	case 8:
-		{
-		int y = (dat[0]<<4) + (dat[1]>>4);
-		int m = dat[1]&0x0F;
-		int d = dat[2]>>3;
-		int h = ((dat[2]&0x07)<<2) + (dat[3]>>6);
-		int mi = (dat[3]&0x3F);
-		char buf[100];
-		snprintf(buf, 100, "%04d-%02d-%02d %02d:%02dz", y, m, d, h, mi);
-		Serial.print("Date: "); Serial.print(buf);
-		// convert to unix time
-		int tt = (y-1970)*365 + (y-1969)/4; // days since 1970
-		if(m<=12) { tt += MON[m]; if((y%4)==0 && m>2) tt++; }
-		tt = (tt+d-1)*(60*60*24) + h*3600 + mi*60;
-		si->time = tt + dfmstate.msec/1000;
-	 	// Lets be consistent with autorx: the timestamp uses the msec value truncated to seconds,
-    		// whereas the virtual frame number for DFM uses the msec value rounded to full seconds.
-		// Actually, tt is real UTC, and the transformation to GPS seconds lacks adjusting for leap seconds
-		si->vframe = tt + (dfmstate.msec+500)/1000 - 315964800;
-		// maybe TODO: if we missed the type 0 frame, we still might caculate the right seconds from system time.
-		// but we only send time stamps to external servers (in particular to sondehub), if all
-		// required frame types have been correctly decoded, so this does not matter much.
-		}
+		// handled above
 		break;
 	default:
 		Serial.print("(?)");
 		break;
 	}
 }
+
 
 void DFM::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
 {
@@ -505,6 +543,7 @@ int DFM::receive() {
 
 	// tentative continuous RX version...
 	unsigned long t0 = millis();
+	dfmstate.cycledone = 0;
 	while( ( millis() - t0 ) < 1300 ) {
 		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);	
                 if ( bitRead(value, 7) ) {
@@ -527,22 +566,16 @@ int DFM::receive() {
                 } else {
                         if(haveNewFrame) {
                                 //Serial.printf("DFM::receive(): new frame complete after %ldms\n", millis()-t0);
-				Serial.printf("receive newframe: %d, good: %x\n", rxframes, dfmstate.good);
                                 haveNewFrame = 0;
 				rxframes--;
-				if(dfmstate.good & 0x100) {
-				    if(dfmstate.good & 0x11E) {
-					dfmstate.good = 0; return RX_OK;  // type 8 frame has been received
-				    } else {
-					dfmstate.good = 0; return RX_ERROR;
-				    }
-				}
-                                if(rxframes==0) return RX_ERROR;
+				// OK: All DAT frames (0/1/2/3/4/8) have been received in the last cycle
+				if(dfmstate.cycledone==1) return RX_OK;
+				if(dfmstate.cycledone>1 || rxframes==0) return RX_ERROR;
                         }
                         delay(2);
                 }
 	}
-	return rxframes == 5 ? RX_TIMEOUT : RX_OK;
+	return rxframes == 5 ? RX_TIMEOUT : RX_ERROR;
 }
 
 int DFM::decodeFrameDFM(uint8_t *data) {
@@ -553,7 +586,7 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 	int ret0 = hamming(hamming_conf,  7, block_conf);
 	int ret1 = hamming(hamming_dat1, 13, block_dat1);
 	int ret2 = hamming(hamming_dat2, 13, block_dat2);
-	Serial.printf("Hamming returns %d %d %d -- %d\n", ret0, ret1, ret2, ret0|ret1|ret2);
+	//Serial.printf("Hamming returns %d %d %d -- %d\n", ret0, ret1, ret2, ret0|ret1|ret2);
 
 	byte byte_conf[4], byte_dat1[7], byte_dat2[7];
 	bitsToBytes(block_conf, byte_conf, 7);

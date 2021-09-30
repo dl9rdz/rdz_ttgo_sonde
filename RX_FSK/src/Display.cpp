@@ -1204,7 +1204,7 @@ void Display::drawString(DispEntry *de, const char *str) {
 
 void Display::drawLat(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->d.validPos) {
+	if(!VALIDPOS(sonde.si()->d.validPos)) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
@@ -1213,7 +1213,7 @@ void Display::drawLat(DispEntry *de) {
 }
 void Display::drawLon(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->d.validPos) {
+	if(!VALIDPOS(sonde.si()->d.validPos)) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
@@ -1222,7 +1222,7 @@ void Display::drawLon(DispEntry *de) {
 }
 void Display::drawAlt(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->d.validPos) {
+	if(!VALIDALT(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
@@ -1233,7 +1233,7 @@ void Display::drawAlt(DispEntry *de) {
 }
 void Display::drawHS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->d.validPos) {
+	if(!VALIDHS(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
@@ -1248,7 +1248,7 @@ void Display::drawHS(DispEntry *de) {
 }
 void Display::drawVS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->d.validPos) {
+	if(!VALIDVS(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
@@ -1459,13 +1459,13 @@ void Display::calcGPS() {
 		valid = true;
 	}
 	// distance
-	if( valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
+	if( valid && VALIDPOS(sonde.si()->d.validPos) && (layout->usegps&GPSUSE_DIST)) {
 		gpsDist = (int)calcLatLonDist(mylat, mylon, sonde.si()->d.lat, sonde.si()->d.lon);
 	} else {
 		gpsDist = -1;
 	}
 	// bearing
-	if( valid && (sonde.si()->d.validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
+	if( valid && VALIDPOS(sonde.si()->d.validPos&0x03) && (layout->usegps&GPSUSE_BEARING)) {
                 float lat1 = radians(mylat);
                 float lat2 = radians(sonde.si()->d.lat);
                 float lon1 = radians(mylon);
@@ -1522,7 +1522,7 @@ void Display::drawGPS(DispEntry *de) {
 		{
 		// distance
 		// equirectangular approximation is good enough
-		if( (sonde.si()->d.validPos&0x03)!=0x03 ) {
+		if( !VALIDPOS(sonde.si()->d.validPos) ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else if( disp.gpsDist < 0 ) {
