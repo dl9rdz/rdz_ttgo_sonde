@@ -43,6 +43,7 @@ static struct st_dfmstat {
 	uint8_t nameregtop;
 	uint8_t lastdat;
 	uint8_t cycledone; // 0=no; 1=OK, 2=partially/with errors
+	float meas[5+2];
 } dfmstate;
 
 int DFM::setup(float frequency, int type) 
@@ -339,10 +340,61 @@ void DFM::finddfname(uint8_t *b)
       	}
 }
 
+static float get_Temp() {
+	SondeData *si = &(sonde.si()->d);
+	if(!si->validID) { // type not yet known, so don't try to decode
+		return NAN;
+	}
+	float f = dfmstate.meas[0],
+		f1 = dfmstate.meas[3],
+		f2 = dfmstate.meas[4];
+	if(si->subtype >= 0x0C) {
+		f = dfmstate.meas[1];
+		f1 = dfmstate.meas[5];
+		f2 = dfmstate.meas[6];
+	}
+	Serial.printf("Meas: %f %f %f\n", f, f1, f2);
+    // as in autorx / dfm
+    float BB0 = 3260.0;       // B/Kelvin, fit -55C..+40C
+    float T0 = 25 + 273.15;  // t0=25C
+    float R0 = 5.0e3;        // R0=R25=5k
+    float Rf = 220e3;        // Rf = 220k
+    float g = f2/Rf;
+    float R = (f-f1) / g; // meas[0,3,4] > 0 ?
+    float T = 0;                     // T/Kelvin
+    if (f*f1*f2 == 0) R = 0;
+    if (R > 0)  T = 1/(1/T0 + 1/BB0 * log(R/R0));
+    T =  T - 273.15; // Celsius
+    if(T<-100 || T>50) {
+	Serial.printf("Temperature invalid: %f\n", T);
+	return NAN;
+    }
+    return T;
+}
+
 void DFM::decodeCFG(uint8_t *cfg)
 {
+	SondeData *si = &(sonde.si()->d);
 	// new ID
 	finddfname(cfg);
+	// get meas
+	uint8_t conf_id = (*cfg)>>4;
+	if(conf_id<=6) {
+		uint32_t val = (cfg[1]<<12) | (cfg[2]<<4) | cfg[3];
+		uint8_t exp = cfg[0] & 0xF;
+		dfmstate.meas[conf_id] = val / (float)(1<<exp);
+		Serial.printf("meas %d is %f (%d,%d)\n", conf_id, dfmstate.meas[conf_id], val, exp);
+	}
+	// get batt
+	if(si->validID && si->subtype>=0x0A) {
+		// otherwise don't try, as we might not have the right type yet...
+		int cid = (si->subtype >= 0x0C) ? 0x7 : 0x5;
+		if(conf_id == cid) {
+			uint16_t val = cfg[1]<<8 | cfg[2];
+			si->batteryVoltage = val / 1000.0;
+			Serial.printf("battery: %f\n", si->batteryVoltage);
+		}
+	}
 	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
 	memcpy(sonde.si()->d.ser, sonde.si()->d.id+1, 9);
 }
@@ -404,6 +456,8 @@ void DFM::decodeDAT(uint8_t *dat)
 		}
 		// All fields updated? 1=OK, 2=with errors
 		Serial.printf("Cycle done: good is %x\n", dfmstate.good);
+		si->temperature = get_Temp();
+		Serial.printf("Temp: %f\n", si->temperature);
 		dfmstate.cycledone = ((dfmstate.good&0x11F)==0x11F) ? 1 : 2; 
 		dfmstate.good = 0;
 		dfmstate.lastdat = 0;
