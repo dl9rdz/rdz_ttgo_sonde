@@ -487,14 +487,13 @@ void Sonde::receive() {
 	}
 
 	// state information for RX_TIMER / NORX_TIMER events
-        if(res==0) {  // RX OK
-		flashLed(700);
+        if(res==RX_OK || res==RX_ERROR) {  // something was received...
+		flashLed( (res==RX_OK)?700:100);
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
                 }
-        } else { // RX not ok
-		if(res==RX_ERROR) flashLed(100);
+        } else { // RX Timeout
 		//Serial.printf("Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
