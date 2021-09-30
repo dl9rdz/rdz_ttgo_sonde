@@ -160,7 +160,8 @@ int DFM::hamming(uint8_t *ham, int L, uint8_t *sym) {
 	for (i = 0; i < L; i++) {  // L bytes (4bit data, 4bit parity)
 		if (use_ecc) {
 			int res = check(ham+8*i);
-			if(ret>=0 && res>=0) ret += res; else ret=-1;
+			if( res<0 ) ret = -1;
+			else if ( ret >= 0 && res > 0 ) ret++;
 		}
 		// systematic Hamming code: copy bits 0..3
 		for (j = 0; j < 4; j++) {
@@ -552,6 +553,7 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 	int ret0 = hamming(hamming_conf,  7, block_conf);
 	int ret1 = hamming(hamming_dat1, 13, block_dat1);
 	int ret2 = hamming(hamming_dat2, 13, block_dat2);
+	Serial.printf("Hamming returns %d %d %d -- %d\n", ret0, ret1, ret2, ret0|ret1|ret2);
 
 	byte byte_conf[4], byte_dat1[7], byte_dat2[7];
 	bitsToBytes(block_conf, byte_conf, 7);
@@ -561,11 +563,14 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 	printRaw("CFG", 7, ret0, byte_conf);
 	printRaw("DAT", 13, ret1, byte_dat1);
 	printRaw("DAT", 13, ret2, byte_dat2);
-	decodeCFG(byte_conf);
-	decodeDAT(byte_dat1);
-	decodeDAT(byte_dat2);
+	if (ret0>=0) decodeCFG(byte_conf);
+	if (ret1>=0 && ret1<=4) decodeDAT(byte_dat1);
+	if (ret2>=0 && ret2<=4) decodeDAT(byte_dat2);
 	Serial.println("");
-	return RX_OK;
+	// Consistent with autorx: If more than 4 corrected bit errors in DAT block, assume it is possibly corrupt and
+	// don't treat it as a correct frame (ttgo display shows data anyway, but it is not sent to external sites)
+	if(ret1>4 || ret2>4) return RX_ERROR;
+	return (ret0|ret1|ret2)>=0 ? RX_OK : RX_ERROR;
 }
 
 // moved to a single function in Sonde(). This function can be used for additional
