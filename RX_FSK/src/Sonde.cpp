@@ -272,7 +272,7 @@ extern const int N_CONFIG;
 void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
-	if(config.sondehub.fimaxdist>500) config.sondehub.fimaxdist = 500;
+	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
 	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
 	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
@@ -487,14 +487,13 @@ void Sonde::receive() {
 	}
 
 	// state information for RX_TIMER / NORX_TIMER events
-        if(res==0) {  // RX OK
-		flashLed(700);
+        if(res==RX_OK || res==RX_ERROR) {  // something was received...
+		flashLed( (res==RX_OK)?700:100);
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
                 }
-        } else { // RX not ok
-		if(res==RX_ERROR) flashLed(100);
+        } else { // RX Timeout
 		//Serial.printf("Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();

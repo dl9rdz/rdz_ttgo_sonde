@@ -74,6 +74,13 @@ extern const char *manufacturer_string[NSondeTypes];
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
 #define TYPE_IS_METEO(t) ( (t)==STYPE_M10M20 || (t)==STYPE_M10 || (t)==STYPE_M20 )
 
+#define VALIDPOS(x) (((x)&0x03)==0x03)
+#define VALIDALT(x) ((x)&0x04)
+#define VALIDVS(x) ((x)&0x08)
+#define VALIDHS(x) ((x)&0x10)
+#define VALIDDIR(x) ((x)&0x20)
+#define VALIDSATS(x) ((x)&0x40)
+
 typedef struct st_sondedata {
         // decoded ID
         char id[10];
