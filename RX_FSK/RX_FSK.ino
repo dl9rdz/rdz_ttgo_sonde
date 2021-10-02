@@ -592,7 +592,9 @@ void setupConfigData() {
     sonde.setConfig(line.c_str());
   }
   sonde.checkConfig(); // eliminate invalid entries
+#if FEATURE_SONDEHUB
   shImportInterval = 5;   // refresh now in 5 seconds
+#endif
 }
 
 
