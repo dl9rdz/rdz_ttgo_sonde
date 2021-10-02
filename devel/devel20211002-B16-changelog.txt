@@ -1,2 +1,3 @@
 M10 batt,rh as in autorx
 issue #206
+some code cleanup
