@@ -16,6 +16,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
+static char buffer[21];
 void MQTT::init(const char* host, uint16_t port, const char* id, const char *username, const char *password, const char *prefix)
 {
     WiFi.hostByName(host, this->ip);
@@ -26,8 +27,8 @@ void MQTT::init(const char* host, uint16_t port, const char* id, const char *use
     
     Serial.println("[MQTT] pubsub client");
     mqttClient.setServer(ip, port);
-    char buffer[20];
-    snprintf(buffer, 20, "%s%6ld", id, random(0, 1000));
+    snprintf(buffer, 20, "%s%04d", id, (int)random(0, 1000));
+    buffer[20] = 0;
     mqttClient.setClientId(buffer);
     if (strlen(password) > 0) {
         mqttClient.setCredentials(username, password);

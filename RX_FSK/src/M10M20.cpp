@@ -223,6 +223,10 @@ static int32_t getint24(uint8_t *data) {
     return (int32_t)(data[2]|(data[1]<<8)|(data[0]<<16) );
 }
 
+static int32_t getint24_r(uint8_t *data) {
+    return (int32_t)(data[0]|(data[1]<<8)|(data[2]<<16) );
+}
+
 static int16_t getint16(uint8_t *data) {
 	return (int16_t)(data[1]|((uint16_t)data[0]<<8));
 }
@@ -329,12 +333,13 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		si->dir = dir;
 		si->validPos = 0x3f;
 		// m10 temp
+		float T = NAN;
+		{
 		const float p0 = 1.07303516e-03, p1 = 2.41296733e-04, p2 = 2.26744154e-06, p3 = 6.52855181e-08;
   		const float Rs[3] = { 12.1e3 ,  36.5e3 ,  475.0e3 }; 
   		const float Rp[3] = { 1e20   , 330.0e3 , 2000.0e3 };
 		uint8_t sct = data[62];
 		float rt = getint16_r(data+63) & (0xFFF);
-		float T = NAN;
 		if(rt!=0 && sct<3) {
 			rt = (4095-rt)/rt - (Rs[sct]/Rp[sct]);
 			if(rt>0) {
@@ -347,6 +352,31 @@ int M10M20::decodeframeM10(uint8_t *data) {
 			}
 		}
 		si->temperature = T;
+		}
+
+		// m10 battery
+		uint16_t batADC = (uint16_t)getint16_r(data+0x45);
+		si->batteryVoltage = 2.709 * batADC * 2.5/1023.0;
+
+		// m10 humidity
+		{
+		float cRHc55 = ((float)(uint32_t)getint24_r(data+0x35)) / (uint32_t)getint24_r(data+0x32);
+		float TH = -273.15;
+		const float huRs = 22.1e3;
+		const float p0 = 4.42606809e-03, p1 = -6.58184309e-04, p2 =  8.95735557e-05, p3 = -2.84347503e-06;
+		float R = huRs / ( (4095.0/getint16_r(data+0x59)) - 1 );
+		if(R>0) TH += 1/( p0 + p1*log(R) + p2*log(R)*log(R) + p3*log(R)*log(R)*log(R) );
+		//float Tc = T;
+		float rh = (cRHc55-0.8955)/0.002;
+		const float T0=0.0, T1=-30.0;
+		//float T = Tc;
+		if(T<T0) rh += T0 - T/5.5;
+		if(T<T1) rh *= 1.0 + (T1-T)/75.0;
+		if(rh<0.0) rh=0.0;
+		if(rh>100.0) rh=100.0;
+		si->relativeHumidity = rh;
+		}
+		Serial.printf("hum: %.2f  batt: %.2f\n", si->relativeHumidity, si->batteryVoltage);
 
  		uint32_t gpstime = getint32(data+10);
                 uint16_t gpsweek = getint16(data+32);

@@ -62,6 +62,20 @@ const int   daylightOffset_sec = 0; //UTC
 boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
+
+/* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
+const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
+const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
+                                    "DFM06",  // 0x06
+                                    "PS15",   // 0x07
+                                    NULL, NULL,
+                                    "DFM09",  // 0x0A
+                                    "DFM17",  // 0x0B
+                                    "DFM09P", // 0x0C
+                                    "DFM17",  // 0x0D
+                                    NULL, NULL
+                                  };
+                                  
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
@@ -265,8 +279,7 @@ void setupChannelList() {
     int active = space[3] == '+' ? 1 : 0;
     if (space[4] == ' ') {
       memset(launchsite, ' ', 16);
-      int str_len = strlen(space + 5);
-      strncpy(launchsite, space + 5, str_len > 16 ? 16 : str_len);
+      strncpy(launchsite, space + 5, 16);
       if (sonde.config.debug == 1) {
         Serial.printf("Add %f - sondetype: %d (on/off: %d) - site #%d - name: %s\n ", freq, type, active, i, launchsite);
       }
@@ -592,7 +605,9 @@ void setupConfigData() {
     sonde.setConfig(line.c_str());
   }
   sonde.checkConfig(); // eliminate invalid entries
+#if FEATURE_SONDEHUB
   shImportInterval = 5;   // refresh now in 5 seconds
+#endif
 }
 
 
@@ -3212,7 +3227,7 @@ void execOTA() {
     Serial.printf("Updating file %s (%d bytes)\n", fn, len);
     char fnstr[17];
     memset(fnstr, ' ', 16);
-    strncpy(fnstr, fn, strlen(fn));
+    strncpy(fnstr, fn, 16);
     fnstr[16] = 0;
     disp.rdis->drawString(0, 2 * dispys, fnstr);
     File f = SPIFFS.open(fn, FILE_WRITE);
@@ -3558,18 +3573,7 @@ enum SHState { SH_DISCONNECTED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, 
 SHState shState = SH_DISCONNECTED;
 time_t shStart = 0;
 
-/* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
-const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
-const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
-                                    "DFM06",  // 0x06
-                                    "PS15",   // 0x07
-                                    NULL, NULL,
-                                    "DFM09",  // 0x0A
-                                    "DFM17",  // 0x0B
-                                    "DFM09P", // 0x0C
-                                    "DFM17",  // 0x0D
-                                    NULL, NULL
-                                  };
+
 
 void sondehub_reply_handler(WiFiClient * client) {
   // sondehub handler for tasks to be done even if no data is to be sent:
