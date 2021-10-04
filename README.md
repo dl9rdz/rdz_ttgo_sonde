@@ -7,7 +7,7 @@ based on a TTGO LoRa ESP32 board.
 It supports OLED displays (SSD1306, SH1106) and TFT displays (ILI9225, ILI9341/9342).
 
 It also supports feeding data to external applications using WiFi (NOT bluetooth):
-- Arduino app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
+- Android app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
 - AXUDP (for aprsmap application by oe5dxl, among others)
 - KISS TNC (aprs format, mainly useful for APRSdroid app)
 - MQTT
