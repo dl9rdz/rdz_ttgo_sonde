@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include <ESPmDNS.h>
+#include "RS41.h"
 
 TimerHandle_t mqttReconnectTimer;
 
@@ -85,8 +86,7 @@ void MQTT::publishPacket(SondeInfo *si)
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"
         "\"countKT\": %d,"
-        "\"crefKT\": %d"
-        "}",
+        "\"crefKT\": %d",
         (int)si->active,
         si->freq,
         s->id,
@@ -116,6 +116,23 @@ void MQTT::publishPacket(SondeInfo *si)
         s->countKT,
         s->crefKT
     );
+    if ( !isnan( s->temperature ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"temperature\": ", s->temperature );
+    }
+    if ( !isnan( s->relativeHumidity ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"relativeHumidity\": ", s->relativeHumidity );
+    }
+    if ( !isnan( s->pressure ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"pressure\": ", s->pressure );
+    }
+    if ( !isnan( s->batteryVoltage && s->batteryVoltage > 0 ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"batteryVoltage\": ", s->batteryVoltage );
+    }
+    char subtype[11];
+    if ( RS41::getSubtype( subtype, 11, si) == 0 ) {
+        snprintf(payload, 1024, "%s%s%s%s", payload, ",\"subtype\": \"", subtype, "\"" );
+    }
+    snprintf(payload, 1024, "%s%s", payload, "}" ); // terminate payload string
 
     char topic[128];
     snprintf(topic, 128, "%s%s", this->prefix, "packet");
