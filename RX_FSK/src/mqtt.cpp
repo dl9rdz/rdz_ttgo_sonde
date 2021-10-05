@@ -118,16 +118,16 @@ void MQTT::publishPacket(SondeInfo *si)
         s->crefKT
     );
     if ( !isnan( s->temperature ) ) {
-        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"temperature\": ", s->temperature );
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"temp\": ", s->temperature );
     }
     if ( !isnan( s->relativeHumidity ) ) {
-        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"relativeHumidity\": ", s->relativeHumidity );
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"humidity\": ", s->relativeHumidity );
     }
     if ( !isnan( s->pressure ) ) {
         snprintf(payload, 1024, "%s%s%.1f", payload, ",\"pressure\": ", s->pressure );
     }
     if ( !isnan( s->batteryVoltage && s->batteryVoltage > 0 ) ) {
-        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"batteryVoltage\": ", s->batteryVoltage );
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"batt\": ", s->batteryVoltage );
     }
     char subtype[11];
     if ( RS41::getSubtype( subtype, 11, si) == 0 ) {
