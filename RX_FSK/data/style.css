@@ -337,3 +337,21 @@ p{
     text-align: left;
   }
 }
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #333;
+      }   
+  h2{
+    color: white;
+  }
+  table, th, td, .save, .topnav a.active {
+    color: white;
+    border: 1px solid grey;
+    border-collapse: collapse;
+    background-color: #333;
+  }
+  input, select, .tci, .warning {
+    color: white;
+    background-color: #333;
+  }
+}
