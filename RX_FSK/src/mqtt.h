@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include "Sonde.h"
+#include "RS41.h"
 
 class MQTT
 {

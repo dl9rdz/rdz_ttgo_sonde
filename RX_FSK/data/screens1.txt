@@ -241,3 +241,25 @@ fonts=0,1
 4,9=Mh%rH
 6,0=MphPa
 6,11=MbV
+
+#############
+@GPS-Data
+timer=-1,-1,-1
+key1action=+,0,F,W
+key2action=>,#,#,#
+timeaction=#,#,#
+fonts=0,1
+0,0=xGPS-Data
+1,0=xLAT :
+1,6=gA
+2,0=xLONG:
+2,6=gO
+3,0=xALT :
+3,9=gH
+4,0=xSonde
+5,0=xAlt :
+5,6=a
+6,0=xDist:
+6,6=gD
+
+

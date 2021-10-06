@@ -7,7 +7,7 @@ based on a TTGO LoRa ESP32 board.
 It supports OLED displays (SSD1306, SH1106) and TFT displays (ILI9225, ILI9341/9342).
 
 It also supports feeding data to external applications using WiFi (NOT bluetooth):
-- Arduino app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
+- Android app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
 - AXUDP (for aprsmap application by oe5dxl, among others)
 - KISS TNC (aprs format, mainly useful for APRSdroid app)
 - MQTT
@@ -25,8 +25,8 @@ Manufacturer | Model | Position | Temperature | Humidity | Pressure
 -------------|-------|----------|-------------|----------|----------
 Vaisala | RS92-SGP/NGP | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
 Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: (for -SGP)
-Graw | DFM06/09/17 | :heavy_check_mark: | :x: | :x: | :x:
-Meteomodem | M10 | :heavy_check_mark: | :heavy_check_mark: | :x: | Not Sent
+Graw | DFM06/09/17 | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
+Meteomodem | M10 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | Not Sent
 Meteomodem | M20 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteo-Radiy | MP3-H1 (MRZ-H1) | :heavy_check_mark: | :x: | :x: | :x: 
 
