@@ -455,7 +455,7 @@ const char *createSondeHubMap() {
   strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
   HTMLBODY(ptr, "map.html");
   if (!sonde.config.sondehub.active) {
-    strcat(ptr, "<div>NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
+    strcat(ptr, "<div class=\"warning\">NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
     if ((*s->d.ser == 0) && ( !isnan(sonde.config.rxlat))) {
       sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
     } else {
