@@ -1,3 +1,5 @@
+## screens3.txt: TFT display (portrait)
+## based on http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden
 # Definition of display content and action behaviour
 #
 # Timer: (view timer, rx timer, norx timer)
@@ -95,6 +97,7 @@
 #
 # for TFT display, coordinates and width are multiplied by xscale,yscale and later used in pixels
 # with scale=1,1 you can directly use pixel coordinates.  (default: xscale=13,yscale=22 => 8 lines, 16 columns)
+
 ###########
 # 
 # Default configuration for "Scanner" display:
@@ -105,17 +108,22 @@
 #   => Button press activates default receiver view, double press does nothing
 #      Mid press activates Spectrum display, long press activates Wifi scan
 # - key2 has no function
-@Scanner
+@ScannerPortrait
 timer=-1,0,0
 key1action=D,#,F,W
-key2action=#,#,#,#
+key2action=>,#,#,#
 timeaction=#,D,+
 0,0=XScan
 0,5=S#:
-0,9=T
-3,0=F MHz
-5,0=S
+0,9,4.5=T
+6,0=XHoehe 
+6,5=GH
+color=ffff00
+2,0=F MHz
+4,0=S
+color=00ff00,444444
 7,5=n
+7,0=bV
 
 ############
 # Default configuration for "Legacy" display:
@@ -129,124 +137,31 @@ timeaction=#,D,+
 # - timer actions: #,#,0
 #   (norx timer: if no signal for >20 seconds: go back to scanner mode)
 #
-@Legacy
+@LegacyPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
-0,5=f MHz
-1,8=c
-0,0=t
-1,0=is
+9,10=f
+9,0=r
+9,4=Q
+5,0=g0NCS,35,ffff00,000044,6,33ff33,5,eeaa00
+5,7=g0CCS,35,ffff00,000044,6,55ff55,5,eeaa00
+0,0=s
+0,9=is
 2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-6,0=R
-6,7=Q
-
-############
-# Configuratoon for "Field" display (display 2)
-# similar to @Legacy, but no norx timer, and Key2 goes to display 4
-@Field
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-2,0=L
-4,0=O
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
-
-############
-# Configuration for "Field2" display (display 3)
-# similar to @Field
-@Field2
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-2,0=L
-4,0=O
-1,12=t
-0,9=f
-3,10=h
-4,9=v
-0,0=Is
-6,0=A
-6,7=Q
-
-#############
-# Configuration for "GPS" display
-# not yet the final version, just for testing
-@GPSDIST
-timer=-1,-1,-1
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-0,0=Is
-0,9=f
-1,12=t
-2,0=L
-4,0=O
-2,10=a
-3,10=h
-4,9=v
-5,9=gC
-5,13=gB
-6,7=Q
-7,0=gV
-7,2=xd=
-7,4=gD
-7,12=gI°
-
-############
-# Scan display for large 2" TFT dispaly
-@ScannerTFT
-timer=-1,0,0
-key1action=D,#,F,W
-key2action=#,#,#,#
-timeaction=#,D,+
-fonts=5,6
-0,0=XScan
-0,8,-3=S#:
-0,9,5=T
-3,0=F MHz
-5,0,16=S
-7,5=n
-
-############
-@MainTFT
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,0
-color=FFD700
-0,0=Is
-color=0000FF
-0,11,-5.5=f
-1,1,6=c
-1,12.5,-4=t
-color=00ff00
-2,0=L
-4,0=O
-color=FFA500
-2,9.5,-7=A
-3,9.5,-7=vm/s
-color=AA5522
-4,9.5,-7=hkkm/h
+3,0=O
+color=FFFF00
+1,6=Hk km/h
+color=FF0000
+1,0=GD
 color=FFFFFF
-6,2=r
-7,0=xd=
-7,2,6=gD
-7,12=gI
+4,9=GH
+3,9=V
+4,0=A
 
 ############
-@PeilungTFT
+@PeilungTFTPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
@@ -256,8 +171,8 @@ color=bbbbbb,000000
 0,2=xN Top:
 0,8=xCourse Top:
 color=ffff00,000033
-1,0=g0NCS,48,ffff00,000044,6,33ff33,5,eeaa00
-1,8=g0CCS,48,ffff00,000044,6,55ff55,5,eeaa00
+1,0=g0NCS,35,ffff00,000044,6,33ff33,5,eeaa00
+1,7=g0CCS,35,ffff00,000044,6,55ff55,5,eeaa00
 color=ffffff,000000
 6,0=xDirection:
 6,8,4=gI
@@ -266,9 +181,8 @@ color=ffffff,000000
 7,8=xturn:
 7,12,4=gB
 
-
 ############
-@GPSdataTFT
+@GPSdataTFTPortrait
 timer=-1,-1,N
 key1action=+,0,F,W
 key2action=>,#,#,#
@@ -284,7 +198,7 @@ timeaction=#,#,#
 7,8,8=gB
 
 ############
-@BatteryTFT
+@BatteryTFTPortrait
 timer=-1,-1,-1
 key1action=+,0,F,W
 key2action=>,#,#,#
@@ -300,161 +214,4 @@ timeaction=#,#,#
 5.4,0,10=bImA
 6.4,0=xTemp:
 6.4,5,5=bT C
-
-############
-@BatteryOLED
-timer=-1,-1,-1
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-fonts=0,1
-0,0=xBat.Status:
-0,12=bS
-1,0=xBatt:
-1,6=bVV
-2,0=bCmA (charge) 
-3,0=bDmA (disch.) 
-4,0=xUSB:
-4,5=bUV
-5,5=bImA
-6,0=xTemp:
-6,5=bT C
-
-### Alternative display layouts based on https://gist.github.com/bazjo 
-# Scan display for large 2" TFT dispaly
-@Scan.TFT.Bazjo
-timer=-1,0,0
-key1action=D,#,F,W
-key2action=#,#,#,#
-timeaction=#,D,+
-scale=11,10
-fonts=0,2
-color=e0e0e0
-#Row 1
-0.5,0=XScanning...
-#Row 2
-3,0=xIndex
-4,0=S/
-3,9=xSite
-4,9=S
-#Row 3
-6,0=xType
-7,0=T
-6,9=xFrequency
-7,9=F
-#Row 4
-9,0=xWeb UI IP
-10,0=N
-#Row 5
-#Footer
-color=6C757D
-15,0=xScan Mode
-15,18=bVV
-
-############
-@Decode/General.TFT.Bazjo
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,0
-scale=11,10
-fonts=0,2
-#Row 1
-color=996A06
-0,0=xSerial
-0,5=t
-color=FFB10B
-1,0=Is
-color=996A06
-0,11=xFreq.
-0,16=c
-color=FFB10B
-1,11=F
-#Row 2
-color=3C5C99
-3,0=xLatitude
-color=639AFF
-4,0=L
-color=3C5C99
-3,11=xLongitude
-color=639AFF
-4,11=O
-#Row 3
-color=3C5C99
-6,0=xHoriz. Speed
-color=639AFF
-7,0=Hkkm/h
-color=3C5C99
-6,11=xVert. Speed
-color=639AFF
-7,11=Vm/s
-#Row 4
-color=99004A
-9,0=xAltitude
-color=FF007B
-10,0=A
-color=99004A
-9,11=xBearing
-color=FF007B
-10,11=GB
-#Row 5
-color=06998E
-12,0=xRSSI
-color=0AFFEF
-13,0=R
-color=06998E
-12,11=xHistory
-color=0AFFEF
-13.5,11=Q4
-#Footer
-color=6C757D
-15,0=xDecode Mode / General View
-15,18=bVV
-
-
-############
-@Decode/Battery.TFT.Bazjo
-timer=-1,-1,N
-key1action=+,0,F,W
-key2action=>,#,#,#
-timeaction=#,#,#
-scale=11,10
-fonts=0,2
-#Row 1
-color=99001F
-0,0=xBattery Status
-0,11=xBattery Voltage
-color=FF0035
-1,0=BS
-1,11=BVV
-#Row 2
-color=99001F
-3,0=xCharge Current
-3,11=xDischarge Current
-color=FF0035
-4,0=BCmA
-4,11=BDmA
-#Row 3
-color=99001F
-6,0=xUSB Voltage
-6,11=xUSB Current
-color=FF0035
-7,0=BUV
-7,11=BImA
-#Row 4
-color=99001F
-9,0=xIC Temperature
-#9,11=xKey
-color=FF0035
-10,0=BTC
-#10,11=XValue
-#Row 5
-#12,0=xKey
-#12,11=xKey
-#13,0=XValue
-#13,11=XValue
-#Footer
-color=99001F
-15,0=xDecode Mode/Battery View
-15,18=bVV
 
