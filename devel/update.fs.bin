@@ -879,7 +879,7 @@ function qrgTable() {
   tab.innerHTML = table;
   prep();
 }
-style.css 6570
+style.css 6921
 body, html {
 	height: 100%;
 	margin: 0;
@@ -1219,7 +1219,24 @@ p{
     text-align: left;
   }
 }
-livemap.html 720
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #333;
+      }   
+  h2{
+    color: white;
+  }
+  table, th, td, .save, .topnav a.active {
+    color: white;
+    border: 1px solid grey;
+    border-collapse: collapse;
+    background-color: #333;
+  }
+  input, select, .tci, .warning {
+    color: white;
+    background-color: #333;
+  }
+}livemap.html 720
 <!DOCTYPE html>
 <html>
 <head>
