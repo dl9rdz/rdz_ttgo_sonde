@@ -3,3 +3,4 @@ Update README.md (#211)
 
 Small fix
 Merge branch 'eben80-darkmode' into devel
+Merge branch 'master' into devel
