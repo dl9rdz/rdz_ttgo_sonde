@@ -1,0 +1,1163 @@
+Squashed commit of the following:
+
+commit 1dc548d6f1e68e954884806553e15d3cbeb32404
+Merge: 63f303f 033175f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Oct 7 21:48:41 2021 +0200
+
+    Merge branch 'eben80-darkmode' into devel
+
+commit 033175f873caff8ce70beefa427a55c864a15d7e
+Author: Eben van Ellewee <sbmail246@gmail.com>
+Date:   Wed Oct 6 14:10:12 2021 +0200
+
+    Dark mode CSS
+
+commit d6f65d7d01814224626f6fa314dc49399037a82f
+Merge: af39088 68bf924
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Oct 6 11:38:04 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 68bf9246a2248e62936fbb0debe5cfd419601ff4
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Oct 5 21:50:39 2021 +0200
+
+    Update README.md (#211)
+
+    Small fix
+
+commit 63f303f226206d5dd7a51d490d1d43a0df85945f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:50:12 2021 +0200
+
+    version update
+
+commit ab474e9816cc406adafbb4335970b64d770ac289
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:47:13 2021 +0200
+
+    more consistent names in json
+
+commit 864f1a92b0932f1b524099875fa0de5040031c68
+Merge: 6e2c1c7 0a77291
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:42:45 2021 +0200
+
+    Merge branch 'mycarda-devel' into devel
+
+commit 0a77291a50925230c782557b2ebd83131d18c502
+Merge: 6e2c1c7 0b6b383
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:42:34 2021 +0200
+
+    Merge branch 'devel' of https://github.com/mycarda/rdz_ttgo_sonde into mycarda-devel
+
+commit 6e2c1c74c9e67903123a1cff29c2de2b7ff37508
+Merge: 4f63242 c2cb1e5
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:41:59 2021 +0200
+
+    Merge branch 'LukePrior-patch-6' into devel
+
+commit c2cb1e55af4d190ace95beb5d3fefca4593e24d1
+Merge: 4f63242 5cf8266
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:41:44 2021 +0200
+
+    Merge branch 'patch-6' of https://github.com/LukePrior/rdz_ttgo_sonde into LukePrior-patch-6
+
+commit 4f63242afccd6e79786ff84ecb7422b0854d71b8
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Oct 5 21:41:21 2021 +0200
+
+    screens minor update, add large tft portrait
+
+commit 0b6b383c3ab1d2233b45650ee51c1051f8239006
+Merge: 9ae8b79 5a07290
+Author: michael carter <mycarda@btinternet.com>
+Date:   Mon Oct 4 07:04:59 2021 +0100
+
+    Merge branch 'devel' of github.com:mycarda/rdz_ttgo_sonde into devel
+
+commit 9ae8b790f0b2ba156e210b13f3f77f838d6c5fa1
+Author: michael carter <mycarda@btinternet.com>
+Date:   Mon Oct 4 07:04:51 2021 +0100
+
+    add values to mqtt
+
+commit af390881f7ad5c575af4e6c7688e2e9f3200f9d6
+Merge: ba4d0c4 97716f7
+Author: eben80 <sbmail246@gmail.com>
+Date:   Sun Oct 3 19:12:13 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 5a0729068b141d18943941804e46671d41692f9f
+Merge: 70ee641 97716f7
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Sun Oct 3 11:25:53 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 97716f7d79ded0b8c36bf180cfd4773837571c03
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 3 10:23:39 2021 +0200
+
+    mqtt clientid done right (+no space in id)
+
+commit 1d4f406dbb2e017778a11c9fa4df2b499738a491
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 3 10:03:41 2021 +0200
+
+    mqtt clientid done right
+
+commit 5cf8266f404fcb55c1cd7a12226876f59daf82e5
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Oct 3 11:43:00 2021 +1100
+
+    Update Compatibility Table
+
+commit 23fa620aa67287613ce0448adeb8ebb84fb1c1bd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 3 01:07:41 2021 +0200
+
+    some code cleanup
+
+commit 00899dba2a220fbf397b34f287c66070babd1c53
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 2 22:03:06 2021 +0200
+
+    issue #206
+
+commit 11cd76a0b11b96858a263e3c49389c696d93a07f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 2 20:19:11 2021 +0200
+
+    M10 batt,rh as in autorx
+
+commit ba4d0c40fb2f5104d7864ca358ef64e479067a95
+Merge: 2924da7 e427c34
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Oct 1 09:40:59 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 70ee641ec1e165ac7ed0fd205e090e58b5dad14e
+Merge: d48b777 e427c34
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Fri Oct 1 06:30:26 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit e427c34969a0512ed0cf969c84eb44e6972dfdfd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 30 21:51:49 2021 +0200
+
+    README update
+
+commit b6a2c9e7d24408575dffe97bfb1c4517633a6a81
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 30 21:39:53 2021 +0200
+
+    increase upper bound on distance in sondehub import
+
+commit 2924da784f43c126e031d52ebfb9ccc066d215a4
+Merge: 27b8766 542c9c7
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 30 19:05:15 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 542c9c73ef1642a856e6fa4bc736b55dcd9ed812
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 30 19:04:57 2021 +0200
+
+    ; dfm +temp, +bat
+
+commit fdf5132fa64625f8b9789d3ab77ecff80a81dd7b
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 30 17:53:57 2021 +0200
+
+    ; DFM enhancements
+
+commit ef9ae86969f2d0ee9345d8bc20cf14734e7f05de
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 30 14:37:18 2021 +0200
+
+    DFM: check for bit errors
+
+commit d48b777c9332785aea93a70a68c60b12189d245a
+Merge: 78dec8d 4c24c8c
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Wed Sep 29 18:58:22 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 27b8766bf9ab6a93ed0cbb7ec94fd839d2344c6e
+Merge: 15e61ca 4c24c8c
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 29 13:15:30 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 4c24c8c385fe2437cd917434db2d114082267348
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 28 17:27:18 2021 +0200
+
+    less confusing M10/M20
+
+commit 5166e7d950ab3989b85888a99942f75f15aab5f4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 28 11:03:48 2021 +0200
+
+    show configured M10/M20 type as long as no signal has been recevied
+
+commit c3213c6f419b83a9631c9aa9403ff2b7433d7535
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 27 22:02:43 2021 +0200
+
+    official to-call APRRDZ
+
+commit 224aa2fac9a5ce187e5029d81bcd21c534b0de9f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 20:09:57 2021 +0200
+
+    spurious IRQ workaround. probably related to ESP32 errata 3.14 https://www.espressif.com/sites/default/files/documentation/eco_and_workarounds_for_bugs_in_esp32_en.pdf
+
+commit 78dec8d3dbb6bd769352af24ed5560357cb62d90
+Merge: 8672261 438be9a
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Tue Sep 28 12:44:55 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 15e61ca7fe50edf1fe879a5fdfd8703eb6d1e798
+Merge: 5704b07 438be9a
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 28 11:51:45 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 438be9aa8a38a3a6f17df714b6b069c8c6e5ba20
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Mon Sep 27 21:50:10 2021 +1000
+
+    Fix Support Matrix (#193)
+
+commit 86722612a29306f080f5ccea29f161514865e92f
+Merge: d174b19 85be031
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Sun Sep 26 22:06:52 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 5704b075d74ad2d1a03a52fcc318bc2547331a24
+Merge: 4651b27 85be031
+Author: eben80 <sbmail246@gmail.com>
+Date:   Sun Sep 26 17:32:39 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 85be031a6baa9b426284a70f8f0a616fb82ca1d1
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 15:05:22 2021 +0200
+
+    RS41-SGP hum calc with real pressure. now correct.
+
+commit c6a7255d0596eba1beff1a4656b41cf8ec69876d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 14:42:21 2021 +0200
+
+    missing mod. show dist/dir to fixed rxpos if not gps
+
+commit 2186482fb8789abd6da8aef7b02b59ef590a762f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 13:52:28 2021 +0200
+
+    RS41-SGP hum calc with real pressure
+
+commit 0379cedd7b648bfaf260ce3576134f5f714856e9
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 13:15:28 2021 +0200
+
+    now utf8
+
+commit d069433024f016c2f009237fd1f8dae22f9b1335
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 26 13:11:29 2021 +0200
+
+    some font enhancements, better utf8 handling, most things not yet active in main build
+
+commit 4651b278101dba177d0c073c50dd3a8e767b7b1a
+Merge: 3d80c17 f30c9b6
+Author: eben80 <sbmail246@gmail.com>
+Date:   Sun Sep 26 12:05:18 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit d174b198bd47b5ed10361eef4c1db4457bc9cfd6
+Merge: 485d742 f30c9b6
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Sun Sep 26 09:19:15 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit f30c9b6d89662f1aa5bd623eea7432a91d60596c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 25 10:51:04 2021 +0200
+
+    exception workaround
+
+commit 3d80c1740ea313badb63c6bec6665394a5684f06
+Merge: 1ddc1eb 49bff43
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 24 18:58:20 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 49bff43090a00ca1efedc27c2f070337a2c3a57d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 18:09:19 2021 +0200
+
+    +Display telemetry - some enhancements
+
+commit a39479dda7e528ca37fd86bb503f161abd1b5f12
+Merge: 320d621 aba060d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 16:47:43 2021 +0200
+
+    Merge branch 'eben80-patch-1' into devel
+
+commit aba060d2e075cd2db07bb616021f532fee52d613
+Merge: 93628c9 5be57a0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 16:47:34 2021 +0200
+
+    Merge branch 'patch-1' of https://github.com/eben80/rdz_ttgo_sonde into eben80-patch-1
+
+commit 93628c9d4faac60205c0969dc57a95a1c30ee43c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 16:47:27 2021 +0200
+
+    update readme
+
+commit 320d621cbcf1a141a71b9cd7cd772641994fe824
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 15:21:24 2021 +0200
+
+    m10 temp, done right :)
+
+commit 5be57a02b5d784de943bf6ef3eeff0bb2982136b
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 24 14:55:53 2021 +0200
+
+    Make telemetry values available on device display
+
+    This is probably not the cleanest coding so apologies in advance.
+    Tested on TTGO.
+
+commit 1ddc1eb88f508696548ac676f9a28231cfc5ce0f
+Merge: f74d402 8d24d2f
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 24 14:48:54 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 8d24d2fe78363e5dcef921ead2933080dd379861
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 12:59:15 2021 +0200
+
+    workaround for app
+
+commit 8bc4eda63c312ac77a0c44ff139c57ee0bbf7b86
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 12:09:32 2021 +0200
+
+    use correct M10/M20 type everywhere
+
+commit a7f6d6bb7bba0d1b4fccacbdb15e13211d2b67b5
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 24 10:31:58 2021 +0200
+
+    meteo in aprs frames
+
+commit 485d74237251f678d46d5897131c6c94db80e795
+Merge: abf46b7 e8fdd5d
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Thu Sep 23 22:12:32 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit f74d40209f7481aa930dcf297baeba2da8677a67
+Merge: 006ee09 e8fdd5d
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 23 19:57:51 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit e8fdd5dee7a627639edd7380cbc915d92edbbb84
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 18:22:10 2021 +0200
+
+    async client test
+
+commit 006ee09f27611e43eb9bf14637be8980e304f691
+Merge: 9102207 c64651f
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 23 14:12:03 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit c64651f36b2ca998db5b0b7e26e2fc0b5578be06
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 13:42:32 2021 +0200
+
+    typo--
+
+commit 69062ac85601d32736e01f832ca292e3b094cae7
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 13:41:01 2021 +0200
+
+    initialize pressure with NAN
+
+commit 03968f6ab4b78547b6ca008bb252d7a8aefb6221
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 13:30:56 2021 +0200
+
+    clear all data also on SH import
+
+commit 9fdfc02cafd64eb80cd69fafb70fda493f46a6ac
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:49:56 2021 +0200
+
+    station update also if disconected
+
+commit 4622f6f99a825c5b96ef7ffaacbbb8932abe7385
+Author: dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:41:29 2021 +0200
+
+    Update README.md
+
+commit 910220775af50ef09806d5276d864796ca301fcb
+Merge: 7173fd1 8408f3b
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 23 12:40:32 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 7173fd101acead47fd57080bdb40f325d51322fe
+Merge: 01bde16 469d64a
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 23 12:22:11 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 8408f3b78520a9688c73a8e10416c264a44f7ec9
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:22:05 2021 +0200
+
+    (nits)
+
+commit 469d64ab01e6afb845e688073a1fe239ea91b319
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:16:06 2021 +0200
+
+    update default config for RS92 eph
+
+commit 280dd6cef19f77cc2d652d7557d37dce94d1da51
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:11:25 2021 +0200
+
+    +version update
+
+commit 8d0d897c3bd0273a99b7a77049dc51f4ca7f59d9
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:10:58 2021 +0200
+
+    RS41 P to sondehub
+
+commit 971a2e6d652f855fdd02e3e754dd84d777acea49
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 12:07:54 2021 +0200
+
+    +RS41 P data
+
+commit 01bde1672d3565ce54e38b2a952dd141ad87b453
+Merge: fdf45f4 d0c9e10
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 23 09:30:56 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit d0c9e10a9d364894eb755d77edb59e3828bd93bd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 23 09:20:07 2021 +0200
+
+    chasemapper position accuracy fixed
+
+commit abf46b7b7e067f2475dd3387bea3ccecfd1fc3b1
+Merge: 8aefe13 4cc12f3
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Wed Sep 22 21:12:44 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit fdf45f44a96c895b1b7a2a1163511dab2784a5b6
+Merge: 9e347a4 4cc12f3
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 22 21:59:16 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit ff301ee458a49c60419c5a38f2270d64ab36624a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 21:41:47 2021 +0200
+
+    stricter crc and validity check for RS41
+
+commit 4cc12f3f7429f02499ae8505d812a1a857be9533
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 21:27:29 2021 +0200
+
+    don't send NaN in LiveMap JSON
+
+commit 9e347a48e620dc36f01ab6ba8e7f90e34b5bb96f
+Merge: 0291c96 0d03b2a
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 22 18:59:45 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 8aefe13bbc25433d69aafd7299378b118ffa6e48
+Merge: e851933 0d03b2a
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Wed Sep 22 15:52:56 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 0d03b2abae2cf9f38507b96c0cf8d6d55b00965e
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 16:46:15 2021 +0200
+
+    Enhanced network handling for sondehub
+
+commit fab83de8880b928ddc0d859643674e84544935d8
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 16:35:04 2021 +0200
+
+    don't send nan temp to chasemapper
+
+commit 89ffef6c24ccf0240a0682f39c4c5d5da0e3a26a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 16:16:32 2021 +0200
+
+    Arduino IDE autoformat
+
+commit d4de05e29bdf3c1d0ed8e4aeb688720cb6a79869
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 16:16:15 2021 +0200
+
+    get read of delays caused by readUntil from network
+
+commit cb5b3584d0563e086b09fa5f37ce64f034ce3df7
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 13:50:18 2021 +0200
+
+    fix temp/hum empty check in sync with recent updates
+
+commit e8519339b362f8da99e192eb5bc7bc5dafe00f52
+Merge: ab1da6e b297a9a
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Wed Sep 22 12:26:29 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 0291c96f504258c0715aad257d1ae420c3b89def
+Merge: 5071cde b297a9a
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 22 11:58:29 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit b297a9a7c7addd27d8d366acec60bd72e28e9306
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 11:28:29 2021 +0200
+
+    some internal reorg that should not break anything but make it easier later to decouple decoding from updating global data, solving part of issue 186
+
+commit ab1da6ea9aacc4a507f31aeec816c9d043a8b590
+Merge: 8a62085 5384d36
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Wed Sep 22 09:43:48 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit ac05c9edbddd66dd404d277e5e0854d91674bd0e
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 10:39:34 2021 +0200
+
+    never remove currentSonde by ShImport
+
+commit 8ffaa8be63b305c3712a59eaab4ee963793dadbe
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 10:03:22 2021 +0200
+
+    temp, hum with 1 decimal digit for sondehub
+
+commit 032d8452c658240ac5a921842fbe6898683b196c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 22 10:02:40 2021 +0200
+
+    clear all decoded data on ID change, don't leave anything old behind
+
+commit 5071cde442bc2adaad7212ea8bf73de96a4f7bf7
+Merge: 02eb47b 5384d36
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 22 07:15:30 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 5384d361518e7d382e8b28566e5b885e0e017d96
+Merge: 33856db e4ded3b
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 23:50:57 2021 +0200
+
+    Merge branch 'eben80-patch-1' into devel
+
+commit 33856db2e1824746327cfbcacca902c69c155578
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 23:50:54 2021 +0200
+
+    cfg: add links to wiki
+
+commit e4ded3be7f318e1faacc3bac1e0c5fb16fb75d93
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 19:21:46 2021 +0200
+
+    Small fix to ensure that sonde_id field.
+
+    This makes sure that sonde_id doesn't go back to the Launch Site name if there is something in data.id when status is blinking yellow.
+
+commit 8a62085f4f362a009a041abf6b52fc14756c2f0d
+Merge: 3b51a90 49c0d00
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Tue Sep 21 16:36:26 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 02eb47bb77c87714e470bb33955a109dc0d11ba5
+Merge: 35cb3be 49c0d00
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 14:37:51 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 49c0d0092702d0a5e3187875b2b486669fb9430d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 14:17:48 2021 +0200
+
+    send batt to sondehub; count down (burst_timer) only if fresh
+
+commit 3b51a903d66954b0d37fd960306bde794249ac0d
+Merge: de41088 2dad197
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Tue Sep 21 12:55:10 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 35cb3be7937b24e8f2a4b84a41559bd6453fa934
+Merge: 9825442 2dad197
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 13:46:46 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 2dad197a9c9b1f1b60f662b5f4f4a253bf92d8d7
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Tue Sep 21 12:36:04 2021 +0100
+
+    Add battery voltage (#183)
+
+commit de41088270d5058ce16b331364dc70ce41f4e07c
+Merge: 5e0a985 86566c0
+Author: michael carter <mycarda@btinternet.com>
+Date:   Tue Sep 21 12:24:44 2021 +0100
+
+    Merge branch 'devel' of github.com:mycarda/rdz_ttgo_sonde into devel
+
+commit 5e0a98512b3b80833aaeddef952f6d526f837603
+Author: michael carter <mycarda@btinternet.com>
+Date:   Tue Sep 21 12:24:01 2021 +0100
+
+    Add battery voltage
+
+commit 98254422725ca538f7d5fbba49b654ddc0e8e866
+Merge: 6247f25 e32ea8e
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 11:13:21 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit e32ea8e432d3dcd85897fdf475db51b3118bb703
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 11:04:44 2021 +0200
+
+    LiveMap updates to include last received datetime, heading and rssi (#182)
+
+    * Add direction, UTC datetime and rssi to livemap
+
+    * Further fixes
+
+    Co-authored-by: dl9rdz <dl9rdz@darc.de>
+
+commit 56d6e357821ee61a842ca676107acb73e50e7ac4
+Author: dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 10:43:46 2021 +0200
+
+    Update README.md
+
+commit afbfde07dd40e97aeacee55fa4f6e4db6c0de505
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 10:40:21 2021 +0200
+
+    +Chasemapper udp support
+
+commit 13134b32f7b119f353969f5968d2d24aeb21e437
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 09:44:01 2021 +0200
+
+    (good for now)
+
+commit 6247f259f17b012677e5f1f500c8460cb9cfb846
+Merge: ff14518 6e14848
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 21 09:32:54 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 6e148489f35a193cd1db2638df06f809b171874f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 21 08:29:53 2021 +0200
+
+    keep data on livemap - restore old behaviour
+
+commit ff145180f2ed6ed134ea9ef9eac7b8220ed26954
+Merge: 3d6d953 86566c0
+Author: eben80 <sbmail246@gmail.com>
+Date:   Mon Sep 20 19:22:03 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 86566c042710f4062fa20a2912925d85cb2591d6
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 18:18:09 2021 +0200
+
+    sync sh import / sh telemetry
+
+commit f5281e523cbde86a311bd1d972ef59ba4eff9623
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 16:57:37 2021 +0200
+
+    really fix RS41 subtype
+
+commit 2dcbcc31419de773e4c25425276c1aad29187c32
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 16:20:53 2021 +0200
+
+    fix RS41 subtype
+
+commit 3d6d9532d6a08280e711421b10af318fa4497087
+Merge: 6df02c1 71c42c9
+Author: eben80 <sbmail246@gmail.com>
+Date:   Mon Sep 20 12:05:20 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 71c42c938b7a4790f1a3e33bdd8cefbcd548ffc8
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 11:53:50 2021 +0200
+
+    don't use u8g2 2.31.1 due to https://github.com/olikraus/u8g2/issues/1594
+
+commit 6df02c1fd043c5126bc78a4d5cb670c27f0051cd
+Merge: 0266d2f d366a3d
+Author: eben80 <sbmail246@gmail.com>
+Date:   Mon Sep 20 11:37:25 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit d366a3d1efdf41d4791ef8920bca9fa552910de5
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 11:23:46 2021 +0200
+
+    don't use u8g2 2.31.1 due to https://github.com/olikraus/u8g2/issues/1594
+
+commit 3cd22dc8c22222f0e713b334ba4a4749ae3e6f34
+Merge: 99ccf58 f9316d9
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 11:10:06 2021 +0200
+
+    Merge branch 'LukePrior-patch-4' into devel
+
+commit f9316d94be57c1dd0b147496c26689d5206af29e
+Merge: 99ccf58 775b7ff
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 11:09:56 2021 +0200
+
+    Merge branch 'patch-4' of https://github.com/LukePrior/rdz_ttgo_sonde into LukePrior-patch-4
+
+commit 99ccf581e45706236b5bc2cc1275ae067604d3b4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Sep 20 11:09:33 2021 +0200
+
+    add dbg msg
+
+commit 0266d2fe334d04e9fac9e8a337732f4a82fd3d37
+Merge: 838c16c 3591884
+Author: eben80 <sbmail246@gmail.com>
+Date:   Mon Sep 20 10:17:03 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 775b7ff3e058cfdd81d64e55b5c1102fc28d43e5
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Mon Sep 20 17:27:11 2021 +1000
+
+    Update RX_FSK.ino
+
+commit 9a60db96d631cae4b19c932bfb43e54810fea191
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 22:46:56 2021 +0200
+
+    typo--
+
+commit b6dbbe73ba491892b0ab22a13aeab3fefd067cad
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 22:46:27 2021 +0200
+
+    typo--
+
+commit 359188436c5d0140744820cd4a60e23b60493601
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 22:21:45 2021 +0200
+
+    fixed pos used for live map if no gps pos available
+
+commit 1a922aab5210a94932993a6d3b674bd769a09d27
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 20:39:24 2021 +0200
+
+    larger buffer for sh messages
+
+commit 838c16c5c6b94cffaca0b7736e8abdbab0f37140
+Merge: cafcdb2 7ace621
+Author: eben80 <sbmail246@gmail.com>
+Date:   Sun Sep 19 20:06:59 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 7ace621cf5f04a603ee57c20c3c3da409aa36b85
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 19:56:19 2021 +0200
+
+    version update
+
+commit 49faf07af556eb4d675bd892dcbdb33d52e7815e
+Merge: eb769e6 c50a2d1
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 19:55:30 2021 +0200
+
+    Merge branch 'LukePrior-patch-3' into devel
+
+commit c50a2d1138a99ac2588c0a352ae8182d6b70307b
+Merge: eb769e6 387d3c0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 19:55:20 2021 +0200
+
+    Merge branch 'patch-3' of https://github.com/LukePrior/rdz_ttgo_sonde into LukePrior-patch-3
+
+commit eb769e6d12320917df017e272b0eff959318b852
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Sep 19 19:54:06 2021 +0200
+
+    RS41 subtype for sondehub
+
+commit 387d3c059d75a4445e3c4bba66090239218893b4
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Sep 19 20:25:58 2021 +1000
+
+    Update RX_FSK.ino
+
+commit b5456d84d1c4faa4cc18c9ccf4cc98c1ba85e94d
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Sep 19 20:17:22 2021 +1000
+
+    Always send for RS41
+
+commit e4e89a29d0a50faf98c1408631462580d78cf6d2
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Sep 19 12:23:22 2021 +1000
+
+    tidy up SH
+
+commit a4b299129e946fd22e079032486531ff90d857af
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Sep 19 12:19:35 2021 +1000
+
+    Include burst timer
+
+    not tested
+
+commit a30f51e5a04442859bbeed3ede70ec7eb4988357
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 23:00:18 2021 +0200
+
+    fix #165
+
+commit e00d70b385adb43b405dceb92722f675525a848c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 22:36:22 2021 +0200
+
+    fix issue #172 with negative lat on livemap
+
+commit fe50159157b4b2ac435a920de4ebadadbd189995
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 20:56:47 2021 +0200
+
+    minor sh enhancements
+
+commit 494380a43d2214194c8b31295de9bf986e816d47
+Merge: 22d4927 1fb66cd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 20:30:14 2021 +0200
+
+    Merge branch 'LukePrior-patch-2' into devel
+
+commit 1fb66cdb0b806d4dad51867647fce81bfa125282
+Merge: 22d4927 ae13b78
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 20:30:04 2021 +0200
+
+    Merge branch 'patch-2' of https://github.com/LukePrior/rdz_ttgo_sonde into LukePrior-patch-2
+
+commit 22d492711a4fa9bbc941dc2487dffa833f0176da
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 20:29:14 2021 +0200
+
+    bugfix sh import
+
+commit ae1e9e7c489689a72b226a1be999d424e025a9bd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 19:52:42 2021 +0200
+
+    cleanup new config interface
+
+commit 79f5b199aeb7b64073d9e72a42b02d3d1d93482a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 19:52:22 2021 +0200
+
+    cleanup new config interface
+
+commit 5c5bfa07251b68c0e9798a6e24716d8a1651168d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Sep 18 16:51:03 2021 +0200
+
+    js-based config form, using less memory. +some cleanup
+
+commit ae13b7853a2cddbb52f1be8f66bd9ac77b86690d
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sat Sep 18 13:12:32 2021 +1000
+
+    Split temp & humidity SondeHub updates
+
+commit cafcdb2c80085eea84b9ffa80af09ed70e3e887a
+Merge: 6676222 7254558
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 17 14:42:49 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 7254558c4494491c23c0eaf715a219338e88d416
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 17 13:04:14 2021 +0200
+
+    clear subframebuffer if RS41 changes, + minor cleanup
+
+commit 6676222cbc2f8630142d237ac57ef8d9a7cdb652
+Merge: e75e307 e14915f
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 17 12:59:53 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 4897d7634e936095c9fc472e5b94894edd823a2b
+Merge: ef90bc3 3aeeef0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Sep 17 12:55:28 2021 +0200
+
+    Merge branch 'mycarda-devel' into devel
+
+commit 3aeeef0aab9e8882326850439c392fdfb194ad43
+Merge: 35493aa e14915f
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Fri Sep 17 11:20:27 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 35493aaffd4ad582d2c68b8ce646f2b8f25527d1
+Author: michael carter <mycarda@btinternet.com>
+Date:   Fri Sep 17 11:11:25 2021 +0100
+
+    Updated relative humidity calculation to include pressure
+
+commit e14915fbcc0d0d860646f33bad2e159994cdf5c7
+Author: eben80 <sbmail246@gmail.com>
+Date:   Fri Sep 17 11:47:14 2021 +0200
+
+    Fix padding on menu icon (#168)
+
+    This is to fix alignment issues.
+
+commit e75e30768cc937194c441b10887f7fd835d94439
+Merge: 62eb246 ef90bc3
+Author: eben80 <sbmail246@gmail.com>
+Date:   Thu Sep 16 22:46:54 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 3db2160116f4f553477c19f09f9e245ceb4b82b8
+Merge: ac1b4af ef90bc3
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Thu Sep 16 20:42:25 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit ef90bc3f34d34e280a853c415f8750af4ef86293
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 16 20:38:35 2021 +0200
+
+    OTA also for files (www/js/css)
+
+commit ac1b4af475359d88aec8193ccefb7d3592c4851c
+Merge: cadfc9d debaf57
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Thu Sep 16 17:41:18 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit debaf57f88e3f7585683d512e858307e09ad3e33
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 16 18:33:46 2021 +0200
+
+    (travis test for fs ota)
+
+commit 374f84115b47693a75ab0170f86cb1ee7b24befd
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 16 17:48:11 2021 +0200
+
+    fix #164
+
+commit 29bdcc8f5b451123cc78d7f1ab524217d75ba825
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Sep 16 17:00:28 2021 +0200
+
+    SondeHub frequency import
+
+commit cadfc9dd97caa533e2ab6eb55b4a2f7eb64bc0b0
+Merge: df62fc0 c766e60
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Thu Sep 16 10:36:53 2021 +0100
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit df62fc0d7952af2cbe3b1e6e09acd5507218e522
+Author: mycarda <mycarda@btinternet.com>
+Date:   Thu Sep 16 10:23:01 2021 +0100
+
+    testing updates
+
+commit 62eb2469594c4060ab27a9f1ad82e5b526070dc7
+Merge: 71452e9 c766e60
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 15 08:34:00 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit c766e608195ca3acfdb2f825a49d77e1f0a353ca
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 15 01:45:11 2021 +0200
+
+    Responsive menu for web interface (#161)
+
+    * Responsive Web Interface menu.
+
+    * Add active page indicator
+
+    * Update style.css
+
+    * Update index.html
+
+commit 71452e97e60224691bd748b4ff6fed3876d7cf10
+Merge: c7bd7a7 c01a72c
+Author: eben80 <sbmail246@gmail.com>
+Date:   Wed Sep 15 00:57:56 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit c01a72cf914ee817e3014372a6640a9bd3a7d846
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Sep 15 00:07:46 2021 +0200
+
+    OTA display output fix for TFT
+
+commit c7bd7a73ec3102e8f729c791f64979bf692ff8a9
+Merge: 0272018 51ad95e
+Author: eben80 <sbmail246@gmail.com>
+Date:   Tue Sep 14 23:59:19 2021 +0200
+
+    Merge branch 'dl9rdz:devel' into devel
+
+commit 33c5ccc905075707b17708648f38ae27c1b2fd73
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 23:35:20 2021 +0200
+
+    some code cleanup
+
+commit 51ad95e93cab6169280392f654b40904316bce0f
+Merge: 4118a76 146fbb6
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 22:46:38 2021 +0200
+
+    Merge branch 'LukePrior-patch-1' into devel
+
+commit 146fbb6f62e3ac424f150df351c58b368c91879b
+Merge: 4118a76 3078a59
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 22:46:05 2021 +0200
+
+    Merge branch 'patch-1' of https://github.com/LukePrior/rdz_ttgo_sonde into LukePrior-patch-1
+
+commit 4118a76a16f33e741383f9b958167278207e30ff
+Merge: 7324461 6043fc4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 22:43:59 2021 +0200
+
+    Merge branch 'eben80-patch-1' into devel
+
+commit 6043fc4fff4ed238acc2213e6a8f116996eec5ed
+Merge: 7324461 84ed082
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 22:43:48 2021 +0200
+
+    Merge branch 'patch-1' of https://github.com/eben80/rdz_ttgo_sonde into eben80-patch-1
+
+commit 73244615a82098f9d9ed4f6ce5477e13077f89ee
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Sep 14 22:43:01 2021 +0200
+
+    avoid rs92 decode stack overflow, remove unused code
+
+commit 3078a59474350fe9c52d68680d5c68e8c93cf232
+Author: Luke Prior <
