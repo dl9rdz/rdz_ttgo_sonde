@@ -72,7 +72,6 @@ td#sfreq {
 	display: none;
 	flex: 1;
 	padding: 6px 12px;
-	border: 1px solid #ccc;
 	border-top: none;
 	flex-direction: column;
 	overflow: auto;
@@ -344,7 +343,7 @@ p{
   h2{
     color: white;
   }
-  table, th, td, .save, .topnav a.active {
+  table, th, td, .save, a.active {
     color: white;
     border: 1px solid grey;
     border-collapse: collapse;
@@ -353,5 +352,14 @@ p{
   input, select, .tci, .warning {
     color: white;
     background-color: #333;
+  }
+  a:link, a:visited {
+    color: grey !important;
+  }
+  .topnav {
+    background-color: grey;
+  }
+  .topnav a:visited {
+    color: white !important;
   }
 }
