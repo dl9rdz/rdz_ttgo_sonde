@@ -879,7 +879,7 @@ function qrgTable() {
   tab.innerHTML = table;
   prep();
 }
-style.css 7042
+style.css 7161
 body, html {
 	height: 100%;
 	margin: 0;
@@ -1221,7 +1221,7 @@ p{
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #333;
-      }   
+  }   
   h2{
     color: white;
   }
@@ -1236,13 +1236,21 @@ p{
     background-color: #333;
   }
   a:link, a:visited {
-    color: grey !important;
+    color: #D3D3D3;
   }
-  .topnav {
+  .topnav, td#sfreq {
     background-color: grey;
   }
   .topnav a:visited {
-    color: white !important;
+    color: white;
+  }
+  .ctlbtn {
+    color: white;
+    background-color: grey;
+  }
+  .leaflet-center {
+    color: white;
+    background-color: grey;
   }
 }
 livemap.html 720
