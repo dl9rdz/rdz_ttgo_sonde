@@ -305,6 +305,17 @@ void U8x8Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip
 void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	char buf[50];
 	utf2latin15(s, buf, 50);
+	if(width!=WIDTH_AUTO && width>0) {
+		for(int l = strlen(buf); l<width; l++) {
+			buf[l] = ' ';
+		}
+		buf[width] = 0;
+	}
+	if(width<0) {
+		int l = strlen(buf);
+		memset(buf, ' ', width-l);
+		utf2latin15(s, buf+l, 50-l);
+	}
 	u8x8->drawString(x, y, buf);
 }
 
@@ -1355,8 +1366,13 @@ void Display::drawSite(DispEntry *de) {
 		buf[5]=0;
 		break;
 	case 0: case 'l': default: // launch site
-		drawString(de, sonde.si()->launchsite);
-		return;
+		// TODO: This is a workaround to be compatible with older screens1.txt
+		// This does not work correctly with non-ascii utf8 characters.
+		// For this reason, this workaround will likely be removed in the future
+		// Instead, all screens?.txt should always indicate the max. length of the displayed string.
+		snprintf(buf, 17, "%-16s", sonde.si()->launchsite);
+		//drawString(de, sonde.si()->launchsite);
+		//return;
 	}
 	if(de->extra[0]) strcat(buf, de->extra+1);
 	drawString(de, buf);
