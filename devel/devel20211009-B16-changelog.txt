@@ -1,1 +1,2 @@
 version update for dark mode enhancements
+fix correct M20 id (missing terminator)
