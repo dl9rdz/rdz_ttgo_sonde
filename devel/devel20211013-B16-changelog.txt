@@ -1,0 +1,1 @@
+no sh location report without enabling sh reporting
