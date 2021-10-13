@@ -3641,9 +3641,11 @@ void sondehub_reply_handler(WiFiClient * client) {
 
   // also handle periodic station updates here...
   // interval check moved to sondehub_station_update to avoid having to calculate distance in auto mode twice
-  if (shState == SH_CONN_IDLE || shState == SH_DISCONNECTED ) {
-    // (do not set station update while a telemetry report is being sent
-    sondehub_station_update(&shclient, &sonde.config.sondehub);
+  if (sonde.config.sondehub.active) {
+    if (shState == SH_CONN_IDLE || shState == SH_DISCONNECTED ) {
+      // (do not set station update while a telemetry report is being sent
+      sondehub_station_update(&shclient, &sonde.config.sondehub);
+    }
   }
 }
 
