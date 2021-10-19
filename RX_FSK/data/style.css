@@ -370,4 +370,11 @@ p{
     color: white;
     background-color: grey;
   }
+  .leaflet-bar a {
+    background-color: grey !important;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    color: white !important;
+    background: grey !important;
+  }
 }
