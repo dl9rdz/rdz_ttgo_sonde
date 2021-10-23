@@ -1,1 +1,8 @@
 update screens5.txt
+Support dark mode fully in live map (#225)
+
+* Update style.css
+
+* dark mode map
+
+Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
