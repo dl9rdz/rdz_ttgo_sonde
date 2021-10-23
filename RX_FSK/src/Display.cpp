@@ -1344,7 +1344,7 @@ void Display::drawSite(DispEntry *de) {
 	case '#':
 		// currentSonde is index in array starting with 0;
 		// but we draw "1" for the first entry and so on...
-		snprintf(buf, 3, "%2d", sonde.currentSonde+1);
+		snprintf(buf, 3, "%d ", sonde.currentSonde+1);
 		buf[2]=0;
 		break;
 	case 't':
