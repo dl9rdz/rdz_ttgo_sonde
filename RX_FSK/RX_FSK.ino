@@ -3235,7 +3235,7 @@ void aprs_station_update() {
   }
   Serial.printf("Really updating!! (objcall is %s)", sonde.config.objcall);
   time_last_aprs_update = time_now;
-  char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0));
+  char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0), sonde.config.comment);
   if ( tcpclient.disconnected()) {
     tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
   }

@@ -260,7 +260,7 @@ char b[251];
 //char raw[201];
 const char *destcall="APRRDZ";
 
-char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *sym) {
+char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *sym, const char *comment) {
 	*b = 0;
 	aprsstr_append(b, usercall);
 	aprsstr_append(b, ">");
@@ -286,7 +286,9 @@ char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *s
 	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, lon<0?'W':'E', sym[1]);
 	// maybe add alt
 	// maybe add DAO?
-	sprintf(b + strlen(b), "%s", version_name);
+	i = strlen(b);
+	snprintf(b+i, APRS_MAXLEN-i, "%s", comment);
+	//sprintf(b + strlen(b), "%s", version_name);
 	return b;
 }
 
@@ -297,7 +299,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, co
 	aprsstr_append(b, ">");
 //	const char *destcall="APRARX,SONDEGATE,TCPIP,qAR,oh3bsg";
 	aprsstr_append(b, destcall);
-	if(*objcall) aprsstr_append(b, usercall);
+	if(*objcall) { aprsstr_append(b, ","); aprsstr_append(b, usercall); }
 	// uncompressed
 	aprsstr_append(b, ":;");
 	char tmp[10];
