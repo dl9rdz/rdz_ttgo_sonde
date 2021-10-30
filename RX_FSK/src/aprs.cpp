@@ -299,7 +299,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, co
 	aprsstr_append(b, ">");
 //	const char *destcall="APRARX,SONDEGATE,TCPIP,qAR,oh3bsg";
 	aprsstr_append(b, destcall);
-	if(*objcall) { aprsstr_append(b, ","); aprsstr_append(b, usercall); }
+//	if(*objcall) { aprsstr_append(b, ","); aprsstr_append(b, usercall); }
 	// uncompressed
 	aprsstr_append(b, ":;");
 	char tmp[10];
