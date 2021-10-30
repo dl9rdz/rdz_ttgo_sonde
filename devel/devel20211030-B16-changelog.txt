@@ -6,3 +6,4 @@ some APRS for wettersonde.net support
 some better APRS for wettersonde.net support
 simplification
 back to normal beacon frequency
+scan display for ILI934x
