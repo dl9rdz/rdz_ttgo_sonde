@@ -83,7 +83,7 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
 #define APRS_STATION_UPDATE_TIME (10*1000)
 #define APRS_MOBILE_STATION_UPDATE_TIME (10*1000)
 unsigned long time_last_aprs_update = 0;
-                                  
+
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
@@ -1766,21 +1766,21 @@ void initGPS() {
     if (testfile && !testfile.isDirectory()) {
       testfile.close();
       Serial.println("GPS resetting baud to 9k6...");
- /* TODO: debug:
-  *  Sometimes I have seen the Serial2.begin to cause a reset
-  *  Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
-  * Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
-  * #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
-  * #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
-  * #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
-  * #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-  * #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-  * #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
-  */
+      /* TODO: debug:
+          Sometimes I have seen the Serial2.begin to cause a reset
+          Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
+         Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
+         #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
+         #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
+         #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
+         #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+         #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+         #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
+      */
       Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
       delay(200);
@@ -1936,7 +1936,7 @@ void IRAM_ATTR buttonISR() {
     button1.numberKeyPresses += 1;
     button1.keydownTime = now;
   } else { //Button up
-    if(!b1wasdown) return;
+    if (!b1wasdown) return;
     b1wasdown = false;
     unsigned long now = my_millis();
     if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
@@ -2017,7 +2017,9 @@ void handlePMUirq() {
         button2.pressed = KP_MID;
         button2.keydownTime = my_millis();
       }
-      if(pmu_irq!=2) { pmu_irq = 0; }
+      if (pmu_irq != 2) {
+        pmu_irq = 0;
+      }
       axp.clearIRQ();
       xSemaphoreGive( axpSemaphore );
     }
@@ -2180,7 +2182,7 @@ void setup()
         // Display backlight on M5 Core2
         axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
         axp.setDCDC3Voltage(3300);
-	pmu_irq = 2; // IRQ pin is not connected on Core2
+        pmu_irq = 2; // IRQ pin is not connected on Core2
       } else {
         // GPS on T-Beam, buzzer on M5 Core2
         axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
@@ -2193,12 +2195,12 @@ void setup()
       axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
       if (sonde.config.button2_axp ) {
-	if(pmu_irq !=2) {
+        if (pmu_irq != 2) {
           pinMode(PMU_IRQ, INPUT_PULLUP);
           attachInterrupt(PMU_IRQ, [] {
             pmu_irq = 1;
           }, FALLING);
-	}
+        }
         //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
         axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
         axp.clearIRQ();
@@ -2614,7 +2616,7 @@ void loopDecoder() {
 #endif
   }
   // Send own position periodically
-  if(sonde.config.tcpfeed.active) {
+  if (sonde.config.tcpfeed.active) {
     aprs_station_update();
   }
   // always send data, even if not valid....
@@ -2636,12 +2638,12 @@ void loopDecoder() {
       *gps = 0;
     }
     //maintain backwords compatibility
-    float lat = isnan(s->d.lat)?0:s->d.lat;
-    float lon = isnan(s->d.lon)?0:s->d.lon;
-    float alt = isnan(s->d.alt)?-1:s->d.alt;
-    float vs = isnan(s->d.vs)?0:s->d.vs;
-    float hs = isnan(s->d.hs)?0:s->d.hs;
-    float dir = isnan(s->d.dir)?0:s->d.dir;
+    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
+    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
+    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
+    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
+    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
+    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
     //
     int len = snprintf(raw, 1024, "{"
@@ -3470,17 +3472,17 @@ void aprs_station_update() {
   unsigned long time_now = millis();
   unsigned long time_delta = time_now - time_last_aprs_update;
   unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
-  if(time_delta < update_time) return;
+  if (time_delta < update_time) return;
   Serial.println("Update is due!!");
 
   float lat, lon;
-  if(chase == SH_LOC_FIXED) {
+  if (chase == SH_LOC_FIXED) {
     // fixed location
     lat = sonde.config.rxlat;
     lon = sonde.config.rxlon;
-    if(isnan(lat) || isnan(lon)) return;
+    if (isnan(lat) || isnan(lon)) return;
   } else {
-    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) { 
+    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
       lat = gpsPos.lat;
       lon = gpsPos.lon;
     } else {
@@ -3491,13 +3493,13 @@ void aprs_station_update() {
   time_last_aprs_update = time_now;
   char *bcn = aprs_send_beacon(sonde.config.bcall, lat, lon, "/O");
   if ( tcpclient.disconnected()) {
-     tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
+    tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
   }
   if ( tcpclient.connected() ) {
-     strcat(bcn, "\r\n");
-     Serial.println("****BEACON****");
-     Serial.print(bcn);
-     tcpclient.write(bcn, strlen(bcn));
+    strcat(bcn, "\r\n");
+    Serial.println("****BEACON****");
+    Serial.print(bcn);
+    tcpclient.write(bcn, strlen(bcn));
   }
 }
 
@@ -3611,7 +3613,7 @@ void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
   // At least, do this safely. See Notes-on-Using-WiFiClient.txt for details
   // If any of the client->print failed before (remote end closed connection),
   // then calling client->read will cause a LoadProhibited exception
-  if(client->connected()) {
+  if (client->connected()) {
     String response = client->readString();
     Serial.println(response);
     Serial.println("Response done...");
