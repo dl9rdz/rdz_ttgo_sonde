@@ -284,7 +284,8 @@ typedef struct st_rdzconfig {
 	char call[10];			// APRS callsign
 	int passcode;		// APRS passcode
 	int chase;
-	char bcall[10];			// APRS position beacon call
+	char objcall[10];		// APRS object call (for wettersonde.net)
+	char beaconsym[5];		// APRS beacon symbol
 	char comment[32];
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections

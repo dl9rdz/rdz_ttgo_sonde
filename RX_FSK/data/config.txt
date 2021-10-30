@@ -107,7 +107,8 @@ tcp.symbol=/O
 tcp.highrate=20
 # send beacon (possibly with different call or SSID)
 tcp.chase=0
-tcp.bcall=
+tcp.objcall=
+tcp.beaconsym=/`/(
 tcp.comment=
 #-------------------------------#
 # mqtt settings

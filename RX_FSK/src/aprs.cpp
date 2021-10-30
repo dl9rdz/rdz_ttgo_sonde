@@ -290,13 +290,14 @@ char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *s
 	return b;
 }
 
-char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
+char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, const char *sym) {
 	SondeData *s = &(si->d);
 	*b=0;
-	aprsstr_append(b, usercall);
+	aprsstr_append(b, *objcall ? objcall : usercall);
 	aprsstr_append(b, ">");
 //	const char *destcall="APRARX,SONDEGATE,TCPIP,qAR,oh3bsg";
 	aprsstr_append(b, destcall);
+	if(*objcall) aprsstr_append(b, usercall);
 	// uncompressed
 	aprsstr_append(b, ":;");
 	char tmp[10];

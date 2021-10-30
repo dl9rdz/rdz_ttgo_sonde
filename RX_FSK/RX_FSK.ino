@@ -646,7 +646,8 @@ struct st_configitems config_list[] = {
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
   {"tcp.chase", 0, &sonde.config.chase},
   {"tcp.comment", 30, sonde.config.comment},
-  {"tcp.bcall", 9, sonde.config.bcall},
+  {"tcp.objcall", 9, sonde.config.objcall},
+  {"tcp.beaconsym", 4, sonde.config.beaconsym},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
 #if FEATURE_CHASEMAPPER
   /* Chasemapper settings */
@@ -2302,7 +2303,7 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
-      char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
+      char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -3232,9 +3233,9 @@ void aprs_station_update() {
       return;
     }
   }
-  Serial.printf("Really updating!! (bcall is %s)", sonde.config.bcall);
+  Serial.printf("Really updating!! (objcall is %s)", sonde.config.objcall);
   time_last_aprs_update = time_now;
-  char *bcn = aprs_send_beacon(sonde.config.bcall, lat, lon, "/O");
+  char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0));
   if ( tcpclient.disconnected()) {
     tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
   }
