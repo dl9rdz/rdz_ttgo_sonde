@@ -85,6 +85,15 @@ static EPHEM_t *te;
 #define fread(buffer, siz, els, file) (file.read((uint8_t *)buffer, (siz)*(els))/siz)
 #define fgetc(file) (char)file.read()
 
+int readDbl(File *fp, double *dbl) {
+    uint8_t buf[20];
+    int l = fp->read(buf, 19);
+    if(l!=19) return -1;
+    if (buf[15] == 'D') buf[15] = 'E';
+    buf[19] = 0; 
+    sscanf((char *)buf, "%lf", dbl); 
+    return 0;
+}
 
 EPHEM_t *read_RNXpephs(const char *file) {
     int l, i;
@@ -137,56 +146,84 @@ EPHEM_t *read_RNXpephs(const char *file) {
         strncpy(ephem.epoch+2, str, 15);
         ephem.epoch[16] = '\0';
 
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af0 = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af1 = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af2 = dbl;
+        if(readDbl(&fp, &dbl)<0) break; ephem.af0 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.af1 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.af2 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af0 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af1 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.af2 = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iode = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.crs = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.delta_n = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.M0 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.iode = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.crs = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.delta_n = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.M0 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iode = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.crs = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.delta_n = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.M0 = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cuc = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.e = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cus = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.sqrta = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.cuc = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.e = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.cus = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.sqrta = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cuc = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.e = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cus = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.sqrta = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.toe = dbl;
-                                                                                                                                    ephem.toc = ephem.toe;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cic = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.Omega0 = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cis = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.toe = dbl; ephem.toc = ephem.toe;
+	if(readDbl(&fp, &dbl)<0) break; ephem.cic = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.Omega0 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.cis = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.toe = dbl;
+        //                                                                                                                            ephem.toc = ephem.toe;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cic = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.Omega0 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.cis = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.i0 = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.crc = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.w = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.OmegaDot = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.i0 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.crc = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.w = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.OmegaDot = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.i0 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.crc = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.w = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.OmegaDot = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.idot = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.codeL2 = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.gpsweek = (int)dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iodc = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.idot = dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.codeL2 = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.gpsweek = (int)dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.iodc = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.idot = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.codeL2 = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.gpsweek = (int)dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iodc = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.sva = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.health = (uint8_t)(dbl+0.1);
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.tgd = dbl;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iodc = dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.sva = dbl;
+	if(readDbl(&fp, &dbl)<0) break; ephem.health = (uint8_t)(dbl+0.1);
+	if(readDbl(&fp, &dbl)<0) break; ephem.tgd = dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.iodc = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.sva = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.health = (uint8_t)(dbl+0.1);
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); ephem.tgd = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.iodc = dbl;
         while ((c=fgetc(fp)) != '\n') { if (c == EOF) break; }
 
         l = fread(buf,  3, 1, fp);    if (l != 1) break;  buf[ 3] = 0;
-        l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.ttom = dbl;
+	if(readDbl(&fp, &dbl)<0) break; //ephem.ttom = dbl;
+        //l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.ttom = dbl;
 	String l = fp.readStringUntil('\n');
      /* // die letzten beiden Felder (spare) sind manchmal leer (statt 0.00); manchmal fehlt sogar das drittletzte Feld
         l = fread(buf, 19, 1, fp);    if (l != 1) break;  if (buf[15] == 'D') buf[15] = 'E'; buf[19] = 0; sscanf(buf, "%lf", &dbl); //ephem.fit = dbl;

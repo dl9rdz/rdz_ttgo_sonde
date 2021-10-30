@@ -1924,17 +1924,46 @@ void setup()
         // Display backlight on M5 Core2
         axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
         axp.setDCDC3Voltage(3300);
+	// SetBusPowerMode(0):
+	// #define AXP192_GPIO0_CTL                        (0x90)
+	// #define AXP192_GPIO0_VOL                        (0x91)
+	// #define AXP202_LDO234_DC23_CTL                  (0x12)
+
+	// The axp class lacks a functino to set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
+	// so do this manually (default value 2.8V did not have the expected effect :))
+	// data = Read8bit(0x91);
+        // write1Byte(0x91, (data & 0X0F) | 0XF0);
+	uint8_t reg;
+	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
+	Wire.write(AXP192_GPIO0_VOL);
+	Wire.endTransmission();
+	Wire.requestFrom(AXP192_SLAVE_ADDRESS, 1);
+	reg = Wire.read();
+	reg = (reg&0x0F) | 0xF0;
+	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
+	Wire.write(AXP192_GPIO0_VOL);
+	Wire.write(reg);
+	Wire.endTransmission();
+	// data = Read8bit(0x90);
+        // Write1Byte(0x90, (data & 0XF8) | 0X02)
+	axp.setGPIOMode(AXP_GPIO_0, AXP_IO_LDO_MODE);  // disable AXP supply from VBUS
         pmu_irq = 2; // IRQ pin is not connected on Core2
+	// data = Read8bit(0x12);         //read reg 0x12
+        // Write1Byte(0x12, data | 0x40);    // enable 3,3V => 5V booster
+	// this is done below anyway: axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+
+        axp.adc1Enable(AXP202_ACIN_VOL_ADC1, 1);
+        axp.adc1Enable(AXP202_ACIN_CUR_ADC1, 1);
       } else {
         // GPS on T-Beam, buzzer on M5 Core2
         axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+        axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
+        axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       }
       axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
       axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
       axp.setDCDC1Voltage(3300);
-      axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
-      axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
       if (sonde.config.button2_axp ) {
         if (pmu_irq != 2) {

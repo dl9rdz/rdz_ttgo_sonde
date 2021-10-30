@@ -1693,11 +1693,19 @@ void Display::drawBatt(DispEntry *de) {
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'U':
-		val = axp.getVbusVoltage();
+		if(sonde.config.type == TYPE_M5_CORE2) {
+		  val = axp.getAcinVoltage();
+		} else {
+		  val = axp.getVbusVoltage();
+		}
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
 	case 'I':
-		val = axp.getVbusCurrent();
+		if(sonde.config.type == TYPE_M5_CORE2) {
+		  val = axp.getAcinCurrent();
+		} else {
+		  val = axp.getVbusCurrent();
+		}
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'T':
