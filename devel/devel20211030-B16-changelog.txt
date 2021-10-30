@@ -3,3 +3,4 @@ test
 test
 test
 some APRS for wettersonde.net support
+some better APRS for wettersonde.net support
