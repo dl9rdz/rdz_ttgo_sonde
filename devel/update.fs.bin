@@ -672,7 +672,7 @@ document.getElementById("defaultTab").click();
 </body>
 </html>
 
-cfg.js 7804
+cfg.js 7840
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP autoselect on startup)" ],
@@ -718,7 +718,8 @@ var cfgs = [
 [ "tcp.host", "APRS TCP host"],
 [ "tcp.port", "APRS TCP port"],
 [ "tcp.highrate", "Rate limit"],
-[ "tcp.bcall", "APRS location beacon call"],
+[ "tcp.objcall", "APRS object call"],
+[ "tcp.beaconsym", "APRS tracker symbol"],
 [ "tcp.chase", "APRS location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
 [ "tcp.comment", "APRS location comment"],
 [ "", "MQTT data feed configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/MQTT-configuration"],
