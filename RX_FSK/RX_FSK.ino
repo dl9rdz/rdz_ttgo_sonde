@@ -758,12 +758,10 @@ struct st_configitems config_list[] = {
   {"passcode", 0, &sonde.config.passcode},
   /* KISS tnc settings */
   {"kisstnc.active", 0, &sonde.config.kisstnc.active},
-  {"kisstnc.idformat", -2, &sonde.config.kisstnc.idformat},
   /* AXUDP settings */
   {"axudp.active", -3, &sonde.config.udpfeed.active},
   {"axudp.host", 63, sonde.config.udpfeed.host},
   {"axudp.port", 0, &sonde.config.udpfeed.port},
-  {"axudp.idformat", -2, &sonde.config.udpfeed.idformat},
   {"axudp.highrate", 0, &sonde.config.udpfeed.highrate},
   /* APRS TCP settings, current not used */
   {"tcp.active", -3, &sonde.config.tcpfeed.active},
@@ -772,7 +770,6 @@ struct st_configitems config_list[] = {
   {"tcp.chase", 0, &sonde.config.chase},
   {"tcp.comment", 30, sonde.config.comment},
   {"tcp.bcall", 9, sonde.config.bcall},
-  {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
 #if FEATURE_CHASEMAPPER
   /* Chasemapper settings */

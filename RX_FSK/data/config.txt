@@ -97,17 +97,18 @@ axudp.host=192.168.42.20
 axudp.port=9002
 axudp.symbol=/O
 axudp.highrate=1
-axudp.idformat=0
 #-------------------------------#
-# maybe some time in the future
+# connect to some aprs server
 #-------------------------------#
-# currently simply not implemented, no need to put anything here anyway
 tcp.active=0
 tcp.host=radiosondy.info
 tcp.port=14590
 tcp.symbol=/O
 tcp.highrate=20
-tcp.idformat=0
+# send beacon (possibly with different call or SSID)
+tcp.chase=0
+tcp.bcall=
+tcp.comment=
 #-------------------------------#
 # mqtt settings
 #-------------------------------#

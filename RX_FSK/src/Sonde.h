@@ -182,8 +182,6 @@ struct st_mp3hconfig {
 };
 
 
-enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
-
 struct st_feedinfo {
         bool active;
         int type;       // 0:UDP(axudp), 1:TCP(aprs.fi)
@@ -193,14 +191,12 @@ struct st_feedinfo {
         int lowrate;
         int highrate;
         int lowlimit;
-        int idformat;   // 0: dxl  1: real  2: auto
 };
 
 // maybe extend for external Bluetooth interface?
 // internal bluetooth consumes too much memory
 struct st_kisstnc {
         bool active;
-        int idformat;
 };
 
 struct st_mqtt {
