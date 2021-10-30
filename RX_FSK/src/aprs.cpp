@@ -275,7 +275,7 @@ char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *s
 	aprsstr_append(b, ":!");  //  ! is report w/p timestamp
 #endif
 	// lat
-	i = strlen(b);
+	int i = strlen(b);
 	int lati = abs((int)lat);
 	int latm = (fabs(lat)-lati)*6000;
 	snprintf(b+i, APRS_MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, lat<0?'S':'N', sym[0]);
