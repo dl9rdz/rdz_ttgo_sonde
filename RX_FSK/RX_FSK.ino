@@ -78,10 +78,8 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                   };
 
 // Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
-//#define APRS_STATION_UPDATE_TIME (10*60*1000)
-//#define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
-#define APRS_STATION_UPDATE_TIME (10*1000)
-#define APRS_MOBILE_STATION_UPDATE_TIME (10*1000)
+#define APRS_STATION_UPDATE_TIME (10*60*1000)
+#define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
 unsigned long time_last_aprs_update = 0;
 
 #if FEATURE_SONDEHUB
