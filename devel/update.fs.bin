@@ -672,7 +672,7 @@ document.getElementById("defaultTab").click();
 </body>
 </html>
 
-cfg.js 7754
+cfg.js 7804
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP autoselect on startup)" ],
@@ -710,17 +710,17 @@ var cfgs = [
 [ "call", "Call"],
 [ "passcode", "Passcode"],
 [ "kisstnc.active", "KISS TNC (port 14590) (needs reboot)"],
-[ "kisstnc.idformat", "KISS TNC ID format"],
 [ "axudp.active", "AXUDP active"],
 [ "axudp.host", "AXUDP host"],
 [ "axudp.port", "AXUDP port"],
-[ "axudp.idformat", "DFM ID format"],
 [ "axudp.highrate", "Rate limit"],
 [ "tcp.active", "APRS TCP active"],
-[ "tcp.host", "ARPS TCP host"],
+[ "tcp.host", "APRS TCP host"],
 [ "tcp.port", "APRS TCP port"],
-[ "tcp.idformat", "DFM ID format"],
 [ "tcp.highrate", "Rate limit"],
+[ "tcp.bcall", "APRS location beacon call"],
+[ "tcp.chase", "APRS location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
+[ "tcp.comment", "APRS location comment"],
 [ "", "MQTT data feed configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/MQTT-configuration"],
 [ "mqtt.active", "MQTT active (needs reboot)"],
 [ "mqtt.id", "MQTT client ID"],
