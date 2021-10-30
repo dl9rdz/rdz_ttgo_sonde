@@ -20,12 +20,13 @@ struct scancfg {
 	int NCHAN;		// number of channels to scan, PLOT_W * SMPL_PIX
 	int SMOOTH;
 	int ADDWAIT;
+	int VSCALE;
 };
 
 //struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/20.0, 20, 120*20, 1 };
-struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2, 40 };
-struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0 };
-struct scancfg scan9341={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0 };
+struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2, 40, 1 };
+struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0, 1 };
+struct scancfg scan934x={ 300, 22, 300/6, 300/6/5, 6000.0/300.0/7.0, 7, 300*5, 1, 10, 2 };
 
 struct scancfg &scanconfig = scanTFT;
 
@@ -35,9 +36,12 @@ struct scancfg &scanconfig = scanTFT;
 
 // max of 120*5 and 210*3
 //#define MAXN 210*10
-#define MAXN 120*20
-// max of 120 and 210 (ceil(210/8)*8))
-#define MAXDISP 216
+//#define MAXN 120*20
+#define MAXN 300*10
+
+// max of 120 and 210 (ceil(210/8)*8)) -- now ceil(300/8)*8
+//#define MAXDISP 216
+#define MAXDISP 304
 
 int scanresult[MAXN];
 int scandisp[MAXDISP];
@@ -50,7 +54,7 @@ double peakf=0;
 const byte tilepatterns[9]={0,0x80,0xC0,0xE0,0xF0,0xF8,0xFC,0xFE,0xFF};
 void Scanner::fillTiles(uint8_t *row, int value) {
 	for(int y=0; y<scanconfig.PLOT_H8; y++) {
-		int nbits = value - 8*(scanconfig.PLOT_H8-1-y);
+		int nbits = scanconfig.VSCALE*value - 8*(scanconfig.PLOT_H8-1-y);
 		if(nbits<0) { row[8*y]=0; continue; }
 		if(nbits>=8) { row[8*y]=255; continue; }
 		row[8*y] = tilepatterns[nbits];
@@ -66,8 +70,8 @@ void Scanner::fillTiles(uint8_t *row, int value) {
  */
 ///// unused????  uint8_t tiles[16] = { 0x0f,0x0f,0x0f,0x0f,0xf0,0xf0,0xf0,0xf0, 1, 3, 7, 15, 31, 63, 127, 255};
 
-// type 0: lcd, 1: tft, 2: lcd(sh1106)
-#define ISTFT (sonde.config.disptype==1 || sonde.config.disptype==3)
+// type 0: lcd, 1: tft(ILI9225), 2: lcd(sh1106) 3:TFT(ili9341), 4: TFT(ili9342)
+#define ISTFT (sonde.config.disptype!=0 && sonde.config.disptype!=2)
 void Scanner::plotResult()
 {
 	int yofs = 0;
@@ -77,9 +81,9 @@ void Scanner::plotResult()
   		if (sonde.config.marker != 0) {
     			itoa((sonde.config.startfreq), buf, 10);
     			disp.rdis->drawString(0, 1, buf);
-    			disp.rdis->drawString(95, 1, "MHz");
+    			disp.rdis->drawString(scanconfig.PLOT_W/2-10, 1, "MHz");
     			itoa((sonde.config.startfreq + 6), buf, 10);
-    			disp.rdis->drawString(195, 1, buf);
+    			disp.rdis->drawString(scanconfig.PLOT_W-15, 1, buf);
 		}	
 	}
 	else {
@@ -120,8 +124,10 @@ void Scanner::scan()
 {
 	if(!ISTFT) { // LCD small
 		scanconfig = scanLCD;
-	} else {
+	} else if (sonde.config.disptype==1) {
 		scanconfig = scanTFT;
+	} else {
+		scanconfig = scan934x;
 	}
 	// Configure 
  	STARTF = (sonde.config.startfreq * 1000000);
