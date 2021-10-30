@@ -43,7 +43,8 @@ AsyncWebServer server(80);
 AXP20X_Class axp;
 #define PMU_IRQ             35
 SemaphoreHandle_t axpSemaphore;
-bool pmu_irq = false;
+// 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
+uint8_t pmu_irq = 0;
 
 const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -75,6 +76,13 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM17",  // 0x0D
                                     NULL, NULL
                                   };
+
+// Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
+//#define APRS_STATION_UPDATE_TIME (10*60*1000)
+//#define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
+#define APRS_STATION_UPDATE_TIME (10*1000)
+#define APRS_MOBILE_STATION_UPDATE_TIME (10*1000)
+unsigned long time_last_aprs_update = 0;
                                   
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
@@ -83,18 +91,19 @@ WiFiClient shclient;	// Sondehub v2
 int shImportInterval = 0;
 char shImport = 0;
 unsigned long time_last_update = 0;
+#endif
 /* SH_LOC_OFF: never send position information to SondeHub
    SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
    SH_LOC_CHASE: always activate chase mode and send GPS position (if available)
    SH_LOC_AUTO: if there is no valid GPS position, or GPS position < MIN_LOC_AUTO_DIST away from known fixed position: use FIXED mode
                 otherwise, i.e. if there is a valid GPS position and (either no fixed position in config, or GPS position is far away from fixed position), use CHASE mode.
 */
+// same constants used for SondeHub and APRS
 enum { SH_LOC_OFF, SH_LOC_FIXED, SH_LOC_CHASE, SH_LOC_AUTO };
 /* auto mode is chase if valid GPS position and (no fixed location entered OR valid GPS position and distance in lat/lon deg to fixed location > threshold) */
 #define MIN_LOC_AUTO_DIST 200   /* meter */
 #define SH_LOC_AUTO_IS_CHASE ( gpsPos.valid && ( (isnan(sonde.config.rxlat) || isnan(sonde.config.rxlon) ) ||  \
                                calcLatLonDist( gpsPos.lat, gpsPos.lon, sonde.config.rxlat, sonde.config.rxlon ) > MIN_LOC_AUTO_DIST ) )
-#endif
 extern float calcLatLonDist(float lat1, float lon1, float lat2, float lon2);
 
 // KISS over TCP for communicating with APRSdroid
@@ -745,7 +754,7 @@ struct st_configitems config_list[] = {
   {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
   {"ephftp", 39, &sonde.config.ephftp},
   /* APRS settings */
-  {"call", 8, sonde.config.call},
+  {"call", 9, sonde.config.call},
   {"passcode", 0, &sonde.config.passcode},
   /* KISS tnc settings */
   {"kisstnc.active", 0, &sonde.config.kisstnc.active},
@@ -760,6 +769,9 @@ struct st_configitems config_list[] = {
   {"tcp.active", -3, &sonde.config.tcpfeed.active},
   {"tcp.host", 63, sonde.config.tcpfeed.host},
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
+  {"tcp.chase", 0, &sonde.config.chase},
+  {"tcp.comment", 30, sonde.config.comment},
+  {"tcp.bcall", 9, sonde.config.bcall},
   {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
 #if FEATURE_CHASEMAPPER
@@ -2008,13 +2020,13 @@ void handlePMUirq() {
         button2.pressed = KP_MID;
         button2.keydownTime = my_millis();
       }
-      pmu_irq = false;
+      if(pmu_irq!=2) { pmu_irq = 0; }
       axp.clearIRQ();
       xSemaphoreGive( axpSemaphore );
     }
   } else {
     Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
-    pmu_irq = false;   // prevent main loop blocking
+    pmu_irq = 0;   // prevent main loop blocking
   }
 }
 
@@ -2171,6 +2183,7 @@ void setup()
         // Display backlight on M5 Core2
         axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
         axp.setDCDC3Voltage(3300);
+	pmu_irq = 2; // IRQ pin is not connected on Core2
       } else {
         // GPS on T-Beam, buzzer on M5 Core2
         axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
@@ -2182,11 +2195,13 @@ void setup()
       axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
       axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      if (sonde.config.button2_axp) {
-        pinMode(PMU_IRQ, INPUT_PULLUP);
-        attachInterrupt(PMU_IRQ, [] {
-          pmu_irq = true;
-        }, FALLING);
+      if (sonde.config.button2_axp ) {
+	if(pmu_irq !=2) {
+          pinMode(PMU_IRQ, INPUT_PULLUP);
+          attachInterrupt(PMU_IRQ, [] {
+            pmu_irq = 1;
+          }, FALLING);
+	}
         //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
         axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
         axp.clearIRQ();
@@ -2600,6 +2615,10 @@ void loopDecoder() {
 #if FEATURE_SONDEHUB
     sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
 #endif
+  }
+  // Send own position periodically
+  if(sonde.config.tcpfeed.active) {
+    aprs_station_update();
   }
   // always send data, even if not valid....
   if (rdzclient.connected()) {
@@ -3443,6 +3462,46 @@ void loop() {
   }
 #endif
 
+}
+
+void aprs_station_update() {
+  int chase = sonde.config.chase;
+  // automatically decided if CHASE or FIXED mode is used (for config AUTO)
+  if (chase == SH_LOC_AUTO) {
+    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
+  }
+  unsigned long time_now = millis();
+  unsigned long time_delta = time_now - time_last_aprs_update;
+  unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
+  if(time_delta < update_time) return;
+  Serial.println("Update is due!!");
+
+  float lat, lon;
+  if(chase == SH_LOC_FIXED) {
+    // fixed location
+    lat = sonde.config.rxlat;
+    lon = sonde.config.rxlon;
+    if(isnan(lat) || isnan(lon)) return;
+  } else {
+    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) { 
+      lat = gpsPos.lat;
+      lon = gpsPos.lon;
+    } else {
+      return;
+    }
+  }
+  Serial.printf("Really updating!! (bcall is %s)", sonde.config.bcall);
+  time_last_aprs_update = time_now;
+  char *bcn = aprs_send_beacon(sonde.config.bcall, lat, lon, "/O");
+  if ( tcpclient.disconnected()) {
+     tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
+  }
+  if ( tcpclient.connected() ) {
+     strcat(bcn, "\r\n");
+     Serial.println("****BEACON****");
+     Serial.print(bcn);
+     tcpclient.write(bcn, strlen(bcn));
+  }
 }
 
 #if FEATURE_SONDEHUB
