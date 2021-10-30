@@ -48,7 +48,8 @@ void ShFreqImport::setLabel(int idx, char *id, float lat, float lon) {
 void ShFreqImport::usekeyvalue() {
         if(strcmp(keyword,"lat")==0) lat = atof(value);
         if(strcmp(keyword,"lon")==0) lon = atof(value);
-        if(strcmp(keyword,"frequency")==0) freq = atof(value);
+        if(strcmp(keyword,"frequency")==0) { if(isnan(freq)) freq = atof(value); } // prefer tx_frequency if available
+        if(strcmp(keyword,"tx_frequency")==0) freq = atof(value);
         if(strcmp(keyword,"type")==0) strcpy(type, value);
 }
 
@@ -156,7 +157,7 @@ int ShFreqImport::handleChar(char c) {
                 if(c==':') {
                         valuepos = 0;
                         quotes = 0;
-                        if(strcmp(keyword,"lat")==0 || strcmp(keyword, "lon")==0 || strcmp(keyword, "frequency")==0 )
+                        if(strcmp(keyword,"lat")==0 || strcmp(keyword, "lon")==0 || strcmp(keyword, "frequency")==0 || strcmp(keyword, "tx_frequency")==0)
                                 importState = BEFORENUMVAL;
                         else {  
                                 if (strcmp(keyword, "type")==0)
