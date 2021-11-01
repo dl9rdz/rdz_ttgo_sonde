@@ -80,7 +80,7 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
 // Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
 #define APRS_STATION_UPDATE_TIME (10*60*1000)
 #define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
-unsigned long time_last_aprs_update = 0;
+unsigned long time_last_aprs_update = -APRS_STATION_UPDATE_TIME;
 
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
@@ -702,7 +702,7 @@ struct st_configitems config_list[] = {
   {"sondehub.fiactive", 0, &sonde.config.sondehub.fiactive},
   {"sondehub.fiinterval", 0, &sonde.config.sondehub.fiinterval},
   {"sondehub.fimaxdist", 0, &sonde.config.sondehub.fimaxdist},
-  {"sondehub.fimaxage", 0, &sonde.config.sondehub.fimaxage},
+  {"sondehub.fimaxage", -7, &sonde.config.sondehub.fimaxage},
 #endif
 };
 
@@ -2354,6 +2354,7 @@ void loopDecoder() {
         }
         else if ( tcpclient.connected() ) {
           unsigned long now = millis();
+	  Serial.printf("aprs: now-last = %ld\n", (now-lasttcp));
           if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
             strcat(str, "\r\n");
             Serial.print(str);
@@ -3243,6 +3244,7 @@ void aprs_station_update() {
   unsigned long time_now = millis();
   unsigned long time_delta = time_now - time_last_aprs_update;
   unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
+  Serial.printf("aprs_station_update: delta: %ld, update in %ld\n", time_delta, update_time);
   if (time_delta < update_time) return;
   Serial.println("Update is due!!");
 
@@ -3261,7 +3263,6 @@ void aprs_station_update() {
     }
   }
   Serial.printf("Really updating!! (objcall is %s)", sonde.config.objcall);
-  time_last_aprs_update = time_now;
   char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0), sonde.config.comment);
   if ( tcpclient.disconnected()) {
     tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
@@ -3271,6 +3272,7 @@ void aprs_station_update() {
     Serial.println("****BEACON****");
     Serial.print(bcn);
     tcpclient.write(bcn, strlen(bcn));
+    time_last_aprs_update = time_now;
   }
 }
 

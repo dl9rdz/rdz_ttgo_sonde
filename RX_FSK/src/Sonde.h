@@ -225,7 +225,7 @@ struct st_sondehub {
         int fiactive;
 	int fiinterval;
 	int fimaxdist;
-	int fimaxage;
+	double fimaxage;
 };
 
 // to be extended
