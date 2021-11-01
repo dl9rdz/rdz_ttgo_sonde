@@ -124,13 +124,12 @@ int ShFreqImport::handleChar(char c) {
                 // wait for initial '{'
                 if(c=='{') {
 			Serial.println("{ found");
-                        lat = NAN; lon = NAN; freq = NAN; *type = 0;
                         importState++; 
                 }       
                 break;
         case BEFOREID:
                 // what for first '"' in { "A1234567" : { ... } }; or detect end
-                if(c=='"') { idpos = 0; importState++; }
+                if(c=='"') { idpos = 0; lat = NAN; lon = NAN; freq = NAN; *type = 0; importState++; }
                 if(c=='}') {
 			importState = ENDREACHED; 
 			cleanup();
