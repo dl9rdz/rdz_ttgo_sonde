@@ -13,8 +13,9 @@ $(document).ready(function(){
 
   L.control.scale().addTo(map);
   L.control.attribution({prefix:false}).addTo(map);
-
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  
+  const currentTheme = localStorage.getItem("theme");
+  if (((!currentTheme) && window.matchMedia('(prefers-color-scheme: dark)').matches) || (currentTheme == "dark")) {
     var osm = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
       minZoom: 1,
@@ -26,6 +27,7 @@ $(document).ready(function(){
       minZoom: 1,
       maxZoom: 19
     });
+    document.body.className ="light-theme";
   }
 
   var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {

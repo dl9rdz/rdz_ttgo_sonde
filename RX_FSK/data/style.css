@@ -1,7 +1,17 @@
+body {
+  --text-color: #000;
+  --bkg-color: #fff;
+}
+body.dark-theme {
+  background-color: #333;
+  color: white;
+}
 body, html {
 	height: 100%;
 	margin: 0;
 	font-family: Arial;
+	background: var(--bkg-color);
+	color: var(--text-color);
 }
 
 .active, .cfgheader:hover {
@@ -337,44 +347,68 @@ p{
   }
 }
 @media (prefers-color-scheme: dark) {
+    body {
+    --text-color: #fff;
+    --bkg-color: #333;
+    --leaf-bkg: grey;
+    --leaf-txt: white;
+    --table-bkg: #333;
+    --btn-color: #333;
+    --btn-txt: #fff;
+    --lnk-color: #D3D3D3;
+  }
+  .light-theme {
+    --bkg-color: #fff;
+    --text-color: #000;
+    --leaf-bkg: #fff;
+    --leaf-txt:  #000;
+    --table-bkg: #ddd;
+    --btn-color: #0F3376;
+    --btn-txt: #fff;
+    --lnk-color: #0F3376;
+  }
   body {
-    background-color: #333;
-  }   
-  h2{
-    color: white;
+	background: var(--bkg-color);
+	color: var(--text-color);
   }
   table, th, td, .save, a.active {
-    color: white;
+    color: var(--text-color);
     border: 1px solid grey;
     border-collapse: collapse;
-    background-color: #333;
+    background-color: var(--table-bkg);
   }
+  .save {
+    background-color: var(--btn-color);
+    color: var(--btn-txt);
+  }
+
   input, select, .tci, .warning {
-    color: white;
-    background-color: #333;
+    color: var(--text-color);
+    background-color: var(--bkg-color) !important;
   }
-  a:link, a:visited {
-    color: #D3D3D3;
-  }
+
   .topnav, td#sfreq {
     background-color: grey;
   }
-  .topnav a:visited {
-    color: white;
+  .topnav a {
+    color: white !important;
+  }
+  a:link, a:visited {
+    color: var(--lnk-color);
   }
   .ctlbtn {
     color: white;
     background-color: grey;
   }
   .leaflet-center {
-    color: white;
-    background-color: grey;
+    color: var(--leaf-txt);
+    background-color: var(--leaf-bkg);
   }
   .leaflet-bar a {
-    background-color: grey !important;
+    background-color: var(--leaf-bkg) !important;
   }
   .leaflet-popup-content-wrapper, .leaflet-popup-tip {
     color: white !important;
-    background: grey !important;
+    background: var(--leaf-bkg) !important;
   }
 }

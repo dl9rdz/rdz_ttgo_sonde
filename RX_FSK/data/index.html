@@ -6,6 +6,41 @@
   <meta charset="UTF-8">
   <link rel="icon" href="data:,">
   <link rel="stylesheet" type="text/css" href="style.css">
+  <script>
+let matchDarkOS = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+function setIframes(theme) {
+    var i, frames;
+    frames = document.getElementsByTagName("iframe");
+    for (i = 0; i < frames.length; ++i) {
+        var elmnt = frames[i].contentWindow.document.getElementsByTagName("body")[0];
+        elmnt.className = theme;
+    }
+}
+
+function iframeDidLoad() {
+    var i, frames;
+    frames = document.getElementsByTagName("iframe");
+    const currentTheme = localStorage.getItem("theme");
+    if (currentTheme) {
+        if (currentTheme == 'dark') {
+            setIframes("dark-theme");
+
+        } else {
+            setIframes("light-theme");
+        }
+    } else {
+        if (matchDarkOS) {
+            setIframes("dark-theme");
+            // link.innerHTML = '🌚';
+
+        } else {
+            setIframes("light-theme");
+            // link.innerHTML = '🔆';
+        }
+    }
+}
+  </script>
 </head>
 <body>
  <div class="wrapper"><div class="header">
@@ -19,6 +54,7 @@
 	<a href="#" onclick="selTab(event,'Config')" class="tablinks">Config</a>
 	<a href="#" onclick="selTab(event,'Control')" class="tablinks">Control</a>
 	<a href="#" onclick="selTab(event,'About')" class="tablinks">About</a>
+	<a href="#" onclick="themeClick()" id="theme-btn" class="btn-toggle">🔆</a>
 	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
 		<span class="hamburger"></span>
 	</a>
@@ -26,27 +62,27 @@
 </div>
 
 <div id="QRG" class="tabcontent" data-src="qrg.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="WiFi" class="tabcontent" data-src="wifi.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="Data" class="tabcontent" data-src="status.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="Map" class="tabcontent" data-src="map.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="Config" class="tabcontent" data-src="config.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="Control" class="tabcontent" data-src="control.html">
-	<iframe class="tci" src="" ></iframe>
+	<iframe class="tci" src="" onLoad="iframeDidLoad();"></iframe>
 </div>
 
 <div id="About" class="tabcontent">
@@ -80,6 +116,56 @@
 
 </div>
 <script>
+const link = document.getElementById("theme-btn");
+const currentTheme = localStorage.getItem("theme");
+if (currentTheme) {
+    if (currentTheme == 'dark') {
+        document.body.classList.toggle("dark-theme");
+        link.innerHTML = '🔆';
+
+    } else {
+        document.body.classList.toggle("light-theme");
+        link.innerHTML = '🌚';
+    }
+} else {
+    if (matchDarkOS) {
+        link.innerHTML = '🔆';
+
+    } else {
+        link.innerHTML = '🌚';
+    }
+}
+
+
+function themeClick() {
+    var i, frames;
+    frames = document.getElementsByTagName("iframe");
+
+    if (link.innerHTML == '🌚') {
+        document.body.className = "dark-theme";
+        // for (i = 0; i < frames.length; ++i) {
+        //     var elmnt = frames[i].contentWindow.document.getElementsByTagName("body")[0];
+        //     elmnt.className = "dark-theme";
+        // }
+        setIframes("dark-theme");
+        localStorage.setItem("theme", "dark");
+        link.innerHTML = '🔆';
+
+
+    } else {
+        document.body.className = "light-theme";
+        // for (i = 0; i < frames.length; ++i) {
+        //     var elmnt = frames[i].contentWindow.document.getElementsByTagName("body")[0];
+        //     elmnt.className = "light-theme";
+        // }
+        setIframes("light-theme");
+
+        localStorage.setItem("theme", "light");
+        link.innerHTML = '🌚';
+
+    }
+
+}
 function selTab(evt, id) {
 	var i, tabcontent, tablinks;
 	tabcontent=document.getElementsByClassName("tabcontent");
