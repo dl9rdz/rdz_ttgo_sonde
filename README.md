@@ -45,7 +45,7 @@ course be considered for inclusion :-).
 
 You can download the latest binary automated build for the development and testing branches [here](http://rdzsonde.mooo.com/download.html), the binary includes everything including configuration files so any existing settings will be reset. 
 
-To update an existing installatiom to the latest development or master version you can use the [OTA](https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Other-features#over-the-air-updates) update feature.
+To update an existing installation to the latest development or master version you can use the [OTA](https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Other-features#over-the-air-updates) update feature.
 
 The downloaded .bin file can be flashed to your ESP32 board using [esptool](https://github.com/espressif/esptool) or [ESP32 Download Tool](https://www.espressif.com/en/support/download/other-tools)
 
