@@ -1,1 +1,2 @@
 sh import last interval as double (for <1h)
+simply typo (#249)
