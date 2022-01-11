@@ -4,14 +4,15 @@ rdzTTGOsonde
 This a decoder for radiosonde RS41, RS92, DFM06/09/17, M10/M20, and MP3H
 based on a TTGO LoRa ESP32 board.
 
-It supports OLED displays (SSD1306, SH1106) and TFT displays (ILI9225).
+It supports OLED displays (SSD1306, SH1106) and TFT displays (ILI9225, ILI9341/9342).
 
 It also supports feeding data to external applications using WiFi (NOT bluetooth):
-- Arduino app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
+- Android app by dl9rdz (see https://github.com/dl9rdz/rdzwx-go for apk download)
 - AXUDP (for aprsmap application by oe5dxl, among others)
 - KISS TNC (aprs format, mainly useful for APRSdroid app)
 - MQTT
-- SondeHub tracker (experimental)
+- SondeHub tracker
+- Chasemapper UDP (experimental)
 
 
 Please consult the Wiki at https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Supported-boards
@@ -22,10 +23,10 @@ for details on supported boards, and additional setup instructions.
 
 Manufacturer | Model | Position | Temperature | Humidity | Pressure
 -------------|-------|----------|-------------|----------|----------
-Vaisala | RS92-SGP/NGP | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
-Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :x:
-Graw | DFM06/09/17 | :heavy_check_mark: | :x: | :x: | :x:
-Meteomodem | M10 | :heavy_check_mark: | :x: | :x: | Not Sent
+Vaisala | RS92-SGP | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
+Vaisala | RS41-SG/SGP/SGM | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: (for -SGP)
+Graw | DFM06/09/17 | :heavy_check_mark: | :heavy_check_mark: | :x: | :x:
+Meteomodem | M10 | :heavy_check_mark: | :heavy_check_mark: | :heavy_check_mark: | Not Sent
 Meteomodem | M20 | :heavy_check_mark: | :x: | :x: | Not Sent
 Meteo-Radiy | MP3-H1 (MRZ-H1) | :heavy_check_mark: | :x: | :x: | :x: 
 
@@ -44,7 +45,7 @@ course be considered for inclusion :-).
 
 You can download the latest binary automated build for the development and testing branches [here](http://rdzsonde.mooo.com/download.html), the binary includes everything including configuration files so any existing settings will be reset. 
 
-To update an existing installatiom to the latest development or master version you can use the [OTA](https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Other-features#over-the-air-updates) update feature.
+To update an existing installation to the latest development or master version you can use the [OTA](https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Other-features#over-the-air-updates) update feature.
 
 The downloaded .bin file can be flashed to your ESP32 board using [esptool](https://github.com/espressif/esptool) or [ESP32 Download Tool](https://www.espressif.com/en/support/download/other-tools)
 

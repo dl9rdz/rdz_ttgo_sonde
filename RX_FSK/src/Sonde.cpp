@@ -21,10 +21,10 @@ const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KE
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
 // Dependency to enum SondeType
-const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "M10 ", "M20 ", "MP3H" };
-const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10 ", "M20 ", "MP3-H1" };
-const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', '2', '3' };
-const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
+const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "Mxx ", "M10 ", "M20 ", "MP3H" };
+const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10/M20", "M10 ", "M20 ", "MP3-H1" };
+const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', 'M', '2', '3' };
+const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
@@ -43,7 +43,7 @@ const char *fingerprintText[]={
 /* global variables from RX_FSK.ino */
 int getKeyPressEvent(); 
 int handlePMUirq();
-extern bool pmu_irq;
+extern uint8_t pmu_irq;
 extern SX1278FSK sx1278;
 
 /* Task model:
@@ -79,7 +79,13 @@ void Sonde::defaultConfig() {
 	Serial.printf("Board fingerprint is %d\n", fingerprint);
 
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
+	// addSonde should initialize everything anyway, so this should not strictly be necessary, but does no harm either
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
+	for(int i=0; i<(MAXSONDE+1); i++) {
+		sondeList[i].freq=400;
+		sondeList[i].type=STYPE_RS41;
+		clearAllData(&sondeList[i]);
+	}
 	config.touch_thresh = 70;
 	config.led_pout = -1;
 	config.power_pout = -1;
@@ -241,14 +247,12 @@ void Sonde::defaultConfig() {
 	strcpy(config.udpfeed.symbol, "/O");
 	config.udpfeed.port = 9002;
 	config.udpfeed.highrate = 1;
-	config.udpfeed.idformat = ID_DFMGRAW;
 	config.tcpfeed.active = 0;
 	config.tcpfeed.type = 1;
 	strcpy(config.tcpfeed.host, "radiosondy.info");
 	strcpy(config.tcpfeed.symbol, "/O");
 	config.tcpfeed.port = 12345;
 	config.tcpfeed.highrate = 10;
-	config.tcpfeed.idformat = ID_DFMDXL;
 	config.kisstnc.active = 0;
 	strcpy(config.ephftp,"igs.bkg.bund.de/IGS/BRDC/");
 
@@ -263,6 +267,14 @@ void Sonde::defaultConfig() {
 extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
+void Sonde::checkConfig() {
+	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
+	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
+	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
+	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
+	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
+}
 void Sonde::setConfig(const char *cfg) {
 	while(*cfg==' '||*cfg=='\t') cfg++;
 	if(*cfg=='#') return;
@@ -288,11 +300,14 @@ void Sonde::setConfig(const char *cfg) {
 		case -3:  // integer (boolean on/off swith in web form)
 		case -2:  // integer (ID type)
 			*(int *)config_list[i].data = atoi(val);
-			if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
 			break;
 		case -7:  // double
-			*(double *)config_list[i].data = *val==0 ? NAN : atof(val);
+		{
+			double d = atof(val);
+			if(*val == 0 || d==0) d = NAN;
+			*(double *)config_list[i].data = d;
 			break;
+		}
 		case -6:  // display list
 		{
 			int idx = 0;
@@ -343,43 +358,47 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	Serial.printf("Adding %f - %d - %d - %s\n", frequency, type, active, launchsite);
 	// reset all data if type or frequency has changed
 	if(type != sondeList[nSonde].type || frequency != sondeList[nSonde].freq) {
+	    //TODO: Check for potential race condition with decoders
+	    // do not clear extra while decoder is potentiall still accessing it!
+	    if(sondeList[nSonde].extra) free(sondeList[nSonde].extra);
     	    memset(&sondeList[nSonde], 0, sizeof(SondeInfo));
+	    sondeList[nSonde].type = type;
+	    sondeList[nSonde].d.typestr[0] = 0;
+	    sondeList[nSonde].freq = frequency;
+	    memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
+	    clearAllData(sondeList+nSonde);
 	}
-	sondeList[nSonde].type = type;
-	sondeList[nSonde].typestr[0] = 0;
-	sondeList[nSonde].freq = frequency;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
-	memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	nSonde++;
 }
 
 // called by updateState (only)
 void Sonde::nextConfig() {
 	currentSonde++;
-	if(currentSonde>=nSonde) {
+	if(currentSonde>=config.maxsonde) {
 		currentSonde=0;
 	}
 	// Skip non-active entries (but don't loop forever if there are no active ones)
 	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[currentSonde].active) {
 			currentSonde++;
-			if(currentSonde>=nSonde) currentSonde=0;
+			if(currentSonde>=config.maxsonde) currentSonde=0;
 		}
 	}
 }
 void Sonde::nextRxSonde() {
 	rxtask.currentSonde++;
-	if(rxtask.currentSonde>=nSonde) {
+	if(rxtask.currentSonde>=config.maxsonde) {
 		rxtask.currentSonde=0;
 	}
 	for(int i=0; i<config.maxsonde - 1; i++) {
 		if(!sondeList[rxtask.currentSonde].active) {
 			rxtask.currentSonde++;
-			if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+			if(rxtask.currentSonde>=config.maxsonde) rxtask.currentSonde=0;
 		}
 	}
-	Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
+	//Serial.printf("nextRxSonde: %d\n", rxtask.currentSonde);
 }
 void Sonde::nextRxFreq(int addkhz) {
 	// last entry is for the variable frequency
@@ -402,14 +421,14 @@ void Sonde::setup() {
 		for(int i=0; i<config.maxsonde - 1; i++) {
 			if(!sondeList[rxtask.currentSonde].active) {
 				rxtask.currentSonde++;
-				if(rxtask.currentSonde>=nSonde) rxtask.currentSonde=0;
+				if(rxtask.currentSonde>=config.maxsonde) rxtask.currentSonde=0;
 			}
 		}
 		sonde.currentSonde = rxtask.currentSonde;
 	}
 
 	// update receiver config
-	Serial.print("Sonde.setup() on sonde index ");
+	Serial.print("Sonde::setup() start on index ");
 	Serial.println(rxtask.currentSonde);
 	switch(sondeList[rxtask.currentSonde].type) {
 	case STYPE_RS41:
@@ -423,6 +442,7 @@ void Sonde::setup() {
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		m10m20.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 		break;
 	case STYPE_MP3H:
@@ -433,7 +453,7 @@ void Sonde::setup() {
 	int freq = (int)sx1278.getFrequency();
 	int afcbw = (int)sx1278.getAFCBandwidth();
 	int rxbw = (int)sx1278.getRxBandwidth();
-	Serial.printf("Sonde.setup(): Freq %d, AFC BW: %d, RX BW: %d\n", freq, afcbw, rxbw);
+	Serial.printf("Sonde::setup() done: Type %s Freq %f, AFC BW: %d, RX BW: %d\n", sondeTypeStr[sondeList[rxtask.currentSonde].type], 0.000001*freq, afcbw, rxbw);
 
 	// reset rxtimer / norxtimer state
 	sonde.sondeList[sonde.currentSonde].lastState = -1;
@@ -453,6 +473,7 @@ void Sonde::receive() {
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		res = m10m20.receive();
 		break;
 	case STYPE_DFM:
@@ -464,15 +485,14 @@ void Sonde::receive() {
 	}
 
 	// state information for RX_TIMER / NORX_TIMER events
-        if(res==0) {  // RX OK
-		flashLed(700);
+        if(res==RX_OK || res==RX_ERROR) {  // something was received...
+		flashLed( (res==RX_OK)?700:100);
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
                 }
-        } else { // RX not ok
-		if(res==RX_ERROR) flashLed(100);
-		Serial.printf("RX result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
+        } else { // RX Timeout
+		//Serial.printf("Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
                 if(si->lastState != 0) {
                         si->norxStart = millis();
                         si->lastState = 0;
@@ -509,8 +529,8 @@ void Sonde::receive() {
 			rxtask.activate = ACT_SONDE(rxtask.currentSonde);
 		}
 	}
+	Serial.printf("Sonde:receive(): result %d (%s), event %02x => action %02x\n", res, (res<=3)?RXstr[res]:"?", event, action);
 	res = (action<<8) | (res&0xff);
-	Serial.printf("Sonde:receive(): Event %02x: action %02x, res %02x => %04x\n", event, action, res&0xff, res);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
 }
@@ -520,10 +540,10 @@ uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
 rxloop:
-        while( !pmu_irq && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+        while( (pmu_irq!=1) && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
 	if( pmu_irq ) {
 		handlePMUirq();
-		goto rxloop;
+		if(pmu_irq!=2) goto rxloop;
 	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
@@ -551,6 +571,7 @@ rxloop:
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
+	case STYPE_M10M20:
 		m10m20.waitRXcomplete();
 		break;
 	case STYPE_DFM:
@@ -574,22 +595,22 @@ uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 		now, si->norxStart, disp.layout->timeouts[2], si->lastState);
 #endif
 	if(disp.layout->timeouts[0]>=0 && now - si->viewStart >= disp.layout->timeouts[0]) {
-		Serial.println("Sonde.timeoutEvent: View");
+		Serial.println("Sonde::timeoutEvent: View");
 		return EVT_VIEWTO;
 	}
 	if(si->lastState==1 && disp.layout->timeouts[1]>=0 && now - si->rxStart >= disp.layout->timeouts[1]) {
-		Serial.println("Sonde.timeoutEvent: RX");
+		Serial.println("Sonde::timeoutEvent: RX");
 		return EVT_RXTO;
 	}
 	if(si->lastState==0 && disp.layout->timeouts[2]>=0 && now - si->norxStart >= disp.layout->timeouts[2]) {
-		Serial.println("Sonde.timeoutEvent: NORX");
+		Serial.println("Sonde::timeoutEvent: NORX");
 		return EVT_NORXTO;
 	}
 	return 0;
 }
 
 uint8_t Sonde::updateState(uint8_t event) {
-	Serial.printf("Sonde::updateState for event %d\n", event);
+	//Serial.printf("Sonde::updateState for event %02x\n", event);
 	// No change
 	if(event==ACT_NONE) return 0xFF;
 
@@ -650,6 +671,14 @@ uint8_t Sonde::updateState(uint8_t event) {
 	return 0xFF;
 }
 
+void Sonde::clearAllData(SondeInfo *si) {
+	// set everything to 0
+	memset(&(si->d), 0, sizeof(SondeData));
+	// set floats to NaN
+	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
+	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
+}
+
 void Sonde::updateDisplayPos() {
 	disp.updateDisplayPos();
 }
@@ -685,6 +714,11 @@ void Sonde::updateDisplay()
 
 void Sonde::clearDisplay() {
 	disp.rdis->clear();
+}
+
+SondeType Sonde::realType(SondeInfo *si) {
+	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
+	else return si->type;
 }
 
 Sonde sonde = Sonde();

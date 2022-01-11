@@ -1,0 +1,18 @@
+
+Important behaviour of WiFiClient:
+
+If anything goes wrong in a read or write operation on a WiFiClient, it internally
+will call WiFiClient.stop(), which sets _rxBuffer to NULL and connected to false. 
+
+Subsequently, any function call to WiFiClient that uses _rxBuffer will cause an
+>>> Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+error and subsequent reboot.
+
+available() is safe to call (it checks that rxBuffer is not null)
+write() is safe to call (it checks that connected is true)
+but read() and peek() are not. 
+
+This has been fixed in newer versions of the esp library, see
+https://github.com/espressif/arduino-esp32/commit/cb7aef1e886ffe43213f9a090e0a8968205a41df#diff-0d8101826fd3df09b38bef2aeca6d093de76841daf38f65f4fefbf6b56da8f81
+
+So there is at least one reason to eventually upgrade to 2.0.0. Currently we stick to 1.0.6.

@@ -552,7 +552,7 @@ int RS92::waitRXcomplete() {
 	Serial.printf("decoding frame %d\n", lastFrame);
 	print_frame(lastFrame==1?data1:data2, 240);
 
-	SondeInfo *si = sonde.sondeList+rxtask.receiveSonde;
+	SondeData *si = &( (sonde.sondeList+rxtask.receiveSonde)->d );
 	si->lat = gpx.lat;
 	si->lon = gpx.lon;
 	si->alt = gpx.alt;

@@ -4,6 +4,16 @@ body, html {
 	font-family: Arial;
 }
 
+.active, .cfgheader:hover {
+  background-color: #ccc;
+}
+.cfgpanel {
+}
+
+th.cfg {
+  padding:5pt
+}
+
 .hamburger {
   position: relative;
   display: inline-block;
@@ -62,7 +72,6 @@ td#sfreq {
 	display: none;
 	flex: 1;
 	padding: 6px 12px;
-	border: 1px solid #ccc;
 	border-top: none;
 	flex-direction: column;
 	overflow: auto;
@@ -300,6 +309,8 @@ p{
 /* Hide the link that should open and close the topnav on small screens */
 .topnav .icon {
   display: none;
+  padding-bottom: 12px;
+  padding-top: 11px;
 }
 
 /* When the screen is less than 600 pixels wide, hide all links, except for the first one ("Home"). Show the link that contains should open and close the topnav (.icon) */
@@ -323,5 +334,47 @@ p{
     float: none;
     display: block;
     text-align: left;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #333;
+  }   
+  h2{
+    color: white;
+  }
+  table, th, td, .save, a.active {
+    color: white;
+    border: 1px solid grey;
+    border-collapse: collapse;
+    background-color: #333;
+  }
+  input, select, .tci, .warning {
+    color: white;
+    background-color: #333;
+  }
+  a:link, a:visited {
+    color: #D3D3D3;
+  }
+  .topnav, td#sfreq {
+    background-color: grey;
+  }
+  .topnav a:visited {
+    color: white;
+  }
+  .ctlbtn {
+    color: white;
+    background-color: grey;
+  }
+  .leaflet-center {
+    color: white;
+    background-color: grey;
+  }
+  .leaflet-bar a {
+    background-color: grey !important;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    color: white !important;
+    background: grey !important;
   }
 }

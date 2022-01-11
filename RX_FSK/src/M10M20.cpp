@@ -223,6 +223,10 @@ static int32_t getint24(uint8_t *data) {
     return (int32_t)(data[2]|(data[1]<<8)|(data[0]<<16) );
 }
 
+static int32_t getint24_r(uint8_t *data) {
+    return (int32_t)(data[0]|(data[1]<<8)|(data[2]<<16) );
+}
+
 static int16_t getint16(uint8_t *data) {
 	return (int16_t)(data[1]|((uint16_t)data[0]<<8));
 }
@@ -280,7 +284,9 @@ int M10M20::decodeframeM10(uint8_t *data) {
 
 	if(data[1]==0x9F && data[2]==0x20) {
 		Serial.println("Decoding...");
-		SondeInfo *si = sonde.si();
+		//SondeInfo *si = sonde.si();
+		SondeData *si = &(sonde.si()->d);
+		
 		// Its a M10
 		// getid...
 		char ids[12];
@@ -295,7 +301,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[7] = hex(id/16);
 		ids[8] = hex(id);
 		ids[9] = 0;
-		strncpy(sonde.si()->id, ids, 10);
+		strncpy(si->id, ids, 10);
 		ids[0] = hex(data[95]/16);
 		ids[1] = dez((data[95]&0x0f)/10);
 		ids[2] = dez((data[95]&0x0f));
@@ -326,6 +332,51 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		if(dir<0) dir+=360;
 		si->dir = dir;
 		si->validPos = 0x3f;
+		// m10 temp
+		float T = NAN;
+		{
+		const float p0 = 1.07303516e-03, p1 = 2.41296733e-04, p2 = 2.26744154e-06, p3 = 6.52855181e-08;
+  		const float Rs[3] = { 12.1e3 ,  36.5e3 ,  475.0e3 }; 
+  		const float Rp[3] = { 1e20   , 330.0e3 , 2000.0e3 };
+		uint8_t sct = data[62];
+		float rt = getint16_r(data+63) & (0xFFF);
+		if(rt!=0 && sct<3) {
+			rt = (4095-rt)/rt - (Rs[sct]/Rp[sct]);
+			if(rt>0) {
+				rt = Rs[sct] / rt;
+				if(rt>0) {
+					rt = log(rt);
+					rt = 1/( p0 + p1*rt + p2*rt*rt + p3*rt*rt*rt ) - 273.15;
+					if(rt>-99 && rt<50) { T = rt; }
+				}
+			}
+		}
+		si->temperature = T;
+		}
+
+		// m10 battery
+		uint16_t batADC = (uint16_t)getint16_r(data+0x45);
+		si->batteryVoltage = 2.709 * batADC * 2.5/1023.0;
+
+		// m10 humidity
+		{
+		float cRHc55 = ((float)(uint32_t)getint24_r(data+0x35)) / (uint32_t)getint24_r(data+0x32);
+		float TH = -273.15;
+		const float huRs = 22.1e3;
+		const float p0 = 4.42606809e-03, p1 = -6.58184309e-04, p2 =  8.95735557e-05, p3 = -2.84347503e-06;
+		float R = huRs / ( (4095.0/getint16_r(data+0x59)) - 1 );
+		if(R>0) TH += 1/( p0 + p1*log(R) + p2*log(R)*log(R) + p3*log(R)*log(R)*log(R) );
+		//float Tc = T;
+		float rh = (cRHc55-0.8955)/0.002;
+		const float T0=0.0, T1=-30.0;
+		//float T = Tc;
+		if(T<T0) rh += T0 - T/5.5;
+		if(T<T1) rh *= 1.0 + (T1-T)/75.0;
+		if(rh<0.0) rh=0.0;
+		if(rh>100.0) rh=100.0;
+		si->relativeHumidity = rh;
+		}
+		Serial.printf("hum: %.2f  batt: %.2f\n", si->relativeHumidity, si->batteryVoltage);
 
  		uint32_t gpstime = getint32(data+10);
                 uint16_t gpsweek = getint16(data+32);
@@ -396,15 +447,15 @@ void M10M20::processM10data(uint8_t dt)
 				// 45 20 7x => M20
 				if(rxp==2 && dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
 				if(isM20) {
-					memcpy(sonde.si()->typestr, "M20 ", 5);
-					sonde.si()->subtype = 2;
+					memcpy(sonde.si()->d.typestr, "M20 ", 5);
+					sonde.si()->d.subtype = 2;
 					if(rxp>=M20_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM20(dataptr);
 					}
 				} else {
-					memcpy(sonde.si()->typestr, "M10 ", 5);
-					sonde.si()->subtype = 1;
+					memcpy(sonde.si()->d.typestr, "M10 ", 5);
+					sonde.si()->d.subtype = 1;
 					if(rxp>=M10_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM10(dataptr);
@@ -472,7 +523,8 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	int repl = 0;
 	bool crcok = false;
 	bool crcbok = false;
-	SondeInfo *si = sonde.si();
+	//SondeInfo *si = sonde.si();
+	SondeData *si = &(sonde.si()->d);
 	// error correction, inspired by oe5dxl's sondeudp
 	// check first block
 	uint8_t s[200];
@@ -523,6 +575,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	ids[6] = (char)((id/100)%10+48);
 	ids[7] = (char)((id/10)%10+48);
 	ids[8] = (char)(id%10+48);
+	ids[9] = 0;
 	strncpy(si->id, ids, 10);
 	// Serial: AAB-C-DDEEE
 	char *ser = si->ser;
@@ -569,7 +622,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
  	uint32_t tow = getint24(data+15);
         uint16_t week = getint16(data+26);
         si->time = (tow+week*604800+315964800)-18;
-	si->vframe = sonde.si()->time - 315964800;
+	si->vframe =si->time - 315964800;
                 
         si->validTime = true;
 	}

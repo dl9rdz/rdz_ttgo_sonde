@@ -192,6 +192,55 @@ DispInfo staticLayouts[5] = {
 
 /////////////// Wrapper code for various display
 
+static void utf2latin15(const char *src, char *dst, int dstlen) {
+	static uint8_t decoderState = 0;
+	static uint16_t decoderBuffer;
+
+	while(uint8_t c = *src++) {
+		if( (c&0x80)==0 || c==0xB0) { // 7bit code point (or special case: old °sign)
+			decoderState = 0;
+			*dst++ = c;
+			continue;
+		}
+		if(decoderState==0) {
+			if((c&0xE0)==0xC0) { // 11bit code point
+				decoderBuffer = ((c&0x1F)<<6);	// first 5 bit
+				decoderState = 1;
+			} else if ((c&0xF0)==0xE0) { // 16 bit code point
+				decoderBuffer = ((c&0x0f)<<12); // first 4 bit
+				decoderState = 2;
+			}
+		} else {
+			decoderState --;
+			if(decoderState == 1)
+				decoderBuffer |= ((c&0x3f)<<6); // next 6 bit of 16 bit code point
+			else if (decoderState==0) {
+				decoderBuffer |= (c&0x3f);   // last 6 bit of code point$a
+			}
+		}
+		if(decoderState==0) {
+			// emit encoded byte if possible
+			switch(decoderBuffer) {
+			case 0x0152: decoderBuffer=0xbc; break;
+			case 0x0153: decoderBuffer=0xbd; break;
+			case 0x0160: decoderBuffer=0xa6; break;
+			case 0x0161: decoderBuffer=0xa8; break;
+			case 0x0178: decoderBuffer=0xbe; break;
+			case 0x017D: decoderBuffer=0xb4; break;
+			case 0x017E: decoderBuffer=0xb8; break;
+			case 0x20AC: decoderBuffer=0xa4; break;
+			}
+
+			if(decoderBuffer>0xff) decoderBuffer=0x7f;
+			else if(decoderBuffer>0x7f) decoderBuffer-=0x20;
+			*dst++ = (uint8_t)decoderBuffer;
+		}
+
+	}
+	*dst = 0;
+}
+
+
 // ALLFONTS requires 30k extra flash memory... for now there is still enough space :)
 //#define ALLFONTS 1
 static const uint8_t *fl[] = { 
@@ -254,7 +303,20 @@ void U8x8Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip
 }
 
 void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
-	u8x8->drawString(x, y, s);
+	char buf[50];
+	utf2latin15(s, buf, 50);
+	if(width!=WIDTH_AUTO && width>0) {
+		for(int l = strlen(buf); l<width; l++) {
+			buf[l] = ' ';
+		}
+		buf[width] = 0;
+	}
+	if(width<0) {
+		int l = strlen(buf);
+		memset(buf, ' ', width-l);
+		utf2latin15(s, buf+l, 50-l);
+	}
+	u8x8->drawString(x, y, buf);
 }
 
 void U8x8Display::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
@@ -316,7 +378,10 @@ void U8x8Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t /*size*/, 
 }
 
 
-const GFXfont *gfl[] = {
+#ifdef LEGACY_FONTS_IN_CODEBIN
+const GFXfont *legacygfl[] = {
+	&Terminal11x16Font,		// 1 (replacement for 1 with old library)
+	&Terminal11x16Font,		// 2 (replacement for 2 with old library)
 	&Terminal11x16Font,		// 3 (replacement for 1 or 2 with old library)
 	&Terminal11x16Font,		// 4 (replacement for 1 or 2 with old library)
 	&FreeSans9pt7b,		// 5
@@ -324,9 +389,69 @@ const GFXfont *gfl[] = {
 	&Picopixel,             // 7
 	&FreeSans18pt7b,        // 8
 };
+
+const GFXfont **gfl = legacygfl;
+static int ngfx = sizeof(legacygfl)/sizeof(GFXfont *);
+#else
+// will crash if no font partition exists........
+const GFXdont **gfl = NULL;
+#endif
+
+
+#define MAXFONT 20
+
+static void init_gfx_fonts() {
+	// if we have a fonts partition, relocate and use that...
+	const esp_partition_t *part;
+	spi_flash_mmap_handle_t handle;
+	void *data;
+	esp_err_t err;
+
+	part = esp_partition_find_first((esp_partition_type_t)0x40, ESP_PARTITION_SUBTYPE_APP_FACTORY, "fonts");
+	if(part) {
+		Serial.println("FONT partition found!");
+		err = esp_partition_mmap(part, 0, part->size, SPI_FLASH_MMAP_DATA, (const void **)&data, &handle);
+		if( err != ESP_OK ) {
+			Serial.println("mmap not OK\n");
+			return;
+		}
+		Serial.println("font partition successfully mmaped");
+		// do relocation stuff....
+		const GFXfont **fptr = (const GFXfont **)data;
+		if((uint32_t)*fptr != 0x544E4F46) { // FONT
+			Serial.println("No font data in font partition");
+			return; 
+		}
+		int n=0; 
+		for(const GFXfont **g=fptr; *g!=NULL; g++) n++;
+		Serial.printf("There a %d fonts in the font partition\n", n);
+		if(n>MAXFONT) n=MAXFONT;
+		GFXfont **newgfl = (GFXfont **)malloc( n*sizeof(GFXfont) + MAXFONT*sizeof(GFXfont *)  );
+		if(!newgfl) {
+			Serial.println("no memory for gfx fonts");
+			return;
+		}
+		GFXfont *fonts = (GFXfont *)(((char *)newgfl) + MAXFONT*sizeof(GFXfont *));
+		// create GFXfont list
+		for(int i=0; i<n; i++) {
+			newgfl[i] = fonts+i;
+			GFXfont *orig = (GFXfont *)(((char *)data) + (uint32_t)fptr[i]);
+			memcpy(newgfl[i], orig, sizeof(GFXfont));
+			newgfl[i]->bitmap = newgfl[i]->bitmap + (uint32_t)data;  // relocate bitmap pointer to mmap partition
+			newgfl[i]->glyph = (GFXglyph *)( ((char *)newgfl[i]->glyph) + (uint32_t)data );
+			Serial.printf("font i: gfl[i] is %p,  gfl[i]->bitmap is %p, gfl[i]->glyph is %p\n", newgfl[i], newgfl[i]->bitmap, newgfl[i]->glyph);
+		}
+		gfl = (const GFXfont **)newgfl;
+		ngfx = n;
+	}
+}
+
 struct gfxoffset_t {
 	uint8_t yofs, yclear;
 };
+#if 0
+///// **** this is now calculated automatically
+//
 // obtained as max offset from font (last column) and maximum height (3rd column) in glyphs
 // first value: offset: max offset from font glyphs (last column * (-1))   (check /, \, `, $)`
 // yclear:max height: max of (height in 3rd column) + (yofs + 6th column)  (check j)
@@ -338,8 +463,29 @@ const struct gfxoffset_t gfxoffsets[]={
         {  4, 6},       // 6+4-4
         { 25, 34 },   // 34 25 -25
 };
-static int ngfx = sizeof(gfl)/sizeof(GFXfont *);
+#endif
 
+struct gfxoffset_t gfxoffsets[MAXFONT];
+
+void calc_gfx_offsets() {
+	for(int i=0; i<ngfx; i++) {
+		// find offset from top to baseline
+		int bofs = 0;
+		GFXglyph *g = gfl[i]->glyph;
+		for(int j=0; j<=gfl[i]->last-gfl[i]->first; j++) {
+			if(g[j].yOffset < bofs) bofs = g[j].yOffset;  // yOffset are negative values
+		}
+		gfxoffsets[i].yofs = -bofs;
+		// find max. height (yofs + yOffset + height) -- note that yOffset is negative
+		int hgt = 0;
+		for(int j=0; j<=gfl[i]->last-gfl[i]->first; j++) {
+			int h = gfxoffsets[i].yofs + g[j].yOffset + g[j].height;
+			if(h>hgt) hgt=h;
+		}
+		gfxoffsets[i].yclear = hgt;
+		printf("Font %d: yofs=%d, yclear=%d\n", i, gfxoffsets[i].yofs, gfxoffsets[i].yclear);
+	}
+}
 	
 #define TFT_LED 0 // 0 if wired to +5V directly
 #define TFT_BRIGHTNESS 100 // Initial brightness of TFT backlight (optional)
@@ -348,6 +494,8 @@ Arduino_DataBus *bus;
 		
 void ILI9225Display::begin() {
 	Serial.println("ILI9225/ILI9341 init");
+	init_gfx_fonts();
+	calc_gfx_offsets();
 	// On the M5, the display and the Lora chip are on the same SPI interface (VSPI default pins),
 	// we must use the same SPI bus with correct locking 
 	if(sonde.config.type == TYPE_M5_CORE2) {
@@ -380,13 +528,13 @@ void ILI9225Display::clear() {
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
 void ILI9225Display::setFont(uint8_t fontindex) {
-	if(fontindex==1 || fontindex==2) { fontindex=3; }
+	//if(fontindex==1 || fontindex==2) { fontindex=3; }
 	findex = fontindex;
 	switch(fontindex) {
 	case 0: tft->setFont(NULL); tft->setTextSize(1); break;
-	case 1: tft->setFont(NULL); tft->setTextSize(2); break;
-	case 2: tft->setFont(NULL); tft->setTextSize(2); break;
-	default: tft->setFont(gfl[fontindex-3]);
+	//case 1: tft->setFont(NULL); tft->setTextSize(2); break;
+	//case 2: tft->setFont(NULL); tft->setTextSize(2); break;
+	default: tft->setFont(gfl[fontindex-1]);
 	}
 }
 
@@ -419,23 +567,27 @@ void ILI9225Display::getDispSize(uint8_t *height, uint8_t *width, uint8_t *lines
 	}
 }
 
+
+
 // Note: alignright means that there is a box from x to x+(-width), with text right-justified
 //       x is the *left* corner! not the right...
 void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t width, uint16_t fg, uint16_t bg) {
 	int16_t w,h;
 	boolean alignright=false;
+	char buf[50];
+	utf2latin15(s, buf, 50);	
+
 	if(width<0) {
 		width = -width;
 		alignright = true;
 	}
 	// Standard font
-	if(findex<3) {
+	if(findex==0) {
 		SPI_MUTEX_LOCK();
 		DebugPrintf(DEBUG_DISPLAY, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
 		// for gpx fonts and new library, cursor is at baseline!!
-		int h = 6; if(findex>1) h=12;
+		int h = 6;
 		if( alignright ) {
-#if 1
 			//w = tft->getTextWidth(s);
 			/// TODO
 			if( width==WIDTH_AUTO ) { width = w; }
@@ -444,25 +596,11 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 			}
 			tft->setCursor(x + width - w, y);
 			tft->setTextColor(fg, bg);
-			tft->print(s);
-#else
-			w = tft->getTextWidth(s);
-			if( width==WIDTH_AUTO ) { width = w; }
-			if( width > w ) {
-				tft->fillRectangle(x, y, x + width - w, y + h - 1, bg);
-			}
-			tft->drawText(x + width - w, y, s, fg);
-#endif
+			tft->print(buf);
 		} else {
 			tft->setCursor(x, y);
 			tft->setTextColor(fg, bg);
-			tft->print(s);
-			// curx???
-			//i//int curx = tft->drawText(x, y, s, fg);
-			//if( width==WIDTH_AUTO ) { return; }
-			//if(curx < x + width) {
-        		//	tft->fillRectangle(curx, y, x + width - 1, y + h - 1, bg);
-			//}
+			tft->print(buf);
 		}
 		SPI_MUTEX_UNLOCK();
 		return;
@@ -471,7 +609,7 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 	SPI_MUTEX_LOCK();
 	int16_t x1, y1;
 	if(1||width==WIDTH_AUTO || alignright) {
-		tft->getTextBounds(s, x, y + gfxoffsets[findex-3].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
+		tft->getTextBounds(buf, x, y + gfxoffsets[findex-1].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
 		w += x1 - x + 1;
 		if(width==WIDTH_AUTO) { width=w; }
 		if(alignright) {
@@ -486,24 +624,24 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 		}
 	}
 
-	if(findex-3>=ngfx) findex=3;
-	DebugPrintf(DEBUG_DISPLAY,"GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-3].yofs, fg, width, w);
+	if(findex-1>=ngfx) findex=1;
+	DebugPrintf(DEBUG_DISPLAY,"GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-1].yofs, fg, width, w);
 #if 0
 	// Text by clear rectangle and refill, causes some flicker
-	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-3].yclear, bg);
+	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-1].yclear, bg);
 	if(alignright) {
-        	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-3].yofs, s, fg);
+        	tft->drawGFXText(x + width - w, y + gfxoffsets[findex-1].yofs, s, fg);
 	} else {
-        	tft->drawGFXText(x, y + gfxoffsets[findex-3].yofs, s, fg);
+        	tft->drawGFXText(x, y + gfxoffsets[findex-1].yofs, s, fg);
 	}
 #else 
 	// Text by drawing bitmap.... => less "flicker"
 #if 1
 	//TODO
-	tft->setCursor( alignright? x+width-w : x, y + gfxoffsets[findex-3].yofs);
+	tft->setCursor( alignright? x+width-w : x, y + gfxoffsets[findex-1].yofs);
 	tft->setTextColor( fg, bg );
-	tft->print(s);
-	uint16_t height = gfxoffsets[findex-3].yclear;
+	tft->print(buf);
+	uint16_t height = gfxoffsets[findex-1].yclear;
 	if(alignright) {
 		// fill with bg from x+w to width
 		if(width>w) tft->fillRect( x, y, width-w, height, bg);
@@ -514,7 +652,7 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 		DebugPrintf(DEBUG_DISPLAY,"ltext fill %d %d %d %d -- %d %d\n", x+w, y, width-w, height, x1, y1);
 	}
 #else
-	uint16_t height = gfxoffsets[findex-3].yclear;
+	uint16_t height = gfxoffsets[findex-1].yclear;
         uint16_t *bitmap = (uint16_t *)malloc(sizeof(uint16_t) * width * height);
 	if(!bitmap) {
 		Serial.println("FATAL: OUT OF MEMORY when allocating bitmap");
@@ -525,7 +663,7 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
         for(int i=0; i<width*height; i++) { bitmap[i] = bg; }   // fill with background
 	int x0 = 0;
 	if(alignright) { x0 = width - w; }
-	int y0 = gfxoffsets[findex-3].yofs;
+	int y0 = gfxoffsets[findex-1].yofs;
 	DebugPrintf(DEBUG_DISPLAY,"GFX: w=%d h=%d\n", width, height);
 	for (uint8_t k = 0; k < strlen(s); k++) {	
             x0 += tft->drawGFXcharBM(x0, y0, s[k], fg, bitmap, width, height) + 1;
@@ -620,58 +758,6 @@ void ILI9225Display::drawQS(uint16_t x, uint16_t y, uint8_t len, uint8_t size, u
 #define pgm_read_pointer(addr) ((void *)pgm_read_dword(addr))
 
 
-#if 1
-#else
-// TO BE REMOVED
-void MY_ILI9225::drawTile(uint16_t x, uint16_t y, uint8_t cnt, uint8_t *tile_ptr) {
-        int i,j;
-        startWrite();
-        for(i=0; i<cnt*8; i++) {
-                uint8_t v = tile_ptr[i];
-                for(j=0; j<8; j++) {
-                        drawPixel(8*x+i, 8*y+j, (v&0x01) ? COLOR_GREEN:COLOR_BLUE);
-                        v >>= 1;
-                }
-        }
-        endWrite();
-}
-
-
-uint16_t MY_ILI9225::drawGFXChar(int16_t x, int16_t y, unsigned char c, uint16_t color) {
-
-    c -= (uint8_t)pgm_read_byte(&gfxFont->first);
-    GFXglyph *glyph  = &(((GFXglyph *)pgm_read_pointer(&gfxFont->glyph))[c]);
-    uint8_t  *bitmap = (uint8_t *)pgm_read_pointer(&gfxFont->bitmap);
-
-    uint16_t bo = pgm_read_word(&glyph->bitmapOffset);
-    uint8_t  w  = pgm_read_byte(&glyph->width),
-             h  = pgm_read_byte(&glyph->height),
-             xa = pgm_read_byte(&glyph->xAdvance);
-    int8_t   xo = pgm_read_byte(&glyph->xOffset),
-             yo = pgm_read_byte(&glyph->yOffset);
-    uint8_t  xx, yy, bits = 0, bit = 0;
-
-    // Add character clipping here one day
-
-    startWrite();
-    for(yy=0; yy<h; yy++) {
-        for(xx=0; xx<w; xx++) {
-            if(!(bit++ & 7)) {
-                bits = pgm_read_byte(&bitmap[bo++]);
-            }
-            if(bits & 0x80) {
-                drawPixel(x+xo+xx, y+yo+yy, color);
-            } else {
-                drawPixel(x+xo+xx, y+yo+yy, COLOR_YELLOW); //color);
-	    }
-            bits <<= 1;
-        }
-    }
-    endWrite();
-
-    return (uint16_t)xa;
-}
-#endif
 ///////////////
 
 
@@ -808,6 +894,10 @@ void Display::parseDispElement(char *text, DispEntry *de)
 		de->func = disp.drawFreq;
 		de->extra = strdup(text+1);
 		//Serial.printf("parsing 'f' entry: extra is '%s'\n", de->extra);
+		break;
+	case 'm':
+		de->func = disp.drawTelemetry;
+		de->extra = strdup(text+1);
 		break;
 	case 'n':
 		// IP address / small always uses tiny font on TFT for backward compatibility
@@ -1125,41 +1215,41 @@ void Display::drawString(DispEntry *de, const char *str) {
 
 void Display::drawLat(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!VALIDPOS(sonde.si()->d.validPos)) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
-	snprintf(buf, 16, "%2.5f", sonde.si()->lat);
+	snprintf(buf, 16, "%2.5f", sonde.si()->d.lat);
 	drawString(de,buf);
 }
 void Display::drawLon(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!VALIDPOS(sonde.si()->d.validPos)) {
 	   drawString(de,"<?""?>      ");
 	   return;
 	}
-	snprintf(buf, 16, "%2.5f", sonde.si()->lon);
+	snprintf(buf, 16, "%2.5f", sonde.si()->d.lon);
 	drawString(de,buf);
 }
 void Display::drawAlt(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!VALIDALT(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
-	float alt = sonde.si()->alt;
+	float alt = sonde.si()->d.alt;
 	//testing only....   alt += 30000-454;
 	snprintf(buf, 16, alt>=1000?"   %5.0fm":"   %3.1fm", alt);
 	drawString(de,buf+strlen(buf)-6);
 }
 void Display::drawHS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!VALIDHS(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
 	boolean is_ms = (de->extra && de->extra[0]=='m')?true:false;  // m/s or km/h
-	float hs = sonde.si()->hs;
+	float hs = sonde.si()->d.hs;
 	if(!is_ms) hs = hs * 3.6;
 	boolean has_extra = (de->extra && de->extra[1]!=0)? true: false;
 	snprintf(buf, 16, hs>99?" %3.0f":" %2.1f", hs);
@@ -1169,11 +1259,11 @@ void Display::drawHS(DispEntry *de) {
 }
 void Display::drawVS(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validPos) {
+	if(!VALIDVS(sonde.si()->d.validPos)) {
 	   drawString(de,"     ");
 	   return;
 	}
-	snprintf(buf, 16, "  %+2.1f", sonde.si()->vs);
+	snprintf(buf, 16, "  %+2.1f", sonde.si()->d.vs);
 	DebugPrintf(DEBUG_DISPLAY, "drawVS: extra is %s width=%d\n", de->extra?de->extra:"<null>", de->width);
 	if(de->extra) { strcat(buf, de->extra); }
 	drawString(de, buf+strlen(buf)-5- (de->extra?strlen(de->extra):0) );
@@ -1181,29 +1271,29 @@ void Display::drawVS(DispEntry *de) {
 }
 void Display::drawID(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	if(!sonde.si()->validID) {
+	if(!sonde.si()->d.validID) {
 		drawString(de, "nnnnnnnn ");
 		return;
 	}
 	if(de->extra && de->extra[0]=='n') {
 		// real serial number, as printed on sonde, can be up to 11 digits long
-		drawString(de, sonde.si()->ser);
+		drawString(de, sonde.si()->d.ser);
 	} else if (de->extra && de->extra[0]=='s') {
 		// short ID, max 8 digits (no initial "D" for DFM, "M" instead of "ME" for M10)
 		if( TYPE_IS_DFM(sonde.si()->type) ) {
-			drawString(de, sonde.si()->id+1);
+			drawString(de, sonde.si()->d.id+1);
 		} else if (TYPE_IS_METEO(sonde.si()->type)) {
 			char sid[9];
 			sid[0]='M';
-			memcpy(sid+1, sonde.si()->id+2, 8);
+			memcpy(sid+1, sonde.si()->d.id+2, 8);
 			sid[8] = 0;
 			drawString(de, sid);
 		} else {
-			drawString(de, sonde.si()->id);
+			drawString(de, sonde.si()->d.id);
 		}
 	} else {
 		// dxlAPRS sonde number, max 9 digits, as used on aprs.fi and radiosondy.info
-		drawString(de, sonde.si()->id);
+		drawString(de, sonde.si()->d.id);
 	}
 }
 void Display::drawRSSI(DispEntry *de) {
@@ -1230,7 +1320,7 @@ void Display::drawQS(DispEntry *de) {
 
 void Display::drawType(DispEntry *de) {
 	rdis->setFont(de->fmt);
-	const char *typestr = sonde.si()->typestr;
+	const char *typestr = sonde.si()->d.typestr;
 	if(*typestr==0) typestr = sondeTypeStr[sonde.si()->type];
         drawString(de, typestr);
 }
@@ -1254,7 +1344,7 @@ void Display::drawSite(DispEntry *de) {
 	case '#':
 		// currentSonde is index in array starting with 0;
 		// but we draw "1" for the first entry and so on...
-		snprintf(buf, 3, "%2d", sonde.currentSonde+1);
+		snprintf(buf, 3, "%d ", sonde.currentSonde+1);
 		buf[2]=0;
 		break;
 	case 't':
@@ -1276,22 +1366,66 @@ void Display::drawSite(DispEntry *de) {
 		buf[5]=0;
 		break;
 	case 0: case 'l': default: // launch site
-		drawString(de, sonde.si()->launchsite);
-		return;
+		// TODO: This is a workaround to be compatible with older screens1.txt
+		// This does not work correctly with non-ascii utf8 characters.
+		// For this reason, this workaround will likely be removed in the future
+		// Instead, all screens?.txt should always indicate the max. length of the displayed string.
+		snprintf(buf, 17, "%-16s", sonde.si()->launchsite);
+		//drawString(de, sonde.si()->launchsite);
+		//return;
 	}
 	if(de->extra[0]) strcat(buf, de->extra+1);
 	drawString(de, buf);
 }
 void Display::drawTelemetry(DispEntry *de) {
+	rdis->setFont(de->fmt);
+	float value=0;
+	memset(buf, ' ', 16);
+	switch(de->extra[0]) {
+	case 't':
+		value = sonde.si()->d.temperature;
+		if(!isnan(value)) {
+			sprintf(buf, "%5.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
+		break;
+	case 'p':
+		value = sonde.si()->d.pressure;
+		if(!isnan(value)) {
+			if(value>=1000) sprintf(buf, "%6.1f", value);
+			else sprintf(buf, "%6.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[6+strlen(de->extra+1)] = 0;
+		break;
+	case 'h':
+		value = sonde.si()->d.relativeHumidity;
+		if(!isnan(value)) {
+			sprintf(buf, "%4.1f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[4+strlen(de->extra+1)] = 0;
+		break;
+	case 'b':
+		value = sonde.si()->d.batteryVoltage;
+		if(!isnan(value)) {
+			snprintf(buf, 5, "%4.2f", value);
+			strcat(buf, de->extra+1);
+		}
+		buf[5+strlen(de->extra+1)] = 0;
+		break;
+	}
+	drawString(de,buf);
 }
 
 void Display::drawKilltimer(DispEntry *de) {
 	rdis->setFont(de->fmt);
 	uint16_t value=0;
 	switch(de->extra[0]) {
-	case 'l': value = sonde.si()->launchKT; break;
-	case 'b': value = sonde.si()->burstKT; break;
-	case 'c': value = sonde.si()->countKT; break;
+	case 'l': value = sonde.si()->d.launchKT; break;
+	case 'b': value = sonde.si()->d.burstKT; break;
+	case 'c': value = sonde.si()->d.countKT; break;
 	}
 	// format: 4=h:mm; 6=h:mm:ss; s=sssss
 	uint16_t h=value/3600;
@@ -1320,7 +1454,6 @@ void Display::drawKilltimer(DispEntry *de) {
 #define  PI  (3.1415926535897932384626433832795)
 #endif
 // defined by Arduino.h   #define radians(x) ( (x)*180.0F/PI )
-#define FAKEGPS 0
 
 extern int lastCourse; // from RX_FSK.ino
 
@@ -1333,46 +1466,26 @@ float calcLatLonDist(float lat1, float lon1, float lat2, float lon2) {
 }
 
 void Display::calcGPS() {
-	// base data
-#if 0
-#if FAKEGPS
-	gpsValid = true;
-	gpsLat = 48.9;
-	gpsLon = 13.3;
-	gpsAlt = 33000;
-static int tmpc=0;
-	tmpc = (tmpc+5)%360;
-	gpsCourse = tmpc;
-#else
-	gpsValid = nmea.isValid();
-	gpsLon = nmea.getLongitude()*0.000001;
-	gpsLat = nmea.getLatitude()*0.000001;
-	long alt = 0;
-	nmea.getAltitude(alt); gpsAlt=(int)(alt/1000);
-	gpsCourse = (int)(nmea.getCourse()/1000);
-	gpsCourseOld = false;
-	if(gpsCourse==0) {
-		// either north or not new
-		if(lastCourse!=0) // use old value...
-		{
-			gpsCourseOld = true;
-			gpsCourse = lastCourse;
-		}
+	float mylat = sonde.config.rxlat;
+	float mylon = sonde.config.rxlon;
+	bool valid = !(isnan(mylat)||isnan(mylon));
+	if( gpsPos.valid) {
+		mylat = gpsPos.lat;
+		mylon = gpsPos.lon;
+		valid = true;
 	}
-#endif
-#endif
 	// distance
-	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_DIST)) {
-		gpsDist = (int)calcLatLonDist(gpsPos.lat, gpsPos.lon, sonde.si()->lat, sonde.si()->lon);
+	if( valid && VALIDPOS(sonde.si()->d.validPos) && (layout->usegps&GPSUSE_DIST)) {
+		gpsDist = (int)calcLatLonDist(mylat, mylon, sonde.si()->d.lat, sonde.si()->d.lon);
 	} else {
 		gpsDist = -1;
 	}
 	// bearing
-	if( gpsPos.valid && (sonde.si()->validPos&0x03)==0x03 && (layout->usegps&GPSUSE_BEARING)) {
-                float lat1 = radians(gpsPos.lat);
-                float lat2 = radians(sonde.si()->lat);
-                float lon1 = radians(gpsPos.lon);
-                float lon2 = radians(sonde.si()->lon);
+	if( valid && VALIDPOS(sonde.si()->d.validPos&0x03) && (layout->usegps&GPSUSE_BEARING)) {
+                float lat1 = radians(mylat);
+                float lat2 = radians(sonde.si()->d.lat);
+                float lon1 = radians(mylon);
+                float lon2 = radians(sonde.si()->d.lon);
                 float y = sin(lon2-lon1)*cos(lat2);
                 float x = cos(lat1)*sin(lat2) - sin(lat1)*cos(lat2)*cos(lon2-lon1);
                 float dir = atan2(y, x)/PI*180;
@@ -1425,10 +1538,10 @@ void Display::drawGPS(DispEntry *de) {
 		{
 		// distance
 		// equirectangular approximation is good enough
-		if( (sonde.si()->validPos&0x03)!=0x03 ) {
+		if( !VALIDPOS(sonde.si()->d.validPos) ) {
 			snprintf(buf, 16, "no pos ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
-		} else if(!gpsPos.valid) {
+		} else if( disp.gpsDist < 0 ) {
 			snprintf(buf, 16, "no gps ");
 			if(de->extra && *de->extra=='5') buf[5]=0;
 		} else {
@@ -1448,7 +1561,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'I':
 		// dIrection
-		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( disp.gpsDir<0 ) {  // 0..360 valid, -1 invalid
 			drawString(de, "---");
 			break;
 		}
@@ -1460,7 +1573,7 @@ void Display::drawGPS(DispEntry *de) {
 		break;
 	case 'B':
 		// relative bearing
-		if( (!gpsPos.valid) || ((sonde.si()->validPos&0x03)!=0x03 ) ) {
+		if( disp.gpsBear < 0 ) {  // 0..360 valid, -1 invalid
 			drawString(de, "---");
 			break;
 		}
@@ -1491,9 +1604,9 @@ void Display::drawGPS(DispEntry *de) {
 		int angN, angA, angB;   // angle of north, array, bullet
 		int validA, validB;     // 0: no, 1: yes, -1: old
 		if(circinfo->arr=='C') {  angA=gpsPos.course; validA=disp.gpsCourseOld?-1:1; }
-		else { angA=disp.gpsDir; validA=sonde.si()->validPos?(rxgood?1:-1):0; }
+		else { angA=disp.gpsDir; validA=sonde.si()->d.validPos?(rxgood?1:-1):0; }
 		if(circinfo->bul=='C') {  angB=gpsPos.course; validB=disp.gpsCourseOld?-1:1; }
-		else { angB=disp.gpsDir; validB=sonde.si()->validPos?(rxgood?1:-1):0; }
+		else { angB=disp.gpsDir; validB=sonde.si()->d.validPos?(rxgood?1:-1):0; }
 		if(circinfo->top=='N') {
 			angN = 0;
 		} else {
@@ -1580,11 +1693,19 @@ void Display::drawBatt(DispEntry *de) {
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'U':
-		val = axp.getVbusVoltage();
+		if(sonde.config.type == TYPE_M5_CORE2) {
+		  val = axp.getAcinVoltage();
+		} else {
+		  val = axp.getVbusVoltage();
+		}
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
 	case 'I':
-		val = axp.getVbusCurrent();
+		if(sonde.config.type == TYPE_M5_CORE2) {
+		  val = axp.getAcinCurrent();
+		} else {
+		  val = axp.getVbusCurrent();
+		}
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'T':

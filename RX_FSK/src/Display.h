@@ -14,7 +14,10 @@ struct GpsPos {
 	double lon;
 	int alt;
 	int course;
+	float speed;
+	int sat;
 	int accuracy;
+	int hdop;
 	int valid;
 };
 extern struct GpsPos gpsPos;

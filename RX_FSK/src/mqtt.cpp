@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include <ESPmDNS.h>
+#include "RS41.h"
 
 TimerHandle_t mqttReconnectTimer;
 
@@ -16,6 +17,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.println();
 }
 
+static char buffer[21];
 void MQTT::init(const char* host, uint16_t port, const char* id, const char *username, const char *password, const char *prefix)
 {
     WiFi.hostByName(host, this->ip);
@@ -26,8 +28,8 @@ void MQTT::init(const char* host, uint16_t port, const char* id, const char *use
     
     Serial.println("[MQTT] pubsub client");
     mqttClient.setServer(ip, port);
-    char buffer[20];
-    snprintf(buffer, 20, "%s%6ld", id, random(0, 1000));
+    snprintf(buffer, 20, "%s%04d", id, (int)random(0, 1000));
+    buffer[20] = 0;
     mqttClient.setClientId(buffer);
     if (strlen(password) > 0) {
         mqttClient.setCredentials(username, password);
@@ -51,8 +53,9 @@ void MQTT::publishUptime()
     mqttClient.publish(topic, 1, 1, payload);
 }
 
-void MQTT::publishPacket(SondeInfo *s)
+void MQTT::publishPacket(SondeInfo *si)
 {
+    SondeData *s = &(si->d);
     mqttClient.connect(); // ensure we've got connection
 
     char payload[1024];
@@ -84,14 +87,13 @@ void MQTT::publishPacket(SondeInfo *s)
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"
         "\"countKT\": %d,"
-        "\"crefKT\": %d"
-        "}",
-        (int)s->active,
-        s->freq,
+        "\"crefKT\": %d",
+        (int)si->active,
+        si->freq,
         s->id,
         s->ser,
         (int)s->validID,
-        s->launchsite,
+        si->launchsite,
         s->lat,
         s->lon,
         s->alt,
@@ -103,18 +105,35 @@ void MQTT::publishPacket(SondeInfo *s)
         s->time,
         s->frame,
         (int)s->validTime,
-        s->rssi,
-        s->afc,
-        s->rxStat,
-        s->rxStart,
-        s->norxStart,
-        s->viewStart,
-        s->lastState,
+        si->rssi,
+        si->afc,
+        si->rxStat,
+        si->rxStart,
+        si->norxStart,
+        si->viewStart,
+        si->lastState,
         s->launchKT,
         s->burstKT,
         s->countKT,
         s->crefKT
     );
+    if ( !isnan( s->temperature ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"temp\": ", s->temperature );
+    }
+    if ( !isnan( s->relativeHumidity ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"humidity\": ", s->relativeHumidity );
+    }
+    if ( !isnan( s->pressure ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"pressure\": ", s->pressure );
+    }
+    if ( !isnan( s->batteryVoltage && s->batteryVoltage > 0 ) ) {
+        snprintf(payload, 1024, "%s%s%.1f", payload, ",\"batt\": ", s->batteryVoltage );
+    }
+    char subtype[11];
+    if ( RS41::getSubtype( subtype, 11, si) == 0 ) {
+        snprintf(payload, 1024, "%s%s%s%s", payload, ",\"subtype\": \"", subtype, "\"" );
+    }
+    snprintf(payload, 1024, "%s%s", payload, "}" ); // terminate payload string
 
     char topic[128];
     snprintf(topic, 128, "%s%s", this->prefix, "packet");

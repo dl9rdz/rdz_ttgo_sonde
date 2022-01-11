@@ -14,11 +14,20 @@ $(document).ready(function(){
   L.control.scale().addTo(map);
   L.control.attribution({prefix:false}).addTo(map);
 
-  var osm = L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
-    attribution: '<div><a href="https://leafletjs.com/">Leaflet</a> &middot; Map: <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></div>',
-    minZoom: 1,
-    maxZoom: 19
-  });
+  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    var osm = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      minZoom: 1,
+      maxZoom: 19
+    });
+  } else {
+    var osm = L.tileLayer('https://{s}.tile.openstreetmap.de/tiles/osmde/{z}/{x}/{y}.png', {
+      attribution: '<div><a href="https://leafletjs.com/">Leaflet</a> &middot; Map: <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a></div>',
+      minZoom: 1,
+      maxZoom: 19
+    });
+  }
+
   var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
     attribution: '<div><a href="https://leafletjs.com/">Leaflet</a> &middot; Map: <a href="https://www.esri.com/">Esri</a> &middot; Earthstar Geographics</div>',
     minZoom: 1,
@@ -40,16 +49,18 @@ $(document).ready(function(){
       }
   };
 
-  map.setView([51.163361,10.447683], 5); // Mitte DE
+  if(mapcenter) map.setView(mapcenter, 5); 
+  else map.setView([51.163361,10.447683], 5); // Mitte DE
 
 var reddot = '<span class="ldot rbg"></span>';
 var yellowdot = '<span class="ldot ybg"></span>';
 var greendot = '<span class="ldot gbg"></span>';
+var lastframe = 0;
 
 $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
 var header = '';
 header += '<div id="sonde_main"><b>rdzTTGOSonde LiveMap</b><br />🎈 <b><span id="sonde_id"></span> - <span id="sonde_freq"></span> MHz - <span id="sonde_type"></span></b></div>';
-header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h</div>';
+header += '<div id="sonde_detail"><span id="sonde_alt"></span>m | <span id="sonde_climb"></span>m/s | <span id="sonde_speed"></span>km/h | <span id="sonde_dir"></span>°<br /><span id="sonde_time"></span> | -<span id="sonde_rssi"></span>dBm</div>';
 header += '<div id="sonde_status"><span id="sonde_statbar"></span></div>';
 header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
 
@@ -69,19 +80,25 @@ $('.leaflet-footer').append(footer);
 
 var statbar = '';
 headtxt = function(data,stat) {
+  //console.log(data);
   var staticon = (stat == '1')?greendot:yellowdot; 
   statbar = staticon + statbar;
   if ((statbar.length) > 10*greendot.length) { statbar = statbar.substring(0,10*greendot.length); }
-  if (data.lat == '0.000000') { return false; }
-  if (data.id) {
+  if (data.id && data.vframe != lastframe ) {
+    lastframe = data.vframe;
     $('#sonde_id').html(data.id);
     $('#sonde_alt').html(data.alt);
     $('#sonde_climb').html(data.climb);
     $('#sonde_speed').html( mr(data.speed * 3.6 * 10) / 10 );
+    $('#sonde_dir').html(data.dir);
+    $('#sonde_time').html(new Date(data.time * 1000).toISOString());
+    $('#sonde_rssi').html(data.rssi / 2 );
     $('#sonde_detail').show();
   } else {
+    if (!data.id) {
     $('#sonde_id').html(data.launchsite.trim());
-    $('#sonde_detail').hide();
+    // $('#sonde_detail').hide();
+    }
   }
   $('#sonde_freq').html(data.freq);
   $('#sonde_type').html(data.type);
@@ -154,9 +171,10 @@ headtxt = function(data,stat) {
 
   draw = function(data) {
     var stat;
+    console.log(data);
     if (data.id) {
-
-      if ((data.lat != '0.000000' && data.lon != '0.000000') && (JSON.stringify(data) !=  JSON.stringify(last_data)) ) {
+      // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
+      if ((data.lat && data.lon && data.alt) && (lastframe != 0)) {
         var location = [data.lat,data.lon,data.alt];
         if (!marker) {
           map.setView(location, 14);
@@ -177,10 +195,13 @@ headtxt = function(data,stat) {
         }
         dots.push(location);
         line.setLatLngs(dots);
+      }
+      if (data.res == 0) {
         storage_write(data);
         $('#status').html(greendot);
         stat = 1;
-      } else {
+      }
+      else {
         $('#status').html(yellowdot);
         stat = 0;
       }
@@ -198,7 +219,7 @@ headtxt = function(data,stat) {
   circ_gps = false;
 
   gps = function(e) {
-    gps_location = [e.lat/1000000,e.lon/1000000];
+    gps_location = [e.lat,e.lon];
     gps_accuracy = e.hdop*2;
 
     if (last_data && last_data.lat != '0.000000') {
@@ -232,6 +253,7 @@ headtxt = function(data,stat) {
       $('#status').html(reddot);
       $.ajax({url: 'live.json', success: (function( data ) {
         if (typeof data != "object") { data = $.parseJSON(data); }
+        //console.log(data);
         if (data.sonde) {
           draw(data.sonde);
         } else {
@@ -321,7 +343,7 @@ headtxt = function(data,stat) {
     var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
       az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
     var url = 'https://predict.cusf.co.uk/api/v1/';
-    url += '?launch_latitude='+data.lat + '&launch_longitude='+fix_lon(data.lon);
+    url += '?launch_latitude='+data.lat + '&launch_longitude='+tawhiri_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
     url += '&ascent_rate='+ascent + '&burst_altitude=' + burst + '&descent_rate='+descent;
 
@@ -333,11 +355,11 @@ headtxt = function(data,stat) {
   draw_predict = function(prediction,data) {
     var ascending = prediction.prediction[0].trajectory;
     var highest = ascending[ascending.length-1];
-    var highest_location = [highest.latitude,fix_lon(highest.longitude)];
+    var highest_location = [highest.latitude,sanitize_lon(highest.longitude)];
 
     var descending = prediction.prediction[1].trajectory;
     var landing = descending[descending.length-1];
-    var landing_location = [landing.latitude,fix_lon(landing.longitude)];
+    var landing_location = [landing.latitude,sanitize_lon(landing.longitude)];
 
     if (!marker_landing) {
       marker_landing = L.marker(landing_location,{icon: icon_landing}).addTo(map)
@@ -353,7 +375,7 @@ headtxt = function(data,stat) {
     dots_predict=[];
 
     if (data.climb > 0) {
-      ascending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
+      ascending.forEach(p => dots_predict.push([p.latitude,sanitize_lon(p.longitude)]));
 
       if (!marker_burst) {
         marker_burst = L.marker(highest_location,{icon:icon_burst}).addTo(map).bindPopup(poptxt('burst',highest),{closeOnClick:false, autoPan:false});
@@ -365,7 +387,7 @@ headtxt = function(data,stat) {
       }
     }
 
-    descending.forEach(p => dots_predict.push([p.latitude,fix_lon(p.longitude)]));
+    descending.forEach(p => dots_predict.push([p.latitude,sanitize_lon(p.longitude)]));
     line_predict.setLatLngs(dots_predict);
 
     if (data.climb > 0) {
@@ -378,16 +400,19 @@ headtxt = function(data,stat) {
     clearTimeout(predictor);
     predictor = setTimeout(function() {get_predict(last_data);}, predictor_time*1000);
   };
-  
-  fix_lon = function(lon) {
+
+  sanitize_lon = function(lon) {
     if (lon > 180) { return lon - 360; }
+    return lon;
+  }
+  tawhiri_lon = function(lon) {
     if (lon < 0) { return lon + 360; }
     return lon;
-  };
+  }  
 
   poptxt = function(t,i) {
     var lat_input = (i.id)?i.lat:i.latitude;
-    var lon_input = (i.id)?i.lon:i.longitude;
+    var lon_input = sanitize_lon((i.id)?i.lon:i.longitude);
 
     var lat = Math.round(lat_input * 1000000) / 1000000;
     var lon = Math.round(lon_input * 1000000) / 1000000;
@@ -400,7 +425,7 @@ headtxt = function(data,stat) {
     if (t == 'burst') { return '<div class="i_burst"><b>💥 Predicted Burst:</b><br />'+fd(i.datetime)+' in '+mr(i.altitude)+'m'+add+'</div>'; }
     if (t == 'highest') { return '<div class="i_burst"><b>💥 Burst:</b> '+mr(i.altitude)+'m'+add+'</div>';}
     if (t == 'landing') { return '<div class="i_landing"><b>🎯 Predicted Landing:</b><br />'+fd(i.datetime)+' at '+mr(i.altitude)+'m'+add+'</div>'; }
-    if (t == 'gps') { return '<div class="i_gps">Position: '+(i.lat/1000000)+','+(i.lon/1000000)+'<br />Altitude: '+mr(i.alt/1000)+'m<br />Speed: '+mr(i.speed/1000 * 1.852 * 10)/10+'km/h '+mr(i.dir/1000)+'°<br />Sat: '+i.sat+' Hdop:'+(i.hdop/10)+'</div>'; }
+    if (t == 'gps') { return '<div class="i_gps">Position: '+(i.lat)+','+(i.lon)+'<br />Altitude: '+i.alt+'m<br />Speed: '+mr(i.speed * 3.6 * 10)/10+'km/h '+i.dir+'°<br />Sat: '+i.sat+' Hdop:'+(i.hdop/10)+'</div>'; }
   };
 
   fd = function(date) {

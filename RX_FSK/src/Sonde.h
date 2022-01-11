@@ -2,6 +2,9 @@
 #ifndef Sonde_h
 #define Sonde_h
 
+#include <inttypes.h>
+#include <Arduino.h>
+
 enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
 extern uint8_t debug;
 
@@ -11,7 +14,13 @@ extern uint8_t debug;
 
 // RX_TIMEOUT: no header detected
 // RX_ERROR: header detected, but data not decoded (crc error, etc.)
-// RX_OK: header and data ok
+// RX_PARTIAL: header detected, some data ok, some with errors
+//	For RS41: Some blocks with CRC error, some blocks ok in a single frame
+//      For DFM: In +- 1s, some but not all DAT-subframes 1,2,3,4,5,6,7,8 received
+//      For RS92 ??? unclear
+//      For M10/M20 its always all or nothing, no PARTIAL data 
+//      For MP3H its alway all or nothing, no PARTIAL data
+// RX_OK: header and all data ok
 enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN, RX_NOPOS };
 #define RX_UPDATERSSI 0xFFFE
 
@@ -53,8 +62,8 @@ extern const char *RXstr[];
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
 
-#define NSondeTypes 6
-enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10, STYPE_M20, STYPE_MP3H };
+#define NSondeTypes 7
+enum SondeType { STYPE_DFM, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H };
 extern const char *sondeTypeStr[NSondeTypes];
 extern const char *sondeTypeLongStr[NSondeTypes];
 extern const char sondeTypeChar[NSondeTypes];
@@ -63,20 +72,22 @@ extern const char *manufacturer_string[NSondeTypes];
 #define ISOLED(cfg) ((cfg).disptype==0 || (cfg).disptype==2)
 
 #define TYPE_IS_DFM(t) ( (t)==STYPE_DFM )
-#define TYPE_IS_METEO(t) ( (t)==STYPE_M10 || (t)==STYPE_M20 )
+#define TYPE_IS_METEO(t) ( (t)==STYPE_M10M20 || (t)==STYPE_M10 || (t)==STYPE_M20 )
 
-typedef struct st_sondeinfo {
-        // receiver configuration
-	bool active;
-        SondeType type;
-	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
-        float freq;
+#define VALIDPOS(x) (((x)&0x03)==0x03)
+#define VALIDALT(x) ((x)&0x04)
+#define VALIDVS(x) ((x)&0x08)
+#define VALIDHS(x) ((x)&0x10)
+#define VALIDDIR(x) ((x)&0x20)
+#define VALIDSATS(x) ((x)&0x40)
+
+typedef struct st_sondedata {
         // decoded ID
-	char typestr[5];			// decoded type (use type if *typestr==0)
         char id[10];
 	char ser[12];
         bool validID;
-	char launchsite[18];		
+	char typestr[5];			// decoded type (use type if *typestr==0)
+	int8_t subtype;   /* 0 for none/unknown, hex type for dfm, 1/2 for M10/M20 */
         // decoded position
         float lat;			// latitude
         float lon;			// longitude
@@ -91,6 +102,26 @@ typedef struct st_sondeinfo {
 	uint32_t frame;
 	uint32_t vframe;		// vframe==frame if frame is unique/continous, otherweise vframe is derived from gps time
 	bool validTime;
+	// shut down timers, currently only for RS41; -1=disabled
+	uint16_t launchKT, burstKT, countKT;
+	uint16_t crefKT; // frame number in which countKT was last sent
+	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
+	float temperature; // platinum resistor temperature
+	float tempRHSensor; // temperature of relative humidity sensor
+	float relativeHumidity; // relative humidity
+	float pressure;
+	float batteryVoltage = -1;
+} SondeData;
+
+typedef struct st_sondeinfo {
+	// First part: static configuration, not decoded data. 
+        // receiver configuration
+	bool active;
+        SondeType type;
+        float freq;
+	char launchsite[18];		
+
+	// Second part: internal decoder state. no need to clear this on new sonde
         // RSSI from receiver
         int rssi;			// signal strength
 	int32_t afc;			// afc correction value
@@ -100,14 +131,12 @@ typedef struct st_sondeinfo {
 	uint32_t norxStart;		// millis() timestamp of continuous no rx start
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
-	// shut down timers, currently only for RS41; -1=disabled
-	int16_t launchKT, burstKT, countKT;
-	uint16_t crefKT; // frame number in which countKT was last sent
-	// sonde specific extra data, NULL if unused or not yet initialized, currently used for RS41 subframe data (calibration)
+
+	// Third part: decoded data. Clear if reception of a new sonde has started
+	SondeData d;
+
+	// Decoder-specific data, dynamically allocated (for RS41: calibration data)
         void *extra;
-	float temperature = -300.0; // platinum resistor temperature
-	float tempRHSensor = -300.0; // temperature of relative humidity sensor
-	float relativeHumidity = -1.0; // relative humidity
 } SondeInfo;
 // rxStat: 3=undef[empty] 1=timeout[.] 2=errro[E] 0=ok[|] 4=no valid position[°]
 
@@ -153,8 +182,6 @@ struct st_mp3hconfig {
 };
 
 
-enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
-
 struct st_feedinfo {
         bool active;
         int type;       // 0:UDP(axudp), 1:TCP(aprs.fi)
@@ -164,14 +191,12 @@ struct st_feedinfo {
         int lowrate;
         int highrate;
         int lowlimit;
-        int idformat;   // 0: dxl  1: real  2: auto
 };
 
 // maybe extend for external Bluetooth interface?
 // internal bluetooth consumes too much memory
 struct st_kisstnc {
         bool active;
-        int idformat;
 };
 
 struct st_mqtt {
@@ -184,16 +209,23 @@ struct st_mqtt {
 	char prefix[64];
 };
 
+struct st_cm {
+	int active;
+	char host[64];
+	int port;
+};
+
 struct st_sondehub {
 	int active;
 	int chase;
 	char host[64];
 	char callsign[64];
-	double lat;
-	double lon;
-	char alt[20];
 	char antenna[64];
 	char email[64];
+        int fiactive;
+	int fiinterval;
+	int fimaxdist;
+	double fimaxage;
 };
 
 // to be extended
@@ -225,6 +257,9 @@ typedef struct st_rdzconfig {
 	int sx1278_sck;			// SPI SCK for sx1278
 	// software configuration
 	int debug;				// show port and config options after reboot
+	double rxlat;
+	double rxlon;
+	double rxalt;
 	int wifi;				// connect to known WLAN 0=skip
 	int screenfile;
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
@@ -248,17 +283,22 @@ typedef struct st_rdzconfig {
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign
 	int passcode;		// APRS passcode
+	int chase;
+	char objcall[10];		// APRS object call (for wettersonde.net)
+	char beaconsym[5];		// APRS beacon symbol
+	char comment[32];
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
 	struct st_mqtt mqtt;
 	struct st_sondehub sondehub;
+	struct st_cm cm;
 } RDZConfig;
 
 
 struct st_configitems {
   const char *name;
-  const char *label;
+  //  const char *label; => now handled in JS
   int type;  // 0: numeric; i>0 string of length i; -1: separator; -2: type selector
   void *data;
 };
@@ -268,7 +308,7 @@ extern struct st_configitems config_list[];
 extern const int N_CONFIG;
 
 
-#define MAXSONDE 99
+#define MAXSONDE 50
 
 extern int fingerprintValue[];
 extern const char *fingerprintText[];
@@ -286,9 +326,12 @@ public:
 	// moved to heap, saving space in .bss
 	//SondeInfo sondeList[MAXSONDE+1];
 	SondeInfo *sondeList;
+	// helper function for type string
+	static SondeType realType(SondeInfo *si);
 
 	Sonde();
 	void defaultConfig();
+	void checkConfig();
 	void setConfig(const char *str);
 
 	void clearSonde();
@@ -303,6 +346,7 @@ public:
 	uint16_t waitRXcomplete();
 
 	SondeInfo *si();
+	void clearAllData(SondeInfo *si);
 
 	uint8_t timeoutEvent(SondeInfo *si);
 	uint8_t updateState(uint8_t event);
