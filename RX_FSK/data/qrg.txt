@@ -14,10 +14,4 @@
 405.900 4 + Bergen_2
 405.100 4 + Meppen_2
 405.300 4 - Essen
-403.330 9 - TrUebPl
-403.450 9 - TrUebPl
-403.470 9 - TrUebPl
-403.850 9 - TrUebPl
-403.870 9 - TrUebPl
-403.890 9 - TrUebPl
 # end

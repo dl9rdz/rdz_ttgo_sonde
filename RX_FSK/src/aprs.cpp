@@ -258,15 +258,48 @@ static uint32_t dao91(double x)
 
 char b[251];
 //char raw[201];
+const char *destcall="APRRDZ";
 
-char *aprs_senddata(SondeInfo *si, const char *usercall, const char *sym) {
-	SondeData *s = &(si->d);
-	*b=0;
+char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *sym, const char *comment) {
+	*b = 0;
 	aprsstr_append(b, usercall);
 	aprsstr_append(b, ">");
-	const char *destcall="APRRDZ";
+	aprsstr_append(b, destcall);
+#if 0
+	aprsstr_append(b, ":/");   //  / is report with timestamp
+	int i = strlen(b);
+	int sec = 0; // TODO: NOW!!!
+	snprintf(b+i, APRS_MAXLEN, "%02d%02d%02dh", sec/(60*60), (sec%(60*60))/60, sec%60);
+#else
+	// report without timestamp
+	aprsstr_append(b, ":!");  //  ! is report w/p timestamp
+#endif
+	// lat
+	int i = strlen(b);
+	int lati = abs((int)lat);
+	int latm = (fabs(lat)-lati)*6000;
+	snprintf(b+i, APRS_MAXLEN-i, "%02d%02d.%02d%c%c", lati, latm/100, latm%100, lat<0?'S':'N', sym[0]);
+	// lon
+	i = strlen(b);
+	int loni = abs((int)lon);
+	int lonm = (fabs(lon)-loni)*6000;
+	snprintf(b+i, APRS_MAXLEN-i, "%03d%02d.%02d%c%c", loni, lonm/100, lonm%100, lon<0?'W':'E', sym[1]);
+	// maybe add alt
+	// maybe add DAO?
+	i = strlen(b);
+	snprintf(b+i, APRS_MAXLEN-i, "%s", comment);
+	//sprintf(b + strlen(b), "%s", version_name);
+	return b;
+}
+
+char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, const char *sym) {
+	SondeData *s = &(si->d);
+	*b=0;
+	aprsstr_append(b, *objcall ? objcall : usercall);
+	aprsstr_append(b, ">");
 //	const char *destcall="APRARX,SONDEGATE,TCPIP,qAR,oh3bsg";
 	aprsstr_append(b, destcall);
+//	if(*objcall) { aprsstr_append(b, ","); aprsstr_append(b, usercall); }
 	// uncompressed
 	aprsstr_append(b, ":;");
 	char tmp[10];

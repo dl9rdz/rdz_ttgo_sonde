@@ -23,8 +23,8 @@ const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 // Dependency to enum SondeType
 const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "Mxx ", "M10 ", "M20 ", "MP3H" };
 const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10/M20", "M10 ", "M20 ", "MP3-H1" };
-const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', '2', '3' };
-const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
+const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', 'M', '2', '3' };
+const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, -1 };
 const char *fingerprintText[]={
@@ -43,7 +43,7 @@ const char *fingerprintText[]={
 /* global variables from RX_FSK.ino */
 int getKeyPressEvent(); 
 int handlePMUirq();
-extern bool pmu_irq;
+extern uint8_t pmu_irq;
 extern SX1278FSK sx1278;
 
 /* Task model:
@@ -247,14 +247,12 @@ void Sonde::defaultConfig() {
 	strcpy(config.udpfeed.symbol, "/O");
 	config.udpfeed.port = 9002;
 	config.udpfeed.highrate = 1;
-	config.udpfeed.idformat = ID_DFMGRAW;
 	config.tcpfeed.active = 0;
 	config.tcpfeed.type = 1;
 	strcpy(config.tcpfeed.host, "radiosondy.info");
 	strcpy(config.tcpfeed.symbol, "/O");
 	config.tcpfeed.port = 12345;
 	config.tcpfeed.highrate = 10;
-	config.tcpfeed.idformat = ID_DFMDXL;
 	config.kisstnc.active = 0;
 	strcpy(config.ephftp,"igs.bkg.bund.de/IGS/BRDC/");
 
@@ -542,10 +540,10 @@ uint16_t Sonde::waitRXcomplete() {
 	uint16_t res=0;
         uint32_t t0 = millis();
 rxloop:
-        while( !pmu_irq && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
+        while( (pmu_irq!=1) && rxtask.receiveResult==0xFFFF && millis()-t0 < 3000) { delay(50); }
 	if( pmu_irq ) {
 		handlePMUirq();
-		goto rxloop;
+		if(pmu_irq!=2) goto rxloop;
 	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;

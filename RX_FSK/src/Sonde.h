@@ -182,8 +182,6 @@ struct st_mp3hconfig {
 };
 
 
-enum IDTYPE { ID_DFMDXL, ID_DFMGRAW, ID_DFMAUTO };
-
 struct st_feedinfo {
         bool active;
         int type;       // 0:UDP(axudp), 1:TCP(aprs.fi)
@@ -193,14 +191,12 @@ struct st_feedinfo {
         int lowrate;
         int highrate;
         int lowlimit;
-        int idformat;   // 0: dxl  1: real  2: auto
 };
 
 // maybe extend for external Bluetooth interface?
 // internal bluetooth consumes too much memory
 struct st_kisstnc {
         bool active;
-        int idformat;
 };
 
 struct st_mqtt {
@@ -229,7 +225,7 @@ struct st_sondehub {
         int fiactive;
 	int fiinterval;
 	int fimaxdist;
-	int fimaxage;
+	double fimaxage;
 };
 
 // to be extended
@@ -287,6 +283,10 @@ typedef struct st_rdzconfig {
 	// for now, one feed for each type is enough, but might get extended to more?
 	char call[10];			// APRS callsign
 	int passcode;		// APRS passcode
+	int chase;
+	char objcall[10];		// APRS object call (for wettersonde.net)
+	char beaconsym[5];		// APRS beacon symbol
+	char comment[32];
 	struct st_feedinfo udpfeed;	// target for AXUDP messages
 	struct st_feedinfo tcpfeed;	// target for APRS-IS TCP connections
 	struct st_kisstnc kisstnc;	// target for KISS TNC (via TCP, mainly for APRSdroid)
