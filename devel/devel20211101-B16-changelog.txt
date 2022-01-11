@@ -1,2 +1,3 @@
 sh import last interval as double (for <1h)
 simply typo (#249)
+Remove RS92-NGP Support Note (#266)
