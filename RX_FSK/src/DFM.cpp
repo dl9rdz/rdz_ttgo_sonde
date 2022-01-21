@@ -14,6 +14,7 @@
 
 #define DFM_FRAMELEN 33
 
+#define MAXIDAGE 1800
 
 /*
  * observed DAT patterns for DFM-9:
@@ -216,6 +217,12 @@ const char* typestr[16]={
   "DF17",		    // 0D => DFM17
   "", ""
 };
+
+void DFM::killid() {
+	SondeData *sd = &(sonde.si()->d);
+	sd->validID = false;
+	memset((void *)&dfmstate, 0, sizeof(dfmstate));
+}
 
 #define DFMIDTHRESHOLD 2
 /* inspired by oe5dxl's finddnmae in sondeudp.c of dxlaprs */
@@ -432,6 +439,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		int tt = (y-1970)*365 + (y-1969)/4; // days since 1970
 		if(m<=12) { tt += MON[m]; if((y%4)==0 && m>2) tt++; }
 		tt = (tt+d-1)*(60*60*24) + h*3600 + mi*60;
+		// If we get a time stamp much different to the previously received one, kill the ID.
+		// most likely, we have a new sonde now, so wait for the new ID.
+		if(tt-dfmstate.datesec > MAXIDAGE) killid();
 		dfmstate.datesec = tt;
 		dfmstate.good |= 0x100;
 	}
@@ -486,7 +496,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		vh = ((uint16_t)dat[4]<<8) + dat[5];
 		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
 		Serial.print(", hor-V: "); Serial.print(vh*0.01);
-		si->lat = lat*0.0000001;
+		lat = lat*0.0000001;
+		if( lat!=0 && si->lat!=0 && abs(lat-si->lat)>.25 ) killid();
+		si->lat = lat;
 		si->hs = vh*0.01;
 		if(lat!=0 || vh!=0) si->validPos |= 0x11;  else si->validPos &= ~0x11;
 		}
@@ -496,7 +508,9 @@ void DFM::decodeDAT(uint8_t *dat)
 		float lon, dir;
 		lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
 		dir = ((uint16_t)dat[4]<<8) + dat[5];
-		si->lon = lon*0.0000001;
+		lon = lon*0.0000001;
+		if( lon!=0 && si->lon!=0 && abs(lon-si->lon)>.25 ) killid();
+		si->lon = lon;
 		si->dir = dir*0.01;
 		Serial.print("GPS-lon: "); Serial.print(si->lon);
 		Serial.print(", dir: "); Serial.print(si->dir);
