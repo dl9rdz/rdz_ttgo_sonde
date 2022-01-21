@@ -18,6 +18,7 @@
 #include "aprs.h"
 
 extern const char *version_name;
+extern const char *version_id;
 #if 0
 int openudp(const char *ip, int port, struct sockaddr_in *si) {
 	int fd;
@@ -288,6 +289,9 @@ char *aprs_send_beacon(const char *usercall, float lat, float lon, const char *s
 	// maybe add DAO?
 	i = strlen(b);
 	snprintf(b+i, APRS_MAXLEN-i, "%s", comment);
+
+	i = strlen(b);
+	snprintf(b+i, APRS_MAXLEN-i, " %s-%s", version_name, version_id);
 	//sprintf(b + strlen(b), "%s", version_name);
 	return b;
 }
@@ -343,7 +347,14 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, co
 	if( !isnan(s->relativeHumidity) ) {
 		sprintf(b+strlen(b), "h=%.1f%% ", s->relativeHumidity);
 	}
-	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, sondeTypeStr[sonde.realType(si)]);
+	char type[12];
+        if ( si->type == STYPE_RS41 && RS41::getSubtype(type, 11, si) == 0 ) {
+	    // type was copied to type
+        } else {
+	    strncpy(type, sondeTypeStr[sonde.realType(si)], 11);  type[11]=0; 
+        }
+	
+	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, type /* sondeTypeStr[sonde.realType(si)] */ );
 	if( s->countKT != 0xffff && s->vframe - s->crefKT < 51 ) {
 		sprintf(b+strlen(b), "TxOff=%dh%dm ", s->countKT/3600, (s->countKT-s->countKT/3600*3600)/60);
 	}
