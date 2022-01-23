@@ -43,7 +43,8 @@ AsyncWebServer server(80);
 AXP20X_Class axp;
 #define PMU_IRQ             35
 SemaphoreHandle_t axpSemaphore;
-bool pmu_irq = false;
+// 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
+uint8_t pmu_irq = 0;
 
 const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -75,7 +76,12 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM17",  // 0x0D
                                     NULL, NULL
                                   };
-                                  
+
+// Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
+#define APRS_STATION_UPDATE_TIME (10*60*1000)
+#define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
+unsigned long time_last_aprs_update = -APRS_STATION_UPDATE_TIME;
+
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
@@ -83,18 +89,19 @@ WiFiClient shclient;	// Sondehub v2
 int shImportInterval = 0;
 char shImport = 0;
 unsigned long time_last_update = 0;
+#endif
 /* SH_LOC_OFF: never send position information to SondeHub
    SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
    SH_LOC_CHASE: always activate chase mode and send GPS position (if available)
    SH_LOC_AUTO: if there is no valid GPS position, or GPS position < MIN_LOC_AUTO_DIST away from known fixed position: use FIXED mode
                 otherwise, i.e. if there is a valid GPS position and (either no fixed position in config, or GPS position is far away from fixed position), use CHASE mode.
 */
+// same constants used for SondeHub and APRS
 enum { SH_LOC_OFF, SH_LOC_FIXED, SH_LOC_CHASE, SH_LOC_AUTO };
 /* auto mode is chase if valid GPS position and (no fixed location entered OR valid GPS position and distance in lat/lon deg to fixed location > threshold) */
 #define MIN_LOC_AUTO_DIST 200   /* meter */
 #define SH_LOC_AUTO_IS_CHASE ( gpsPos.valid && ( (isnan(sonde.config.rxlat) || isnan(sonde.config.rxlon) ) ||  \
                                calcLatLonDist( gpsPos.lat, gpsPos.lon, sonde.config.rxlat, sonde.config.rxlon ) > MIN_LOC_AUTO_DIST ) )
-#endif
 extern float calcLatLonDist(float lat1, float lon1, float lat2, float lon2);
 
 // KISS over TCP for communicating with APRSdroid
@@ -317,25 +324,6 @@ const char *createQRGForm() {
   strcat(ptr, "</script>\n");
   strcat(ptr, "<div id=\"divTable\"></div>");
   strcat(ptr, "<script> qrgTable() </script>\n");
-#if 0
-  strcat(ptr, "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>");
-  for (int i = 0; i < sonde.config.maxsonde; i++) {
-    //String s = sondeTypeSelect(i >= sonde.nSonde ? 2 : sonde.sondeList[i].type);
-    String site = sonde.sondeList[i].launchsite;
-    sprintf(ptr + strlen(ptr), "<tr><td>%d</td><td><input name=\"A%d\" type=\"checkbox\" %s/></td>"
-            "<td><input name=\"F%d\" type=\"text\" width=12 value=\"%3.3f\"></td>"
-            "<td><input name=\"S%d\" type=\"text\" value=\"%s\"></td>"
-            //"<td><select name=\"T%d\">%s</select></td>",
-            "<td><input class='stype' name='T%d' value='%c'>",
-            i + 1,
-            i + 1, (i < sonde.nSonde && sonde.sondeList[i].active) ? "checked" : "",
-            i + 1, i >= sonde.nSonde ? 400.000 : sonde.sondeList[i].freq,
-            i + 1, i >= sonde.nSonde ? "                " : sonde.sondeList[i].launchsite,
-            i + 1, i >= sonde.nSonde ? 2 : sondeTypeChar[sonde.sondeList[i].type] );
-    //i + 1, s.c_str());
-  }
-  strcat(ptr, "</table>");
-#endif
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
@@ -611,110 +599,6 @@ void setupConfigData() {
 }
 
 
-#if 0
-struct st_configitems config_list[] = {
-  /* General config settings */
-  {"", "Software configuration", -5, NULL},
-  {"wifi", "Wifi mode (0-Off/1-Client/2-Access Point/3-Debug)", 0, &sonde.config.wifi},
-  {"debug", "Debug mode (0/1)", 0, &sonde.config.debug},
-  {"maxsonde", "Maxsonde (max # QRG entries)", 0, &sonde.config.maxsonde},
-  {"screenfile", "Screen config (0=automatic; 1-5=predefined; other=custom)", 0, &sonde.config.screenfile},
-  {"display", "Display screens (scan,default,...)", -6, sonde.config.display},
-  /* Spectrum display settings */
-  {"spectrum", "Show spectrum (-1=no, 0=forever, >0=seconds)", 0, &sonde.config.spectrum},
-  {"startfreq", "Startfreq (MHz)", 0, &sonde.config.startfreq},
-  {"channelbw", "Bandwidth (kHz)", 0, &sonde.config.channelbw},
-  {"marker", "Spectrum MHz marker", 0, &sonde.config.marker},
-  {"noisefloor", "Spectrum noisefloor", 0, &sonde.config.noisefloor},
-  /* decoder settings */
-  {"", "Receiver configuration", -5, NULL},
-  {"freqofs", "RX frequency offset (Hz)", 0, &sonde.config.freqofs},
-  {"rs41.agcbw", "RS41 AGC bandwidth", 0, &sonde.config.rs41.agcbw},
-  {"rs41.rxbw", "RS41 RX bandwidth", 0, &sonde.config.rs41.rxbw},
-  {"rs92.rxbw", "RS92 RX (and AGC) bandwidth", 0, &sonde.config.rs92.rxbw},
-  {"rs92.alt2d", "RS92 2D fix default altitude", 0, &sonde.config.rs92.alt2d},
-  {"dfm.agcbw", "DFM AGC bandwidth", 0, &sonde.config.dfm.agcbw},
-  {"dfm.rxbw", "DFM RX bandwidth", 0, &sonde.config.dfm.rxbw},
-  {"m10m20.agcbw", "M10/M20 AGC bandwidth", 0, &sonde.config.m10m20.agcbw},
-  {"m10m20.rxbw", "M10/M20 RX bandwidth", 0, &sonde.config.m10m20.rxbw},
-  {"mp3h.agcbw", "MP3H AGC bandwidth", 0, &sonde.config.mp3h.agcbw},
-  {"mp3h.rxbw", "MP3H RX bandwidth", 0, &sonde.config.mp3h.rxbw},
-  {"ephftp", "FTP for eph (RS92)", 39, &sonde.config.ephftp},
-  {"", "Data feed configuration", -5, NULL},
-  /* APRS settings */
-  {"call", "Call", 8, sonde.config.call},
-  {"passcode", "Passcode", 0, &sonde.config.passcode},
-  /* KISS tnc settings */
-  {"kisstnc.active", "KISS TNC (port 14590) (needs reboot)", 0, &sonde.config.kisstnc.active},
-  {"kisstnc.idformat", "KISS TNC ID Format", -2, &sonde.config.kisstnc.idformat},
-  /* AXUDP settings */
-  {"axudp.active", "AXUDP active", -3, &sonde.config.udpfeed.active},
-  {"axudp.host", "AXUDP Host", 63, sonde.config.udpfeed.host},
-  {"axudp.port", "AXUDP Port", 0, &sonde.config.udpfeed.port},
-  {"axudp.idformat", "DFM ID Format", -2, &sonde.config.udpfeed.idformat},
-  {"axudp.highrate", "Rate limit", 0, &sonde.config.udpfeed.highrate},
-  /* APRS TCP settings, current not used */
-  {"tcp.active", "APRS TCP active", -3, &sonde.config.tcpfeed.active},
-  {"tcp.host", "ARPS TCP Host", 63, sonde.config.tcpfeed.host},
-  {"tcp.port", "APRS TCP Port", 0, &sonde.config.tcpfeed.port},
-  {"tcp.idformat", "DFM ID Format", -2, &sonde.config.tcpfeed.idformat},
-  {"tcp.highrate", "Rate limit", 0, &sonde.config.tcpfeed.highrate},
-
-#if FEATURE_MQTT
-  /* MQTT */
-  {"mqtt.active", "MQTT Active (needs reboot)", 0, &sonde.config.mqtt.active},
-  {"mqtt.id", "MQTT client ID", 63, &sonde.config.mqtt.id},
-  {"mqtt.host", "MQTT server hostname", 63, &sonde.config.mqtt.host},
-  {"mqtt.port", "MQTT Port", 0, &sonde.config.mqtt.port},
-  {"mqtt.username", "MQTT Username", 63, &sonde.config.mqtt.username},
-  {"mqtt.password", "MQTT Password", 63, &sonde.config.mqtt.password},
-  {"mqtt.prefix", "MQTT Prefix", 63, &sonde.config.mqtt.prefix},
-#endif
-
-  /* Hardware dependeing settings */
-  {"", "Hardware configuration (requires reboot)", -5, NULL},
-  {"disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342)", 0, &sonde.config.disptype},
-  {"norx_timeout", "No-RX-Timeout in seconds (-1=disabled)", 0, &sonde.config.norx_timeout},
-  {"oled_sda", "OLED SDA/TFT SDA", 0, &sonde.config.oled_sda},
-  {"oled_scl", "OLED SCL/TFT CLK", 0, &sonde.config.oled_scl},
-  {"oled_rst", "OLED RST/TFT RST (needs reboot)", 0, &sonde.config.oled_rst},
-  {"tft_rs", "TFT RS", 0, &sonde.config.tft_rs},
-  {"tft_cs", "TFT CS", 0, &sonde.config.tft_cs},
-  {"tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3", 0, &sonde.config.tft_orient},
-  {"tft_spifreq", "TFT SPI speed", 0, &sonde.config.tft_spifreq},
-  {"button_pin", "Button input port", -4, &sonde.config.button_pin},
-  {"button2_pin", "Button 2 input port", -4, &sonde.config.button2_pin},
-  {"button2_axp", "Use AXP192 PWR as Button 2", 0, &sonde.config.button2_axp},
-  {"touch_thresh", "Touch button threshold<br>(0 for calib mode)", 0, &sonde.config.touch_thresh},
-  {"power_pout", "Power control port", 0, &sonde.config.power_pout},
-  {"led_pout", "LED output port", 0, &sonde.config.led_pout},
-  {"gps_rxd", "GPS RXD pin (-1 to disable)", 0, &sonde.config.gps_rxd},
-  {"gps_txd", "GPS TXD pin (not really needed)", 0, &sonde.config.gps_txd},
-  {"batt_adc", "Battery measurement pin", 0, &sonde.config.batt_adc},
-#if 1
-  {"sx1278_ss", "SX1278 SS", 0, &sonde.config.sx1278_ss},
-  {"sx1278_miso", "SX1278 MISO", 0, &sonde.config.sx1278_miso},
-  {"sx1278_mosi", "SX1278 MOSI", 0, &sonde.config.sx1278_mosi},
-  {"sx1278_sck", "SX1278 SCK", 0, &sonde.config.sx1278_sck},
-#endif
-  {"mdnsname", "mDNS name", 14, &sonde.config.mdnsname},
-
-#if FEATURE_SONDEHUB
-  /* SondeHub settings */
-  {"", "SondeHub settings", -5, NULL},
-  {"sondehub.active", "SondeHub reporting (0=disabled, 1=active)", 0, &sonde.config.sondehub.active},
-  {"sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)", 0, &sonde.config.sondehub.chase},
-  {"sondehub.host", "SondeHub host (DO NOT CHANGE)", 63, &sonde.config.sondehub.host},
-  {"sondehub.callsign", "Callsign", 63, &sonde.config.sondehub.callsign},
-  {"sondehub.lat", "Latitude (optional, required to show station on SondeHub Tracker)", -7, &sonde.config.sondehub.lat},
-  {"sondehub.lon", "Longitude (optional, required to show station on SondeHub Tracker)", -7, &sonde.config.sondehub.lon},
-  {"sondehub.alt", "Altitude (optional, visible on SondeHub tracker)", 19, &sonde.config.sondehub.alt},
-  {"sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)", 63, &sonde.config.sondehub.antenna},
-  {"sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)", 63, &sonde.config.sondehub.email},
-  {"sondehub.fimport", "SondeHub freq import (interval/maxdist/maxage [min/km/min])", 18, &sonde.config.sondehub.fimport},
-};
-#endif
-#else
 struct st_configitems config_list[] = {
   /* General config settings */
   {"wifi", 0, &sonde.config.wifi},
@@ -745,22 +629,23 @@ struct st_configitems config_list[] = {
   {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
   {"ephftp", 39, &sonde.config.ephftp},
   /* APRS settings */
-  {"call", 8, sonde.config.call},
+  {"call", 9, sonde.config.call},
   {"passcode", 0, &sonde.config.passcode},
   /* KISS tnc settings */
   {"kisstnc.active", 0, &sonde.config.kisstnc.active},
-  {"kisstnc.idformat", -2, &sonde.config.kisstnc.idformat},
   /* AXUDP settings */
   {"axudp.active", -3, &sonde.config.udpfeed.active},
   {"axudp.host", 63, sonde.config.udpfeed.host},
   {"axudp.port", 0, &sonde.config.udpfeed.port},
-  {"axudp.idformat", -2, &sonde.config.udpfeed.idformat},
   {"axudp.highrate", 0, &sonde.config.udpfeed.highrate},
   /* APRS TCP settings, current not used */
   {"tcp.active", -3, &sonde.config.tcpfeed.active},
   {"tcp.host", 63, sonde.config.tcpfeed.host},
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
-  {"tcp.idformat", -2, &sonde.config.tcpfeed.idformat},
+  {"tcp.chase", 0, &sonde.config.chase},
+  {"tcp.comment", 30, sonde.config.comment},
+  {"tcp.objcall", 9, sonde.config.objcall},
+  {"tcp.beaconsym", 4, sonde.config.beaconsym},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
 #if FEATURE_CHASEMAPPER
   /* Chasemapper settings */
@@ -817,74 +702,11 @@ struct st_configitems config_list[] = {
   {"sondehub.fiactive", 0, &sonde.config.sondehub.fiactive},
   {"sondehub.fiinterval", 0, &sonde.config.sondehub.fiinterval},
   {"sondehub.fimaxdist", 0, &sonde.config.sondehub.fimaxdist},
-  {"sondehub.fimaxage", 0, &sonde.config.sondehub.fimaxage},
+  {"sondehub.fimaxage", -7, &sonde.config.sondehub.fimaxage},
 #endif
 };
-#endif
 
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
-
-#if 0
-// old code, no longer needed (in js now)
-
-void addConfigStringEntry(char *ptr, int idx, const char *label, int len, char *field) {
-  sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%s\"/></td></tr>\n",
-          label, idx, field);
-}
-void addConfigNumEntry(char *ptr, int idx, const char *label, int *value) {
-  sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%d\"/></td></tr>\n",
-          label, idx, *value);
-}
-void addConfigDblEntry(char *ptr, int idx, const char *label, double * value) {
-  sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" value=\"%f\"/></td></tr>\n",
-          label, idx, *value);
-}
-void addConfigButtonEntry(char *ptr, int idx, const char *label, int *value) {
-  int v = *value, ck = 0;
-  if (v == 255) v = -1;
-  if (v != -1) {
-    if (v & 128) ck = 1;
-    v = v & 127;
-  }
-
-  sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"CFG%d\" type=\"text\" size=\"3\" value=\"%d\"/>",
-          label, idx, v);
-  sprintf(ptr + strlen(ptr), "<input type=\"checkbox\" name=\"TO%d\"%s> Touch </td></tr>\n", idx, ck ? " checked" : "");
-}
-void addConfigTypeEntry(char *ptr, int idx, const char *label, int *value) {
-  // TODO
-}
-void addConfigOnOffEntry(char *ptr, int idx, const char *label, int *value) {
-  // TODO
-}
-void addConfigSeparatorEntry(char *ptr) {
-  strcat(ptr, "<tr><td colspan=\"2\" class=\"divider\"><hr /></td></tr>\n");
-}
-void addConfigHeading(char *ptr, const char *label) {
-  strcat(ptr, "<tr><th colspan=\"2\">");
-  strcat(ptr, label);
-  strcat(ptr, "</th></tr>\n");
-}
-void addConfigInt8List(char *ptr, int idx, const char *label, int8_t *list) {
-  sprintf(ptr + strlen(ptr), "<tr><td>%s using /screens%d.txt", label, Display::getScreenIndex(sonde.config.screenfile));
-  for (int i = 0; i < disp.nLayouts; i++) {
-    sprintf(ptr + strlen(ptr), "<br>%d=%s", i, disp.layouts[i].label);
-  }
-  sprintf(ptr + strlen(ptr), "</td><td><input name=\"CFG%d\" type=\"text\" value=\"", idx);
-  if (*list == -1) {
-    strcat(ptr, "0");
-  }
-  else {
-    sprintf(ptr + strlen(ptr), "%d", list[0]);
-    list++;
-  }
-  while (*list != -1) {
-    sprintf(ptr + strlen(ptr), ",%d", *list);
-    list++;
-  }
-  strcat(ptr, "\"/></td></tr>\n");
-}
-#endif
 
 const char *createConfigForm() {
   char *ptr = message;
@@ -932,43 +754,6 @@ const char *createConfigForm() {
     strcat(ptr, "\");\n");
   }
   strcat(ptr, "configTable();\n </script>");
-#if 0
-  strcat(ptr, "<table><tr><th>Option</th><th>Value</th></tr>");
-  for (int i = 0; i < N_CONFIG; i++) {
-    Serial.printf("%d: %s -- %d\n", i, config_list[i].label, strlen(ptr));
-    switch (config_list[i].type) {
-      case -5: // Heading
-        addConfigHeading(ptr, config_list[i].label);
-        break;
-      case -6: // List of int8 values
-        addConfigInt8List(ptr, i, config_list[i].label, (int8_t *)config_list[i].data);
-        break;
-      case -3: // on/off
-        addConfigOnOffEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
-        break;
-      case -2: // DFM format
-        addConfigTypeEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
-        break;
-      case -1:
-        addConfigSeparatorEntry(ptr);
-        break;
-      case 0:
-        addConfigNumEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
-        break;
-      case -4:
-        addConfigButtonEntry(ptr, i, config_list[i].label, (int *)config_list[i].data);
-        break;
-      case -7:  /* double  for lat/lon */
-        addConfigDblEntry(ptr, i, config_list[i].label, (double *)config_list[i].data);
-        break;
-      default:
-        addConfigStringEntry(ptr, i, config_list[i].label, config_list[i].type, (char *)config_list[i].data);
-        break;
-    }
-  }
-  strcat(ptr, "</table>");
-  //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
-#endif
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
   Serial.printf("Config form: size=%d bytes\n", strlen(message));
@@ -998,12 +783,6 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
     String strlabel = request->getParam(i)->name();
     const char *label = strlabel.c_str();
     if (label[strlen(label) - 1] == '#') continue;
-#if 0
-    if (strncmp(label, "CFG", 3) != 0) continue;
-    int idx = atoi(label + 3);
-    Serial.printf("idx is %d\n", idx);
-    if (config_list[idx].type == -1) continue; // skip separator entries, should not happen
-#endif
     AsyncWebParameter *value = request->getParam(label, true);
     if (!value) continue;
     String strvalue = value->value();
@@ -1016,19 +795,6 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
         strvalue = String(i);
       }
     }
-#if 0
-    if (config_list[idx].type == -4) {  // input button port with "touch" checkbox
-      char tmp[10];
-      snprintf(tmp, 10, "TO%d", idx);
-      AsyncWebParameter *touch = request->getParam(tmp, true);
-      if (touch) {
-        int i = atoi(strvalue.c_str());
-        if (i != -1 && i != 255) i += 128;
-        strvalue = String(i);
-      }
-    }
-    Serial.printf("Processing  %s=%s\n", config_list[idx].name, strvalue.c_str());
-#endif
     Serial.printf("Processing %s=%s\n", label, strvalue.c_str());
     //int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
     int wlen = f.printf("%s=%s\n", label, strvalue.c_str());
@@ -1369,21 +1135,6 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   Serial.println(message);
   return message;
 }
-
-#if 0
-// no longer supported
-// tcp socket / json for android app is used now
-void onWsEvent(AsyncWebSocket * server, AsyncWebSocketClient * client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-  if (type == WS_EVT_CONNECT) {
-    Serial.println("Websocket client connection received");
-    client->text("Hello from ESP32 Server");
-    //globalClient = client;
-  } else if (type == WS_EVT_DISCONNECT) {
-    Serial.println("Client disconnected");
-    globalClient = NULL;
-  }
-}
-#endif
 
 
 const char* PARAM_MESSAGE = "message";
@@ -1757,21 +1508,21 @@ void initGPS() {
     if (testfile && !testfile.isDirectory()) {
       testfile.close();
       Serial.println("GPS resetting baud to 9k6...");
- /* TODO: debug:
-  *  Sometimes I have seen the Serial2.begin to cause a reset
-  *  Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
-  * Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
-  * #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
-  * #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
-  * #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
-  * #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-  * #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-  * #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-  * #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
-  */
+      /* TODO: debug:
+          Sometimes I have seen the Serial2.begin to cause a reset
+          Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
+         Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
+         #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
+         #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
+         #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
+         #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+         #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
+         #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
+         #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
+      */
       Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
       Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
       delay(200);
@@ -1927,7 +1678,7 @@ void IRAM_ATTR buttonISR() {
     button1.numberKeyPresses += 1;
     button1.keydownTime = now;
   } else { //Button up
-    if(!b1wasdown) return;
+    if (!b1wasdown) return;
     b1wasdown = false;
     unsigned long now = my_millis();
     if (button1.doublepress == -1) return;   // key was never pressed before, ignore button up
@@ -2008,13 +1759,15 @@ void handlePMUirq() {
         button2.pressed = KP_MID;
         button2.keydownTime = my_millis();
       }
-      pmu_irq = false;
+      if (pmu_irq != 2) {
+        pmu_irq = 0;
+      }
       axp.clearIRQ();
       xSemaphoreGive( axpSemaphore );
     }
   } else {
     Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
-    pmu_irq = false;   // prevent main loop blocking
+    pmu_irq = 0;   // prevent main loop blocking
   }
 }
 
@@ -2171,22 +1924,54 @@ void setup()
         // Display backlight on M5 Core2
         axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
         axp.setDCDC3Voltage(3300);
+	// SetBusPowerMode(0):
+	// #define AXP192_GPIO0_CTL                        (0x90)
+	// #define AXP192_GPIO0_VOL                        (0x91)
+	// #define AXP202_LDO234_DC23_CTL                  (0x12)
+
+	// The axp class lacks a functino to set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
+	// so do this manually (default value 2.8V did not have the expected effect :))
+	// data = Read8bit(0x91);
+        // write1Byte(0x91, (data & 0X0F) | 0XF0);
+	uint8_t reg;
+	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
+	Wire.write(AXP192_GPIO0_VOL);
+	Wire.endTransmission();
+	Wire.requestFrom(AXP192_SLAVE_ADDRESS, 1);
+	reg = Wire.read();
+	reg = (reg&0x0F) | 0xF0;
+	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
+	Wire.write(AXP192_GPIO0_VOL);
+	Wire.write(reg);
+	Wire.endTransmission();
+	// data = Read8bit(0x90);
+        // Write1Byte(0x90, (data & 0XF8) | 0X02)
+	axp.setGPIOMode(AXP_GPIO_0, AXP_IO_LDO_MODE);  // disable AXP supply from VBUS
+        pmu_irq = 2; // IRQ pin is not connected on Core2
+	// data = Read8bit(0x12);         //read reg 0x12
+        // Write1Byte(0x12, data | 0x40);    // enable 3,3V => 5V booster
+	// this is done below anyway: axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
+
+        axp.adc1Enable(AXP202_ACIN_VOL_ADC1, 1);
+        axp.adc1Enable(AXP202_ACIN_CUR_ADC1, 1);
       } else {
         // GPS on T-Beam, buzzer on M5 Core2
         axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+        axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
+        axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       }
       axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
       axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
       axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
       axp.setDCDC1Voltage(3300);
-      axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
-      axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
       axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      if (sonde.config.button2_axp) {
-        pinMode(PMU_IRQ, INPUT_PULLUP);
-        attachInterrupt(PMU_IRQ, [] {
-          pmu_irq = true;
-        }, FALLING);
+      if (sonde.config.button2_axp ) {
+        if (pmu_irq != 2) {
+          pinMode(PMU_IRQ, INPUT_PULLUP);
+          attachInterrupt(PMU_IRQ, [] {
+            pmu_irq = 1;
+          }, FALLING);
+        }
         //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
         axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
         axp.clearIRQ();
@@ -2545,7 +2330,7 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
-      char *str = aprs_senddata(s, sonde.config.call, sonde.config.udpfeed.symbol);
+      char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
       if (connected)  {
         char raw[201];
         int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -2569,6 +2354,7 @@ void loopDecoder() {
         }
         else if ( tcpclient.connected() ) {
           unsigned long now = millis();
+	  Serial.printf("aprs: now-last = %ld\n", (now-lasttcp));
           if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
             strcat(str, "\r\n");
             Serial.print(str);
@@ -2601,6 +2387,10 @@ void loopDecoder() {
     sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
 #endif
   }
+  // Send own position periodically
+  if (sonde.config.tcpfeed.active) {
+    aprs_station_update();
+  }
   // always send data, even if not valid....
   if (rdzclient.connected()) {
     Serial.println("Sending position via TCP as rdzJSON");
@@ -2620,12 +2410,12 @@ void loopDecoder() {
       *gps = 0;
     }
     //maintain backwords compatibility
-    float lat = isnan(s->d.lat)?0:s->d.lat;
-    float lon = isnan(s->d.lon)?0:s->d.lon;
-    float alt = isnan(s->d.alt)?-1:s->d.alt;
-    float vs = isnan(s->d.vs)?0:s->d.vs;
-    float hs = isnan(s->d.hs)?0:s->d.hs;
-    float dir = isnan(s->d.dir)?0:s->d.dir;
+    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
+    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
+    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
+    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
+    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
+    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
     //
     int len = snprintf(raw, 1024, "{"
@@ -3445,6 +3235,47 @@ void loop() {
 
 }
 
+void aprs_station_update() {
+  int chase = sonde.config.chase;
+  // automatically decided if CHASE or FIXED mode is used (for config AUTO)
+  if (chase == SH_LOC_AUTO) {
+    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
+  }
+  unsigned long time_now = millis();
+  unsigned long time_delta = time_now - time_last_aprs_update;
+  unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
+  Serial.printf("aprs_station_update: delta: %ld, update in %ld\n", time_delta, update_time);
+  if (time_delta < update_time) return;
+  Serial.println("Update is due!!");
+
+  float lat, lon;
+  if (chase == SH_LOC_FIXED) {
+    // fixed location
+    lat = sonde.config.rxlat;
+    lon = sonde.config.rxlon;
+    if (isnan(lat) || isnan(lon)) return;
+  } else {
+    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+      lat = gpsPos.lat;
+      lon = gpsPos.lon;
+    } else {
+      return;
+    }
+  }
+  Serial.printf("Really updating!! (objcall is %s)", sonde.config.objcall);
+  char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0), sonde.config.comment);
+  if ( tcpclient.disconnected()) {
+    tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
+  }
+  if ( tcpclient.connected() ) {
+    strcat(bcn, "\r\n");
+    Serial.println("****BEACON****");
+    Serial.print(bcn);
+    tcpclient.write(bcn, strlen(bcn));
+    time_last_aprs_update = time_now;
+  }
+}
+
 #if FEATURE_SONDEHUB
 // Sondehub v2 DB related codes
 /*
@@ -3555,7 +3386,7 @@ void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
   // At least, do this safely. See Notes-on-Using-WiFiClient.txt for details
   // If any of the client->print failed before (remote end closed connection),
   // then calling client->read will cause a LoadProhibited exception
-  if(client->connected()) {
+  if (client->connected()) {
     String response = client->readString();
     Serial.println(response);
     Serial.println("Response done...");
@@ -3641,9 +3472,11 @@ void sondehub_reply_handler(WiFiClient * client) {
 
   // also handle periodic station updates here...
   // interval check moved to sondehub_station_update to avoid having to calculate distance in auto mode twice
-  if (shState == SH_CONN_IDLE || shState == SH_DISCONNECTED ) {
-    // (do not set station update while a telemetry report is being sent
-    sondehub_station_update(&shclient, &sonde.config.sondehub);
+  if (sonde.config.sondehub.active) {
+    if (shState == SH_CONN_IDLE || shState == SH_DISCONNECTED ) {
+      // (do not set station update while a telemetry report is being sent
+      sondehub_station_update(&shclient, &sonde.config.sondehub);
+    }
   }
 }
 

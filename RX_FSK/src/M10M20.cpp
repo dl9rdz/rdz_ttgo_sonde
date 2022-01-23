@@ -575,6 +575,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	ids[6] = (char)((id/100)%10+48);
 	ids[7] = (char)((id/10)%10+48);
 	ids[8] = (char)(id%10+48);
+	ids[9] = 0;
 	strncpy(si->id, ids, 10);
 	// Serial: AAB-C-DDEEE
 	char *ser = si->ser;

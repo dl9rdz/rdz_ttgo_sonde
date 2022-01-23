@@ -72,7 +72,6 @@ td#sfreq {
 	display: none;
 	flex: 1;
 	padding: 6px 12px;
-	border: 1px solid #ccc;
 	border-top: none;
 	flex-direction: column;
 	overflow: auto;
@@ -340,11 +339,11 @@ p{
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #333;
-      }   
+  }   
   h2{
     color: white;
   }
-  table, th, td, .save, .topnav a.active {
+  table, th, td, .save, a.active {
     color: white;
     border: 1px solid grey;
     border-collapse: collapse;
@@ -353,5 +352,29 @@ p{
   input, select, .tci, .warning {
     color: white;
     background-color: #333;
+  }
+  a:link, a:visited {
+    color: #D3D3D3;
+  }
+  .topnav, td#sfreq {
+    background-color: grey;
+  }
+  .topnav a:visited {
+    color: white;
+  }
+  .ctlbtn {
+    color: white;
+    background-color: grey;
+  }
+  .leaflet-center {
+    color: white;
+    background-color: grey;
+  }
+  .leaflet-bar a {
+    background-color: grey !important;
+  }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+    color: white !important;
+    background: grey !important;
   }
 }
