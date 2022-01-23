@@ -1,0 +1,220 @@
+Squashed commit of the following:
+
+commit 925f06609304e689b6179224ea9a945ca818a0f6
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Jan 23 23:30:59 2022 +0000
+
+    sticking to 3.3.2 for now, as 3.4 causes some issues
+
+commit f08bb2a03203d49b6b7c7dfb8e8d65c91e3707b3
+Merge: 9140b52 d2e8631
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Jan 21 13:15:26 2022 +0000
+
+    Merge remote-tracking branch 'refs/remotes/origin/devel' into devel
+
+commit 9140b52b43877a6e1aa4b903ec7a9eac75836645
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Jan 21 13:15:07 2022 +0000
+
+    reset DFM id after 30 minutes or >.25 lat/lon change
+
+commit f7dc810f9410522d20bb2270a678e9bcbef0f895
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Jan 21 11:59:39 2022 +0000
+
+    RS41: send real type if available
+
+commit d2e8631696d7295fa4318ae4701ece7df537ac90
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Tue Jan 11 23:05:55 2022 +1100
+
+    Remove RS92-NGP Support Note (#266)
+
+commit 8d4ddd2fa4b8356caf4c1ff223bd16950df78da4
+Author: Luclu7 <luclu7@luclu7.fr>
+Date:   Sat Dec 11 01:24:01 2021 +0100
+
+    simply typo (#249)
+
+commit 8ddf8fa595991aac687dad434d42b70f70c60966
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Nov 1 17:31:27 2021 +0100
+
+    sh import last interval as double (for <1h)
+
+commit e4df63e2645e177e6546d77fb32518c2668b49a4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Nov 1 14:22:49 2021 +0100
+
+    fix sh import
+
+commit 07859d7f70d2a93110ccaed4a7b735e4e7a1fa78
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 23:37:44 2021 +0200
+
+    remove updated Setup.mp, better instructions are now in the wiki
+
+commit f7b87b6ba56093f8f6da4320515537f03ce896a1
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 23:27:28 2021 +0200
+
+    scan display for ILI934x
+
+commit cf612659e179874dde92f634726376fedbc81e9a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 23:27:07 2021 +0200
+
+    don't charge the battery using the battery :)
+
+commit af32d576d6aaec032021a21dbec8044bec672feb
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 18:13:07 2021 +0200
+
+    back to normal beacon frequency
+
+commit 42798753586fb245f09a294932b8ef5b6af20f38
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 17:45:52 2021 +0200
+
+    simplification
+
+commit baec8fb8ea688ee0d739d23215336933898618ef
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 17:36:48 2021 +0200
+
+    some better APRS for wettersonde.net support
+
+commit 327bbca6e6f9106583ef7d9b90c54d15b087b18f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 17:14:42 2021 +0200
+
+    some APRS for wettersonde.net support
+
+commit beea3a7047412d04e354064a2a59fe60aba99df0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 13:50:32 2021 +0200
+
+    test
+
+commit 8a0c37e79244b58cf113d4652da51356cde5ba20
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 12:02:51 2021 +0200
+
+    version update
+
+commit 87ea4651235dfd20dc012d7e0e6eb2ed1b907b3a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 12:02:29 2021 +0200
+
+    unused code lines removal
+
+commit 0556b5ab1de1fc1612da011c09c4533ad82d674c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 11:59:33 2021 +0200
+
+    arduino ide autoformat
+
+commit a3b24a885d68faca79cfc8d473ec58bbb9cdf09d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 11:58:40 2021 +0200
+
+    bugfix
+
+commit c932c909102851c989f8bc8663e3d79e209edefc
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 11:57:18 2021 +0200
+
+    remove no longer used idformat config
+
+commit 949ac6f75f06fc79fc10c79685408b8e95545ad1
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 11:51:12 2021 +0200
+
+    ax25 aprs beacon; irq-less pmu button for m5stack
+
+commit 7eb4291408d91a7fd7d1a6cf1f86de298081372e
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 30 11:26:19 2021 +0200
+
+    make use of tx_frequency (issue #238)
+
+commit c90381791d252dc34295a1f4d1d85a14c00a4a93
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 24 21:09:16 2021 +0200
+
+    typo fix
+
+commit ad96dd6023a8d68f415b6dcc70e665f62e77b720
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sun Oct 24 08:32:33 2021 +1100
+
+    Support dark mode fully in live map (#225)
+
+    * Update style.css
+
+    * dark mode map
+
+    Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
+
+commit 391135ba9d8ca8970528483033f16d2304a55ece
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 23 23:27:56 2021 +0200
+
+    update screens5.txt
+
+commit b5cbe1b6764176ef25904e7a6fce491988aad053
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 16 16:52:46 2021 +0200
+
+    fix #224
+
+commit ff5f4bfa246030a2a36e301def7b3a66fea18a17
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Oct 13 19:20:34 2021 +0200
+
+    no sh location report without enabling sh reporting
+
+commit 4e773944b1d1cdf007ed15d25c93ef360a8ec856
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Mon Oct 11 07:00:34 2021 +1100
+
+    Few more changes (#217)
+
+commit e6a764b65097ca1c366d5826d6b4e844d5cd79dc
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 10 21:39:21 2021 +0200
+
+    correct launchsite display on oled
+
+commit b4c0179ee659b5b51ea7add763771c3ce08fb5e2
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Oct 10 12:02:07 2021 +0200
+
+    fix correct M20 id (missing terminator)
+
+commit 97b3abc38fb2f9987028790f6ff0526f2ff60ad6
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 9 10:11:03 2021 +0200
+
+    version update for dark mode enhancements
+
+commit 6661da7f72498dd7b7f854c957bff9020bd6c3f9
+Merge: 4036214 04b95ef
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Oct 9 10:10:43 2021 +0200
+
+    Merge branch 'LukePrior-patch-7' into devel
+
+commit 04b95effba5cbf5ae7b2bd8dadf34e8f9e68afc9
+Author: Luke Prior <22492406+LukePrior@users.noreply.github.com>
+Date:   Sat Oct 9 19:07:15 2021 +1100
+
+    CSS Dark Mode Improvements
+
+commit 4036214ecda363123aeba32027770af5fd992d76
+Merge: 1dc548d 1a148b6
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Thu Oct 7 21:53:07 2021 +0200
+
+    Merge branch 'master' into devel
