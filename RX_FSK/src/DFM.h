@@ -37,8 +37,7 @@ private:
 	void bitsToBytes(uint8_t *bits, uint8_t *bytes, int len);
 	int processDFMdata(uint8_t dt);
         int decodeFrameDFM(uint8_t *data);
-	int receiveOld();
-	int receiveNew();
+	void killid();
 
 
 #define B 8
