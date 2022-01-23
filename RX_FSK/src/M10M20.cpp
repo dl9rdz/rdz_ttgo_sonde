@@ -556,6 +556,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	}
 	Serial.println(crcok?"CRC OK":"CRC NOT OK");
         Serial.printf(" repair: %d/%d\n", repl, repairstep);
+        if(!crcok) return 2;
 
 	Serial.println("Decoding...");
 	// Its a M20
