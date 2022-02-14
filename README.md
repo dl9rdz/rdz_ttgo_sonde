@@ -1,6 +1,8 @@
 rdzTTGOsonde
 ============
 
+[![rdzTTGOsonde](https://img.shields.io/badge/dynamic/json?label=rdzTTGOsonde&query=rdzTTGOsonde.unique_callsigns&suffix=%20Stations&url=https%3A%2F%2Fapi.v2.sondehub.org%2Flisteners%2Fstats&style=for-the-badge)](https://github.com/projecthorus/sondehub-infra/wiki)
+
 This a decoder for radiosonde RS41, RS92, DFM06/09/17, M10/M20, and MP3H
 based on a TTGO LoRa ESP32 board.
 
