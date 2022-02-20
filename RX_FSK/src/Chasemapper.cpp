@@ -12,6 +12,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		realtype = si->d.subtype == 1 ? STYPE_M10 : STYPE_M20;
 	}
 	sprintf(buf, "{ \"type\": \"PAYLOAD_SUMMARY\","
+		"\"station\": \"%s\","
 		"\"callsign\": \"%s\","
 		"\"latitude\": %.5f,"
 		"\"longitude\": %.5f,"
@@ -21,6 +22,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		"\"time\": \"%02d:%02d:%02d\","
 		"\"model\": \"%s\","
 		"\"freq\": \"%.3f MHz\"",
+		sonde.config.mdnsname,
 		si->d.ser,
 		si->d.lat,
 		si->d.lon,
