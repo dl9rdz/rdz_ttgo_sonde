@@ -531,7 +531,7 @@ void ILI9225Display::setFont(uint8_t fontindex) {
 	//if(fontindex==1 || fontindex==2) { fontindex=3; }
 	findex = fontindex;
 	switch(fontindex) {
-	case 0: tft->setFont(NULL); tft->setTextSize(1); break;
+	case 0: tft->setFont(); tft->setTextSize(1); break;
 	//case 1: tft->setFont(NULL); tft->setTextSize(2); break;
 	//case 2: tft->setFont(NULL); tft->setTextSize(2); break;
 	default: tft->setFont(gfl[fontindex-1]);
