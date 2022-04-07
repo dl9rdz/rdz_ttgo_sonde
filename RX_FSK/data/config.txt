@@ -86,7 +86,8 @@ dfm.rxbw=10400
 # s2: www.ngs.noaa.gov/cors/rinex/
 #-------------------------------#
 #ephftp=www.ngs.noaa.gov/cors/rinex/
-ephftp=igs.bkg.bund.de/IGS/BRDC/
+#ephftp=igs.bkg.bund.de/IGS/BRDC/
+ephftp=gssc.esa.int/gnss/data/daily/
 #-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
