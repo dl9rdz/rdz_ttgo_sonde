@@ -30,6 +30,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         "\"id\": \"%s\","       // TODO: maybe remove in the future, ser is enough, client can calculate APRS id if needed
         "\"ser\": \"%s\","
         "\"frame\": %u,"	// raw frame, from sonde, can be 0. (TODO: add virtual frame # as in sondehub?)
+        "\"vframe\": %d,"	
         "\"time\": %u,"
         "\"lat\": %.5f,"
         "\"lon\": %.5f,"
@@ -46,11 +47,14 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"
         "\"countKT\": %d,"
-        "\"crefKT\": %d",
+        "\"crefKT\": %d,"
+	"\"launchsite\": \"%d\","
+	"\"res\": %d",
         getType(si),
         s->id,
         s->ser,
         s->frame,
+        s->vframe,
         s->time,
         s->lat,
         s->lon,
@@ -67,7 +71,9 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         s->launchKT,
         s->burstKT,
         s->countKT,
-        s->crefKT
+        s->crefKT,
+	si->launchsite,
+	si->rxStat[0]
     );
     if(n>=maxlen) return -1;
     buf += n; maxlen -= n;
