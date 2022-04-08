@@ -73,14 +73,14 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         s->countKT,
         s->crefKT,
 	si->launchsite,
-	si->rxStat[0]
+	(int)si->rxStat[0]
     );
     if(n>=maxlen) return -1;
     buf += n; maxlen -= n;
 
     // add only if available
     if(s->batteryVoltage > 0) {
-	n = snprintf(buf, maxlen, "\"bat\": %.1f,", s->batteryVoltage);
+	n = snprintf(buf, maxlen, ",\"bat\": %.1f", s->batteryVoltage);
 	if(n>=maxlen) return -1;
 	buf += n; maxlen -= n;
     }

@@ -2422,6 +2422,20 @@ void loopDecoder() {
     float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
     //
+    raw[0] = '{';
+    // Use same JSON format as for MQTT and HTML map........
+    sonde2json(raw+1, 1023, s);
+    sprintf(raw+strlen(raw),
+	",\"active\":%d"
+	",\"validId\":%d"
+	",\"validPos\":%d"
+	" %s}\n",
+	(int)s->active,
+	s->d.validID,
+	s->d.validPos,
+	gps);
+    int len = strlen(raw);
+#if 0
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
                        "\"type\": \"%s\","
@@ -2477,6 +2491,8 @@ void loopDecoder() {
                        s->d.crefKT,
                        gps
                       );
+#endif
+
     //Serial.println("Writing rdzclient...");
     if (len > 1024) len = 1024;
     int wlen = rdzclient.write(raw, len);
