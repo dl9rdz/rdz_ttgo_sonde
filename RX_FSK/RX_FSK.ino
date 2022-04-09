@@ -23,6 +23,7 @@
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
+#include "src/json.h"
 #if FEATURE_CHASEMAPPER
 #include "src/Chasemapper.h"
 #endif
@@ -545,9 +546,12 @@ const char *createStatusForm() {
 
 const char *createLiveJson() {
   char *ptr = message;
-  strcpy(ptr, "{");
-
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
+
+  strcpy(ptr, "{\"sonde\": {");
+  // use the same JSON format here as for MQTT and for the Android App
+  sonde2json( ptr+strlen(ptr), 1024, s );
+#if 0
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\"",
           s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[sonde.realType(s)]);
 
@@ -563,7 +567,8 @@ const char *createLiveJson() {
     sprintf(ptr + strlen(ptr), ", \"speed\": %.1f", s->d.hs);
 
   sprintf(ptr + strlen(ptr), ", \"launchsite\": \"%s\", \"res\": %d }", s->launchsite, s->rxStat[0]);
-
+#endif
+  strcat(ptr, " }");
   if (gpsPos.valid) {
     sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
     //}
@@ -573,7 +578,6 @@ const char *createLiveJson() {
       int alt = isnan(sonde.config.rxalt) ? 0 : (int)sonde.config.rxalt;
       sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": 0, \"speed\": 0, \"dir\": 0, \"hdop\": 0 }", sonde.config.rxlat, sonde.config.rxlon, alt);
     }
-
   }
 
   strcat(ptr, "}");
@@ -2418,6 +2422,20 @@ void loopDecoder() {
     float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
     //
+    raw[0] = '{';
+    // Use same JSON format as for MQTT and HTML map........
+    sonde2json(raw+1, 1023, s);
+    sprintf(raw+strlen(raw),
+	",\"active\":%d"
+	",\"validId\":%d"
+	",\"validPos\":%d"
+	" %s}\n",
+	(int)s->active,
+	s->d.validID,
+	s->d.validPos,
+	gps);
+    int len = strlen(raw);
+#if 0
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
                        "\"type\": \"%s\","
@@ -2473,6 +2491,8 @@ void loopDecoder() {
                        s->d.crefKT,
                        gps
                       );
+#endif
+
     //Serial.println("Writing rdzclient...");
     if (len > 1024) len = 1024;
     int wlen = rdzclient.write(raw, len);

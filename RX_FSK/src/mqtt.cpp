@@ -4,6 +4,7 @@
 #include <AsyncMqttClient.h>
 #include <ESPmDNS.h>
 #include "RS41.h"
+#include "json.h"
 
 TimerHandle_t mqttReconnectTimer;
 
@@ -59,6 +60,14 @@ void MQTT::publishPacket(SondeInfo *si)
     mqttClient.connect(); // ensure we've got connection
 
     char payload[1024];
+    payload[0] = '{';
+    int n = sonde2json(payload+1, 1023, si);
+    if(n<0) {
+	// ERROR
+        Serial.println("publishPacket: sonde2json failed, string too long");
+    }
+
+#if 0
     snprintf(payload, 1024, "{"
         "\"active\": %d,"
         "\"freq\": %.2f,"
@@ -134,6 +143,8 @@ void MQTT::publishPacket(SondeInfo *si)
         snprintf(payload, 1024, "%s%s%s%s", payload, ",\"subtype\": \"", subtype, "\"" );
     }
     snprintf(payload, 1024, "%s%s", payload, "}" ); // terminate payload string
+#endif
+    strcat(payload, "}");   // terminate payload string
 
     char topic[128];
     snprintf(topic, 128, "%s%s", this->prefix, "packet");

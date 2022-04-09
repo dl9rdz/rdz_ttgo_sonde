@@ -585,7 +585,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	ser[1] = ((tmp%12 + 1) / 10 ) + '0';
 	ser[2] = ((tmp%12 + 1) % 10 ) + '0';
 	ser[3] = '-';
-	ser[4] = (data[18]/128) + 1 + '0';
+	ser[4] = ((data[19]&0x03)<<1) + (data[18]/128) + 1 + '0';
 	ser[5] = '-';
 	ser[6] = ids[4];
 	ser[7] = ids[5];
