@@ -2413,14 +2413,6 @@ void loopDecoder() {
     } else {
       *gps = 0;
     }
-    //maintain backwords compatibility
-    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
-    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
-    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
-    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
-    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
-    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
-
     //
     raw[0] = '{';
     // Use same JSON format as for MQTT and HTML map........
@@ -2436,6 +2428,14 @@ void loopDecoder() {
 	gps);
     int len = strlen(raw);
 #if 0
+    //maintain backwords compatibility
+    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
+    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
+    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
+    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
+    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
+    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
+
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
                        "\"type\": \"%s\","
