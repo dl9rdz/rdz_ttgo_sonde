@@ -11,6 +11,7 @@ var cfgs = [
 [ "", "OLED/TFT display configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Display-configuration" ],
 [ "screenfile", "Screen config (0=automatic; 1-5=predefined; other=custom)" ],
 [ "display", "Display screens (scan, default, ...)" ],
+[ "dispsaver", "Display saver (0=never/1=always/2=ifnorx [+10*n: after n sec.])" ],
 [ "norx_timeout", "No-RX-timeout in seconds (-1=disabled)"],
 [ "tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3"],
 [ "", "Spectrum display configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Spectrum-configuration" ],

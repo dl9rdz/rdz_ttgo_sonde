@@ -160,6 +160,7 @@ public:
 	DispInfo *layouts;
 	int nLayouts;
 	static RawDisplay *rdis;
+	char dispstate;
 
 	Display();
 	void init();
@@ -193,7 +194,8 @@ public:
 	void updateDisplayRXConfig();
 	void updateDisplayIP();
 	void updateDisplay();
-
+	void dispsavectlON();
+	void dispsavectlOFF(int rxactive);
 	void setLayout(int layout);
 };
 

@@ -613,6 +613,7 @@ struct st_configitems config_list[] = {
   {"rxalt", -7, &sonde.config.rxalt},
   {"screenfile", 0, &sonde.config.screenfile},
   {"display", -6, sonde.config.display},
+  {"dispsaver", 0, &sonde.config.dispsaver},
   /* Spectrum display settings */
   {"spectrum", 0, &sonde.config.spectrum},
   {"startfreq", 0, &sonde.config.startfreq},
@@ -2503,6 +2504,7 @@ void loopDecoder() {
     //Serial.println("Writing rdzclient OK");
   }
   Serial.print("MAIN: updateDisplay started\n");
+  sonde.dispsavectlOFF( (res & 0xff) == 0 );  // handle screen saver (disp auto off)
   if (forceReloadScreenConfig) {
     disp.initFromFile(sonde.config.screenfile);
     sonde.clearDisplay();

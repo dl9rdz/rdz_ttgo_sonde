@@ -18,7 +18,7 @@ const char *getType(SondeInfo *si) {
     return sondeTypeStrSH[sonde.realType(si)];
 }
 
-int float2json(char **buf, int *maxlen, char *fmt, float value) {
+int float2json(char **buf, int *maxlen, const char *fmt, float value) {
    if(isnan(value)) return 0;
    int n = snprintf(*buf, *maxlen, fmt, value);
    if(n>*maxlen) return -1;
