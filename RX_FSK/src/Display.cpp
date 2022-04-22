@@ -779,6 +779,7 @@ void Display::init() {
 	delay(100);
 	Serial.println("Display initialized");
 	rdis->clear();
+	dispstate = 1;  // display active by default
 }
 
 
@@ -1773,9 +1774,29 @@ void Display::updateDisplayIP() {
 }
 
 void Display::updateDisplay() {
+	if( dispstate == 0 ) return; // do not display anything
 	calcGPS();
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		di->func(di);
+	}
+}
+
+// Called when key is pressed or new RX starts
+void Display::dispsavectlON() {
+	// nothing to do to turn display on, may add power on code here later
+	dispstate = 1;
+}
+
+// Should be called 1x / sec to update display
+// parameter: rxactive (1=currently receiving something, 0=no rx)
+void Display::dispsavectlOFF(int rxactive) {
+	if( sonde.config.dispsaver == 0 ) return;  // screensaver disabled
+	if( dispstate == 0 ) return; // already OFF
+	if( rxactive && ((sonde.config.dispsaver%10)==2) ) return; // OFF only if no RX, but rxactive is 0
+	dispstate++;
+	if( dispstate > (sonde.config.dispsaver/10) ) {
+		rdis->clear();
+		dispstate = 0;
 	}
 }
 

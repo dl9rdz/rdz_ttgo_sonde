@@ -1,5 +1,8 @@
 # Frequency in Mhz (format nnn.nnn)
-# Type (4=RS41, 6=DFM normal, DFM-06, 9=DFM inverted, DFM-09)
+# Type (4=RS41, R=RS92, D=DFM (automated normal/inverted), M=M10/M20, 3=MP3H)
+# (older versions: 6=DFM6, 9=DFM9, now both treated the same as D)
+# (older versions: M=M10, 2=M20, now both treaded the same: automated M10/M20 decoding)
+# +: active, -: not active
 #
 402.300 4 + Greifswald
 402.500 4 - Schleswig

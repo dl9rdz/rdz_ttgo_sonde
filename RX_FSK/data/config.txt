@@ -51,6 +51,8 @@ kisstnc.active = 1
 # second entry: default "Receiver" display
 # additional entries: alternative receiver display, activated by button
 display=0,1,2,3,4
+# turn off display: 0=never, 1=always, 2=if no RX; (+n*10: after n seconds)
+dispsaver=0
 # set to -1 to disable (used for "N" values in timers in screens.txt). Value in seconds
 norx_timeout=20
 #-------------------------------#

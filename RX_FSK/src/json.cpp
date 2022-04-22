@@ -18,6 +18,14 @@ const char *getType(SondeInfo *si) {
     return sondeTypeStrSH[sonde.realType(si)];
 }
 
+int float2json(char **buf, int *maxlen, const char *fmt, float value) {
+   if(isnan(value)) return 0;
+   int n = snprintf(*buf, *maxlen, fmt, value);
+   if(n>*maxlen) return -1;
+   *buf += n; *maxlen -= n;
+   return n;
+}
+   
 // To be used by
 // - MQTT
 // - rdzJSON (for Android app)
@@ -25,21 +33,37 @@ const char *getType(SondeInfo *si) {
 int sonde2json(char *buf, int maxlen, SondeInfo *si)
 {
     SondeData *s = &(si->d);
-    int n = snprintf(buf, maxlen, 
+    int n;
+
+    n = float2json(&buf, &maxlen, "\"lat\": %.5f,", s->lat);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"lon\": %.5f,", s->lon);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"alt\": %.1f,", s->alt);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"vs\": %.1f,", s->vs);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"hs\": %.1f,", s->hs);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"climb\": %.1f,", s->vs); // used by HTML map, to be removed (-> vs)
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"speed\": %.1f,", s->hs); // used by HTML map, to be removed (-> hs)
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"dir\": %.1f,", s->dir);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"temp\": %.1f,", s->temperature );
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"humidity\": %.1f,", s->relativeHumidity);
+    if(n<0) return -1;
+    n = float2json(&buf, &maxlen, "\"pressure\": %.1f,", s->pressure);
+    if(n<0) return -1;
+    n = snprintf(buf, maxlen, 
         "\"type\":\"%s\","
         "\"id\": \"%s\","       // TODO: maybe remove in the future, ser is enough, client can calculate APRS id if needed
         "\"ser\": \"%s\","
         "\"frame\": %u,"	// raw frame, from sonde, can be 0. (TODO: add virtual frame # as in sondehub?)
         "\"vframe\": %d,"	
         "\"time\": %u,"
-        "\"lat\": %.5f,"
-        "\"lon\": %.5f,"
-        "\"alt\": %.1f,"
-        "\"vs\": %.1f,"
-        "\"hs\": %.1f," 
-        "\"climb\": %.1f,"	// used by HTML map, to be removed (-> vs)
-        "\"speed\": %.1f,"	// used by HTML map, to be removed (-> hs)
-        "\"dir\": %.1f,"
         "\"sats\": %d,"
         "\"freq\": %.2f,"
         "\"rssi\": %d,"
@@ -48,7 +72,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         "\"burstKT\": %d,"
         "\"countKT\": %d,"
         "\"crefKT\": %d,"
-	"\"launchsite\": \"%d\","
+	"\"launchsite\": \"%s\","
 	"\"res\": %d",
         getType(si),
         s->id,
@@ -56,14 +80,6 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         s->frame,
         s->vframe,
         s->time,
-        s->lat,
-        s->lon,
-        s->alt,
-        s->vs,
-        s->hs,
-        s->vs,
-        s->hs,
-        s->dir,
         s->sats,
         si->freq,
         si->rssi,
@@ -83,21 +99,6 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
 	n = snprintf(buf, maxlen, ",\"bat\": %.1f", s->batteryVoltage);
 	if(n>=maxlen) return -1;
 	buf += n; maxlen -= n;
-    }
-    if ( !isnan( s->temperature ) ) {
-        n = snprintf(buf, maxlen, ",\"temp\": %.1f", s->temperature );
-	if(n>=maxlen) return -1;
-	buf += n; maxlen -=n;
-    }
-    if ( !isnan( s->relativeHumidity) ) {
-        n = snprintf(buf, maxlen, ",\"humidity\": %.1f", s->relativeHumidity);
-	if(n>=maxlen) return -1;
-	buf += n; maxlen -=n;
-    }
-    if ( !isnan( s->pressure) ) {
-        n = snprintf(buf, maxlen, ",\"pressure\": %.1f", s->pressure );
-	if(n>=maxlen) return -1;
-	buf += n; maxlen -=n;
     }
     return 0;
 }

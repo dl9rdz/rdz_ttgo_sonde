@@ -613,6 +613,7 @@ struct st_configitems config_list[] = {
   {"rxalt", -7, &sonde.config.rxalt},
   {"screenfile", 0, &sonde.config.screenfile},
   {"display", -6, sonde.config.display},
+  {"dispsaver", 0, &sonde.config.dispsaver},
   /* Spectrum display settings */
   {"spectrum", 0, &sonde.config.spectrum},
   {"startfreq", 0, &sonde.config.startfreq},
@@ -2413,14 +2414,6 @@ void loopDecoder() {
     } else {
       *gps = 0;
     }
-    //maintain backwords compatibility
-    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
-    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
-    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
-    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
-    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
-    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
-
     //
     raw[0] = '{';
     // Use same JSON format as for MQTT and HTML map........
@@ -2436,6 +2429,14 @@ void loopDecoder() {
 	gps);
     int len = strlen(raw);
 #if 0
+    //maintain backwords compatibility
+    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
+    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
+    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
+    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
+    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
+    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
+
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
                        "\"type\": \"%s\","
@@ -2503,6 +2504,7 @@ void loopDecoder() {
     //Serial.println("Writing rdzclient OK");
   }
   Serial.print("MAIN: updateDisplay started\n");
+  sonde.dispsavectlOFF( (res & 0xff) == 0 );  // handle screen saver (disp auto off)
   if (forceReloadScreenConfig) {
     disp.initFromFile(sonde.config.screenfile);
     sonde.clearDisplay();
