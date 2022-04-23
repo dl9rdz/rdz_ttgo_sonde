@@ -102,6 +102,7 @@ void Sonde::defaultConfig() {
 	config.sx1278_sck = SCK;
 	config.oled_rst = 16;
 	config.disptype = 0;
+	config.dispcontrast = -1;
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
@@ -332,14 +333,6 @@ void Sonde::setConfig(const char *cfg) {
 	if(i==N_CONFIG) {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
-#if 0
-	// currently not in config_list. Maybe add later.
-	} else if(strcmp(cfg,"axudp.symbol")==0) {
-		strncpy(config.udpfeed.symbol, val, 3);
-	} else if(strcmp(cfg,"tcp.symbol")==0) {
-		strncpy(config.tcpfeed.symbol, val, 3);
-	}
-#endif
 }
 
 void Sonde::setIP(String ip, bool AP) {

@@ -277,6 +277,7 @@ void U8x8Display::begin() {
 	} 
 	u8x8->begin();
 	if(sonde.config.tft_orient==3) u8x8->setFlipMode(true);
+	if(sonde.config.dispcontrast>=0) u8x8->setContrast(sonde.config.dispcontrast);
 
 	fontlist = fl;
 	nfonts = sizeof(fl)/sizeof(uint8_t *);
@@ -285,6 +286,10 @@ void U8x8Display::begin() {
 
 void U8x8Display::clear() {
 	u8x8->clear();
+}
+
+void U8x8Display::setContrast(uint8_t contrast) {
+	u8x8->setContrast(contrast);
 }
 
 
@@ -524,6 +529,9 @@ void ILI9225Display::clear() {
 	SPI_MUTEX_LOCK();
 	tft->fillScreen(BLACK);
 	SPI_MUTEX_UNLOCK();
+}
+
+void ILI9225Display::setContrast(uint8_t /*contrast*/) {
 }
 
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
@@ -1728,30 +1736,35 @@ void Display::drawText(DispEntry *de) {
 }
 
 void Display::updateDisplayPos() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawLat && di->func != disp.drawLon) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayPos2() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawAlt && di->func != disp.drawHS && di->func != disp.drawVS) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayID() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawID) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayRSSI() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawRSSI) continue;
 		di->func(di);
 	}
 }
 void Display::updateStat() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawQS) continue;
 		di->func(di);
@@ -1759,7 +1772,8 @@ void Display::updateStat() {
 }
 
 void Display::updateDisplayRXConfig() {
-       for(DispEntry *di=layout->de; di->func != NULL; di++) {
+	if( dispstate == 0 ) return; // do not display anything
+        for(DispEntry *di=layout->de; di->func != NULL; di++) {
                 if(di->func != disp.drawQS && di->func != disp.drawAFC) continue;
                 di->func(di);
         }
@@ -1798,6 +1812,11 @@ void Display::dispsavectlOFF(int rxactive) {
 		rdis->clear();
 		dispstate = 0;
 	}
+}
+
+void Display::setContrast() {
+	if(sonde.config.dispcontrast<0) return;
+	rdis->setContrast(sonde.config.dispcontrast);
 }
 
 Display disp = Display();

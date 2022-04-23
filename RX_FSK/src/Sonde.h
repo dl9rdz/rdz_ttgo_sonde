@@ -265,6 +265,7 @@ typedef struct st_rdzconfig {
 	int8_t display[30];			// list of display mode (0:scanner, 1:default, 2,... additional modes)
 	int dispsaver;			// Turn display on/off (0=always on, 10*n+1: off after n seconds, 
 					//	10*n+2: scanner off after n seconds, RX always shown)
+	int dispcontrast;		// For OLED: set contrast to 0..255 (-1: don't set/leave at factory default)
 	int startfreq;			// spectrum display start freq (400, 401, ...)
 	int channelbw;			// spectrum channel bandwidth (valid: 5, 10, 20, 25, 50, 100 kHz)	
 	int spectrum;			// show freq spectrum for n seconds -1=disable; 0=forever

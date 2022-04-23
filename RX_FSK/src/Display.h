@@ -64,6 +64,7 @@ class RawDisplay {
 public:
 	virtual void begin() = 0;
 	virtual void clear() = 0;
+	virtual void setContrast(uint8_t contrast) = 0;
 	virtual void setFont(uint8_t fontindex) = 0;
 	virtual void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip) = 0;
 	virtual void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0 ) = 0;
@@ -86,6 +87,7 @@ public:
 	U8x8Display(uint8_t  type = 0) { _type = type; }
 	void begin();
 	void clear();
+	void setContrast(uint8_t contrast);
 	void setFont(uint8_t fontindex);
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
@@ -110,6 +112,7 @@ public:
 	ILI9225Display(int type = 1) { _type = type; }
 	void begin();
 	void clear();
+	void setContrast(uint8_t contrast);
 	void setFont(uint8_t fontindex);
 	void getDispSize(uint8_t *height, uint8_t *width, uint8_t *lineskip, uint8_t *colskip);
         void drawString(uint16_t x, uint16_t y, const char *s, int16_t width=WIDTH_AUTO, uint16_t fg=0xffff, uint16_t bg=0);
@@ -197,6 +200,7 @@ public:
 	void dispsavectlON();
 	void dispsavectlOFF(int rxactive);
 	void setLayout(int layout);
+	void setContrast();
 };
 
 extern Display disp;
