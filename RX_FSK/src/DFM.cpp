@@ -221,6 +221,8 @@ const char* typestr[16]={
 void DFM::killid() {
 	SondeData *sd = &(sonde.si()->d);
 	sd->validID = false;
+	*(sd->id) = 0;
+	*(sd->ser) = 0;
 	memset((void *)&dfmstate, 0, sizeof(dfmstate));
 }
 
@@ -268,6 +270,7 @@ void DFM::finddfname(uint8_t *b)
 						}
 						if(i==6) {
 							snprintf(sd->id, 10, "D%x ", id);
+							memcpy(sd->ser, sd->id+1, 9);
 							sd->validID = true;
 							sd->subtype = (st>>4)&0x0F;
 							strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
@@ -319,6 +322,7 @@ void DFM::finddfname(uint8_t *b)
 					snprintf(sd->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
 					Serial.print("\nNEW AUTOID:");
 					Serial.println(sd->id);
+					memcpy(sd->ser, sd->id+1, 9);
 					sd->validID = true;
 					sd->subtype = (st>>4)&0x0F;
 					strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
@@ -402,8 +406,6 @@ void DFM::decodeCFG(uint8_t *cfg)
 			Serial.printf("battery: %f\n", si->batteryVoltage);
 		}
 	}
-	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
-	memcpy(sonde.si()->d.ser, sonde.si()->d.id+1, 9);
 }
 
 #if 0
