@@ -10,3 +10,6 @@ LiveMap updates (#298)
 - changed order of maps: (dark if darkmode enabled) -> white -> topo -> sat -> dark
 
 * Open any MapsApp with geo:// - Link
+Bugfix: zoom levels, removed debug outputs (#299)
+
+- it was not possible to zoom in deeply on the satellite image
