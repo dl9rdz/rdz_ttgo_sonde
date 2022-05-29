@@ -1,2 +1,1 @@
-saving code space :)
-Add GPS status to scanner screen, aids checking GPS status without an active RX. (#286)
+saving code space :) Support for ST7789 displays.
