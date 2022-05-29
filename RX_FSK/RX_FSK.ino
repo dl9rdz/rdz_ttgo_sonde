@@ -2332,23 +2332,21 @@ void loopDecoder() {
   sondehub_reply_handler(&shclient);
 #endif
 
-  // wifi (axudp) or bluetooth (bttnc) active => send packet
+  // wifi active and good packet received => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
-  if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
+  if ((res & 0xff) == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
       char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
-      if (connected)  {
-        char raw[201];
-        int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-        Serial.println("Sending AXUDP");
-        //Serial.println(raw);
-        udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
-        udp.write((const uint8_t *)raw, rawlen);
-        udp.endPacket();
-      }
+      char raw[201];
+      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
+      Serial.println("Sending AXUDP");
+      //Serial.println(raw);
+      udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
+      udp.write((const uint8_t *)raw, rawlen);
+      udp.endPacket();
       if (tncclient.connected()) {
         Serial.println("Sending position via TCP");
         char raw[201];
@@ -3567,7 +3565,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
-  if (*s->d.ser == 0) return;	// Don't send anything without serial number
+  if (*s->d.ser == 0 || s->d.validID==0 ) return;	// Don't send anything without serial number
   if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->d.alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information
