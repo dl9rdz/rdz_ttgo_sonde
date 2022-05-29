@@ -8,6 +8,9 @@
 
 TimerHandle_t mqttReconnectTimer;
 
+extern const char *version_name;
+extern const char *version_id;
+
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
   Serial.print(topic);
@@ -52,7 +55,8 @@ void MQTT::publishUptime()
     //snprintf(payload, 12, "%lu", millis());
     //snprintf(payload, 124, "{\"uptime\": %lu," "\"user\": \"%s\"", millis(),         username );
     char payload[128];
-    snprintf(payload, 128, "{\"uptime\": %d, \"user\": \"%s\", \"rxlat\": %.5f, \"rxlon\": %.5f}", millis(), username, sonde.config.rxlat, sonde.config.rxlon ); 
+    snprintf(payload, 128, "{\"uptime\": %ld, \"user\": \"%s\", \"rxlat\": %.5f, \"rxlon\": %.5f, \"ver\": \"%s\", \"sub\": \"%s\"}",
+	millis(), username, sonde.config.rxlat, sonde.config.rxlon, version_name, version_id); 
     Serial.println(payload);
     char topic[128];
     snprintf(topic, 128, "%s%s", this->prefix, "uptime");
@@ -152,7 +156,7 @@ void MQTT::publishPacket(SondeInfo *si)
     strcat(payload, "}");   // terminate payload string
 
     char topic[128];
-    snprintf(topic, 128, "%s%s", this->prefix, "data");
+    snprintf(topic, 128, "%s%s", this->prefix, "packet");
     Serial.print(payload);
     mqttClient.publish(topic, 1, 1, payload);
 }

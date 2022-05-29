@@ -614,6 +614,7 @@ struct st_configitems config_list[] = {
   {"screenfile", 0, &sonde.config.screenfile},
   {"display", -6, sonde.config.display},
   {"dispsaver", 0, &sonde.config.dispsaver},
+  {"dispcontrast", 0, &sonde.config.dispcontrast},
   /* Spectrum display settings */
   {"spectrum", 0, &sonde.config.spectrum},
   {"startfreq", 0, &sonde.config.startfreq},
@@ -811,6 +812,9 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   f.close();
   Serial.printf("Re-reading file file\n");
   setupConfigData();
+  // TODO: Check if this is better done elsewhere?
+  // Use new config (whereever this is feasible without a reboot)
+  disp.setContrast();
   return "";
 }
 
