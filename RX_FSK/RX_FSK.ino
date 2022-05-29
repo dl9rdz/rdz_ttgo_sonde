@@ -242,7 +242,7 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240 * 4]; //needs to be large enough for all forms (not checked in code)
+char message[10240 * 4-512]; //needs to be large enough for all forms (not checked in code)
 // QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt

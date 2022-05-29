@@ -193,7 +193,17 @@ static void Gencrctab(void)
    } /* end for */
 } /* end Gencrctab() */
 
-int RS41::setup(float frequency) 
+decoderSetupCfg rs41SetupCfg = {
+	.bitrate = 4800,
+	.rx_cfg = 0x1E, // Enable auto-AFC, auto-AGC, RX Trigger by preamble
+	.sync_cfg = 0x57, // Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
+	.sync_len = 8,
+	.sync_data = (const uint8_t *)"\x08\x6D\x53\x88\x44\x69\x48\x1F",
+	.preamble_cfg = 0xA8,
+};
+
+
+int RS41::setup(float frequency, int /*type*/) 
 {
 	if(!initialized) {
 		Gencrctab();
@@ -205,6 +215,11 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
+	if(DecoderBase::setup(rs41SetupCfg, sonde.config.rs41.agcbw, sonde.config.rs41.rxbw)!=0 ) {
+		return 1;
+	}
+#if 0
+	// all moved to DecoderBase now
 	if(sx1278.setFSK()!=0) {
 		RS41_DBG(Serial.println("Setting FSK mode FAILED"));
 		return 1;
@@ -240,6 +255,7 @@ int RS41::setup(float frequency)
 		RS41_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
+#endif
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)

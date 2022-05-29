@@ -68,7 +68,16 @@ static int haveNewFrame = 0;
 static int lastFrame = 0;
 static int headerDetected = 0;
 
-int RS92::setup(float frequency) 
+decoderSetupCfg rs92SetupCfg = {
+	.bitrate = 4800,
+	.rx_cfg = 0x1E,
+	.sync_cfg = 0x70,
+	.sync_len = 2,
+	.sync_data = (const uint8_t *)"\x66\x65",
+	.preamble_cfg = 0xA8,
+};
+
+int RS92::setup(float frequency, int /*type*/) 
 {
 #if RS92_DEBUG
 	Serial.println("Setup sx1278 for RS92 sonde");
@@ -84,6 +93,10 @@ int RS92::setup(float frequency)
 		RS92_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
+	if(DecoderBase::setup(rs92SetupCfg, sonde.config.rs92.rxbw, sonde.config.rs92.rxbw)!=0) {
+		return 1;
+	}
+#if 0
 	if(sx1278.setFSK()!=0) {
 		RS92_DBG(Serial.println("Setting FSJ mode FAILED"));
 		return 1;
@@ -118,7 +131,6 @@ int RS92::setup(float frequency)
 	//const char *SYNC="\x08\x6D\x53\x88\x44\x69\x48\x1F";
 	// was 0x57
 	//const char *SYNC="\x99\x9A";
-#if 1
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x65";
 	if(sx1278.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
@@ -130,6 +142,7 @@ int RS92::setup(float frequency)
 		return 1;
 	}
 #endif
+
 #if 0
 	// version 2, with per-packet rx start, untested
 	// header is 2a 10 65, i.e. with lsb first

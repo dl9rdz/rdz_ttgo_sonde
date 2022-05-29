@@ -15,6 +15,7 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+#include "DecoderBase.h"
 
 
 struct CONTEXTR9 {
@@ -49,7 +50,7 @@ struct CONTEXTR9 {
 
 
 /* Main class */
-class RS92
+class RS92 : public DecoderBase
 {
 private:
 	void process8N1data(uint8_t data);
@@ -79,7 +80,7 @@ private:
 
 public:
 	RS92();
-	int setup(float frequency);
+	int setup(float frequency, int type = 0);
 	int receive();
 	int waitRXcomplete();
 

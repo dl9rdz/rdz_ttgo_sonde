@@ -26,7 +26,19 @@ static int haveNewFrame = 0;
 //static int lastFrame = 0;
 static int headerDetected = 0;
 
-int M10M20::setup(float frequency) 
+
+decoderSetupCfg m10m20SetupCfg = {
+	.bitrate = 9600,
+	//// Disable auto-AFC, auto-AGC, RX Trigger by preamble
+	.rx_cfg = 0x00,
+	.sync_cfg = 0x70,
+	.sync_len = 1,
+	.sync_data = (const uint8_t *)"\x66\x66",
+	// Preamble detection off (+ size 1 byte, maximum tolerance; should not matter for "off"?)
+	.preamble_cfg = 0x00 | 0x00 | 0x1F,
+};
+
+int M10M20::setup(float frequency, int /*type*/) 
 {
 	M10M20_DBG(Serial.println("Setup sx1278 for M10/M20 sonde"));;
 	if(sx1278.ON()!=0) {
@@ -92,6 +104,11 @@ int M10M20::setup(float frequency)
         }
 
 //// Step 2: Real reception
+	if( DecoderBase::setup(m10m20SetupCfg, sonde.config.m10m20.agcbw, sonde.config.m10m20.rxbw)!=0 ) {
+		return 1;
+	}
+#if 0
+	// Now all done in DecoderBase::setup
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
 	sx1278.setFSK();
 	if(sx1278.setBitrate(9600)!=0) {
@@ -127,6 +144,7 @@ int M10M20::setup(float frequency)
 		M10M20_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
+#endif
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
