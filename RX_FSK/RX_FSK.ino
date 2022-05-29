@@ -242,7 +242,7 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240 * 4-512]; //needs to be large enough for all forms (not checked in code)
+char message[10240 * 4-2048]; //needs to be large enough for all forms (not checked in code)
 // QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
@@ -1269,11 +1269,6 @@ void SetupAsyncServer() {
     AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/style.css", "text/css");
     response->addHeader("Cache-Control", "max-age=86400");
     request->send(response);
-  });
-
-  // Route to set GPIO to HIGH
-  server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
   server.on("/live.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
