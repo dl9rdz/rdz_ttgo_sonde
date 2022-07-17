@@ -144,5 +144,11 @@ shfimp.interval=60
 shfimp.maxdist=150
 shfimp.maxage=6
 #-------------------------------#
+# callmebot settings
+#-------------------------------#
+callmebot.active=0
+callmebot.apikey=123456
+callmebot.phone=+123456789012
+#-------------------------------#
 # EOF
 #-------------------------------#

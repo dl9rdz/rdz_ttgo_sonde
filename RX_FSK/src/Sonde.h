@@ -6,6 +6,7 @@
 #include <Arduino.h>
 
 enum DbgLevel { DEBUG_OFF=0, DEBUG_INFO=1, DEBUG_SPARSER=16, DEBUG_DISPLAY=8 };  // to be extended for configuring serial debug output
+enum NotificationStatus {INVALID, NOT_NOTIFIED, SENT, REPLY_OK, REPLY_NOT_OK, WAIT_BEFORE_RETRY};
 extern uint8_t debug;
 
 #define DebugPrint(l,x) if(debug&l) { Serial.print(x); }
@@ -120,6 +121,7 @@ typedef struct st_sondeinfo {
         SondeType type;
         float freq;
 	char launchsite[18];		
+	NotificationStatus notificationStatus;
 
 	// Second part: internal decoder state. no need to clear this on new sonde
         // RSSI from receiver
@@ -215,6 +217,12 @@ struct st_cm {
 	int port;
 };
 
+struct st_callmebot {
+	int active;
+	char phone[16];
+	char apikey[16];
+};
+
 struct st_sondehub {
 	int active;
 	int chase;
@@ -240,6 +248,7 @@ typedef struct st_rdzconfig {
 	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
 	int power_pout;			// Power control pin (for Heltec v2)
+	st_callmebot callmebot; // callmebot settings
 	int disptype;			// 0=OLED; 1=ILI9225
 	int oled_sda;			// OLED/TFT data pin 
 	int oled_scl;			// OLED/TFT clock pin

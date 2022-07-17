@@ -32,6 +32,8 @@
 #include "src/mqtt.h"
 #endif
 
+#include "src/CallMeBot.h"
+
 //#define ESP_MEM_DEBUG 1
 //int e;
 
@@ -64,6 +66,7 @@ const int   daylightOffset_sec = 0; //UTC
 boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
+WiFiClient callbot_client;
 
 /* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
 const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
@@ -686,6 +689,9 @@ struct st_configitems config_list[] = {
   {"touch_thresh", 0, &sonde.config.touch_thresh},
   {"power_pout", 0, &sonde.config.power_pout},
   {"led_pout", 0, &sonde.config.led_pout},
+  {"callmebot.active", 0, &sonde.config.callmebot.active},
+  {"callmebot.phone", 15, &sonde.config.callmebot.phone},
+  {"callmebot.apikey", 15, &sonde.config.callmebot.apikey},
   {"gps_rxd", 0, &sonde.config.gps_rxd},
   {"gps_txd", 0, &sonde.config.gps_txd},
   {"batt_adc", 0, &sonde.config.batt_adc},
@@ -2377,6 +2383,10 @@ void loopDecoder() {
     }
 #endif
 
+    if (sonde.config.callmebot.active){
+        CallMeBot::doCallMeBot(&callbot_client, s);
+    }
+	
 #if FEATURE_MQTT
     // send to MQTT if enabledson
     if (connected && mqttEnabled) {

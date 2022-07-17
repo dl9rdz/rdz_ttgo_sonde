@@ -361,6 +361,7 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	    memcpy(sondeList[nSonde].rxStat, "\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3\x3", 18); // unknown/undefined
 	    clearAllData(sondeList+nSonde);
 	}
+	sondeList[nSonde].notificationStatus = NOT_NOTIFIED;
 	sondeList[nSonde].active = active;
 	strncpy(sondeList[nSonde].launchsite, launchsite, 17);	
 	nSonde++;
