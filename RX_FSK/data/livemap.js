@@ -356,7 +356,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
     var m = new Date();
     var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
       az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
-    var url = 'https://predict.cusf.co.uk/api/v1/';
+    var url = 'https://api.v2.sondehub.org/tawhiri';
     url += '?launch_latitude='+data.lat + '&launch_longitude='+tawhiri_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
     url += '&ascent_rate='+ascent + '&burst_altitude=' + burst + '&descent_rate='+descent;
