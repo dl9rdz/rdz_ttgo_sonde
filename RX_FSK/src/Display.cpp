@@ -277,6 +277,7 @@ void U8x8Display::begin() {
 	} 
 	u8x8->begin();
 	if(sonde.config.tft_orient==3) u8x8->setFlipMode(true);
+	if(sonde.config.dispcontrast>=0) u8x8->setContrast(sonde.config.dispcontrast);
 
 	fontlist = fl;
 	nfonts = sizeof(fl)/sizeof(uint8_t *);
@@ -285,6 +286,10 @@ void U8x8Display::begin() {
 
 void U8x8Display::clear() {
 	u8x8->clear();
+}
+
+void U8x8Display::setContrast(uint8_t contrast) {
+	u8x8->setContrast(contrast);
 }
 
 
@@ -509,9 +514,11 @@ void ILI9225Display::begin() {
 	  tft = new Arduino_ILI9341(bus, sonde.config.oled_rst);
 	else if(_type == 4) 
 	  tft = new Arduino_ILI9342(bus, sonde.config.oled_rst);
+	else if(_type == 5) 
+	  tft = new Arduino_ST7789(bus, sonde.config.oled_rst);
 	else 
 	  tft = new Arduino_ILI9225(bus, sonde.config.oled_rst);
-	Serial.println("ILI9225/ILI9341 init: done");
+	Serial.println("ILI9225/ILI9341/ST7789 init: done");
 	tft->begin(sonde.config.tft_spifreq);
         tft->fillScreen(BLACK);
 	tft->setRotation(sonde.config.tft_orient);
@@ -526,12 +533,15 @@ void ILI9225Display::clear() {
 	SPI_MUTEX_UNLOCK();
 }
 
+void ILI9225Display::setContrast(uint8_t /*contrast*/) {
+}
+
 // for now, 0=small=FreeSans9pt7b, 1=large=FreeSans18pt7b
 void ILI9225Display::setFont(uint8_t fontindex) {
 	//if(fontindex==1 || fontindex==2) { fontindex=3; }
 	findex = fontindex;
 	switch(fontindex) {
-	case 0: tft->setFont(NULL); tft->setTextSize(1); break;
+	case 0: tft->setFont(); tft->setTextSize(1); break;
 	//case 1: tft->setFont(NULL); tft->setTextSize(2); break;
 	//case 2: tft->setFont(NULL); tft->setTextSize(2); break;
 	default: tft->setFont(gfl[fontindex-1]);
@@ -769,16 +779,17 @@ RawDisplay *Display::rdis = NULL;
 //TODO: maybe merge with initFromFile later?
 void Display::init() {
 	Serial.printf("disptype is %d\n",sonde.config.disptype);
-	if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) {
-		rdis = new ILI9225Display(sonde.config.disptype);
-	} else {
+	if(sonde.config.disptype==0 || sonde.config.disptype==2) {
 		rdis = new U8x8Display(sonde.config.disptype);
+	} else {
+		rdis = new ILI9225Display(sonde.config.disptype);
 	}
 	Serial.println("Display created");
 	rdis->begin();
 	delay(100);
 	Serial.println("Display initialized");
 	rdis->clear();
+	dispstate = 1;  // display active by default
 }
 
 
@@ -1024,6 +1035,7 @@ int Display::getScreenIndex(int index) {
 		break;
 	case 3:		// ILI9341
 	case 4:		// ILI9342
+	case 5:
 		index = 4;      // landscape mode (orient=1/3)
 		if( (sonde.config.tft_orient&0x01)==0 ) index++;   // portrait mode (0/2)
 		break;
@@ -1145,7 +1157,9 @@ void Display::initFromFile(int index) {
 				char text[61];
 				n=sscanf(s, "%f,%f,%f", &y, &x, &w);
 				sscanf(ptr+1, "%60[^\r\n]", text);
-				if(sonde.config.disptype==1 || sonde.config.disptype==3 || sonde.config.disptype==4 ) { x*=xscale; y*=yscale; w*=xscale; }
+				if(sonde.config.disptype!=0 && sonde.config.disptype!=2) {
+					x*=xscale; y*=yscale; w*=xscale;
+				}
 				newlayouts[idx].de[what].x = x;
 				newlayouts[idx].de[what].y = y;
 				newlayouts[idx].de[what].width = n>2 ? w : WIDTH_AUTO;
@@ -1727,30 +1741,35 @@ void Display::drawText(DispEntry *de) {
 }
 
 void Display::updateDisplayPos() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawLat && di->func != disp.drawLon) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayPos2() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawAlt && di->func != disp.drawHS && di->func != disp.drawVS) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayID() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawID) continue;
 		di->func(di);
 	}
 }
 void Display::updateDisplayRSSI() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawRSSI) continue;
 		di->func(di);
 	}
 }
 void Display::updateStat() {
+	if( dispstate == 0 ) return; // do not display anything
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		if(di->func != disp.drawQS) continue;
 		di->func(di);
@@ -1758,7 +1777,8 @@ void Display::updateStat() {
 }
 
 void Display::updateDisplayRXConfig() {
-       for(DispEntry *di=layout->de; di->func != NULL; di++) {
+	if( dispstate == 0 ) return; // do not display anything
+        for(DispEntry *di=layout->de; di->func != NULL; di++) {
                 if(di->func != disp.drawQS && di->func != disp.drawAFC) continue;
                 di->func(di);
         }
@@ -1773,10 +1793,35 @@ void Display::updateDisplayIP() {
 }
 
 void Display::updateDisplay() {
+	if( dispstate == 0 ) return; // do not display anything
 	calcGPS();
 	for(DispEntry *di=layout->de; di->func != NULL; di++) {
 		di->func(di);
 	}
+}
+
+// Called when key is pressed or new RX starts
+void Display::dispsavectlON() {
+	// nothing to do to turn display on, may add power on code here later
+	dispstate = 1;
+}
+
+// Should be called 1x / sec to update display
+// parameter: rxactive (1=currently receiving something, 0=no rx)
+void Display::dispsavectlOFF(int rxactive) {
+	if( sonde.config.dispsaver == 0 ) return;  // screensaver disabled
+	if( dispstate == 0 ) return; // already OFF
+	if( rxactive && ((sonde.config.dispsaver%10)==2) ) return; // OFF only if no RX, but rxactive is 0
+	dispstate++;
+	if( dispstate > (sonde.config.dispsaver/10) ) {
+		rdis->clear();
+		dispstate = 0;
+	}
+}
+
+void Display::setContrast() {
+	if(sonde.config.dispcontrast<0) return;
+	rdis->setContrast(sonde.config.dispcontrast);
 }
 
 Display disp = Display();

@@ -16,9 +16,10 @@
         #include <inttypes.h>
 #endif
 #include "Sonde.h"
+#include "DecoderBase.h"
 
 /* Main class */
-class RS41
+class RS41 : public DecoderBase
 {
 private:
 	uint32_t bits2val(const uint8_t *bits, int len);
@@ -51,7 +52,7 @@ public:
 	RS41();
 	// New interface:
 	// setup() is called when channel is activated (sets mode and frequency and activates receiver)
-	int setup(float frequency);
+	int setup(float frequency, int type = 0);
 	// processRXbyte is called by background task for each received byte
 	// should be fast enough to not cause sx127x fifo buffer overflow
     //    void processRXbyte(uint8_t data);

@@ -102,6 +102,7 @@ void Sonde::defaultConfig() {
 	config.sx1278_sck = SCK;
 	config.oled_rst = 16;
 	config.disptype = 0;
+	config.dispcontrast = -1;
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
@@ -332,14 +333,6 @@ void Sonde::setConfig(const char *cfg) {
 	if(i==N_CONFIG) {
 		Serial.printf("Invalid config option '%s'=%s \n", cfg, val);
 	}
-#if 0
-	// currently not in config_list. Maybe add later.
-	} else if(strcmp(cfg,"axudp.symbol")==0) {
-		strncpy(config.udpfeed.symbol, val, 3);
-	} else if(strcmp(cfg,"tcp.symbol")==0) {
-		strncpy(config.tcpfeed.symbol, val, 3);
-	}
-#endif
 }
 
 void Sonde::setIP(String ip, bool AP) {
@@ -490,6 +483,7 @@ void Sonde::receive() {
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
+			sonde.dispsavectlON();
                 }
         } else { // RX Timeout
 		//Serial.printf("Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
@@ -507,6 +501,7 @@ void Sonde::receive() {
 
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
+	else sonde.dispsavectlON();
 	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
 	//if(action!=ACT_NONE) { Serial.printf("event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
@@ -715,6 +710,15 @@ void Sonde::updateDisplay()
 void Sonde::clearDisplay() {
 	disp.rdis->clear();
 }
+
+void Sonde::dispsavectlON() {
+	disp.dispsavectlON();
+}
+
+void Sonde::dispsavectlOFF(int rxactive) {
+	disp.dispsavectlOFF(rxactive);
+}
+
 
 SondeType Sonde::realType(SondeInfo *si) {
 	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }

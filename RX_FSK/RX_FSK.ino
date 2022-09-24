@@ -23,6 +23,7 @@
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
+#include "src/json.h"
 #if FEATURE_CHASEMAPPER
 #include "src/Chasemapper.h"
 #endif
@@ -241,7 +242,7 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240 * 4]; //needs to be large enough for all forms (not checked in code)
+char message[10240 * 4-2048]; //needs to be large enough for all forms (not checked in code)
 // QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
@@ -545,9 +546,12 @@ const char *createStatusForm() {
 
 const char *createLiveJson() {
   char *ptr = message;
-  strcpy(ptr, "{");
-
   SondeInfo *s = &sonde.sondeList[sonde.currentSonde];
+
+  strcpy(ptr, "{\"sonde\": {");
+  // use the same JSON format here as for MQTT and for the Android App
+  sonde2json( ptr+strlen(ptr), 1024, s );
+#if 0
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\"",
           s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[sonde.realType(s)]);
 
@@ -563,7 +567,8 @@ const char *createLiveJson() {
     sprintf(ptr + strlen(ptr), ", \"speed\": %.1f", s->d.hs);
 
   sprintf(ptr + strlen(ptr), ", \"launchsite\": \"%s\", \"res\": %d }", s->launchsite, s->rxStat[0]);
-
+#endif
+  strcat(ptr, " }");
   if (gpsPos.valid) {
     sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
     //}
@@ -573,7 +578,6 @@ const char *createLiveJson() {
       int alt = isnan(sonde.config.rxalt) ? 0 : (int)sonde.config.rxalt;
       sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": 0, \"speed\": 0, \"dir\": 0, \"hdop\": 0 }", sonde.config.rxlat, sonde.config.rxlon, alt);
     }
-
   }
 
   strcat(ptr, "}");
@@ -609,6 +613,8 @@ struct st_configitems config_list[] = {
   {"rxalt", -7, &sonde.config.rxalt},
   {"screenfile", 0, &sonde.config.screenfile},
   {"display", -6, sonde.config.display},
+  {"dispsaver", 0, &sonde.config.dispsaver},
+  {"dispcontrast", 0, &sonde.config.dispcontrast},
   /* Spectrum display settings */
   {"spectrum", 0, &sonde.config.spectrum},
   {"startfreq", 0, &sonde.config.startfreq},
@@ -806,6 +812,9 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   f.close();
   Serial.printf("Re-reading file file\n");
   setupConfigData();
+  // TODO: Check if this is better done elsewhere?
+  // Use new config (whereever this is feasible without a reboot)
+  disp.setContrast();
   return "";
 }
 
@@ -1260,11 +1269,6 @@ void SetupAsyncServer() {
     AsyncWebServerResponse *response = request->beginResponse(SPIFFS, "/style.css", "text/css");
     response->addHeader("Cache-Control", "max-age=86400");
     request->send(response);
-  });
-
-  // Route to set GPIO to HIGH
-  server.on("/test.php", HTTP_POST, [](AsyncWebServerRequest * request) {
-    request->send(SPIFFS, "/index.html", String(), false, processor);
   });
 
   server.on("/live.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -2323,23 +2327,21 @@ void loopDecoder() {
   sondehub_reply_handler(&shclient);
 #endif
 
-  // wifi (axudp) or bluetooth (bttnc) active => send packet
+  // wifi active and good packet received => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
-  if ((res & 0xff) == 0 && (connected || tncclient.connected() )) {
+  if ((res & 0xff) == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
       char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
-      if (connected)  {
-        char raw[201];
-        int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-        Serial.println("Sending AXUDP");
-        //Serial.println(raw);
-        udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
-        udp.write((const uint8_t *)raw, rawlen);
-        udp.endPacket();
-      }
+      char raw[201];
+      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
+      Serial.println("Sending AXUDP");
+      //Serial.println(raw);
+      udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
+      udp.write((const uint8_t *)raw, rawlen);
+      udp.endPacket();
       if (tncclient.connected()) {
         Serial.println("Sending position via TCP");
         char raw[201];
@@ -2409,6 +2411,21 @@ void loopDecoder() {
     } else {
       *gps = 0;
     }
+    //
+    raw[0] = '{';
+    // Use same JSON format as for MQTT and HTML map........
+    sonde2json(raw+1, 1023, s);
+    sprintf(raw+strlen(raw),
+	",\"active\":%d"
+	",\"validId\":%d"
+	",\"validPos\":%d"
+	" %s}\n",
+	(int)s->active,
+	s->d.validID,
+	s->d.validPos,
+	gps);
+    int len = strlen(raw);
+#if 0
     //maintain backwords compatibility
     float lat = isnan(s->d.lat) ? 0 : s->d.lat;
     float lon = isnan(s->d.lon) ? 0 : s->d.lon;
@@ -2417,7 +2434,6 @@ void loopDecoder() {
     float hs = isnan(s->d.hs) ? 0 : s->d.hs;
     float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
-    //
     int len = snprintf(raw, 1024, "{"
                        "\"res\": %d,"
                        "\"type\": \"%s\","
@@ -2473,6 +2489,8 @@ void loopDecoder() {
                        s->d.crefKT,
                        gps
                       );
+#endif
+
     //Serial.println("Writing rdzclient...");
     if (len > 1024) len = 1024;
     int wlen = rdzclient.write(raw, len);
@@ -2483,6 +2501,7 @@ void loopDecoder() {
     //Serial.println("Writing rdzclient OK");
   }
   Serial.print("MAIN: updateDisplay started\n");
+  sonde.dispsavectlOFF( (res & 0xff) == 0 );  // handle screen saver (disp auto off)
   if (forceReloadScreenConfig) {
     disp.initFromFile(sonde.config.screenfile);
     sonde.clearDisplay();
@@ -3541,7 +3560,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
-  if (*s->d.ser == 0) return;	// Don't send anything without serial number
+  if (*s->d.ser == 0 || s->d.validID==0 ) return;	// Don't send anything without serial number
   if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->d.alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information

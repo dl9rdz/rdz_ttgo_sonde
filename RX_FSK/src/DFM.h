@@ -15,12 +15,13 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+#include "DecoderBase.h"
 
 #define DFM_NORMAL 0
 #define DFM_INVERSE 1
 
 /* Main class */
-class DFM
+class DFM : public DecoderBase
 {
 private:
 	int stype;

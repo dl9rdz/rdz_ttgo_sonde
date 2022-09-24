@@ -47,6 +47,17 @@ static struct st_dfmstat {
 	float meas[5+2];
 } dfmstate;
 
+decoderSetupCfg DFMSetupCfg {
+	.bitrate = 2500,
+	// continuous mode
+	// Enable auto-AFC, auto-AGC, RX Trigger by preamble  ????
+	.rx_cfg = 0x1E,
+	.sync_cfg = 0x70,
+	.sync_len = 2,
+	.sync_data = (const uint8_t *)"\xAA\xAA",
+	.preamble_cfg = 0xA8,
+};
+
 int DFM::setup(float frequency, int type) 
 {
 	stype = type;
@@ -57,6 +68,12 @@ int DFM::setup(float frequency, int type)
 		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
+
+	if(DecoderBase::setup(DFMSetupCfg, sonde.config.dfm.agcbw, sonde.config.dfm.rxbw) != 0) {
+		return 1;
+	}
+#if 0
+	// This is now all done by the generic setup method in base class
 	if(sx1278.setFSK()!=0) {
 		DFM_DBG(Serial.println("Setting FSM mode FAILED"));
 		return 1;
@@ -65,12 +82,6 @@ int DFM::setup(float frequency, int type)
 		DFM_DBG(Serial.println("Setting bitrate 2500bit/s FAILED"));
 		return 1;
 	}
-#if DFM_DEBUG
-	float br = sx1278.getBitrate();
-	Serial.print("Exact bitrate is ");
-	Serial.println(br);
-#endif
-
         if(sx1278.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
                 DFM_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.dfm.agcbw));
                 return 1;
@@ -79,11 +90,7 @@ int DFM::setup(float frequency, int type)
                 DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
                 return 1;
         }
-
-	// DFM OLD support has been removed
 	{
-	        // continuous mode
-	        // Enable auto-AFC, auto-AGC, RX Trigger by preamble  ????
                 if(sx1278.setRxConf(0x1E)!=0) {
                         DFM_DBG(Serial.println("Setting RX Config FAILED"));
                         return 1;
@@ -99,12 +106,13 @@ int DFM::setup(float frequency, int type)
                         DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
                         return 1;
                 }
-                if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
-                        DFM_DBG(Serial.println("Setting Packet config FAILED"));
-                        return 1;
-                }
-                sx1278.setPayloadLength(0);  // infinite for now...
 	}
+#endif
+        if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+                DFM_DBG(Serial.println("Setting Packet config FAILED"));
+                return 1;
+        }
+        sx1278.setPayloadLength(0);  // infinite for now...
         Serial.print("DFM: setting RX frequency to ");
         Serial.println(frequency);
 
@@ -221,6 +229,8 @@ const char* typestr[16]={
 void DFM::killid() {
 	SondeData *sd = &(sonde.si()->d);
 	sd->validID = false;
+	*(sd->id) = 0;
+	*(sd->ser) = 0;
 	memset((void *)&dfmstate, 0, sizeof(dfmstate));
 }
 
@@ -268,6 +278,7 @@ void DFM::finddfname(uint8_t *b)
 						}
 						if(i==6) {
 							snprintf(sd->id, 10, "D%x ", id);
+							memcpy(sd->ser, sd->id+1, 9);
 							sd->validID = true;
 							sd->subtype = (st>>4)&0x0F;
 							strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
@@ -319,6 +330,7 @@ void DFM::finddfname(uint8_t *b)
 					snprintf(sd->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
 					Serial.print("\nNEW AUTOID:");
 					Serial.println(sd->id);
+					memcpy(sd->ser, sd->id+1, 9);
 					sd->validID = true;
 					sd->subtype = (st>>4)&0x0F;
 					strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
@@ -402,8 +414,6 @@ void DFM::decodeCFG(uint8_t *cfg)
 			Serial.printf("battery: %f\n", si->batteryVoltage);
 		}
 	}
-	// new aprs ID (dxlaprs, autorx) is now "D" + serial (8 digits) by consensus
-	memcpy(sonde.si()->d.ser, sonde.si()->d.id+1, 9);
 }
 
 #if 0

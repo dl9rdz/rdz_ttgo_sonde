@@ -15,9 +15,10 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+#include "DecoderBase.h"
 
 /* Main class */
-class M10M20
+class M10M20 : public DecoderBase
 {
 private:
 	void printRaw(uint8_t *data, int len);
@@ -53,7 +54,7 @@ private:
 
 public:
 	M10M20();
-	int setup(float frequency);
+	int setup(float frequency, int type = 0);
 	int receive();
 	int waitRXcomplete();
 

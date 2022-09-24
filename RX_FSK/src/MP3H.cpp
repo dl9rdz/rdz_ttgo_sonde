@@ -35,7 +35,16 @@ static int headerDetected = 0;
 
 extern uint16_t MON[];
 
-int MP3H::setup(float frequency) 
+decoderSetupCfg mp3hSetupCfg = {
+	.bitrate = 2400,
+	.rx_cfg = 0x00,
+	.sync_cfg = 0x70,
+	.sync_len = 1,
+	.sync_data = (const uint8_t *)"\x66\x66",
+	.preamble_cfg = 0x00 | 0x00 | 0x1F
+};
+
+int MP3H::setup(float frequency, int /*type*/) 
 {
 	MP3H_DBG(Serial.println("Setup sx1278 for MP3H sonde"));;
 	if(sx1278.ON()!=0) {
@@ -63,6 +72,11 @@ int MP3H::setup(float frequency)
         }
 
 //// Step 2: Real reception
+	if(DecoderBase::setup(mp3hSetupCfg, sonde.config.mp3h.agcbw, sonde.config.mp3h.rxbw)!=0) {
+		return 1;
+	}
+#if 0
+	// Now all done in Decoderbase
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
 	sx1278.setFSK();
 	if(sx1278.setBitrate(2400)!=0) {
@@ -98,6 +112,7 @@ int MP3H::setup(float frequency)
 		MP3H_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
+#endif
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)

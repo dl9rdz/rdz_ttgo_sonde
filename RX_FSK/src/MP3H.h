@@ -15,9 +15,10 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+#include "DecoderBase.h"
 
 /* Main class */
-class MP3H
+class MP3H : public DecoderBase
 {
 private:
 	void printRaw(uint8_t *data, int len);
@@ -25,7 +26,7 @@ private:
         int decodeframeMP3H(uint8_t *data);
 public:
 	MP3H();
-	int setup(float frequency);
+	int setup(float frequency, int type = 0);
 	int receive();
 	int waitRXcomplete();
 };

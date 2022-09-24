@@ -51,6 +51,10 @@ kisstnc.active = 1
 # second entry: default "Receiver" display
 # additional entries: alternative receiver display, activated by button
 display=0,1,2,3,4
+# turn off display: 0=never, 1=always, 2=if no RX; (+n*10: after n seconds)
+dispsaver=0
+# set OLED contrast (0..255) or leave at factory default (-1)
+dispcontrast=-1
 # set to -1 to disable (used for "N" values in timers in screens.txt). Value in seconds
 norx_timeout=20
 #-------------------------------#
@@ -86,7 +90,8 @@ dfm.rxbw=10400
 # s2: www.ngs.noaa.gov/cors/rinex/
 #-------------------------------#
 #ephftp=www.ngs.noaa.gov/cors/rinex/
-ephftp=igs.bkg.bund.de/IGS/BRDC/
+#ephftp=igs.bkg.bund.de/IGS/BRDC/
+ephftp=gssc.esa.int/gnss/data/daily/
 #-------------------------------#
 # axudp for sending to aprsmap
 #-------------------------------#
