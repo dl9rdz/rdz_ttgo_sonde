@@ -108,7 +108,7 @@ extern float calcLatLonDist(float lat1, float lon1, float lat2, float lon2);
 // KISS over TCP for communicating with APRSdroid
 WiFiServer tncserver(14580);
 WiFiClient tncclient;
-// JSON over TCP for communicating with my kotlin andoird test stuff
+// JSON over TCP for communicating with the rdzSonde (rdzwx-go) Android app
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
 // APRS over TCP for radiosondy.info etc

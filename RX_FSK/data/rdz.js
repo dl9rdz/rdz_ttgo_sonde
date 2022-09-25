@@ -28,7 +28,7 @@ function prep() {
 function qrgTable() {
   var tab=document.getElementById("divTable");
 
-  var table = "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>";
+  var table = "<table><tr><th>Ch</th><th>Active</th><th>Frequency</th><th>Launchsite</th><th>Decoder</th></tr>";
   for(i=0; i<qrgs.length; i++) {
      var ck = "";
      if(qrgs[i][0]) ck="checked";
