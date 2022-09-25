@@ -6,14 +6,8 @@
 #include "RS41.h"
 #include "json.h"
 
-
-extern const int SPIFFS_MAJOR;
-extern const int SPIFFS_MINOR;
 extern const char *version_name;
 extern const char *version_id;
-
-const int MQTT_VER = SPIFFS_MAJOR;
-const int MQTT_SUB = SPIFFS_MINOR;
 
 TimerHandle_t mqttReconnectTimer;
 
