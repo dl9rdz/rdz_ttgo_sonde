@@ -1,4 +1,4 @@
-style.css 7344
+style.css 7400
 body, html {
 	height: 100%;
 	margin: 0;
@@ -44,8 +44,18 @@ th.cfg {
   flex-grow: 1; border: none; margin: 0; padding: 0; 
 }
 .footer {
+ background-color: #333;
+ display: flex;
+ justify-content: space-between;
 }
 
+td.ch {
+  text-align: right;
+  padding: 0px 8px;
+}
+td.act {
+  text-align: center;
+}
 table, th, td {
 	border: 1px solid black;
 	border-collapse: collapse;
@@ -72,7 +82,6 @@ td#sfreq {
 .tabcontent {
 	display: none;
 	flex: 1;
-	padding: 6px 12px;
 	border-top: none;
 	flex-direction: column;
 	overflow: auto;
@@ -91,29 +100,29 @@ h1{
 p{
   font-size: 1.5rem;
 }
-.canberemoved_button {
-  display: inline-block;
-  background-color: #008CBA;
-  border: none;
-  border-radius: 4px;
-  color: white;
-  padding: 16px 40px;
-  text-decoration: none;
-  font-size: 30px;
-  margin: 2px;
-  cursor: pointer;
-}
+
 .button2 {
   background-color: #f44336;
 }
+:disabled.save {
+  opacity: 0.5;
+}
 .save {
-  background-color: #0F3376;
-  border: black;
+  background-color: #CC1111; /* 0F33C6; */
+  border: white;
   border-width: 1;
   color: white;
   padding: 8px 30px;
   text-align: center;
   text-decoration: none;
+  display: block;
+  font-size: 14px;
+  margin: 0
+}
+
+.ttgoinfo {
+  color: white;
+  padding: 8px 10px;
   display: block;
   font-size: 14px;
   margin: 0
@@ -379,7 +388,7 @@ p{
     background: grey !important;
   }
 }
-index.html 4267
+index.html 4368
 <!DOCTYPE html>
 <html>
 <head>
@@ -391,16 +400,15 @@ index.html 4267
 </head>
 <body>
  <div class="wrapper"><div class="header">
-  <h2>rdzTTGOSonde Server</h2>
 <div class="topnav" id="myTopnav">
-	<a href="#" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
-	<a href="#" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
-	<a href="#" onclick="selTab(event,'Data')" class="tablinks">Data</a>
-	<a href="#" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
-	<a href="#" onclick="selTab(event,'Map')" class="tablinks">Map</a>
-	<a href="#" onclick="selTab(event,'Config')" class="tablinks">Config</a>
-	<a href="#" onclick="selTab(event,'Control')" class="tablinks">Control</a>
-	<a href="#" onclick="selTab(event,'About')" class="tablinks">About</a>
+	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
+	<a href="#data" onclick="selTab(event,'Data')" class="tablinks">Data</a>
+	<a href="#map" onclick="selTab(event,'Map')" class="tablinks">Map</a>
+	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
+	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
+	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
+	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
+	<a href="#about" onclick="selTab(event,'About')" class="tablinks">About</a>
 	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
 		<span class="hamburger"></span>
 	</a>
@@ -434,7 +442,7 @@ index.html 4267
 <div id="About" class="tabcontent">
 <div class="tci">
    %VERSION_NAME%<br>
-   Copyright &copy; 2019-2021 by Hansi Reiser, DL9RDZ<br>
+   Copyright &copy; 2019-2022 by Hansi Reiser, DL9RDZ<br>
    (version %VERSION_ID%)<br><br>
 
    <a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br><br>
@@ -458,6 +466,7 @@ index.html 4267
     See <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
     for details.
 </div>
+<div class="footer"><span></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
 </div>
 
 </div>
@@ -1266,16 +1275,26 @@ function configTable() {
   }
   acc[0].click();
 }
-rdz.js 1533
+rdz.js 1925
 let stypes=new Map();
 stypes.set('4', 'RS41');
 stypes.set('R', 'RS92');
 stypes.set('D', 'DFM');
 stypes.set('M', 'M10/M20');
-//stypes.set('2', 'M10/M20');
 stypes.set('3', 'MP3H');
 
-/* (no longer) Used by qrg.html in RX_FSK.ino */
+function footer() {
+  document.addEventListener("DOMContentLoaded", function(){
+    var form = document.querySelector(".wrapper");
+    form.addEventListener("input", function() {
+      document.querySelector(".save").disabled = false;
+    });
+    document.querySelector(".save").disabled = true;
+    document.querySelector(".ttgoinfo").innerHTML = "rdzTTGOserver %VERSION_ID%";
+  }); 
+}
+
+/* Used by qrg.html in RX_FSK.ino */
 function prep() {
   var stlist=document.querySelectorAll("input.stype");
   for(txt of stlist){
@@ -1297,16 +1316,18 @@ function prep() {
 function qrgTable() {
   var tab=document.getElementById("divTable");
 
-  var table = "<table><tr><th>ID</th><th>Active</th><th>Freq</th><th>Launchsite</th><th>Mode</th></tr>";
+  var table = "<table><tr><th>Ch</th><th>Active</th><th>Frequency</th><th>Decoder</th><th>Launchsite</th></tr>";
   for(i=0; i<qrgs.length; i++) {
      var ck = "";
      if(qrgs[i][0]) ck="checked";
-     table += "<tr><td>" + (i+1) + "</td><td><input name=\"A" + (i+1) + "\" type=\"checkbox\" " + ck + "/></td>";
-     table += "<td><input name=\"F" + (i+1) + "\" type=\"text\" width=12 value=\"" + qrgs[i][1] + "\"></td>";
-     table += "<td><input name=\"S" + (i+1) + "\" type=\"text\" value=\"" + qrgs[i][2] +"\"></td>";
-     table += "<td><input class=\"stype\" name=\"T" + (i+1) + "\" value=\"" + qrgs[i][3] + "\"></td></tr>";
+     table += "<tr><td class=\"ch\">" + (i+1) + "</td><td class=\"act\"><input name=\"A" + (i+1) + "\" type=\"checkbox\" " + ck + "/></td>";
+     table += "<td><input name=\"F" + (i+1) + "\" type=\"text\" size=7 value=\"" + qrgs[i][1] + "\"></td>";
+     table += "<td><input class=\"stype\" name=\"T" + (i+1) + "\" value=\"" + qrgs[i][3] + "\"></td>";
+     table += "<td><input name=\"S" + (i+1) + "\" type=\"text\" value=\"" + qrgs[i][2] +"\"></td></tr>";
   }
   table += "</table>";
   tab.innerHTML = table;
   prep();
+  footer();
 }
+
