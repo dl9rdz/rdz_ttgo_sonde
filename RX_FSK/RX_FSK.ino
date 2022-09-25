@@ -308,7 +308,10 @@ void HTMLBODYEND(char *ptr) {
   strcat(ptr, "</div></form></body></html>");
 }
 void HTMLSAVEBUTTON(char *ptr) {
-  strcat(ptr, "</div><div class=\"footer\"><input type=\"submit\" class=\"save\" value=\"Save changes\"/>");
+  strcat(ptr, "</div><div class=\"footer\"><input type=\"submit\" class=\"save\" value=\"Save changes\"/>"
+	      "<span class=\"ttgoinfo\">rdzTTGOserver ");
+  strcat(ptr, version_id);
+  strcat(ptr, "</span>");
 }
 
 const char *createQRGForm() {
@@ -419,7 +422,8 @@ void setupWifiList() {
 const char *createWIFIForm() {
   char *ptr = message;
   char tmp[4];
-  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
+  strcpy(ptr, HTMLHEAD);
+  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
   HTMLBODY(ptr, "wifi.html");
   strcat(ptr, "<table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
   for (int i = 0; i < MAX_WIFI; i++) {
@@ -430,7 +434,7 @@ const char *createWIFIForm() {
             i + 1, i < nNetworks ? networks[i].id.c_str() : "",
             i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
   }
-  strcat(ptr, "</table>");
+  strcat(ptr, "</table><script>footer()</script>");
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
@@ -827,7 +831,8 @@ const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (dou
 
 const char *createControlForm() {
   char *ptr = message;
-  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
+  strcpy(ptr, HTMLHEAD);
+  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
   HTMLBODY(ptr, "control.html");
   for (int i = 0; i < 9; i++) {
     strcat(ptr, "<input class=\"ctlbtn\" type=\"submit\" name=\"");
@@ -839,6 +844,7 @@ const char *createControlForm() {
       strcat(ptr, "<p></p>");
     }
   }
+  strcat(ptr, "<script> footer() </script>\n");
   HTMLBODYEND(ptr);
   Serial.printf("Control form: size=%d bytes\n", strlen(message));
   return message;

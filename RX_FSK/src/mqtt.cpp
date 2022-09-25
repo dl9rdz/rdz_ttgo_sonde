@@ -62,7 +62,8 @@ void MQTT::publishUptime()
     // rxlat, rxlon only if not empty
     snprintf(payload, 256, "{\"uptime\": %lu, \"user\": \"%s\", ", millis(), username);
     if( !isnan(sonde.config.rxlat) && !isnan(sonde.config.rxlon) ) {
-    snprintf(payload, 256, "%s\"rxlat\": %.5f, \"rxlon\": %.5f, ", payload, sonde.config.rxlat, sonde.config.rxlon);
+        snprintf(payload, 256, "%s\"rxlat\": %.5f, \"rxlon\": %.5f, ", payload, sonde.config.rxlat, sonde.config.rxlon);
+    }
     snprintf(payload, 256, "%s\"sw\": \"%s\", \"ver\": \"%s\"}", version_name, version_id);
     Serial.println(payload);
     char topic[128];
