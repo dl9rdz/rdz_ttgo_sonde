@@ -13,6 +13,9 @@ body, html {
 th.cfg {
   padding:5pt
 }
+table.stat {
+  margin:0px 0px 5px 0px;
+}
 
 .hamburger {
   position: relative;

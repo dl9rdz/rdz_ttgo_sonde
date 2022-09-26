@@ -12,7 +12,6 @@ function footer() {
       document.querySelector(".save").disabled = false;
     });
     document.querySelector(".save").disabled = true;
-    document.querySelector(".ttgoinfo").innerHTML = "rdzTTGOserver %VERSION_ID%";
   }); 
 }
 

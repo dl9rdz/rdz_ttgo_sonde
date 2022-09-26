@@ -442,6 +442,8 @@ const char *createWIFIForm() {
   return message;
 }
 
+#if 0
+  // moved to map.html (active warning is still TODO 
 const char *createSondeHubMap() {
   SondeInfo *s = &sonde.sondeList[0];
   char *ptr = message;
@@ -464,6 +466,7 @@ const char *createSondeHubMap() {
   HTMLBODYEND(ptr);
   return message;
 }
+#endif
 
 const char *handleWIFIPost(AsyncWebServerRequest *request) {
   char label[10];
@@ -508,7 +511,7 @@ void addSondeStatus(char *ptr, int i)
 {
   struct tm ts;
   SondeInfo *s = &sonde.sondeList[i];
-  strcat(ptr, "<table>");
+  strcat(ptr, "<table class=\"stat\">");
   sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[sonde.realType(s)],
           s->d.validID ? s->d.id : "<?""?>");
   if (s->d.validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H) ) {
@@ -529,13 +532,15 @@ void addSondeStatus(char *ptr, int i)
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->d.lat, s->d.lon);
   sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->d.lat, s->d.lon);
 
-  strcat(ptr, "</table><p/>\n");
+  strcat(ptr, "</table>\n");
 }
 
 const char *createStatusForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
-  strcat(ptr, "<meta http-equiv=\"refresh\" content=\"5\"></head><body>");
+  strcat(ptr, "<meta http-equiv=\"refresh\" content=\"5\"></head>");
+  HTMLBODY(ptr, "status.html");
+  strcat(ptr, "<div class=\"content\">");
 
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
@@ -543,7 +548,12 @@ const char *createStatusForm() {
       addSondeStatus(ptr, snum);
     }
   }
-  strcat(ptr, "</body></html>");
+  strcat(ptr, "</div><div class=\"footer\"><span></span>"
+              "<span class=\"ttgoinfo\">rdzTTGOserver ");
+  strcat(ptr, version_id);
+  strcat(ptr, "</span>");
+
+  HTMLBODYEND(ptr);
   Serial.printf("Status form: size=%d bytes\n", strlen(message));
   return message;
 }
@@ -720,7 +730,8 @@ const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
 const char *createConfigForm() {
   char *ptr = message;
-  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
+  strcpy(ptr, HTMLHEAD);
+  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
   HTMLBODY(ptr, "config.html");
   strcat(ptr, "<div id=\"cfgtab\"></div>");
   strcat(ptr, "<script src=\"cfg.js\"></script>");
@@ -764,6 +775,7 @@ const char *createConfigForm() {
     strcat(ptr, "\");\n");
   }
   strcat(ptr, "configTable();\n </script>");
+  strcat(ptr, "<script>footer()</script>");
   HTMLSAVEBUTTON(ptr);
   HTMLBODYEND(ptr);
   Serial.printf("Config form: size=%d bytes\n", strlen(message));
@@ -832,7 +844,7 @@ const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (dou
 const char *createControlForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
-  strcat(ptr, "<script src=\"rdz.js\"></script></head>");
+  strcat(ptr, "</head>");
   HTMLBODY(ptr, "control.html");
   for (int i = 0; i < 9; i++) {
     strcat(ptr, "<input class=\"ctlbtn\" type=\"submit\" name=\"");
@@ -844,7 +856,10 @@ const char *createControlForm() {
       strcat(ptr, "<p></p>");
     }
   }
-  strcat(ptr, "<script> footer() </script>\n");
+  strcat(ptr, "</div><div class=\"footer\"><span></span>"
+              "<span class=\"ttgoinfo\">rdzTTGOserver ");
+  strcat(ptr, version_id);
+  strcat(ptr, "</span>");
   HTMLBODYEND(ptr);
   Serial.printf("Control form: size=%d bytes\n", strlen(message));
   return message;
@@ -1185,13 +1200,14 @@ void SetupAsyncServer() {
     request->send(200, "text/html", createWIFIForm());
   });
 
-  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", createSondeHubMap());
-  });
-  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    handleWIFIPost(request);
-    request->send(200, "text/html", createSondeHubMap());
-  });
+
+//  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+//    request->send(200, "text/html", createSondeHubMap());
+//  });
+//  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+//    handleWIFIPost(request);
+//    request->send(200, "text/html", createSondeHubMap());
+//  });
 
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createConfigForm());
