@@ -1,4 +1,4 @@
-style.css 7400
+style.css 7441
 body, html {
 	height: 100%;
 	margin: 0;
@@ -13,6 +13,9 @@ body, html {
 
 th.cfg {
   padding:5pt
+}
+table.stat {
+  margin:0px 0px 5px 0px;
 }
 
 .hamburger {
@@ -550,6 +553,31 @@ drequest.onload = function() {
 drequest.send();
 </script>
 </body></html>
+map.html 776
+<html>
+<head>
+<script>
+data = ["T4420541",63.5,-20.0];
+document.addEventListener("DOMContentLoaded", function(){
+   fetch('live.json')
+     .then((response) => response.json())
+     .then((data) => {
+  	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
+        if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
+          urlarg = '#!mz=8&mc=' + data.gps.lat + ',' + data.gps.lon 
+        } else {
+          urlarg = data.sonde.ser || '';
+        }
+        id = data.sonde.ser || '';
+        iftxt='<iframe src="https://sondehub.org/' + urlarg + '" style="border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%"></iframe>';
+        document.getElementsByTagName('body')[0].innerHTML = iftxt;
+     })
+})
+</script>
+</head>
+<body>
+</body>
+</html>
 livemap.html 720
 <!DOCTYPE html>
 <html>
@@ -1275,7 +1303,7 @@ function configTable() {
   }
   acc[0].click();
 }
-rdz.js 1925
+rdz.js 1843
 let stypes=new Map();
 stypes.set('4', 'RS41');
 stypes.set('R', 'RS92');
@@ -1290,7 +1318,6 @@ function footer() {
       document.querySelector(".save").disabled = false;
     });
     document.querySelector(".save").disabled = true;
-    document.querySelector(".ttgoinfo").innerHTML = "rdzTTGOserver %VERSION_ID%";
   }); 
 }
 
