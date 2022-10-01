@@ -1890,27 +1890,6 @@ void setup()
   axpSemaphore = xSemaphoreCreateBinary();
   xSemaphoreGive(axpSemaphore);
 
-#if 0
-  delay(2000);
-  // temporary test
-  volatile uint32_t *ioport = portOutputRegister(digitalPinToPort(4));
-  uint32_t portmask = digitalPinToBitMask(4);
-  int t = millis();
-  for (int i = 0; i < 10000000; i++) {
-    digitalWrite(4, LOW);
-    digitalWrite(4, HIGH);
-  }
-  int res = millis() - t;
-  Serial.printf("Duration w/ digitalWriteo: %d\n", res);
-
-  t = millis();
-  for (int i = 0; i < 10000000; i++) {
-    *ioport |=  portmask;
-    *ioport &= ~portmask;
-  }
-  res = millis() - t;
-  Serial.printf("Duration w/ fast io: %d\n", res);
-#endif
   for (int i = 0; i < 39; i++) {
     Serial.printf("%d:%d ", i, initlevels[i]);
   }
@@ -1927,6 +1906,7 @@ void setup()
 
   Serial.println("Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
+  WiFi.setHostname(sonde.config.mdnsname);
 
   // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
   // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31/63)
