@@ -1499,6 +1499,7 @@ void gpsTask(void *parameter) {
               gpsPos.course = lastCourse;
             }
           }
+	  if(gpsPos.lon == 0 && gpsPos.lat == 0) gpsPos.valid = false;
         }
         gpsPos.hdop = nmea.getHDOP();
         gpsPos.sat = nmea.getNumSatellites();
@@ -2247,6 +2248,7 @@ void parseGpsJson(char *data) {
       value = NULL;
     }
   }
+  if(gpsPos.lat == 0 && gpsPos.lon == 0) gpsPos.valid = false;
   Serial.printf("Parse result: lat=%f, lon=%f, alt=%d, valid=%d\n", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.valid);
 }
 
@@ -3276,7 +3278,7 @@ void aprs_station_update() {
     lon = sonde.config.rxlon;
     if (isnan(lat) || isnan(lon)) return;
   } else {
-    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+    if (gpsPos.valid) {
       lat = gpsPos.lat;
       lon = gpsPos.lon;
     } else {
@@ -3362,7 +3364,7 @@ void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
 
   // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
   if (chase == SH_LOC_CHASE) {
-    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+    if (gpsPos.valid) {
       sprintf(w,
               "\"uploader_position\": [%.6f,%.6f,%d],"
               "\"mobile\": true",
@@ -3689,7 +3691,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
   if (chase == SH_LOC_CHASE) {
-    if (gpsPos.valid && gpsPos.lat != 0 && gpsPos.lon != 0) {
+    if (gpsPos.valid) {
       sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", gpsPos.lat, gpsPos.lon, gpsPos.alt);
     } else {
       sprintf(w, "\"uploader_position\": [null,null,null]");
