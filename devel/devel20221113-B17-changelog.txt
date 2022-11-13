@@ -1,0 +1,1 @@
+handle display off timeouts > 127 seconds correctly
