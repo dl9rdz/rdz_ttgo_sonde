@@ -318,7 +318,7 @@ void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t widt
 	}
 	if(width<0) {
 		int l = strlen(buf);
-		memset(buf, ' ', width-l);
+		memset(buf, ' ', -width-l);
 		utf2latin15(s, buf+l, 50-l);
 	}
 	u8x8->drawString(x, y, buf);
