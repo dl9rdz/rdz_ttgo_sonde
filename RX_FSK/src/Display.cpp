@@ -318,7 +318,7 @@ void U8x8Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t widt
 	}
 	if(width<0) {
 		int l = strlen(buf);
-		memset(buf, ' ', width-l);
+		memset(buf, ' ', -width-l);
 		utf2latin15(s, buf+l, 50-l);
 	}
 	u8x8->drawString(x, y, buf);
@@ -1554,12 +1554,12 @@ void Display::drawGPS(DispEntry *de) {
 		// equirectangular approximation is good enough
 		if( !VALIDPOS(sonde.si()->d.validPos) ) {
 			snprintf(buf, 16, "no pos ");
-			if(de->extra && *de->extra=='5') buf[5]=0;
+			if( de->extra[1]=='5') buf[5]=0;
 		} else if( disp.gpsDist < 0 ) {
 			snprintf(buf, 16, "no gps ");
-			if(de->extra && *de->extra=='5') buf[5]=0;
+			if( de->extra[1]=='5') buf[5]=0;
 		} else {
-			if(de->extra && *de->extra=='5') { // 5-character version: ****m / ***km / **e6m
+			if( de->extra[1]=='5') { // 5-character version: ****m / ***km / **e6m
 				if(disp.gpsDist>999999) snprintf(buf, 16, "%de6m  ", (int)(disp.gpsDist/1000000));
 				if(disp.gpsDist>9999) snprintf(buf, 16, "%dkm   ", (int)(disp.gpsDist/1000));
 				else snprintf(buf, 16, "%dm    ", (int)disp.gpsDist);

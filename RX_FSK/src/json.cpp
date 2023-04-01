@@ -96,7 +96,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
 
     // add only if available
     if(s->batteryVoltage > 0) {
-	n = snprintf(buf, maxlen, ",\"bat\": %.1f", s->batteryVoltage);
+	n = snprintf(buf, maxlen, ",\"batt\": %.1f", s->batteryVoltage);
 	if(n>=maxlen) return -1;
 	buf += n; maxlen -= n;
     }

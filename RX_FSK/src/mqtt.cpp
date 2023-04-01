@@ -6,10 +6,10 @@
 #include "RS41.h"
 #include "json.h"
 
-TimerHandle_t mqttReconnectTimer;
-
 extern const char *version_name;
 extern const char *version_id;
+
+TimerHandle_t mqttReconnectTimer;
 
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -51,12 +51,14 @@ void MQTT::publishUptime()
     mqttClient.connect(); // ensure we've got connection
 
     Serial.println("[MQTT] writing");
-    //char payload[128];
-    //snprintf(payload, 12, "%lu", millis());
-    //snprintf(payload, 124, "{\"uptime\": %lu," "\"user\": \"%s\"", millis(),         username );
-    char payload[128];
-    snprintf(payload, 128, "{\"uptime\": %ld, \"user\": \"%s\", \"rxlat\": %.5f, \"rxlon\": %.5f, \"ver\": \"%s\", \"sub\": \"%s\"}",
-	millis(), username, sonde.config.rxlat, sonde.config.rxlon, version_name, version_id); 
+    char payload[256];
+    // maybe TODO: Use dynamic position if GPS is available?
+    // rxlat, rxlon only if not empty
+    snprintf(payload, 256, "{\"uptime\": %lu, \"user\": \"%s\", ", millis(), username);
+    if( !isnan(sonde.config.rxlat) && !isnan(sonde.config.rxlon) ) {
+        snprintf(payload, 256, "%s\"rxlat\": %.5f, \"rxlon\": %.5f, ", payload, sonde.config.rxlat, sonde.config.rxlon);
+    }
+    snprintf(payload, 256, "%s\"SW\": \"%s\", \"VER\": \"%s\"}", payload, version_name, version_id);
     Serial.println(payload);
     char topic[128];
     snprintf(topic, 128, "%s%s", this->prefix, "uptime");

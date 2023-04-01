@@ -163,7 +163,7 @@ public:
 	DispInfo *layouts;
 	int nLayouts;
 	static RawDisplay *rdis;
-	char dispstate;
+	uint16_t dispstate;
 
 	Display();
 	void init();
