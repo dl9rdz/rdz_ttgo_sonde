@@ -1,5 +1,6 @@
 language: c
 dist: focal
+os: linux
 env:
  global: 
    - python /home/travis/.arduino15/packages/esp32/tools/esptool_py/3.0.0/esptool.py
