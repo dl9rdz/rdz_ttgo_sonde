@@ -1,7 +1,1 @@
-.
-build fix?
-travis update
-travis update
-travis build fix*
-travis mod
-python3 compatibility
+Experimental: Modified DFM handling (DFM17 vs DFM09P for 0xC), untested 
