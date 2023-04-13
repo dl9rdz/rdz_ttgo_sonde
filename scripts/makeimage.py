@@ -33,7 +33,7 @@ partition = esp32tools + "/partitions/default.csv"
 if os.path.isfile("RX_FSK/partitions.csv"):
   partition = "RX_FSK/partitions.csv"
 
-with open(partition, 'rb') as csvfile:
+with open(partition, 'rt') as csvfile:
 	partreader = csv.reader(csvfile, delimiter=',')
 	for row in partreader:
 		if row[0] == "otadata":
