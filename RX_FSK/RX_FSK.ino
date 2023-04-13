@@ -19,14 +19,18 @@
 #include "src/Display.h"
 #include "src/Scanner.h"
 #include "src/geteph.h"
+#ifdef FEATURE_RS92
 #include "src/rs92gps.h"
+#endif
 #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
+#include "src/DFM.h"
 #include "src/json.h"
 #if FEATURE_CHASEMAPPER
 #include "src/Chasemapper.h"
 #endif
+//#include "NimBLEDevice.h"
 
 #if FEATURE_MQTT
 #include "src/mqtt.h"
@@ -67,6 +71,9 @@ WiFiClient client;
 
 /* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
 const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
+
+#if 0
+// not used any more
 const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM06",  // 0x06
                                     "PS15",   // 0x07
@@ -77,6 +84,7 @@ const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
                                     "DFM17",  // 0x0D
                                     NULL, NULL
                                   };
+#endif
 
 // Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
 #define APRS_STATION_UPDATE_TIME (10*60*1000)
@@ -1878,12 +1886,17 @@ void heap_caps_alloc_failed_hook(size_t requested_size, uint32_t caps, const cha
 void setup()
 {
   char buf[12];
+
   // Open serial communications and wait for port to open:
   Serial.begin(/*921600 */115200);
   for (int i = 0; i < 39; i++) {
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
   }
+
+  //NimBLEDevice::init("NimBLE-Arduino");
+  //NimBLEServer* pServer = NimBLEDevice::createServer();;
+
   Serial.println("");
 #ifdef ESP_MEM_DEBUG
   esp_err_t error = heap_caps_register_failed_alloc_callback(heap_caps_alloc_failed_hook);
@@ -2960,6 +2973,7 @@ void loopWifiScan() {
     sonde.setIP(localIPstr.c_str(), false);
     sonde.updateDisplayIP();
     wifi_state = WIFI_CONNECTED;
+#if FEATURE_RS92
     bool hasRS92 = false;
     for (int i = 0; i < MAXSONDE; i++) {
       if (sonde.sondeList[i].type == STYPE_RS92) hasRS92 = true;
@@ -2969,6 +2983,7 @@ void loopWifiScan() {
       if (ephstate == EPH_PENDING) ephstate = EPH_ERROR;
       get_eph("/brdc");
     }
+#endif
     delay(3000);
   }
   enableNetwork(true);
@@ -3639,11 +3654,14 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   /* if there is a subtype (DFM only) */
-  if ( TYPE_IS_DFM(s->type) && s->d.subtype > 0 && s->d.subtype < 16 ) {
-    const char *t = dfmSubtypeStrSH[s->d.subtype];
-    // as in https://github.com/projecthorus/radiosonde_auto_rx/blob/e680221f69a568e1fdb24e76db679233f32cb027/auto_rx/autorx/sonde_specific.py#L84
-    if (t) sprintf(w, "\"subtype\": \"%s\",", t);
-    else sprintf(w, "\"subtype\": \"DFMx%X\",", s->d.subtype); // Unknown subtype
+  if ( TYPE_IS_DFM(s->type) && s->d.subtype > 0 ) {
+    if( (s->d.subtype&0xF) != DFM_UNK) {
+      const char *t = dfmSubtypeLong[s->d.subtype&0xF];
+      sprintf(w, "\"subtype\": \"%s\",", t);
+    }
+    else {
+      sprintf(w, "\"subtype\": \"DFMx%X\",", s->d.subtype>>4); // Unknown subtype
+    }
     w += strlen(w);
   } else if ( s->type == STYPE_RS41 ) {
     char buf[11];

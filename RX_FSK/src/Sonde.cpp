@@ -3,7 +3,9 @@
 
 #include "Sonde.h"
 #include "RS41.h"
+#if FEATURE_RS92
 #include "RS92.h"
+#endif
 #include "DFM.h"
 #include "M10M20.h"
 #include "MP3H.h"
@@ -431,7 +433,9 @@ void Sonde::setup() {
 		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
 	case STYPE_RS92:
+#ifdef FEATURE_RS92
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
+#endif
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
@@ -462,7 +466,9 @@ void Sonde::receive() {
 		res = rs41.receive();
 		break;
 	case STYPE_RS92:
+#ifdef FEATURE_RS92
 		res = rs92.receive();
+#endif
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
@@ -562,7 +568,9 @@ rxloop:
 		rs41.waitRXcomplete();
 		break;
 	case STYPE_RS92:
+#ifdef FEATURE_RS92
 		rs92.waitRXcomplete();
+#endif
 		break;
 	case STYPE_M10:
 	case STYPE_M20:
