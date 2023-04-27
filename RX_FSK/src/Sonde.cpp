@@ -1,7 +1,7 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 
-#include "../feature.h"
+#include "../features.h"
 #include "Sonde.h"
 #include "RS41.h"
 #if FEATURE_RS92
