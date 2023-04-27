@@ -1,6 +1,7 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 
+#include "../feature.h"
 #include "Sonde.h"
 #include "RS41.h"
 #if FEATURE_RS92
@@ -433,7 +434,7 @@ void Sonde::setup() {
 		dfm.setup( sondeList[rxtask.currentSonde].freq * 1000000, sondeList[rxtask.currentSonde].type );
 		break;
 	case STYPE_RS92:
-#ifdef FEATURE_RS92
+#if FEATURE_RS92
 		rs92.setup( sondeList[rxtask.currentSonde].freq * 1000000);
 #endif
 		break;
@@ -466,7 +467,7 @@ void Sonde::receive() {
 		res = rs41.receive();
 		break;
 	case STYPE_RS92:
-#ifdef FEATURE_RS92
+#if FEATURE_RS92
 		res = rs92.receive();
 #endif
 		break;
@@ -568,7 +569,7 @@ rxloop:
 		rs41.waitRXcomplete();
 		break;
 	case STYPE_RS92:
-#ifdef FEATURE_RS92
+#if FEATURE_RS92
 		rs92.waitRXcomplete();
 #endif
 		break;

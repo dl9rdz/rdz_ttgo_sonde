@@ -19,7 +19,7 @@
 #include "src/Display.h"
 #include "src/Scanner.h"
 #include "src/geteph.h"
-#ifdef FEATURE_RS92
+#if FEATURE_RS92
 #include "src/rs92gps.h"
 #endif
 #include "src/aprs.h"
