@@ -1,2 +1,1 @@
 Fix stupid bug that caused RS92 to not work with last devel version
-Fix stupid bug that caused RS92 to not work with last devel version
