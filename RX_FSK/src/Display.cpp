@@ -7,6 +7,12 @@
 #include "Display.h"
 #include "Sonde.h"
 
+// Tricks for S3?
+// TODO: Check SPI port
+#ifndef VSPI
+#define VSPI 2
+#endif
+
 int readLine(Stream &stream, char *buffer, int maxlen);
 
 extern const char *version_name;

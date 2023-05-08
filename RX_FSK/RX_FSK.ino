@@ -12,7 +12,9 @@
 #include <MicroNMEA.h>
 #include <Ticker.h>
 #include "esp_heap_caps.h"
-#include "soc/rtc_wdt.h"
+/////This makes problems on the S3
+////https://github.com/espressif/esp-idf/issues/8038
+/////#include "soc/rtc_wdt.h"
 
 #include "src/SX1278FSK.h"
 #include "src/Sonde.h"
