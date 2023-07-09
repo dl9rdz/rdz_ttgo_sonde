@@ -1,8 +1,8 @@
 
 #ifndef _aprs_h
 #define _aprs_h
+
 #include "Sonde.h"
-#include "RS41.h"
 
 
 #define APRS_MAXLEN 201

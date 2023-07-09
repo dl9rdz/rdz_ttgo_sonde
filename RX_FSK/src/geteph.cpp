@@ -1,3 +1,6 @@
+#include "../features.h"
+#if FEATURE_RS92
+
 #include "time.h"
 #include "geteph.h"
 #include <SPIFFS.h>
@@ -236,3 +239,4 @@ void geteph() {
 	file.close();
 	ofile.close();
 }
+#endif

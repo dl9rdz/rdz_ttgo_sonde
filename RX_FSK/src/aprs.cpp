@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include "aprs.h"
+#include "RS41.h"
 
 extern const char *version_name;
 extern const char *version_id;

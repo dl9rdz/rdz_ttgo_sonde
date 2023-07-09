@@ -42,6 +42,7 @@ var cfgs = [
 [ "axudp.port", "AXUDP port"],
 [ "axudp.highrate", "Rate limit"],
 [ "tcp.active", "APRS TCP active"],
+[ "tcp.timeout", "APRS TCP timeout [s] (0=off, 25=on)"],
 [ "tcp.host", "APRS TCP host"],
 [ "tcp.port", "APRS TCP port"],
 [ "tcp.highrate", "Rate limit"],

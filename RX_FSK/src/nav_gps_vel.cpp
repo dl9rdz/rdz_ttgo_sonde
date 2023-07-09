@@ -1,3 +1,6 @@
+#include "../features.h"
+#if FEATURE_RS92
+
 /* SPDX-License-Identifier:        GPL-3.0
  * based on https://github.com/rs1729/RS/blob/master/rs92/nav_gps_vel.c
  *
@@ -1713,3 +1716,4 @@ int NAV_LinV(int N, SAT_t satv[], double pos_ecef[3],
     return 0;
 }
 
+#endif
