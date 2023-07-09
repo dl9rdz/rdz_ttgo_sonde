@@ -1,0 +1,15 @@
+new master version
+
+Merging all recent devel updates into master:
+
+    Fix stupid bug that caused RS92 to not work with last devel version
+    python3 compatibility
+    Experimental: Modified DFM handling (DFM17 vs DFM09P for 0xC), untested
+    Add support for RS41 short measurement frame 0x7F (#353)
+    fix #342: remove bug in code for right-justified text on OLED display
+    fix GD5 (untested)
+    handle display off timeouts > 127 seconds correctly
+    gps from apk: 0/0 as invalid pos
+    set dhcp dns name to mdns name; preparation of configurable map link (dl2mf merge)
+    sync w/ DL2MF: web interface enhancements
+    fatal bug--
