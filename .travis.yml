@@ -1,9 +1,15 @@
 language: c
+dist: focal
+os: linux
 env:
  global: 
+   - python /home/travis/.arduino15/packages/esp32/tools/esptool_py/3.0.0/esptool.py
    - ESP32TOOLS=/home/travis/.arduino15/packages/esp32/hardware/esp32/1.0.6/tools
    - MKSPIFFS=/home/travis/.arduino15/packages/esp32/tools/mkspiffs/0.2.3/mkspiffs
 before_install:
+  - sudo apt-get install python-is-python3
+  - pip uninstall pyserial
+  - pip install pyserial
   - "/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_1.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :1 -ac -screen 0 1280x1024x16"
   - sleep 3
   - export DISPLAY=:1.0

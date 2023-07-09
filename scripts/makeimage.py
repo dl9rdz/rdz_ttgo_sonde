@@ -13,7 +13,7 @@ import subprocess
 #spiffs,   data, spiffs,  0x290000,0x170000,
 
 MKSPIFFS = os.environ['MKSPIFFS']
-print "mkspiffs is "+MKSPIFFS
+print("mkspiffs is "+MKSPIFFS)
 
 OFFSET_BOOTLOADER = 0x1000
 OFFSET_PARTITIONS = 0x8000
@@ -33,7 +33,7 @@ partition = esp32tools + "/partitions/default.csv"
 if os.path.isfile("RX_FSK/partitions.csv"):
   partition = "RX_FSK/partitions.csv"
 
-with open(partition, 'rb') as csvfile:
+with open(partition, 'rt') as csvfile:
 	partreader = csv.reader(csvfile, delimiter=',')
 	for row in partreader:
 		if row[0] == "otadata":
@@ -44,9 +44,9 @@ with open(partition, 'rb') as csvfile:
 			OFFSET_SPIFFS = int(row[3],16)
 			SIZE_SPIFFS = int(row[4],16)
 
-print "bootapp0: "+hex(OFFSET_BOOTAPP0)
-print "app0: "+hex(OFFSET_APPLICATION)
-print "spiffs: "+hex(OFFSET_SPIFFS)+" size "+hex(SIZE_SPIFFS)
+print("bootapp0: "+hex(OFFSET_BOOTAPP0))
+print("app0: "+hex(OFFSET_APPLICATION))
+print("spiffs: "+hex(OFFSET_SPIFFS)+" size "+hex(SIZE_SPIFFS))
 
 # create binary partition
 file_part = "/tmp/partition.bin"

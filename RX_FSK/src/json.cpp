@@ -1,19 +1,22 @@
 #include "json.h"
 #include "RS41.h"
+#include "DFM.h"
 
 extern const char *sondeTypeStrSH[];
-extern const char *dfmSubtypeStrSH[];
+//extern const char *dfmSubtypeStrSH[];
 
 static char typestr[11];
 
 const char *getType(SondeInfo *si) {
     if( si->type == STYPE_RS41 ) {
         if ( RS41::getSubtype(typestr, 11, si) == 0 ) return typestr;
-    } else if ( TYPE_IS_DFM(si->type) && si->d.subtype > 0 && si->d.subtype < 16 ) {
-        const char *t = dfmSubtypeStrSH[si->d.subtype];
-        if(t) return t;
-        sprintf(typestr, "DFMx%X", si->d.subtype);
-        return typestr;
+    } else if ( TYPE_IS_DFM(si->type) && si->d.subtype > 0 ) {
+        const char *t = dfmSubtypeLong[si->d.subtype & 0xf];
+	if( (si->d.subtype & 0xf) == DFM_UNK) {
+           sprintf(typestr, "DFMx%X", si->d.subtype>>4);
+           return typestr;
+	}
+        return t;
     }
     return sondeTypeStrSH[sonde.realType(si)];
 }
@@ -96,7 +99,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
 
     // add only if available
     if(s->batteryVoltage > 0) {
-	n = snprintf(buf, maxlen, ",\"bat\": %.1f", s->batteryVoltage);
+	n = snprintf(buf, maxlen, ",\"batt\": %.1f", s->batteryVoltage);
 	if(n>=maxlen) return -1;
 	buf += n; maxlen -= n;
     }

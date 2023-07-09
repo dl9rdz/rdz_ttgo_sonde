@@ -9,16 +9,15 @@
 </head>
 <body>
  <div class="wrapper"><div class="header">
-  <h2>rdzTTGOSonde Server</h2>
 <div class="topnav" id="myTopnav">
-	<a href="#" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
-	<a href="#" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
-	<a href="#" onclick="selTab(event,'Data')" class="tablinks">Data</a>
-	<a href="#" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
-	<a href="#" onclick="selTab(event,'Map')" class="tablinks">Map</a>
-	<a href="#" onclick="selTab(event,'Config')" class="tablinks">Config</a>
-	<a href="#" onclick="selTab(event,'Control')" class="tablinks">Control</a>
-	<a href="#" onclick="selTab(event,'About')" class="tablinks">About</a>
+	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
+	<a href="#data" onclick="selTab(event,'Data')" class="tablinks">Data</a>
+	<a href="#map" onclick="selTab(event,'Map')" class="tablinks">Map</a>
+	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
+	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
+	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
+	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
+	<a href="#about" onclick="selTab(event,'About')" class="tablinks">About</a>
 	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
 		<span class="hamburger"></span>
 	</a>
@@ -52,7 +51,7 @@
 <div id="About" class="tabcontent">
 <div class="tci">
    %VERSION_NAME%<br>
-   Copyright &copy; 2019-2021 by Hansi Reiser, DL9RDZ<br>
+   Copyright &copy; 2019-2022 by Hansi Reiser, DL9RDZ<br>
    (version %VERSION_ID%)<br><br>
 
    <a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br><br>
@@ -76,6 +75,7 @@
     See <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
     for details.
 </div>
+<div class="footer"><span></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
 </div>
 
 </div>

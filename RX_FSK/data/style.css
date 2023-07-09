@@ -13,6 +13,9 @@ body, html {
 th.cfg {
   padding:5pt
 }
+table.stat {
+  margin:0px 0px 5px 0px;
+}
 
 .hamburger {
   position: relative;
@@ -43,8 +46,18 @@ th.cfg {
   flex-grow: 1; border: none; margin: 0; padding: 0; 
 }
 .footer {
+ background-color: #333;
+ display: flex;
+ justify-content: space-between;
 }
 
+td.ch {
+  text-align: right;
+  padding: 0px 8px;
+}
+td.act {
+  text-align: center;
+}
 table, th, td {
 	border: 1px solid black;
 	border-collapse: collapse;
@@ -71,7 +84,6 @@ td#sfreq {
 .tabcontent {
 	display: none;
 	flex: 1;
-	padding: 6px 12px;
 	border-top: none;
 	flex-direction: column;
 	overflow: auto;
@@ -90,29 +102,29 @@ h1{
 p{
   font-size: 1.5rem;
 }
-.canberemoved_button {
-  display: inline-block;
-  background-color: #008CBA;
-  border: none;
-  border-radius: 4px;
-  color: white;
-  padding: 16px 40px;
-  text-decoration: none;
-  font-size: 30px;
-  margin: 2px;
-  cursor: pointer;
-}
+
 .button2 {
   background-color: #f44336;
 }
+:disabled.save {
+  opacity: 0.5;
+}
 .save {
-  background-color: #0F3376;
-  border: black;
+  background-color: #CC1111; /* 0F33C6; */
+  border: white;
   border-width: 1;
   color: white;
   padding: 8px 30px;
   text-align: center;
   text-decoration: none;
+  display: block;
+  font-size: 14px;
+  margin: 0
+}
+
+.ttgoinfo {
+  color: white;
+  padding: 8px 10px;
   display: block;
   font-size: 14px;
   margin: 0

@@ -20,6 +20,11 @@
 #define DFM_NORMAL 0
 #define DFM_INVERSE 1
 
+enum DFMSubtype { DFM_UNDEF, DFM_UNK, DFM_06, DFM_06P, DFM_PS15, DFM_09, DFM_09P, DFM_17, DFM_17P };
+
+extern const char *dfmSubtypeLong[];
+extern const char *dfmSubtypeShort[];
+
 /* Main class */
 class DFM : public DecoderBase
 {

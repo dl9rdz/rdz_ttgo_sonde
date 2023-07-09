@@ -1,0 +1,32 @@
+<html>
+<head>
+<script>
+maptype = "SH"; // TODO: Get from config
+
+const maps = {
+  "WS": ["https://www.wettersonde.net/map.php", (s)=>"?sonde="+s, (lat,lon)=>""],
+  "SH": ["https://sondehub.org/", (s)=>s, (lat,lon)=>'#!mz=8&mc=' + lat + ',' + lon],
+  "RS": ["https://radiosondy.info/", (s)=>"sonde.php?sondenumber="+s, (lat,lon)=>""],
+  "OW": ["https://v2.openwx.de/start.php", (s)=>"?sonde="+s, (lat,lon)=>"?mode=mobile"],
+};
+
+data = ["T4420541",63.5,-20.0];
+document.addEventListener("DOMContentLoaded", function(){
+   fetch('live.json')
+     .then((response) => response.json())
+     .then((data) => {
+  	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
+        if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
+          urlarg = maps[maptype][2](data.gps.lat, data.gps.lon);
+        } else {
+          urlarg = maps[maptype][1](data.sonde.ser||'');
+        }
+        iftxt='<iframe src="' + maps[maptype][0] + urlarg + '" style="border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%"></iframe>';
+        document.getElementsByTagName('body')[0].innerHTML = iftxt;
+     })
+})
+</script>
+</head>
+<body>
+</body>
+</html>

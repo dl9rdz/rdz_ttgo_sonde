@@ -16,6 +16,13 @@
 
 #define MAXIDAGE 1800
 
+
+const char *dfmSubtypeLong[] = { "", "DFMxx", "DFM06", "DFM06P", "PS15",
+        "DFM09", "DFM09P", "DFM17", "DFM17P"};
+const char *dfmSubtypeShort[] = { "", "DFMx", "DFM6", "DF6P", "PS15",
+        "DFM9", "DF9P", "DF17", "D17P"};
+
+
 /*
  * observed DAT patterns for DFM-9:
  * A: 0+1; 2+3; 4+5; 6+7; 8+0	=> keep frame in shadowFrame
@@ -44,7 +51,10 @@ static struct st_dfmstat {
 	uint8_t nameregtop;
 	uint8_t lastdat;
 	uint8_t cycledone; // 0=no; 1=OK, 2=partially/with errors
-	float meas[5+2];
+	float meas[9];
+	uint16_t measok;   // Bit-mask showing which meas entries have been received
+	uint8_t ptu_chan;  // always the max channel. used as subtype before, but 0xC can be DFM09 (with P) or DFM17 (w/o P)
+	uint8_t sensP;     // P channel in data (0xC DMF09 (but not 0xC DFM17), 0xD DFM17P, 0x8 DFM6P (but not PS15) (0 or 1)
 } dfmstate;
 
 decoderSetupCfg DFMSetupCfg {
@@ -280,8 +290,12 @@ void DFM::finddfname(uint8_t *b)
 							snprintf(sd->id, 10, "D%x ", id);
 							memcpy(sd->ser, sd->id+1, 9);
 							sd->validID = true;
-							sd->subtype = (st>>4)&0x0F;
-							strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
+							//sd->subtype = (st>>4)&0x0F;
+							//strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
+							// Subtype is set later, as we need more data to distingish 0xC DFM09P and DFM17
+							sd->subtype = 0;
+							dfmstate.ptu_chan = (st>>4)&0x0F;
+							strcpy(sd->typestr, "DFM");
 							return;
 						}
 						dfmstate.lastfrcnt = 0;
@@ -332,8 +346,12 @@ void DFM::finddfname(uint8_t *b)
 					Serial.println(sd->id);
 					memcpy(sd->ser, sd->id+1, 9);
 					sd->validID = true;
-					sd->subtype = (st>>4)&0x0F;
-					strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
+					//sd->subtype = (st>>4)&0x0F;
+					//strncpy(sd->typestr, typestr[ (st>>4)&0x0F ], 5);
+					// Subtype is set later, as we need more data to distingish 0xC DFM09P and DFM17
+					sd->subtype = 0;
+					dfmstate.ptu_chan = (st>>4)&0x0F;
+					strcpy(sd->typestr, "DFM");
 				}
 				if(dfmstate.nameregok==i) {
 					Serial.print(" ID OK");
@@ -361,13 +379,13 @@ void DFM::finddfname(uint8_t *b)
 
 static float get_Temp() {
 	SondeData *si = &(sonde.si()->d);
-	if(!si->validID) { // type not yet known, so don't try to decode
+	if(!si->subtype) { // type not yet known, so don't try to decode
 		return NAN;
 	}
 	float f = dfmstate.meas[0],
 		f1 = dfmstate.meas[3],
 		f2 = dfmstate.meas[4];
-	if(si->subtype >= 0x0C) {
+	if(dfmstate.sensP) {
 		f = dfmstate.meas[1];
 		f1 = dfmstate.meas[5];
 		f2 = dfmstate.meas[6];
@@ -377,7 +395,8 @@ static float get_Temp() {
     float BB0 = 3260.0;       // B/Kelvin, fit -55C..+40C
     float T0 = 25 + 273.15;  // t0=25C
     float R0 = 5.0e3;        // R0=R25=5k
-    float Rf = 220e3;        // Rf = 220k
+    float Rf = 220e3;        // Rf = 220k, for DFM17: 332k
+    if( si->subtype==DFM_17 || si->subtype==DFM_17P ) Rf = 332e3;
     float g = f2/Rf;
     float R = (f-f1) / g; // meas[0,3,4] > 0 ?
     float T = 0;                     // T/Kelvin
@@ -398,16 +417,41 @@ void DFM::decodeCFG(uint8_t *cfg)
 	finddfname(cfg);
 	// get meas
 	uint8_t conf_id = (*cfg)>>4;
-	if(conf_id<=6) {
+	if(conf_id<=8) {
 		uint32_t val = (cfg[1]<<12) | (cfg[2]<<4) | cfg[3];
 		uint8_t exp = cfg[0] & 0xF;
 		dfmstate.meas[conf_id] = val / (float)(1<<exp);
+		dfmstate.measok |= (1 << conf_id);
 		Serial.printf("meas %d is %f (%d,%d)\n", conf_id, dfmstate.meas[conf_id], val, exp);
 	}
+
+	// get type (if we have an ID, but no type yet, and (needed only for 0xC), meas[6])
+	if( si->validID && si->subtype==0 && (dfmstate.measok & (1<<6)) ) {
+		switch(dfmstate.ptu_chan) {
+		case 0x6: si->subtype = DFM_06; break;
+		case 0x7: case 0x8:
+			si->subtype = DFM_06P; dfmstate.sensP = 1; break;  // (TODO: OR PS15)
+		case 0xA: si->subtype = DFM_09; break;
+		case 0xB: si->subtype = DFM_17; break;
+		case 0xC: // DFM-09P or DFM-17
+			if(dfmstate.meas[6]<220e3) { si->subtype = DFM_09P; dfmstate.sensP = 1; }
+			else si->subtype = DFM_17;
+			break;
+		case 0xD: si->subtype = DFM_17P; dfmstate.sensP = 1; break;
+		default: si->subtype = DFM_UNK;
+		}
+		if( si->subtype == DFM_UNK ) {
+			snprintf(si->typestr, 5, "DFx%x", dfmstate.ptu_chan);
+			si->subtype |= (dfmstate.ptu_chan<<4);
+		} else {
+			strcpy(si->typestr, dfmSubtypeShort[si->subtype]);
+		}
+	}
+
 	// get batt
-	if(si->validID && si->subtype>=0x0A) {
+	if(si->validID && dfmstate.ptu_chan>=0x0A && si->subtype>0 ) {
 		// otherwise don't try, as we might not have the right type yet...
-		int cid = (si->subtype >= 0x0C) ? 0x7 : 0x5;
+		int cid = (dfmstate.sensP) ? 0x7 : 0x5;
 		if(conf_id == cid) {
 			uint16_t val = cfg[1]<<8 | cfg[2];
 			si->batteryVoltage = val / 1000.0;
