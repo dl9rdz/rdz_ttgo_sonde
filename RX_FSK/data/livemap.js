@@ -135,6 +135,10 @@ map.addControl(new L.Control.Button([
 
 map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', href: 'javascript:show_settings();' } ]));
 
+map.addControl(new L.Control.Button([
+  { position:'bottomleft', text: '⏩', href: 'javascript:ctrl(\'rx\');' },
+  { text: '📡', href: 'javascript:ctrl(\'scan\');' },
+]));
   
     
   show = function(e,p) {
@@ -527,4 +531,8 @@ function bearing(latlng1, latlng2) {
     var bearing = ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
+}
+
+function ctrl(action) {
+	$.post('control.html', action + '=' + action).done(function(data) { get_data(); })
 }
