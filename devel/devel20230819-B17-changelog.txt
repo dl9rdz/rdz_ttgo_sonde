@@ -1,0 +1,3 @@
+(sync with master)
+some code reorganization, preliminary SD card code (not active)
+APRS timeout added
