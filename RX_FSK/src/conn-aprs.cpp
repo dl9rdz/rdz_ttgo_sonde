@@ -100,7 +100,7 @@ void ConnAPRS::updateStation( PosInfo *pi ) {
     // We check for stalled connection and possibly close it
     Serial.printf("last_in - now: %ld\n", millis() - last_in);
     if ( sonde.config.tcpfeed.timeout > 0) {
-        if ( last_in && ( (millis() - last_in) > sonde.config.tcpfeed.timeout ) ) {
+        if ( last_in && ( (millis() - last_in) > sonde.config.tcpfeed.timeout*1000 ) ) {
             Serial.println("APRS timeout - closing connection");
             close(tcpclient);
             tcpclient_state = TCS_DISCONNECTED;

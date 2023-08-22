@@ -33,6 +33,7 @@ void fixedToPosInfo() {
     posInfo.lat = sonde.config.rxlat;
     posInfo.lon = sonde.config.rxlon;
     posInfo.alt = sonde.config.rxalt;
+    posInfo.valid = 1;
 }
 
 

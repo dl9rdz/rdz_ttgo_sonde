@@ -809,6 +809,7 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   f.close();
   Serial.printf("Re-reading file file\n");
   setupConfigData();
+  if(!gpsPos.valid) fixedToPosInfo();
   // TODO: Check if this is better done elsewhere?
   // Use new config (whereever this is feasible without a reboot)
   disp.setContrast();
@@ -1975,6 +1976,7 @@ void setup()
                NULL);  /* task handle*/
 #endif
   sonde.setup();
+  fixedToPosInfo();
   initGPS();
 #if FEATURE_APRS
   connAPRS.init();
