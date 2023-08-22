@@ -1334,7 +1334,7 @@ drequest.onload = function() {
 drequest.send();
 </script>
 </body></html>
-map.html 1155
+map.html 1206
 <html>
 <head>
 <script>
@@ -1352,6 +1352,7 @@ document.addEventListener("DOMContentLoaded", function(){
    fetch('live.json')
      .then((response) => response.json())
      .then((data) => {
+        if (data.gps===undefined) { data.gps={} };
   	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
         if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
           urlarg = maps[maptype][2](data.gps.lat, data.gps.lon);
