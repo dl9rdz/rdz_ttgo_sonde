@@ -2,7 +2,7 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
-#include <axp20x.h>
+#include "XPowersLib.h"
 #include <MicroNMEA.h>
 #include "Display.h"
 #include "Sonde.h"
@@ -22,7 +22,7 @@ extern const char *version_id;
 
 extern Sonde sonde;
 
-extern AXP20X_Class axp;
+extern XPowersLibInterface *PMU;
 extern bool axp192_found;
 extern SemaphoreHandle_t axpSemaphore;
 
@@ -1685,45 +1685,47 @@ void Display::drawBatt(DispEntry *de) {
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
-		if(!axp.isBatteryConnect()) { 
-			if(axp.isVBUSPlug()) { strcpy(buf, "U"); }
+    	if(!PMU->isBatteryConnect()) { 
+			if(PMU->isVbusIn()) { strcpy(buf, "U"); }
 			else { strcpy(buf, "N"); } // no battary
 		}
-		else if (axp.isChargeing()) { strcpy(buf, "C"); } // charging
+		else if (PMU->isCharging()) { strcpy(buf, "C"); } // charging
 		else { strcpy(buf, "B"); }  // battery, but not charging
 		break;
 	case 'V':
-		val = axp.getBattVoltage();
+		val = PMU->getBattVoltage();
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
+/*
 	case 'C':
-		val = axp.getBattChargeCurrent();
+		val = PMU->getBattChargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'D':
-		val = axp.getBattDischargeCurrent();
+		val = PMU->getBattDischargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'U':
 		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = axp.getAcinVoltage();
+		  val = PMU->getAcinVoltage();
 		} else {
-		  val = axp.getVbusVoltage();
+		  val = PMU->getVbusVoltage();
 		}
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
 	case 'I':
 		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = axp.getAcinCurrent();
+		  val = PMU->getAcinCurrent();
 		} else {
-		  val = axp.getVbusCurrent();
+		  val = PMU->getVbusCurrent();
 		}
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
 	case 'T':
-		val = axp.getTemp();  // fixed in newer versions of libraray: -144.7 no longer needed here!
+		val = PMU->getTemperature();  // fixed in newer versions of libraray: -144.7 no longer needed here!
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
+*/
 	default:
 		*buf=0;
 	}

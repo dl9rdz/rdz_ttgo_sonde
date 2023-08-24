@@ -1,7 +1,7 @@
 #include "features.h"
 #include "version.h"
 
-#include "axp20x.h"
+#include "XPowersLib.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
@@ -51,11 +51,16 @@ const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOU
 
 AsyncWebServer server(80);
 
-AXP20X_Class axp;
 #define PMU_IRQ             35
 SemaphoreHandle_t axpSemaphore;
 // 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
 uint8_t pmu_irq = 0;
+
+XPowersLibInterface *PMU = NULL;
+
+#ifndef PMU_WIRE_PORT
+#define PMU_WIRE_PORT Wire
+#endif
 
 const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -1597,21 +1602,25 @@ void handlePMUirq() {
     // Use AXP power button as second button
     if (pmu_irq) {
       Serial.println("PMU_IRQ is set\n");
-      xSemaphoreTake( axpSemaphore, portMAX_DELAY );
-      axp.readIRQ();
-      if (axp.isPEKShortPressIRQ()) {
+      xSemaphoreTake(axpSemaphore, portMAX_DELAY);
+      // Get PMU Interrupt Status Register
+      uint32_t status = PMU->getIrqStatus();
+
+      if (PMU->isPekeyShortPressIrq()) {
+        Serial.println("isPekeyShortPress");
         button2.pressed = KP_SHORT;
         button2.keydownTime = my_millis();
       }
-      if (axp.isPEKLongtPressIRQ()) {
+      if (PMU->isPekeyLongPressIrq()) {
+        Serial.println("isPekeyLongPress");
         button2.pressed = KP_MID;
         button2.keydownTime = my_millis();
       }
       if (pmu_irq != 2) {
         pmu_irq = 0;
       }
-      axp.clearIRQ();
-      xSemaphoreGive( axpSemaphore );
+      PMU->clearIrqStatus();
+      xSemaphoreGive(axpSemaphore);
     }
   } else {
     Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
@@ -1745,68 +1754,107 @@ void setup()
       u8x8->initDisplay();
       delay(500);
 
-      scanI2Cdevice();
-      if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-        Serial.println("AXP192 Begin PASS");
-      } else {
-        Serial.println("AXP192 Begin FAIL");
+      if (!PMU) {
+        PMU = new XPowersAXP2101(PMU_WIRE_PORT);
+        if (!PMU->init()) {
+          Serial.println("Warning: Failed to find AXP2101 power management");
+          delete PMU;
+          PMU = NULL;
+        } else {
+          Serial.println("AXP2101 PMU init succeeded, using AXP2101 PMU");
+        }
       }
-      axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-      if (sonde.config.type == TYPE_M5_CORE2) {
-        // Display backlight on M5 Core2
-        axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
-        axp.setDCDC3Voltage(3300);
-        // SetBusPowerMode(0):
-        // #define AXP192_GPIO0_CTL                        (0x90)
-        // #define AXP192_GPIO0_VOL                        (0x91)
-        // #define AXP202_LDO234_DC23_CTL                  (0x12)
 
-        // The axp class lacks a functino to set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
-        // so do this manually (default value 2.8V did not have the expected effect :))
-        // data = Read8bit(0x91);
-        // write1Byte(0x91, (data & 0X0F) | 0XF0);
-        uint8_t reg;
-        Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-        Wire.write(AXP192_GPIO0_VOL);
-        Wire.endTransmission();
-        Wire.requestFrom(AXP192_SLAVE_ADDRESS, 1);
-        reg = Wire.read();
-        reg = (reg & 0x0F) | 0xF0;
-        Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-        Wire.write(AXP192_GPIO0_VOL);
-        Wire.write(reg);
-        Wire.endTransmission();
-        // data = Read8bit(0x90);
-        // Write1Byte(0x90, (data & 0XF8) | 0X02)
-        axp.setGPIOMode(AXP_GPIO_0, AXP_IO_LDO_MODE);  // disable AXP supply from VBUS
-        pmu_irq = 2; // IRQ pin is not connected on Core2
-        // data = Read8bit(0x12);         //read reg 0x12
-        // Write1Byte(0x12, data | 0x40);    // enable 3,3V => 5V booster
-        // this is done below anyway: axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-
-        axp.adc1Enable(AXP202_ACIN_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_ACIN_CUR_ADC1, 1);
-      } else {
-        // GPS on T-Beam, buzzer on M5 Core2
-        axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-        axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
+      if (!PMU) {
+        PMU = new XPowersAXP192(PMU_WIRE_PORT);
+        if (!PMU->init()) {
+          Serial.println("Warning: Failed to find AXP192 power management");
+          delete PMU;
+          PMU = NULL;
+        } else {
+          Serial.println("AXP192 PMU init succeeded, using AXP192 PMU");
+        }
       }
-      axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-      axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-      axp.setDCDC1Voltage(3300);
-      axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      if (sonde.config.button2_axp ) {
+      if (!PMU) {
+        return;
+      }
+
+//
+
+if (PMU->getChipModel() == XPOWERS_AXP192) {
+        PMU->setProtectedChannel(XPOWERS_DCDC3);
+        // lora
+        PMU->setPowerChannelVoltage(XPOWERS_LDO2, 3300);
+        // gps
+        PMU->setPowerChannelVoltage(XPOWERS_LDO3, 3300);
+        // oled
+        PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+
+        PMU->enablePowerOutput(XPOWERS_LDO2);
+        PMU->enablePowerOutput(XPOWERS_LDO3);
+
+        // protected oled power source
+        PMU->setProtectedChannel(XPOWERS_DCDC1);
+        // protected esp32 power source
+        PMU->setProtectedChannel(XPOWERS_DCDC3);
+        // enable oled power
+        PMU->enablePowerOutput(XPOWERS_DCDC1);
+
+        // disable not use channel
+        PMU->disablePowerOutput(XPOWERS_DCDC2);
+
+        PMU->disableIRQ(XPOWERS_AXP192_ALL_IRQ);
+
+        PMU->enableIRQ(
+            XPOWERS_AXP192_VBUS_REMOVE_IRQ | XPOWERS_AXP192_VBUS_INSERT_IRQ |
+            XPOWERS_AXP192_BAT_CHG_DONE_IRQ | XPOWERS_AXP192_BAT_CHG_START_IRQ |
+            XPOWERS_AXP192_BAT_REMOVE_IRQ | XPOWERS_AXP192_BAT_INSERT_IRQ |
+            XPOWERS_AXP192_PKEY_SHORT_IRQ);
+
+      } else if (PMU->getChipModel() == XPOWERS_AXP2101) {
+        // Unuse power channel
+        PMU->disablePowerOutput(XPOWERS_DCDC2);
+        PMU->disablePowerOutput(XPOWERS_DCDC3);
+        PMU->disablePowerOutput(XPOWERS_DCDC4);
+        PMU->disablePowerOutput(XPOWERS_DCDC5);
+        PMU->disablePowerOutput(XPOWERS_ALDO1);
+        PMU->disablePowerOutput(XPOWERS_ALDO4);
+        PMU->disablePowerOutput(XPOWERS_BLDO1);
+        PMU->disablePowerOutput(XPOWERS_BLDO2);
+        PMU->disablePowerOutput(XPOWERS_DLDO1);
+        PMU->disablePowerOutput(XPOWERS_DLDO2);
+
+        // GNSS RTC PowerVDD 3300mV
+        PMU->setPowerChannelVoltage(XPOWERS_VBACKUP, 3300);
+        PMU->enablePowerOutput(XPOWERS_VBACKUP);
+
+        // ESP32 VDD 3300mV
+        // ! No need to set, automatically open , Don't close it
+        // PMU->setPowerChannelVoltage(XPOWERS_DCDC1, 3300);
+        // PMU->setProtectedChannel(XPOWERS_DCDC1);
+        PMU->setProtectedChannel(XPOWERS_DCDC1);
+
+        // LoRa VDD 3300mV
+        PMU->setPowerChannelVoltage(XPOWERS_ALDO2, 3300);
+        PMU->enablePowerOutput(XPOWERS_ALDO2);
+
+        // GNSS VDD 3300mV
+        PMU->setPowerChannelVoltage(XPOWERS_ALDO3, 3300);
+        PMU->enablePowerOutput(XPOWERS_ALDO3);
+      }
+
+      if (sonde.config.button2_axp) {
         if (pmu_irq != 2) {
           pinMode(PMU_IRQ, INPUT_PULLUP);
-          attachInterrupt(PMU_IRQ, [] {
-            pmu_irq = 1;
-          }, FALLING);
+          attachInterrupt(
+              PMU_IRQ, [] { pmu_irq = 1; }, FALLING);
         }
-        //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-        axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-        axp.clearIRQ();
+        PMU->disableInterrupt(XPOWERS_ALL_INT);
+
+        PMU->enableInterrupt(
+                            XPOWERS_PWR_BTN_LONGPRESSED_INT|
+                            XPOWERS_PWR_BTN_CLICK_INT 
+                            );
       }
       int ndevices = scanI2Cdevice();
       if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
