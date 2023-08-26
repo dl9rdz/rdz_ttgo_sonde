@@ -1,7 +1,6 @@
 #include "features.h"
 #include "version.h"
 
-#include "axp20x.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
@@ -28,6 +27,8 @@
 #include "src/json.h"
 #include "src/posinfo.h"
 
+#include "src/pmu.h"
+
 /* Data exchange connectors */
 #if FEATURE_CHASEMAPPER
 #include "src/conn-chasemapper.h"
@@ -51,11 +52,9 @@ const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOU
 
 AsyncWebServer server(80);
 
-AXP20X_Class axp;
-#define PMU_IRQ             35
+PMU *pmu = NULL;
 SemaphoreHandle_t axpSemaphore;
-// 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
-uint8_t pmu_irq = 0;
+extern uint8_t pmu_irq;
 
 const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -161,7 +160,7 @@ String processor(const String& var) {
       lat = sonde.config.rxlat;
       lon = sonde.config.rxlon;
     }
-    if ( !isnan(lat) && !isnan(lon) ) {
+    //if ( !isnan(lat) && !isnan(lon) ) {
 #endif
     if ( posInfo.valid ) {
       char p[40];
@@ -318,7 +317,7 @@ const char *createQRGForm() {
   return message;
 }
 
-const char *handleQRGPost(AsyncWebServerRequest *request) {
+const char *handleQRGPost(AsyncWebServerRequest * request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
   File file = SPIFFS.open("/qrg.txt", "w");
@@ -451,7 +450,7 @@ const char *createSondeHubMap() {
 }
 #endif
 
-const char *handleWIFIPost(AsyncWebServerRequest *request) {
+const char *handleWIFIPost(AsyncWebServerRequest * request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
 #if 1
@@ -809,7 +808,7 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   f.close();
   Serial.printf("Re-reading file file\n");
   setupConfigData();
-  if(!gpsPos.valid) fixedToPosInfo();
+  if (!gpsPos.valid) fixedToPosInfo();
   // TODO: Check if this is better done elsewhere?
   // Use new config (whereever this is feasible without a reboot)
   disp.setContrast();
@@ -1595,23 +1594,10 @@ int getKeyPress() {
 void handlePMUirq() {
   if (sonde.config.button2_axp) {
     // Use AXP power button as second button
-    if (pmu_irq) {
-      Serial.println("PMU_IRQ is set\n");
-      xSemaphoreTake( axpSemaphore, portMAX_DELAY );
-      axp.readIRQ();
-      if (axp.isPEKShortPressIRQ()) {
-        button2.pressed = KP_SHORT;
-        button2.keydownTime = my_millis();
-      }
-      if (axp.isPEKLongtPressIRQ()) {
-        button2.pressed = KP_MID;
-        button2.keydownTime = my_millis();
-      }
-      if (pmu_irq != 2) {
-        pmu_irq = 0;
-      }
-      axp.clearIRQ();
-      xSemaphoreGive( axpSemaphore );
+    int key = pmu->handleIRQ();
+    if (key > 0) {
+      button2.pressed = (KeyPress)key;
+      button2.keydownTime = my_millis();
     }
   } else {
     Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
@@ -1642,7 +1628,7 @@ int getKeyPressEvent() {
 
 #define SSD1306_ADDRESS 0x3c
 bool ssd1306_found = false;
-bool axp192_found = false;
+bool axp_found = false;
 
 int scanI2Cdevice(void)
 {
@@ -1663,9 +1649,9 @@ int scanI2Cdevice(void)
         ssd1306_found = true;
         Serial.println("ssd1306 display found");
       }
-      if (addr == AXP192_SLAVE_ADDRESS) {
-        axp192_found = true;
-        Serial.println("axp192 PMU found");
+      if (addr == AXP192_SLAVE_ADDRESS) {  // Same for AXP2101
+        axp_found = true;
+        Serial.println("axp2101 PMU found");
       }
     } else if (err == 4) {
       Serial.print("Unknow error at address 0x");
@@ -1746,71 +1732,25 @@ void setup()
       delay(500);
 
       scanI2Cdevice();
-      if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-        Serial.println("AXP192 Begin PASS");
-      } else {
-        Serial.println("AXP192 Begin FAIL");
-      }
-      axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-      if (sonde.config.type == TYPE_M5_CORE2) {
-        // Display backlight on M5 Core2
-        axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
-        axp.setDCDC3Voltage(3300);
-        // SetBusPowerMode(0):
-        // #define AXP192_GPIO0_CTL                        (0x90)
-        // #define AXP192_GPIO0_VOL                        (0x91)
-        // #define AXP202_LDO234_DC23_CTL                  (0x12)
 
-        // The axp class lacks a functino to set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
-        // so do this manually (default value 2.8V did not have the expected effect :))
-        // data = Read8bit(0x91);
-        // write1Byte(0x91, (data & 0X0F) | 0XF0);
-        uint8_t reg;
-        Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-        Wire.write(AXP192_GPIO0_VOL);
-        Wire.endTransmission();
-        Wire.requestFrom(AXP192_SLAVE_ADDRESS, 1);
-        reg = Wire.read();
-        reg = (reg & 0x0F) | 0xF0;
-        Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-        Wire.write(AXP192_GPIO0_VOL);
-        Wire.write(reg);
-        Wire.endTransmission();
-        // data = Read8bit(0x90);
-        // Write1Byte(0x90, (data & 0XF8) | 0X02)
-        axp.setGPIOMode(AXP_GPIO_0, AXP_IO_LDO_MODE);  // disable AXP supply from VBUS
-        pmu_irq = 2; // IRQ pin is not connected on Core2
-        // data = Read8bit(0x12);         //read reg 0x12
-        // Write1Byte(0x12, data | 0x40);    // enable 3,3V => 5V booster
-        // this is done below anyway: axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-
-        axp.adc1Enable(AXP202_ACIN_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_ACIN_CUR_ADC1, 1);
-      } else {
-        // GPS on T-Beam, buzzer on M5 Core2
-        axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-        axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
-      }
-      axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-      axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-      axp.setDCDC1Voltage(3300);
-      axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      if (sonde.config.button2_axp ) {
-        if (pmu_irq != 2) {
-          pinMode(PMU_IRQ, INPUT_PULLUP);
-          attachInterrupt(PMU_IRQ, [] {
-            pmu_irq = 1;
-          }, FALLING);
+      if (!pmu) {
+        pmu = PMU::getInstance(Wire);
+        if (pmu) {
+          Serial.println("PMU found");
+          pmu->init();
         }
-        //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-        axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-        axp.clearIRQ();
+
+        if (sonde.config.button2_axp ) {
+          //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+          //axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
+          //axp.clearIRQ();
+          pmu->disableAllIRQ();
+          pmu->enableIRQ();
+        }
+        int ndevices = scanI2Cdevice();
+        if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
+        delay(500);
       }
-      int ndevices = scanI2Cdevice();
-      if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-      delay(500);
     }
   }
   if (sonde.config.batt_adc >= 0) {
@@ -2006,7 +1946,7 @@ void enterMode(int mode) {
   } else if (mainState == ST_WIFISCAN) {
     sonde.clearDisplay();
   }
-  
+
   if (mode == ST_DECODER) {
     // trigger activation of background task
     // currentSonde should be set before enterMode()
@@ -2074,7 +2014,7 @@ void loopDecoder() {
     }
   }
 
- 
+
   if (rdzserver.hasClient()) {
     Serial.println("TCP JSON socket: new connection");
     rdzclient.stop();
@@ -2088,7 +2028,7 @@ void loopDecoder() {
       if (c == '\n' || c == '}' || rdzDataPos >= RDZ_DATA_LEN) {
         // parse GPS position from phone
         rdzData[rdzDataPos] = c;
-        if (rdzDataPos > 2) parseGpsJson(rdzData, rdzDataPos+1);
+        if (rdzDataPos > 2) parseGpsJson(rdzData, rdzDataPos + 1);
         rdzDataPos = 0;
       }
       else {
@@ -2113,7 +2053,7 @@ void loopDecoder() {
       connAPRS.updateSonde(s);
 #endif
 #if 0
-  // moved to conn-aprs.cpp
+      // moved to conn-aprs.cpp
       char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
       char raw[201];
       int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -2329,7 +2269,7 @@ void enableNetwork(bool enable) {
     MDNS.addService("jsonrdz", "tcp", 14570);
     //if (sonde.config.kisstnc.active) {
     //   tncserver.begin();
-      rdzserver.begin();
+    rdzserver.begin();
     //}
 #if FEATURE_MQTT
     connMQTT.netsetup();
