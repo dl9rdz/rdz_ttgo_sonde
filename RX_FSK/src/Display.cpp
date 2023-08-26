@@ -2,10 +2,10 @@
 #include <U8x8lib.h>
 #include <U8g2lib.h>
 #include <SPIFFS.h>
-#include <axp20x.h>
 #include <MicroNMEA.h>
 #include "Display.h"
 #include "Sonde.h"
+#include <XPowersLib.h>
 
 int readLine(Stream &stream, char *buffer, int maxlen);
 
@@ -22,8 +22,7 @@ extern const char *version_id;
 
 extern Sonde sonde;
 
-extern AXP20X_Class axp;
-extern bool axp192_found;
+extern XPowersLibInterface *pmu;
 extern SemaphoreHandle_t axpSemaphore;
 
 extern xSemaphoreHandle globalLock;
@@ -1668,7 +1667,7 @@ void Display::drawGPS(DispEntry *de) {
 void Display::drawBatt(DispEntry *de) {
 	float val;
 	char buf[30];
-	if (!axp192_found) {
+	if (!pmu) {
 		if (sonde.config.batt_adc<0) return;
 		switch (de->extra[0])
 		{
@@ -1685,48 +1684,59 @@ void Display::drawBatt(DispEntry *de) {
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
-		if(!axp.isBatteryConnect()) { 
-			if(axp.isVBUSPlug()) { strcpy(buf, "U"); }
+		if(!pmu->isBatteryConnect()) { 
+			if(pmu->isVbusIn()) { strcpy(buf, "U"); }
 			else { strcpy(buf, "N"); } // no battary
 		}
-		else if (axp.isChargeing()) { strcpy(buf, "C"); } // charging
+		else if (pmu->isCharging()) { strcpy(buf, "C"); } // charging
 		else { strcpy(buf, "B"); }  // battery, but not charging
 		break;
 	case 'V':
-		val = axp.getBattVoltage();
+		val = pmu->getBattVoltage();
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
-	case 'C':
-		val = axp.getBattChargeCurrent();
+        }
+        if(pmu->getChipModel() == XPOWERS_AXP192) {
+            XPowersAXP192 *rpmu = (XPowersAXP192 *)pmu;
+            switch(de->extra[0]) {
+	    case 'C':
+		val = rpmu->getBatteryChargeCurrent();   //getBattChargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
-	case 'D':
-		val = axp.getBattDischargeCurrent();
+	    case 'D':
+		val = rpmu->getBattDischargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
-	case 'U':
+	    case 'U':
 		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = axp.getAcinVoltage();
+		  val = rpmu->getAcinVoltage();
 		} else {
-		  val = axp.getVbusVoltage();
+		  val = rpmu->getVbusVoltage();
 		}
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 		break;
-	case 'I':
+	    case 'I':
 		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = axp.getAcinCurrent();
+		  val = rpmu->getAcinCurrent();
 		} else {
-		  val = axp.getVbusCurrent();
+		  val = rpmu->getVbusCurrent();
 		}
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
-	case 'T':
-		val = axp.getTemp();  // fixed in newer versions of libraray: -144.7 no longer needed here!
+	    case 'T':
+		val = rpmu->getTemperature();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 		break;
-	default:
+	    default:
 		*buf=0;
-	}
+	    }   
+        } else if (pmu->getChipModel() == XPOWERS_AXP2101) {
+            *buf = 0;
+            if(de->extra[0]=='T') {
+                val = ((XPowersAXP2101 *)pmu)->getTemperature();
+                snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+            }
+        }
 	xSemaphoreGive( axpSemaphore );
         rdis->setFont(de->fmt);
 	drawString(de, buf);
