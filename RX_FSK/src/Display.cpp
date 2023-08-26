@@ -1682,6 +1682,7 @@ void Display::drawBatt(DispEntry *de) {
 		rdis->setFont(de->fmt);
 		drawString(de, buf);
 	} else {
+        *buf = 0;
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
@@ -1734,8 +1735,6 @@ void Display::drawBatt(DispEntry *de) {
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
                 Serial.printf("temp: %s\n", buf);
 		break;
-	    default:
-		*buf=0;
 	    }   
         } else if (pmu->type == TYPE_AXP2101) {
             *buf = 0;

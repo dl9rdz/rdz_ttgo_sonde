@@ -177,7 +177,7 @@ int AXP192PMU::init() {
         // Display backlight (LCD_BL) on M5 Core2
         setDC3(3300);
         enableDC3();
-        ///// pmu_irq = 2;  // IRQ pin not connected on Core2
+        pmu_irq = 2;  // IRQ pin not connected on Core2
         // Set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
         // (default value 2.8V did not have the expected effect :))
         setLDOio(3300);
@@ -216,10 +216,6 @@ int AXP192PMU::init() {
     return 0;
 }
 
-int AXP2101PMU::init() {
-    // Initialize AXP2101, for T-BEAM v1.2
-    return 0;
-}
 
 
 ////////////////////////////////////////////////////////////
@@ -367,4 +363,125 @@ float AXP192PMU::getTemperature() {
     return readRegisters_8_4(AXP192_INTERNAL_TEMP_H8, AXP192_INTERNAL_TEMP_L4) * AXP192_INTERNAL_TEMP_STEP - 144.7;
 }
 
+//////////////////////////////////////////////////////////////////
+
 /////// Functions for AXP2101
+
+// Registers
+#define AXP2101_CHARGE_GAUGE_WDT_CTRL            (0x18)
+#define AXP2101_BTN_BAT_CHG_VOL_SET              (0x6A)
+#define AXP2101_DC_ONOFF_DVM_CTRL                (0x80)
+#define AXP2101_LDO_ONOFF_CTRL0                  (0x90)
+#define AXP2101_LDO_ONOFF_CTRL1                  (0x91)
+
+#define AXP2101_LDO_VOL1_CTRL                    (0x93)
+#define AXP2101_LDO_VOL2_CTRL                    (0x94)
+
+// Interrupt enable
+#define AXP2101_INTEN1                           (0x40)
+#define AXP2101_INTEN2                           (0x41)
+#define AXP2101_INTEN3                           (0x42)
+
+// Interrupt status
+#define AXP2101_INTSTS1                          (0x48)
+#define AXP2101_INTSTS2                          (0x49)
+#define AXP2101_INTSTS3                          (0x4A)
+
+// Constants
+#define AXP2101_ALDO_VOL_MIN                     (500)
+#define AXP2101_ALDO_VOL_STEPS                   (100)
+
+#define AXP2101_BTN_VOL_MIN                      (2600)
+#define AXP2101_BTN_VOL_STEPS                    (100)
+
+
+int AXP2101PMU::init() {
+    // Initialize AXP2101, for T-BEAM v1.2
+
+    // Hard-coded for now, disable DC2/3/4/5 ALDO1,4 BLDO1/2 DLDO1/2
+    int val = readRegister(AXP2101_DC_ONOFF_DVM_CTRL);
+    writeRegister(AXP2101_DC_ONOFF_DVM_CTRL, val & (~0x1E));  // clear Bit 1,2,3,4 (DC2/3/4/5)   
+
+    // clear bit 0 (aldo1), 3 (aldo4), 4,5(bldo1/2), 7 (dldo1)
+    val = readRegister(AXP2101_LDO_ONOFF_CTRL0);
+    writeRegister(AXP2101_LDO_ONOFF_CTRL0, val & (~0xB9));
+
+    // clear bit 0 (dldo2)
+    val = readRegister(AXP2101_LDO_ONOFF_CTRL1);
+    writeRegister(AXP2101_LDO_ONOFF_CTRL1, val & (~0x01));
+
+    // Set PowerVDD to 3300mV (GNSS RTC)
+    val =  readRegister(AXP2101_BTN_BAT_CHG_VOL_SET);
+    if (val == -1) return 0;
+    val  &= 0xF8;
+    val |= (3300 - AXP2101_BTN_VOL_MIN) / AXP2101_BTN_VOL_STEPS;
+    writeRegister(AXP2101_BTN_BAT_CHG_VOL_SET, val);
+    setRegisterBit(AXP2101_CHARGE_GAUGE_WDT_CTRL, 2);
+
+    // ESP32 VDD 3300mV
+    // No need to set, automatically open , Don't close it
+
+    // LoRa VDD 3300mV on ALDO2
+    val =  readRegister(AXP2101_LDO_VOL1_CTRL);
+    if (val == -1) return 0;
+    val &= 0xE0;
+    val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+    writeRegister(AXP2101_LDO_VOL1_CTRL, val);
+    setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 1);
+
+    // GNSS VDD 3300mV on ALDO3
+    val =  readRegister(AXP2101_LDO_VOL2_CTRL);
+    if (val == -1) return 0;
+    val &= 0xE0;
+    val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+    writeRegister(AXP2101_LDO_VOL2_CTRL, val);
+    setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 2);
+    return 0;
+}
+
+void AXP2101PMU::disableAllIRQ() {
+    writeRegister(AXP2101_INTEN1, 0);
+    writeRegister(AXP2101_INTEN2, 0);
+    writeRegister(AXP2101_INTEN3, 0);
+}   
+
+void AXP2101PMU::_enableIRQ(uint8_t addr, uint8_t mask) {
+    int data = readRegister(addr);              
+    writeRegister(addr, data | mask);           
+}
+
+// we want KP_SHORT and KP_LONG interrupts...
+// IRQen1, in req 0x41h, Bit 2(long)+3(short) (10+11 global)
+void AXP2101PMU::enableIRQ() {
+   //_enableIRQ( AXP2101_INTEN1, mask&0xFF );
+   _enableIRQ( AXP2101_INTEN2, 0x0C );
+   //_enableIRQ( AXP2101_INTEN3, 0x03 );
+}
+
+int AXP2101PMU::getIrqKeyStatus()  { 
+    int status = readRegister(AXP2101_INTSTS2);
+   
+    // Also clear IRQ status
+    writeRegister(AXP2101_INTSTS1, 0xFF);
+    writeRegister(AXP2101_INTSTS2, 0xFF);
+    writeRegister(AXP2101_INTSTS3, 0xFF);
+
+    // 
+    if ( status & 0x04 ) return KP_MID;
+    if ( status & 0x08 ) return KP_SHORT; 
+    return KP_NONE;
+}
+
+int AXP2101PMU::isBatteryConnected() { return -1; }
+int AXP2101PMU::isVbusIn() { return -1; }
+int AXP2101PMU::isCharging() { return -1; }
+float AXP2101PMU::getBattVoltage() { return -1; }
+float AXP2101PMU::getBattDischargeCurrent() { return -1; }
+float AXP2101PMU::getBattChargeCurrent() { return -1; }
+float AXP2101PMU::getAcinVoltage() { return -1; }
+float AXP2101PMU::getAcinCurrent() { return -1; }
+float AXP2101PMU::getVbusVoltage() { return -1; }
+float AXP2101PMU::getVbusCurrent() { return -1; }
+float AXP2101PMU::getTemperature() { return -1; }
+
+

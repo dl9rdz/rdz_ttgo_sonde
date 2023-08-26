@@ -88,16 +88,28 @@ class AXP2101PMU : public PMU {
 public:
     AXP2101PMU(TwoWire &wire) : PMU(wire) { };
     int init();
+    void disableAllIRQ();
+    void enableIRQ();
+    int getIrqKeyStatus();
+
+    int isBatteryConnected();
+    int isVbusIn();
+    int isCharging();
+    float getBattVoltage();
+    float getBattDischargeCurrent();
+    float getBattChargeCurrent();
+    float getAcinVoltage();
+    float getAcinCurrent();
+    float getVbusVoltage();
+    float getVbusCurrent();
+    float getTemperature();
 
 protected:
+    void _enableIRQ(uint8_t addr, uint8_t mask);
+
     int setVBACKUP(uint16_t millivolt);
     int setDCDC1(uint16_t millivolt);
     int setALDO2(uint16_t millivolt);
     int setALDO3(uint16_t millivolt);
 
-    int disableAll();
-    int enableVBACKUP(bool onoff = true);
-    int enableDC1(bool onoff = true);
-    int enableALDO2(bool onoff = true);
-    int enableALDO3(bool onoff = true);
 };
