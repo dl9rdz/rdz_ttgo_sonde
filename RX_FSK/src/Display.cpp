@@ -33,8 +33,6 @@ extern xSemaphoreHandle globalLock;
   } while (xSemaphoreTake(globalLock, portMAX_DELAY) != pdPASS)
 #define SPI_MUTEX_UNLOCK() xSemaphoreGive(globalLock)
 
-struct GpsPos gpsPos;
-
 //SPIClass spiDisp(HSPI);
 
 byte myIP_tiles[8*11];

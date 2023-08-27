@@ -2,12 +2,17 @@
 // Configuration flags for including/excluding fuctionality from the compiled binary
 // set flag to 0 for exclude/1 for include
 
-/* data feed to sondehubv2 */
-/* needs about 4k4 code, 200b data, 200b stack, 200b heap */
+// Selection of data output connectors to be included in firmware
+// APRS includes AXUDP (e.g. for aprsmap) and APRS-IS (TCP) (e.g. for wettersonde.net, radiosondy.info)
 #define FEATURE_SONDEHUB 1
+
 #define FEATURE_CHASEMAPPER 1
 #define FEATURE_MQTT 1
+#define FEATURE_SDCARD 0
+#define FEATURE_APRS 1
 
+
+// Additional optional components
 #define FEATURE_RS92 1
 
 /* Most recent version support fonts in a dedicated flash parition "fonts".

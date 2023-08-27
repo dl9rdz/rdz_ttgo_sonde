@@ -1,3 +1,6 @@
+#include "../features.h"
+#if FEATURE_RS92
+
 /*  SPDX-License-Identifier:        GPL-3.0
  *  based on https://github.com/rs1729/RS/blob/master/rs92/rs92gps.c
  * 
@@ -1202,3 +1205,4 @@ void get_eph(const char *file) {
         if (!option_der) d_err = 1000;
 }
 
+#endif

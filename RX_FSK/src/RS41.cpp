@@ -790,6 +790,7 @@ int RS41::decode41(byte *data, int maxlen)
 			posrs41(data+p, len, 0);
 			break;
 		case 'z': // 0x7a is character z - 7A-MEAS temperature and humidity frame
+		case '\x7f': //0x7f - short MEAS, no pressure
          {
       		uint32_t tempMeasMain = getint24(data, 560, p+0);
 		      uint32_t tempMeasRef1 = getint24(data, 560, p+3);
@@ -800,15 +801,23 @@ int RS41::decode41(byte *data, int maxlen)
 			   uint32_t tempHumiMain = getint24(data, 560, p+18);
 			   uint32_t tempHumiRef1 = getint24(data, 560, p+21);
 			   uint32_t tempHumiRef2 = getint24(data, 560, p+24);
-			   uint32_t pressureMain = getint24(data, 560, p+27);
-			   uint32_t pressureRef1 = getint24(data, 560, p+30);
-			   uint32_t pressureRef2 = getint24(data, 560, p+33);
-			   int16_t  ptraw = getint16(data, 560, p+38);
+			   uint32_t pressureMain;
+			   uint32_t pressureRef1;
+			   uint32_t pressureRef2;
+			   int16_t  ptraw;
+		if (typ == 'z') {
+			     pressureMain = getint24(data, 560, p+27);
+			     pressureRef1 = getint24(data, 560, p+30);
+			     pressureRef2 = getint24(data, 560, p+33);
+			     ptraw = getint16(data, 560, p+38);
+		}
             #if 0
                Serial.printf( "External temp: tempMeasMain = %ld, tempMeasRef1 = %ld, tempMeasRef2 = %ld\n", tempMeasMain, tempMeasRef1, tempMeasRef2 );
                Serial.printf( "Rel  Humidity: humidityMain = %ld, humidityRef1 = %ld, humidityRef2 = %ld\n", humidityMain, humidityRef1, humidityRef2 );
                Serial.printf( "Humid  sensor: tempHumiMain = %ld, tempHumiRef1 = %ld, tempHumiRef2 = %ld\n", tempHumiMain, tempHumiRef1, tempHumiRef2 );
-               Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
+               if (typ == 'z') {
+                  Serial.printf( "Pressure sens: pressureMain = %ld, pressureRef1 = %ld, pressureRef2 = %ld\n", pressureMain, pressureRef1, pressureRef2 );
+               }
             #endif
    	    struct subframeBuffer *calibration = (struct subframeBuffer *)(sonde.si()->extra);
 		 // temp: 0xF8==bits 3..7 : we need refResistorlow/high, taylorT, polyT
@@ -818,7 +827,7 @@ int RS41::decode41(byte *data, int maxlen)
 	         bool validHumidity = calibration!=NULL && (calibration->valid & 0x7FE2001FFFF8) == 0x7FE2001FFFF8;
 
 		 // pressure:  bits 33 and 37..42 (variant; x25..x2a: matrixP)    /// CALIB_P is    0x7E200000000)
-		 bool validPressure = calibration!=NULL && (calibration->valid & CALIB_P)==CALIB_P && calibration->value.names.variant[7]=='P';
+		 bool validPressure = calibration!=NULL && (calibration->valid & CALIB_P)==CALIB_P && calibration->value.names.variant[7]=='P' && (typ == 'z');
 
 	    if ( validPressure ) {
 	       si->pressure = GetRAP( pressureMain, pressureRef1, pressureRef2, ptraw );

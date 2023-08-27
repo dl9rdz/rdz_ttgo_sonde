@@ -1,8 +1,20 @@
-#include "Chasemapper.h"
+#include "../features.h"
+#if FEATURE_CHASEMAPPER
+
+#include "conn-chasemapper.h"
+#include <WiFiUdp.h>
 
 extern const char *sondeTypeStrSH[];
+extern WiFiUDP udp;
 
-int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
+void ConnChasemapper::init() {
+}
+
+void ConnChasemapper::netsetup() {
+}
+
+
+void ConnChasemapper::updateSonde(SondeInfo *si) {
 	char buf[1024];
 	struct tm tim;
 	time_t t = si->d.time;
@@ -38,6 +50,10 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 	udp.beginPacket(sonde.config.cm.host, sonde.config.cm.port);
 	udp.write((const uint8_t *)buf, strlen(buf));
 	udp.endPacket();	
-	return 0;
 }
 
+void ConnChasemapper::updateStation(PosInfo *pi) {
+}
+
+ConnChasemapper connChasemapper;
+#endif

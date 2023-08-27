@@ -193,6 +193,7 @@ struct st_feedinfo {
         int lowrate;
         int highrate;
         int lowlimit;
+        int timeout;
 };
 
 // maybe extend for external Bluetooth interface?
