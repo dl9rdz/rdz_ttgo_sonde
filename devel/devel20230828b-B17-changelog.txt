@@ -1,1 +1,2 @@
 bugfix (APX2101 related)
+AXP2101: add missing irq handler
