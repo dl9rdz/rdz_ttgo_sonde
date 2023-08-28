@@ -434,6 +434,13 @@ int AXP2101PMU::init() {
     val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
     writeRegister(AXP2101_LDO_VOL2_CTRL, val);
     setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 2);
+
+    if (pmu_irq != 2) {
+        pinMode(PMU_IRQ, INPUT_PULLUP);
+        attachInterrupt(PMU_IRQ, [] {
+           pmu_irq = 1;
+        }, FALLING);
+    }
     return 0;
 }
 
