@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <Wire.h>
 #include "pmu.h"
-#include "src/sonde.h"
+#include "Sonde.h"
 
 // 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
 uint8_t pmu_irq = 0;

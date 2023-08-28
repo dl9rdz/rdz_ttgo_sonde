@@ -1,3 +1,9 @@
+# safelist
+branches:
+  only:
+  - master
+  - devel
+
 language: c
 dist: focal
 os: linux
