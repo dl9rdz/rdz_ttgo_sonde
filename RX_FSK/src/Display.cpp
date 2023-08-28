@@ -720,18 +720,18 @@ void ILI9225Display::welcome() {
 	tft->fillScreen(0);
 	SPI_MUTEX_UNLOCK();
         setFont(6);
-        drawString(0, 0*22, version_name, WIDTH_AUTO, 0xff00);
+        drawString(30, 0*22, version_name, WIDTH_AUTO, 0xff00);
         setFont(5);
 	int l=3*22;
 	if(sonde.config.tft_orient&1) {
-        	drawString(0, 1*22, "RS41/92,DFM,M10/20");
+        	drawString(20, 1*22, "RS41/92,DFM,M10/20");
 	} else {
         	drawString(0, 1*22, "RS41,RS92,");
         	drawString(0, 2*22, "DFM,M10/20");
 		l+=22;
 	}
-       	drawString(0, l, version_id);
-       	drawString(0, l+2*22, "by Hansi, DL9RDZ");
+       	drawString(10, l, version_id);
+       	drawString(35, l+2*22, "by Hansi, DL9RDZ");
 }
 
 void ILI9225Display::drawIP(uint16_t x, uint16_t y, int16_t width, uint16_t fg, uint16_t bg) {
@@ -1666,7 +1666,9 @@ void Display::drawGPS(DispEntry *de) {
 }
 
 void Display::drawBatt(DispEntry *de) {
-	float val;
+	float val{0};
+	float val2{0};
+	int valInt{0};
 	char buf[30];
 	if (!axp192_found) {
 		if (sonde.config.batt_adc<0) return;
@@ -1674,7 +1676,7 @@ void Display::drawBatt(DispEntry *de) {
 		{
 		case 'V':
 				val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
-				snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
+				snprintf(buf, 30, "%.2f%s ", val, de->extra + 1);
 			break;
 		default:
 			*buf = 0;
@@ -1686,46 +1688,82 @@ void Display::drawBatt(DispEntry *de) {
 	switch(de->extra[0]) {
 	case 'S':
     	if(!PMU->isBatteryConnect()) { 
-			if(PMU->isVbusIn()) { strcpy(buf, "U"); }
-			else { strcpy(buf, "N"); } // no battary
+			if(PMU->isVbusIn()) { snprintf(buf, 30, "U          "); }
+			else { snprintf(buf, 30, "N          "); } // no battary
 		}
-		else if (PMU->isCharging()) { strcpy(buf, "C"); } // charging
-		else { strcpy(buf, "B"); }  // battery, but not charging
+		else if (PMU->isCharging()) {
+			valInt = PMU->getChargerStatus();
+			if (valInt == XPOWERS_AXP2101_CHG_TRI_STATE) {
+				// Serial.println("tri_charge");
+				snprintf(buf, 30, "C/tri      ");
+			} else if (valInt == XPOWERS_AXP2101_CHG_PRE_STATE) {
+				// Serial.println("pre_charge");
+				snprintf(buf, 30, "C/pre      ");
+			} else if (valInt == XPOWERS_AXP2101_CHG_CC_STATE) {
+				// Serial.println("constant charge");
+				snprintf(buf, 30, "C/const    ");
+			} else if (valInt == XPOWERS_AXP2101_CHG_CV_STATE) {
+				// Serial.println("constant voltage");
+				snprintf(buf, 30, "C/constV   ");
+			} else if (valInt == XPOWERS_AXP2101_CHG_DONE_STATE) {
+				// Serial.println("charge done");
+				snprintf(buf, 30, "C/done     ");
+			} else if (valInt == XPOWERS_AXP2101_CHG_STOP_STATE) {
+				// Serial.println("not chargin");
+				snprintf(buf, 30, "C/not      ");
+			} 
+			// strcpy(buf, "C");
+		} // charging
+		else { snprintf(buf, 30, "B          "); }  // battery, but not charging
 		break;
 	case 'V':
 		val = PMU->getBattVoltage();
-		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+		snprintf(buf, 30, "%.2f%s   ", val/1000, de->extra+1);
 		break;
-/*
 	case 'C':
-		val = PMU->getBattChargeCurrent();
-		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		// val = PMU->getBattChargeCurrent();
+		snprintf(buf, 30, "%.2f%s ", val, de->extra+1);
+		break;
+	case 'P':
+		valInt = PMU->getBatteryPercent();
+		snprintf(buf, 30, "%d%% ", valInt);
 		break;
 	case 'D':
-		val = PMU->getBattDischargeCurrent();
-		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		// val = PMU->getBattDischargeCurrent();
+		snprintf(buf, 30, "%.2f%s ", val, de->extra+1);
 		break;
 	case 'U':
-		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = PMU->getAcinVoltage();
-		} else {
+		// if(sonde.config.type == TYPE_M5_CORE2) {
+		//   val = PMU->getAcinVoltage();
+		// } else 
+		{
 		  val = PMU->getVbusVoltage();
 		}
-		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+		snprintf(buf, 30, "%.2f%s   ", val/1000, de->extra+1);
 		break;
+
 	case 'I':
-		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = PMU->getAcinCurrent();
-		} else {
-		  val = PMU->getVbusCurrent();
-		}
-		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		// if(sonde.config.type == TYPE_M5_CORE2) {
+		//   val = PMU->getAcinCurrent();
+		// } else {
+		//   val = PMU->getVbusCurrent();
+		// }
+		snprintf(buf, 30, "%.2f%s ", val, de->extra+1);
 		break;
+
 	case 'T':
 		val = PMU->getTemperature();  // fixed in newer versions of libraray: -144.7 no longer needed here!
-		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+		// val = PMU->getPowerChannelVoltage(XPOWERS_DCDC1);
+		// val = PMU->getPowerChannelVoltage(XPOWERS_ALDO2);
+		// val = PMU->getPowerChannelVoltage(XPOWERS_ALDO3);
+		snprintf(buf, 30, "%.1f\xb0%s   ", val, de->extra+1);
 		break;
-*/
+	case 'M':
+		{
+		  val = PMU->getSystemVoltage();
+		}
+		snprintf(buf, 30, "%.2f%s   ", val/1000, de->extra+1);
+		break;	
 	default:
 		*buf=0;
 	}

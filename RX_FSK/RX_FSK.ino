@@ -1672,9 +1672,9 @@ int scanI2Cdevice(void)
         ssd1306_found = true;
         Serial.println("ssd1306 display found");
       }
-      if (addr == AXP192_SLAVE_ADDRESS) {
+      if (addr == AXP2101_SLAVE_ADDRESS) {
         axp192_found = true;
-        Serial.println("axp192 PMU found");
+        Serial.println("axp2101 PMU found");
       }
     } else if (err == 4) {
       Serial.print("Unknow error at address 0x");
@@ -1781,7 +1781,7 @@ void setup()
 
 //
 
-if (PMU->getChipModel() == XPOWERS_AXP192) {
+      if (PMU->getChipModel() == XPOWERS_AXP192) {
         PMU->setProtectedChannel(XPOWERS_DCDC3);
         // lora
         PMU->setPowerChannelVoltage(XPOWERS_LDO2, 3300);
@@ -1841,6 +1841,13 @@ if (PMU->getChipModel() == XPOWERS_AXP192) {
         // GNSS VDD 3300mV
         PMU->setPowerChannelVoltage(XPOWERS_ALDO3, 3300);
         PMU->enablePowerOutput(XPOWERS_ALDO3);
+
+        PMU->enableTemperatureMeasure();
+        // // Enable internal ADC detection
+        // PMU->enableBattDetection();
+        PMU->enableVbusVoltageMeasure();
+        // PMU->enableBattVoltageMeasure();
+        PMU->enableSystemVoltageMeasure();
       }
 
       if (sonde.config.button2_axp) {

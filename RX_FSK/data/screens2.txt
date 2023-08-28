@@ -225,6 +225,7 @@ color=e0e0e0
 color=6C757D
 15,0=xScan Mode
 15,18=bVV
+15,15=bP%
 
 ############
 @Decode/General.TFT.Bazjo
@@ -285,6 +286,7 @@ color=0AFFEF
 color=6C757D
 15,0=xDecode Mode / General View
 15,18=bVV
+15,15=bP%
 
 ############
 @Decode/Battery.TFT.Bazjo
@@ -331,6 +333,7 @@ color=FF0035
 color=99001F
 15,0=xDecode Mode/Battery View
 15,18=bVV
+15,15=bP%
 
 # based on https://github.com/puspis/rdz_ttgo_sonde
 ##########
@@ -366,6 +369,7 @@ color=285454
 #Footer
 color=FF0000
 12.7,18=bVV
+12.7,15=bP%
 
 ############
 @Main.Puspis
@@ -417,6 +421,7 @@ color=FF0000
 15,0.2=xIP:
 15,2.5=n
 15,18=bVV
+15,15=bP%
 
 ############
 @JotaEme.Puspis
@@ -466,6 +471,7 @@ color=FFFFFF,000000
 15,8.7=Q4
 color=FF0000
 15,18.4=bVV
+15,15=bP%
 
 ############
 @CompassTFT.Puspis
@@ -497,6 +503,7 @@ color=EEAA00,000033
 color=FF0000,000000
 12.7,1=Q4
 12.7,18=bVV
+12.7,15=bP%
 
 ############
 @GPSdataTFT.Puspis
@@ -534,6 +541,7 @@ color=639AFF
 color=FF0000,000000
 12.7,0.4=Q4
 12.7,18=bVV
+12.7,15=bP%
 
 ############
 @BatteryTFT.Puspis
@@ -551,26 +559,27 @@ color=00FF00
 3,0=x(C)HARGE/(B)ATT
 3,11.5=xBATTERY VOLTAGE
 color=639AFF
-4,4=BS
+4,0=BS
 4,11.5=BVV
 #Row 3
 color=00FF00
-6,0=xCHARGE CURRENT
-6,11.5=xDISCHG. CURRENT
+6,0=xBATTERY PERCENT
+6,11.5=xUSB VOLTAGE
 color=639AFF
-7,0=BCmA
-7,11.5=BDmA
+7,3=BP%
+7,11.5=BUV
 #Row 3
 color=00FF00
 9,0=xIC TEMPERATURE
-9,11.5=xFREQ. OFFSET
+9,11.5=xSYSTEM VOLTAGE
 color=639AFF
 10,0=BTC
-10,10=C
+10,11.5=BMV
 #Footer
 color=FF0000,000000
 12.7,0.4=Q4
 12.7,18=bVV
+12.7,15=bP%
 
 #################
 @TelemetryData
