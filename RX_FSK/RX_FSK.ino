@@ -1739,18 +1739,17 @@ void setup()
         if (pmu) {
           Serial.println("PMU found");
           pmu->init();
+          if (sonde.config.button2_axp ) {
+            //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+            //axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
+            //axp.clearIRQ();
+            pmu->disableAllIRQ();
+            pmu->enableIRQ();
+          }
+          int ndevices = scanI2Cdevice();
+          if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
+          delay(500);
         }
-
-        if (sonde.config.button2_axp ) {
-          //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-          //axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-          //axp.clearIRQ();
-          pmu->disableAllIRQ();
-          pmu->enableIRQ();
-        }
-        int ndevices = scanI2Cdevice();
-        if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-        delay(500);
       }
     }
   }

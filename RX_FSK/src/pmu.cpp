@@ -90,11 +90,9 @@ PMU *PMU::getInstance(TwoWire &wire) {
     if(chipid==0x03) {
         pmu = new AXP192PMU(wire);
     }
-#if 0
     else if (chipid==0x4A) { 
         pmu = new AXP2101PMU(wire);
     }
-#endif
     return pmu;
 }
 
