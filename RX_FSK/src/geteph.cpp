@@ -86,22 +86,25 @@ void geteph() {
 		Serial.println("cannot open file\n");
 		return;
 	}
-	char host[252];
-	strcpy(host, sonde.config.ephftp);
-	char *buf  = strchr(host, '/');
-	if(!buf) { Serial.println("Invalid FTP host config"); return; }
-        *buf = 0;
-	buf++;	
+        char host[100];
+        char buf[200];
+        char *ptr = strchr(sonde.config.ephftp, '/');
+	if(!ptr) { Serial.println("Invalid FTP host config"); return; }
+        int hlen = ptr - sonde.config.ephftp;
+        strncpy(host, sonde.config.ephftp, hlen);
+        host[hlen] = 0;
+        snprintf(buf, 200, ptr+1, year, day, year-2000);
 	uint8_t dispw, disph, dispxs, dispys;
   	disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
 	disp.rdis->clear();
 	disp.rdis->setFont(FONT_SMALL);
 	disp.rdis->drawString(0, 0, host);
 	// fetch rinex from server
-	char *ptr = buf + strlen(buf);
-	snprintf(ptr, 128, "%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
+	// char *ptr = buf + strlen(buf);
+	// snprintf(ptr, 128, "%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
+	// snprintf(ptr, 128, "%04d/brdc/brdc%03d0.%02dn.gz", year, /*day,*/ day, year-2000);
 	Serial.println("running geteph\n");
-	disp.rdis->drawString(0, 1*dispys, ptr+9);
+	disp.rdis->drawString(0, 1*dispys, buf+9);
 	
 	if(!client.connect(host, 21)) {
 		Serial.printf("FTP connection to %s failed\n", host);

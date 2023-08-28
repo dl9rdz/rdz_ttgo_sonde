@@ -1692,6 +1692,7 @@ void setup()
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
   }
+  Serial.printf("Test%1$s%1$s\n", "hello");
 
   //NimBLEDevice::init("NimBLE-Arduino");
   //NimBLEServer* pServer = NimBLEDevice::createServer();;
