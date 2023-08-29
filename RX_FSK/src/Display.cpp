@@ -1666,6 +1666,7 @@ void Display::drawGPS(DispEntry *de) {
 
 void Display::drawBatt(DispEntry *de) {
 	float val;
+	int valInt;
 	char buf[30];
 	if (!pmu) {
 		if (sonde.config.batt_adc<0) return;
@@ -1674,7 +1675,6 @@ void Display::drawBatt(DispEntry *de) {
 		case 'V':
 				val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
 				snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
-				Serial.printf("Batt: %s", buf);
 			break;
 		default:
 			*buf = 0;
@@ -1682,67 +1682,74 @@ void Display::drawBatt(DispEntry *de) {
 		rdis->setFont(de->fmt);
 		drawString(de, buf);
 	} else {
-        *buf = 0;
 	xSemaphoreTake( axpSemaphore, portMAX_DELAY );
 	switch(de->extra[0]) {
 	case 'S':
 		if(!pmu->isBatteryConnected()) { 
 			if(pmu->isVbusIn()) { strcpy(buf, "U"); }
 			else { strcpy(buf, "N"); } // no battary
-		}
-		else if (pmu->isCharging()) { strcpy(buf, "C"); } // charging
-		else { strcpy(buf, "B"); }  // battery, but not charging
-                Serial.printf("Battery: %s\n", buf);
+		} else if (pmu->isCharging()) {
+			valInt = pmu->getChargerStatus();
+			if (valInt == AXP2101_CHG_TRI_STATE) {
+				snprintf(buf, 30, "C/tri");
+			} else if (valInt == AXP2101_CHG_PRE_STATE) {
+				snprintf(buf, 30, "C/pre");
+			} else if (valInt == AXP2101_CHG_CC_STATE) {
+				snprintf(buf, 30, "C/const");
+			} else if (valInt == AXP2101_CHG_CV_STATE) {
+				snprintf(buf, 30, "C/constV");
+			} else if (valInt == AXP2101_CHG_DONE_STATE) {
+				snprintf(buf, 30, "C/done");
+			} else if (valInt == AXP2101_CHG_STOP_STATE) {
+				snprintf(buf, 30, "C/not");
+			} else {
+				snprintf(buf, 30, "C");
+			}
+		} else { strcpy(buf, "B"); }  // battery, but not charging
 		break;
 	case 'V':
 		val = pmu->getBattVoltage();
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
-	        Serial.printf("Vbatt: %s\n", buf);
 		break;
-        }
-        if(pmu->type==TYPE_AXP192) {
-            switch(de->extra[0]) {
-	    case 'C':
+	case 'P':
+		valInt = pmu->getBatteryPercent();
+		snprintf(buf, 30, "%d%%", valInt);
+		break;
+	case 'C':
 		val = pmu->getBattChargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
-	        Serial.printf("Icharge: %s\n", buf);
 		break;
-	    case 'D':
+	case 'D':
 		val = pmu->getBattDischargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
-	        Serial.printf("Idischarge: %s\n", buf);
 		break;
-	    case 'U':
+	case 'U':
 		if(sonde.config.type == TYPE_M5_CORE2) {
 		  val = pmu->getAcinVoltage();
 		} else {
 		  val = pmu->getVbusVoltage();
 		}
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
-	        Serial.printf("Vbus: %s\n", buf);
 		break;
-	    case 'I':
+	case 'M':
+		  val = pmu->getSystemVoltage();
+		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+		break;
+	case 'I':
 		if(sonde.config.type == TYPE_M5_CORE2) {
 		  val = pmu->getAcinCurrent();
 		} else {
 		  val = pmu->getVbusCurrent();
 		}
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
-	        Serial.printf("Ibus: %s\n", buf);
 		break;
-	    case 'T':
+	case 'T':
 		val = pmu->getTemperature();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
-                Serial.printf("temp: %s\n", buf);
 		break;
-	    }   
-        } else if (pmu->type == TYPE_AXP2101) {
-            *buf = 0;
-            if(de->extra[0]=='T') {
-                val = pmu->getTemperature();
-                snprintf(buf, 30, "%.2f%s", val, de->extra+1);
-            }
-        }
+	default:
+		*buf=0;
+	}
 	xSemaphoreGive( axpSemaphore );
         rdis->setFont(de->fmt);
 	drawString(de, buf);

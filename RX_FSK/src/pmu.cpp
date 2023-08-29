@@ -30,6 +30,7 @@ uint8_t pmu_irq = 0;
 #define AXP192_DC1OUT_VOL                       (0x26)
 #define AXP192_DC3OUT_VOL                       (0x27)
 #define AXP192_LDO23OUT_VOL                     (0x28)
+#define AXP192_OFF_CTL                          (0x32)
 #define AXP192_GPIO0_VOL                        (0x91)
 
 // Power enable registers
@@ -123,6 +124,20 @@ uint16_t PMU::readRegisters_8_5(uint8_t regh, uint8_t regl)
     return (hi << 5) | (lo & 0x1F);
 }
 
+uint16_t PMU::readRegisters_5_8(uint8_t regh, uint8_t regl)
+{
+    uint8_t hi = readRegister(regh);
+    uint8_t lo = readRegister(regl);
+    return ((hi & 0x1F) << 8) | lo;
+}
+
+uint16_t PMU::readRegisters_6_8(uint8_t regh, uint8_t regl)
+{
+    uint8_t hi = readRegister(regh);
+    uint8_t lo = readRegister(regl);
+    return ((hi & 0x3F) << 8) | lo;
+}
+
 int PMU::writeRegister(uint8_t reg, uint8_t val) {
     _wire.beginTransmission(AXP192_SLAVE_ADDRESS);
     _wire.write(reg);
@@ -204,6 +219,8 @@ int AXP192PMU::init() {
     // ADC configuration: Enable monitor batt current [bit 6 in eable register]
     uint8_t val = readRegister(AXP192_ADC_EN1);
     writeRegister(AXP192_ADC_EN1, val | (1 << 6) );
+
+    setChargingLedMode(CHG_LED_CTRL_CHG_ON);
 
     if (pmu_irq != 2) {
         pinMode(PMU_IRQ, INPUT_PULLUP);
@@ -311,6 +328,29 @@ int AXP192PMU::enableADC(uint8_t channels) {
     return writeRegister(AXP192_ADC_EN1, val | channels );
 }
 
+void AXP192PMU::setChargingLedMode(uint8_t mode) {
+    int val;
+    switch (mode) {
+    case CHG_LED_OFF:
+    case CHG_LED_BLINK_1HZ:
+    case CHG_LED_BLINK_4HZ:
+    case CHG_LED_ON:
+        val = readRegister(AXP192_OFF_CTL);
+        if (val == -1)return;
+        val &= 0xC7;
+        val |= 0x08;      //use manual ctrl
+        val |= (mode << 4);
+        writeRegister(AXP192_OFF_CTL, val);
+        break;
+    case CHG_LED_CTRL_CHG_ON:
+    case CHG_LED_CTRL_CHG_BLINK:
+        clearRegisterBit(AXP192_OFF_CTL, 3);
+        break;
+    default:
+        break;
+    }
+}
+
 int AXP192PMU::isBatteryConnected() {
     return getRegisterBit(AXP192_MODE_CHGSTATUS, 5);
 }
@@ -361,11 +401,19 @@ float AXP192PMU::getTemperature() {
     return readRegisters_8_4(AXP192_INTERNAL_TEMP_H8, AXP192_INTERNAL_TEMP_L4) * AXP192_INTERNAL_TEMP_STEP - 144.7;
 }
 
+int AXP192PMU::getChargerStatus() { return -1; }
+int AXP192PMU::getBatteryPercent() { return -1; }
+float AXP192PMU::getSystemVoltage() { return -1; }
+
 //////////////////////////////////////////////////////////////////
 
 /////// Functions for AXP2101
 
 // Registers
+#define AXP2101_STATUS1                          (0x00)
+#define AXP2101_STATUS2                          (0x01)
+#define AXP2101_IC_TYPE                          (0x03)
+
 #define AXP2101_CHARGE_GAUGE_WDT_CTRL            (0x18)
 #define AXP2101_BTN_BAT_CHG_VOL_SET              (0x6A)
 #define AXP2101_DC_ONOFF_DVM_CTRL                (0x80)
@@ -374,6 +422,18 @@ float AXP192PMU::getTemperature() {
 
 #define AXP2101_LDO_VOL1_CTRL                    (0x93)
 #define AXP2101_LDO_VOL2_CTRL                    (0x94)
+
+#define AXP2101_ADC_CHANNEL_CTRL                 (0x30)
+#define AXP2101_ADC_DATA_RELUST0                 (0x34)
+#define AXP2101_ADC_DATA_RELUST1                 (0x35)
+#define AXP2101_ADC_DATA_RELUST2                 (0x36)
+#define AXP2101_ADC_DATA_RELUST3                 (0x37)
+#define AXP2101_ADC_DATA_RELUST4                 (0x38)
+#define AXP2101_ADC_DATA_RELUST5                 (0x39)
+#define AXP2101_ADC_DATA_RELUST6                 (0x3A)
+#define AXP2101_ADC_DATA_RELUST7                 (0x3B)
+#define AXP2101_ADC_DATA_RELUST8                 (0x3C)
+#define AXP2101_ADC_DATA_RELUST9                 (0x3D)
 
 // Interrupt enable
 #define AXP2101_INTEN1                           (0x40)
@@ -385,6 +445,10 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_INTSTS2                          (0x49)
 #define AXP2101_INTSTS3                          (0x4A)
 
+#define AXP2101_CHGLED_SET_CTRL                  (0x69)
+
+#define AXP2101_BAT_PERCENT_DATA                 (0xA4)
+
 // Constants
 #define AXP2101_ALDO_VOL_MIN                     (500)
 #define AXP2101_ALDO_VOL_STEPS                   (100)
@@ -392,6 +456,7 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_BTN_VOL_MIN                      (2600)
 #define AXP2101_BTN_VOL_STEPS                    (100)
 
+#define AXP2101_CONVERSION(raw)                 (22.0 + (7274 - raw) / 20.0)
 
 int AXP2101PMU::init() {
     // Initialize AXP2101, for T-BEAM v1.2
@@ -435,6 +500,8 @@ int AXP2101PMU::init() {
     writeRegister(AXP2101_LDO_VOL2_CTRL, val);
     setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 2);
 
+    setChargingLedMode(CHG_LED_CTRL_CHG_BLINK);
+
     if (pmu_irq != 2) {
         pinMode(PMU_IRQ, INPUT_PULLUP);
         attachInterrupt(PMU_IRQ, [] {
@@ -477,16 +544,87 @@ int AXP2101PMU::getIrqKeyStatus()  {
     return KP_NONE;
 }
 
-int AXP2101PMU::isBatteryConnected() { return -1; }
-int AXP2101PMU::isVbusIn() { return -1; }
-int AXP2101PMU::isCharging() { return -1; }
-float AXP2101PMU::getBattVoltage() { return -1; }
+void AXP2101PMU::setChargingLedMode(uint8_t mode) {
+    int val;
+    int subMode = 0x01;
+    switch (mode) {
+    case CHG_LED_OFF:
+    case CHG_LED_BLINK_1HZ:
+    case CHG_LED_BLINK_4HZ:
+    case CHG_LED_ON:
+        val = readRegister(AXP2101_CHGLED_SET_CTRL);
+        if (val == -1)return;
+        val &= 0xC8;
+        val |= 0x05;    //use manual ctrl
+        val |= (mode << 4);
+        writeRegister(AXP2101_CHGLED_SET_CTRL, val);
+        break;
+    case CHG_LED_CTRL_CHG_BLINK:
+        subMode++;
+    case CHG_LED_CTRL_CHG_ON:
+        val = readRegister(AXP2101_CHGLED_SET_CTRL);
+        if (val == -1)return;
+        val &= 0xF9;
+        writeRegister(AXP2101_CHGLED_SET_CTRL, val | subMode);
+        break;
+    default:
+        break;
+    }
+}
+
+int AXP2101PMU::isBatteryConnected() {
+    return  getRegisterBit(AXP2101_STATUS1, 3);
+}
+
+int AXP2101PMU::isVbusIn() {
+    return getRegisterBit(AXP2101_STATUS2, 3) == 0 && getRegisterBit(AXP2101_STATUS1, 5);
+}
+
+int AXP2101PMU::isCharging() {
+    return (readRegister(AXP2101_STATUS2) >> 5) == 0x01;
+}
+
+float AXP2101PMU::getBattVoltage() {
+    if (!isBatteryConnected()) {
+        return 0;
+    }
+    return readRegisters_5_8(AXP2101_ADC_DATA_RELUST0, AXP2101_ADC_DATA_RELUST1);
+}
+
+float AXP2101PMU::getVbusVoltage() {
+    if (!isVbusIn()) {
+        return 0;
+    }
+    return readRegisters_6_8(AXP2101_ADC_DATA_RELUST4, AXP2101_ADC_DATA_RELUST5);
+}
+
+float AXP2101PMU::getTemperature() {
+    uint16_t raw = readRegisters_6_8(AXP2101_ADC_DATA_RELUST8, AXP2101_ADC_DATA_RELUST9);
+    return AXP2101_CONVERSION(raw);
+}
+
+int AXP2101PMU::getChargerStatus() {
+    uint8_t val = readRegister(AXP2101_STATUS2);
+    if (val == -1) {
+        return AXP2101_CHG_STOP_STATE;
+    }
+    val &= 0x07;
+    return val;
+}
+
+int AXP2101PMU::getBatteryPercent() {
+    if (!isBatteryConnected()) {
+        return -1;
+    }
+    return readRegister(AXP2101_BAT_PERCENT_DATA);
+}
+
+float AXP2101PMU::getSystemVoltage() {
+    return readRegisters_6_8(AXP2101_ADC_DATA_RELUST6, AXP2101_ADC_DATA_RELUST7);
+}
+
 float AXP2101PMU::getBattDischargeCurrent() { return -1; }
 float AXP2101PMU::getBattChargeCurrent() { return -1; }
 float AXP2101PMU::getAcinVoltage() { return -1; }
 float AXP2101PMU::getAcinCurrent() { return -1; }
-float AXP2101PMU::getVbusVoltage() { return -1; }
 float AXP2101PMU::getVbusCurrent() { return -1; }
-float AXP2101PMU::getTemperature() { return -1; }
-
-
