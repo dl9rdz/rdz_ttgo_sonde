@@ -624,7 +624,7 @@ struct st_configitems config_list[] = {
   {"m10m20.rxbw", 0, &sonde.config.m10m20.rxbw},
   {"mp3h.agcbw", 0, &sonde.config.mp3h.agcbw},
   {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
-  {"ephftp", 39, &sonde.config.ephftp},
+  {"ephftp", 79, &sonde.config.ephftp},
   /* APRS settings */
   {"call", 9, sonde.config.call},
   {"passcode", 0, &sonde.config.passcode},
