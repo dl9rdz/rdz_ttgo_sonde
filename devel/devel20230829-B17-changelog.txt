@@ -1,1 +1,2 @@
 fix travis build / wget issue with github
+more explanation in About tabw
