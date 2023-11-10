@@ -23,8 +23,16 @@ void ConnChasemapper::updateSonde(SondeInfo *si) {
 	if (TYPE_IS_METEO(realtype)) {
 		realtype = si->d.subtype == 1 ? STYPE_M10 : STYPE_M20;
 	}
+        char prefix[10];
+        if(realtype == STYPE_RS41) {
+            prefix[0] = 0;
+        }
+        else {
+            strncpy(prefix, sondeTypeStrSH[realtype], 10);
+            strcat(prefix, "-");
+        }
 	sprintf(buf, "{ \"type\": \"PAYLOAD_SUMMARY\","
-		"\"callsign\": \"%s\","
+		"\"callsign\": \"%s%s\","
 		"\"latitude\": %.5f,"
 		"\"longitude\": %.5f,"
 		"\"altitude\": %d,"
@@ -33,6 +41,7 @@ void ConnChasemapper::updateSonde(SondeInfo *si) {
 		"\"time\": \"%02d:%02d:%02d\","
 		"\"model\": \"%s\","
 		"\"freq\": \"%.3f MHz\"",
+                prefix,
 		si->d.ser,
 		si->d.lat,
 		si->d.lon,
