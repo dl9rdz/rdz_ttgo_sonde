@@ -375,6 +375,13 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_LDO_VOL1_CTRL                    (0x93)
 #define AXP2101_LDO_VOL2_CTRL                    (0x94)
 
+#define AXP2101_ADC_CHANNEL_CTRL		 (0x30)
+
+// vterm_cfg: Bit 2:0, 4.2V = 011 (3)
+#define AXP2101_CHG_V_CFG		         (0x64)
+// ICC_CFG: Bit 4:0: constant current charge current limit, 25*N mA (N<=8), 200+100*(N-8) (N>8)
+#define AXP2101_ICC_CFG				 (0x62)
+
 // Interrupt enable
 #define AXP2101_INTEN1                           (0x40)
 #define AXP2101_INTEN2                           (0x41)
@@ -392,7 +399,12 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_BTN_VOL_MIN                      (2600)
 #define AXP2101_BTN_VOL_STEPS                    (100)
 
+// 200 + 100*(11-8) = 500
+#define AXP2101_CHG_CUR_500MA			 (0x0B)
+#define AXP2101_CHG_VOL_4V2			 (3)
 
+
+// return 0: ok, -1: error
 int AXP2101PMU::init() {
     // Initialize AXP2101, for T-BEAM v1.2
 
@@ -408,12 +420,13 @@ int AXP2101PMU::init() {
     val = readRegister(AXP2101_LDO_ONOFF_CTRL1);
     writeRegister(AXP2101_LDO_ONOFF_CTRL1, val & (~0x01));
 
-    // Set PowerVDD to 3300mV (GNSS RTC)
+    // Set PowerVDD to 3100mV (GNSS RTC) -- reg 6A [MS412FE data sheet: charge volt 2.8-3.3; standard value 3.1]
     val =  readRegister(AXP2101_BTN_BAT_CHG_VOL_SET);
-    if (val == -1) return 0;
+    if (val == -1) return -1;
     val  &= 0xF8;
-    val |= (3300 - AXP2101_BTN_VOL_MIN) / AXP2101_BTN_VOL_STEPS;
+    val |= (3100 - AXP2101_BTN_VOL_MIN) / AXP2101_BTN_VOL_STEPS;
     writeRegister(AXP2101_BTN_BAT_CHG_VOL_SET, val);
+
     setRegisterBit(AXP2101_CHARGE_GAUGE_WDT_CTRL, 2);
 
     // ESP32 VDD 3300mV
@@ -421,7 +434,7 @@ int AXP2101PMU::init() {
 
     // LoRa VDD 3300mV on ALDO2
     val =  readRegister(AXP2101_LDO_VOL1_CTRL);
-    if (val == -1) return 0;
+    if (val == -1) return -1;
     val &= 0xE0;
     val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
     writeRegister(AXP2101_LDO_VOL1_CTRL, val);
@@ -429,7 +442,7 @@ int AXP2101PMU::init() {
 
     // GNSS VDD 3300mV on ALDO3
     val =  readRegister(AXP2101_LDO_VOL2_CTRL);
-    if (val == -1) return 0;
+    if (val == -1) return -1;
     val &= 0xE0;
     val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
     writeRegister(AXP2101_LDO_VOL2_CTRL, val);
@@ -441,6 +454,46 @@ int AXP2101PMU::init() {
            pmu_irq = 1;
         }, FALLING);
     }
+
+    // Set charging configuration: 500mA, 4.2V cut off
+
+    // Set constant current charge limit to 500mA (reguster 0x62)
+    // Data sheep (7.3.3.) tells that default value is 1.024 A (which should be fine??)
+    // Data sheet (register table) tells that default value is "{EFUSE,0b,EFUSE}", whatever that is
+    // Let's set this to 500 mA manually to be sure
+    val = readRegister(AXP2101_ICC_CFG);
+    if (val == -1) return -1;
+    val &= 0xE0;
+    writeRegister(AXP2101_ICC_CFG, val | AXP2101_CHG_CUR_500MA);
+
+#if 0
+    // Set cut-off voltage to 4.2V (register 0x63)
+    // This is the default value, so setting it should not be needed.
+    val = readRegister(AXP2101_CHG_V_CFG);
+    if (val == -1) return -1;
+    val &= 0xFC;
+    writeRegister(AXP2101_CHG_V_CFG, val | AXP2101_CHG_VOL_4V2);
+#endif
+
+    // Disable TS measurement, enable vsys, vbus, vbat measurement
+    // Disable TS is important for T-Beam 1.2 (no TS thermistor), otherwise it will not charge.
+    writeRegister(AXP2101_ADC_CHANNEL_CTRL, 0x0d);
+
+    // Clear all IRQ
+    getIrqKeyStatus();
+
+    // precharge current (reg 0x61): default value (0101b) should be fine
+    // Termination current (125mA default value) should be fine as well
+#if 0
+    // Just some debug code
+    Serial.println("All good \n");
+
+    for(int i=0; i<0x80; i++) {
+        val = readRegister(i);
+        Serial.printf("Reg %x: %x (%d)\n", i, val, val);
+    }
+#endif
+
     return 0;
 }
 
