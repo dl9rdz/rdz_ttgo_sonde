@@ -59,9 +59,9 @@ install:
   - arduino --pref "build.path=$PWD/build" --save-prefs
   - arduino --install-boards esp32:esp32:1.0.6 --save-prefs
   - ln -s $PWD/libraries/SondeLib /usr/local/share/arduino/libraries/SondeLib
-  - arduino --install-library "U8g2:2.29.11"
+  - arduino --install-library "U8g2:2.34.22"
   - arduino --install-library "MicroNMEA"
-  - arduino --install-library "GFX Library for Arduino:1.1.5"
+  - arduino --install-library "GFX Library for Arduino:1.2.9"
 script:
   - arduino --board esp32:esp32:t-beam --verify $PWD/RX_FSK/RX_FSK.ino
   - ESPPATH=`arduino --get-pref runtime.tools.xtensa-esp32-elf-gcc.path`
