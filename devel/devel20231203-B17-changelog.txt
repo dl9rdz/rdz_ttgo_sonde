@@ -1,1 +1,2 @@
 T-Beam 1.2: charge battery fix
+reduce image size with platformio builds, make it (almost) same as for Arduino builds
