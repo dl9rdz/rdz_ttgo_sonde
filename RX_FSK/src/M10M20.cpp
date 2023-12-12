@@ -469,7 +469,7 @@ void M10M20::processM10data(uint8_t dt)
 				if(rxp==2) {
 				    // Update: change type only if valid type information in received data
 				    if(dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
-				    else if(/*dataptr[0]==0x64*/ && dataptr[1]==0x9F) { isM20 = false; }
+				    else if(/*dataptr[0]==0x64 &&*/ dataptr[1]==0x9F) { isM20 = false; }
 				}
 				if(isM20) {
 					if(rxp>=M20_FRAMELEN) {
