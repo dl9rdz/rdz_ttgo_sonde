@@ -304,6 +304,9 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		Serial.println("Decoding...");
 		//SondeInfo *si = sonde.si();
 		SondeData *si = &(sonde.si()->d);
+		// Set type info to M10
+		memcpy(si->typestr, "M10 ", 5);
+		si->subtype = 1;  // subtype 1: M10
 		
 		// Its a M10
 		// getid...
@@ -441,7 +444,7 @@ void M10M20::processM10data(uint8_t dt)
 				rxsearching = false;
 				rxbitc = 0;
 				rxp = 0;
-				isM20 = false;
+				//isM20 = false;
 				headerDetected = 1;
 #if 1
                                 int rssi=sx1278.getRSSI();
@@ -463,17 +466,17 @@ void M10M20::processM10data(uint8_t dt)
 				// 64 9F 20 => M10
 				// 64 49 0x => M10 (?) -- not used here
 				// 45 20 7x => M20
-				if(rxp==2 && dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
+				if(rxp==2) {
+				    // Update: change type only if valid type information in received data
+				    if(dataptr[0]==0x45 && dataptr[1]==0x20) { isM20 = true; }
+				    else if(/*dataptr[0]==0x64*/ && dataptr[1]==0x9F) { isM20 = false; }
+				}
 				if(isM20) {
-					memcpy(sonde.si()->d.typestr, "M20 ", 5);
-					sonde.si()->d.subtype = 2;
 					if(rxp>=M20_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM20(dataptr);
 					}
 				} else {
-					memcpy(sonde.si()->d.typestr, "M10 ", 5);
-					sonde.si()->d.subtype = 1;
 					if(rxp>=M10_FRAMELEN) {
 						rxsearching = true;
 						haveNewFrame = decodeframeM10(dataptr);
@@ -578,6 +581,8 @@ int M10M20::decodeframeM20(uint8_t *data) {
 
 	Serial.println("Decoding...");
 	// Its a M20
+	memcpy(si->typestr, "M20 ", 5);
+	si->subtype = 2;  // subtype 2: M20
 	// getid...
 	// TODO: Adjust ID calculation and serial number reconstruction
 	char ids[11]={'M','E','0','0','0','0','0','0','0','0','0'};
