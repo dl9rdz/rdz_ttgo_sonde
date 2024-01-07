@@ -1293,9 +1293,19 @@ void SetupAsyncServer() {
         request->send(200, "application/gpx+xml", sendGPX(request));
       else {
         // TODO: set correct type for .js
-        request->send(SPIFFS, url, "text/html");
+
+        // Caching is an important work-around for a bug somewhere in the network stack that causes corrupt replies
+        // with platform-espressif32 (some TCP segments simply get lost before being sent, so reply header and parts of data is missing)
+        // This happens with concurrent requests, notably if a browser fetches rdz.js and cfg.js concurrently for config.html
+        // With the cache, rdz.js is likely already in the cache...0
         Serial.printf("URL is %s\n", url.c_str());
-        //request->send(404);
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, url, "text/html");
+        if(response) {
+          response->addHeader("Cache-Control", "max-age=900"); 
+          request->send(response);
+        } else {
+          request->send(404);
+        }
       }
     }
   });
@@ -2173,7 +2183,7 @@ void loopDecoder() {
 }
 
 void setCurrentDisplay(int value) {
-  Serial.printf("setCurrentDisplay: setting index %d, entry %d\b", value, sonde.config.display[value]);
+  Serial.printf("setCurrentDisplay: setting index %d, entry %d\n", value, sonde.config.display[value]);
   currentDisplay = sonde.config.display[value];
 }
 
@@ -2320,6 +2330,7 @@ void WiFiEvent(WiFiEvent_t event)
         wifi_state = WIFI_DISABLED;
         WiFi.disconnect(true);
       }
+      WiFi.mode(WIFI_MODE_NULL);
       break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
       Serial.println("Authentication mode of access point has changed");
@@ -2422,17 +2433,28 @@ void wifiConnect(int16_t res) {
   }
 }
 
+void wifiConnectDirect(int16_t index) {
+  Serial.println("AP mode 4: trying direct reconnect");
+  WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+  wifi_state = WIFI_CONNECT;
+}
+
 static int wifi_cto;
 
 void loopWifiBackground() {
-  // Serial.printf("WifiBackground: state %d\n", wifi_state);
+  Serial.printf("WifiBackground: state %d\n", wifi_state);
   // handle Wifi station mode in background
   if (sonde.config.wifi == 0 || sonde.config.wifi == 2) return; // nothing to do if disabled or access point mode
 
   if (wifi_state == WIFI_DISABLED) {  // stopped => start can
-    wifi_state = WIFI_SCAN;
-    Serial.println("WiFi start scan");
-    WiFi.scanNetworks(true); // scan in async mode
+    if (sonde.config.wifi == 4) {  // direct connect to first network, supports hidden SSID
+       wifiConnectDirect(1);
+       wifi_cto = 0;
+    } else {
+      Serial.println("WiFi start scan");
+      wifi_state = WIFI_SCAN;
+      WiFi.scanNetworks(true); // scan in async mode
+    }
   } else if (wifi_state == WIFI_SCAN) {
     int16_t res = WiFi.scanComplete();
     if (res == 0 || res == WIFI_SCAN_FAILED) {
@@ -2463,6 +2485,7 @@ void loopWifiBackground() {
       WiFi.disconnect(true);
     }
   } else if (wifi_state == WIFI_CONNECTED) {
+    Serial.printf("status: %d\n", ((WiFiSTAClass)WiFi).status());
     if (!WiFi.isConnected()) {
       sonde.setIP("", false);
       sonde.updateDisplayIP();
@@ -2470,7 +2493,7 @@ void loopWifiBackground() {
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);
-    }
+    } else Serial.println("WiFi still connected");
   }
 }
 
@@ -2526,84 +2549,92 @@ void loopTouchCalib() {
 
 // Wifi modes
 // 0: disabled. directly start initial mode (spectrum or scanner)
-// 1: station mode in background. directly start initial mode (spectrum or scanner)
-// 2: access point mode in background. directly start initial mode (spectrum or scanner)
+// 1: Station mode, new version: start with synchronous WiFi scan, then
+//    - if button was pressed, switch to AP mode
+//    - if connect successful, all good
+//    - otherwise, continue with station mode in background
+// 2: access point mode (wait for clients in background)
 // 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
-//    Mode 3 shows more debug information on serial port and display.
+// 4: Station mode/hidden AP: same as 1, but instead of scan, just call espressif method to connect (will connect to hidden AP as well
 #define MAXWIFIDELAY 40
 static const char* _scan[2] = {"/", "\\"};
 void loopWifiScan() {
-  if (sonde.config.wifi == 0) {   // no Wifi
-    wifi_state = WIFI_DISABLED;
+  getKeyPressEvent(); // Clear any old events
+  WiFi.disconnect(true);
+  wifi_state = WIFI_DISABLED;
+  disp.rdis->setFont(FONT_SMALL);
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  int lastl = (disph / dispys - 2) * dispys;
+  int cnt = 0;
+  char abort = 0; // abort on keypress
+
+  switch(sonde.config.wifi) {
+  case 0:  // no WiFi
     initialMode();
     return;
-  }
-  if (sonde.config.wifi == 1) { // station mode, setup in background
-    wifi_state = WIFI_DISABLED;  // will start scanning in wifiLoopBackgroiund
-    initialMode();
-    return;
-  }
-  if (sonde.config.wifi == 2) { // AP mode, setup in background
+  case 2:  // AP mode, setup in background
     startAP();
     enableNetwork(true);
     initialMode();
     return;
-  }
-  // wifi==3 => original mode with non-async wifi setup
-  disp.rdis->setFont(FONT_SMALL);
-  disp.rdis->drawString(0, 0, "WiFi Scan...");
-  uint8_t dispw, disph, dispxs, dispys;
-  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  case 4:  // direct connect without scan, only first item in network list
+    // Mode STN/DIRECT[4]: Connect directly (supports hidden AP)
+    {
+      disp.rdis->drawString(0, 0, "WiFi Connect...");
+      const char *ssid = fetchWifiSSID(1);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin( ssid, fetchWifiPw(1) );
+      disp.rdis->drawString(0, dispys * 2, ssid);
+    }
+    break;
+  case 1:  // STATION mode (continue in BG if no connection)
+  case 3:  // old AUTO mode (change to AP if no connection)
+    // Mode STATION[1] or SETUP[3]: Scan for networks;
+    disp.rdis->drawString(0, 0, "WiFi Scan...");
+    int line = 0;
+    int index = -1;
+    WiFi.mode(WIFI_STA);
+    int n = WiFi.scanNetworks();
+    for (int i = 0; i < n; i++) {
+      String ssid = WiFi.SSID(i);
+      disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
+      line = (line + 1) % (disph / dispys);
+      String mac = WiFi.BSSIDstr(i);
+      String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
+      Serial.printf("Network %s: RSSI %d, MAC %s, enc: %s\n", ssid.c_str(), WiFi.RSSI(i), mac.c_str(), encryptionTypeDescription.c_str());
+      int curidx = fetchWifiIndex(ssid.c_str());
+      if (curidx >= 0 && index == -1) {
+        index = curidx;
+        Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
+      }
+    }
+    if (index >= 0) { // some network was found
+      Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
+      Serial.print(" with password "); Serial.println(fetchWifiPw(index));
 
-  int line = 0;
-  int cnt = 0;
-
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_STA);
-  int index = -1;
-  int n = WiFi.scanNetworks();
-  for (int i = 0; i < n; i++) {
-    String ssid = WiFi.SSID(i);
-    disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
-    line = (line + 1) % (disph / dispys);
-    String mac = WiFi.BSSIDstr(i);
-    String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
-    Serial.printf("Network %s: RSSI %d, MAC %s, enc: %s\n", ssid.c_str(), WiFi.RSSI(i), mac.c_str(), encryptionTypeDescription.c_str());
-    int curidx = fetchWifiIndex(ssid.c_str());
-    if (curidx >= 0 && index == -1) {
-      index = curidx;
-      Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
+      disp.rdis->drawString(0, lastl, "Conn:");
+      disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
+      WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+    } else {
+      abort = 2;  // no network found in scan => abort right away
     }
   }
-  int lastl = (disph / dispys - 2) * dispys;
-  if (index >= 0) { // some network was found
-    Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
-    Serial.print(" with password "); Serial.println(fetchWifiPw(index));
-
-    disp.rdis->drawString(0, lastl, "Conn:");
-    disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
-    WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-    while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
-      delay(500);
-      Serial.print(".");
-      disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
-      cnt++;
-    }
+  while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY && !abort)  {
+    delay(500);
+    Serial.print(".");
+    disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
+    cnt++;
+    handlePMUirq();    // Needed to react to PMU chip button
+    abort = (getKeyPressEvent() != EVT_NONE);
   }
-  if (index < 0 || cnt >= MAXWIFIDELAY) { // no network found, or connect not successful
-    WiFi.disconnect(true);
-    delay(1000);
-    startAP();
-    IPAddress myIP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(myIP);
-    disp.rdis->drawString(0, lastl, "AP:             ");
-    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
-    delay(3000);
-  } else {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+  // We reach this point for mode 1, 3, and 4
+  // If connected (in any case) => all good, download eph if needed, all up and running
+  // Otherwise, If key was pressed, switch to AP mode
+  // Otherwise, if mode is 3 (old AUTO), switch to AP mode
+  // Otherwise, no network yet, keep trying to activate network in background (loopWiFiBackground)
+  if(WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected\nIP address:");
     String localIPstr = WiFi.localIP().toString();
     Serial.println(localIPstr);
     sonde.setIP(localIPstr.c_str(), false);
@@ -2620,9 +2651,21 @@ void loopWifiScan() {
       get_eph("/brdc");
     }
 #endif
+    enableNetwork(true);
     delay(3000);
   }
-  enableNetwork(true);
+  else if(sonde.config.wifi == 3 || abort==1 ) {
+    WiFi.disconnect(true);
+    delay(1000);
+    startAP();
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+    disp.rdis->drawString(0, lastl, "AP:             ");
+    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
+    enableNetwork(true);
+    delay(3000);
+  }
   initialMode();
 }
 

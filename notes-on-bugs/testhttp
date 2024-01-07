@@ -1,0 +1,40 @@
+#!/usr/bin/env python3
+
+import socket
+import sys
+import time
+
+
+# Connect the socket to the port where the server is listening
+server_address = ('192.168.4.1', 80)
+
+# Create a TCP/IP socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.connect(server_address)
+
+# Create a TCP/IP socket
+sock2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock2.connect(server_address)
+
+# send http request
+req = '''GET /{} HTTP/1.1
+Host: 192.168.4.1
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0
+Accept: */*
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+DNT: 1
+Connection: keep-alive
+Referer: http://192.168.4.1/qrg.html
+
+'''
+
+sock.sendall(req.format("rdz.js").encode())
+sock2.sendall(req.format("cfg.js").encode())
+
+time.sleep(0.5)
+sock.close()
+sock2.close()
+
+
+
