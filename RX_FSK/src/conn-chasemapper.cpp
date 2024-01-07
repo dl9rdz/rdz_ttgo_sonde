@@ -1,8 +1,20 @@
-#include "Chasemapper.h"
+#include "../features.h"
+#if FEATURE_CHASEMAPPER
+
+#include "conn-chasemapper.h"
+#include <WiFiUdp.h>
 
 extern const char *sondeTypeStrSH[];
+extern WiFiUDP udp;
 
-int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
+void ConnChasemapper::init() {
+}
+
+void ConnChasemapper::netsetup() {
+}
+
+
+void ConnChasemapper::updateSonde(SondeInfo *si) {
 	char buf[1024];
 	struct tm tim;
 	time_t t = si->d.time;
@@ -11,8 +23,16 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 	if (TYPE_IS_METEO(realtype)) {
 		realtype = si->d.subtype == 1 ? STYPE_M10 : STYPE_M20;
 	}
+        char prefix[10];
+        if(realtype == STYPE_RS41) {
+            prefix[0] = 0;
+        }
+        else {
+            strncpy(prefix, sondeTypeStrSH[realtype], 10);
+            strcat(prefix, "-");
+        }
 	sprintf(buf, "{ \"type\": \"PAYLOAD_SUMMARY\","
-		"\"callsign\": \"%s\","
+		"\"callsign\": \"%s%s\","
 		"\"latitude\": %.5f,"
 		"\"longitude\": %.5f,"
 		"\"altitude\": %d,"
@@ -21,6 +41,7 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 		"\"time\": \"%02d:%02d:%02d\","
 		"\"model\": \"%s\","
 		"\"freq\": \"%.3f MHz\"",
+                prefix,
 		si->d.ser,
 		si->d.lat,
 		si->d.lon,
@@ -38,6 +59,10 @@ int Chasemapper::send(WiFiUDP &udp, SondeInfo *si) {
 	udp.beginPacket(sonde.config.cm.host, sonde.config.cm.port);
 	udp.write((const uint8_t *)buf, strlen(buf));
 	udp.endPacket();	
-	return 0;
 }
 
+void ConnChasemapper::updateStation(PosInfo *pi) {
+}
+
+ConnChasemapper connChasemapper;
+#endif

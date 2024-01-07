@@ -9,18 +9,7 @@
 #include <U8x8lib.h>
 #include <SPIFFS.h>
 
-struct GpsPos {
-	double lat;
-	double lon;
-	int alt;
-	int course;
-	float speed;
-	int sat;
-	int accuracy;
-	int hdop;
-	int valid;
-};
-extern struct GpsPos gpsPos;
+#include "posinfo.h"
 
 #define WIDTH_AUTO 9999
 struct DispEntry {

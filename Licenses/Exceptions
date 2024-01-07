@@ -1,11 +1,51 @@
-GPL License Exceptions:
+GPL License Exceptions
 
-- The SX1278FSK library is based on
+Code in the repository:
+
+- The SX1278FSK library (src/SX1278FSK.cpp) is based on
    https://github.com/pdelmo/lora_shield_arduino.git
   and licensed under 
    GNU Lesser General Public License, version 2.1 (SPDX short identifier: LGPL-2.1)
 
-- Leaflet sidebar v2 plugin is (c) 2013 Tobias Bieniek based on
-  https://github.com/Turbo87/sidebar-v2/
-  and licensed under
-   MIT License
+- General purpose Reed-Solomon decoder for 8-bit symbols or less
+  Copyright 2003 Phil Karn, KA9Q
+  May be used under the terms of the GNU Lesser General Public License (LGPL) - lgpl-2.1.txt
+
+- some of the decoder code is more or less loosly inspired by
+  * oe5dxl aprs toolchain (http://oe5dxl.hamspirit.at:8025), licensed under GNU GPL (gpl-3.0.txt)
+  * Zilogs RS decoder (https://github.com/rs1729/RS), licensed under GNU GPL (gpl-3.0.txt)
+
+- Fonts in src/fonts (FreeMono*, FreeSans*, Picopixel) taken from Adafruit-GFX-Library
+  licensed under BSD License
+  Font src/fonts/Terminal11x16.h taken from https://github.com/Nkawu/TFT_22_ILI9225/
+  licensed under GPL-3.0
+
+External libraries used by the project:
+
+- Espressif 32: development platform for PlatformIO
+  https://github.com/platformio/platform-espressif32
+  licensed under Apache-2.0 licsense - apache.txt
+
+- U8glib library for monochrome displays, version 2
+  https://github.com/olikraus/u8g2
+  licensed under the new-bsd license (two-clause bsd license) - LICENSE-u8g2.txt
+
+- MicroNMEA - A compact Arduino library to parse NMEA sentences
+  https://github.com/stevemarple/MicroNMEA
+  licsensed under LGPL-2.1 license - lgpl-2.1.txt
+
+- ESPAsyncWebServer
+  see https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/src/ESPAsyncWebServer.h#L7-L19
+  licsensed under LGPL-2.1 license - lgpl-2.1.txt
+
+- Arduino GFX developing for various color displays
+  https://github.com/moononournation/Arduino_GFX
+  licensed under BSD License - LICENSE-Arduino_GFX.txt
+
+- asynchronous MQTT client implementation
+  https://github.com/dx168b/async-mqtt-client
+  licensed under MIT license - LICENSE-mqtt.txt
+
+- Time library for Arduino
+  https://github.com/PaulStoffregen/Time
+  licensed under LGPL-2.1 licsense - lgpl-2.1txt

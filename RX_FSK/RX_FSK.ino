@@ -1,7 +1,6 @@
 #include "features.h"
 #include "version.h"
 
-#include "axp20x.h"
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <ESPAsyncWebServer.h>
@@ -9,7 +8,6 @@
 #include <SPI.h>
 #include <Update.h>
 #include <ESPmDNS.h>
-#include <MicroNMEA.h>
 #include <Ticker.h>
 #include "esp_heap_caps.h"
 #include "soc/rtc_wdt.h"
@@ -18,22 +16,31 @@
 #include "src/Sonde.h"
 #include "src/Display.h"
 #include "src/Scanner.h"
-#include "src/geteph.h"
 #if FEATURE_RS92
+#include "src/geteph.h"
 #include "src/rs92gps.h"
 #endif
-#include "src/aprs.h"
+// Not needed here, included by connector   #include "src/aprs.h"
 #include "src/ShFreqImport.h"
 #include "src/RS41.h"
 #include "src/DFM.h"
 #include "src/json.h"
-#if FEATURE_CHASEMAPPER
-#include "src/Chasemapper.h"
-#endif
-//#include "NimBLEDevice.h"
+#include "src/posinfo.h"
 
+#include "src/pmu.h"
+
+/* Data exchange connectors */
+#if FEATURE_CHASEMAPPER
+#include "src/conn-chasemapper.h"
+#endif
 #if FEATURE_MQTT
-#include "src/mqtt.h"
+#include "src/conn-mqtt.h"
+#endif
+#if FEATURE_SDCARD
+#include "src/conn-sdcard.h"
+#endif
+#if FEATURE_APRS
+#include "src/conn-aprs.h"
 #endif
 
 //#define ESP_MEM_DEBUG 1
@@ -45,11 +52,9 @@ const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOU
 
 AsyncWebServer server(80);
 
-AXP20X_Class axp;
-#define PMU_IRQ             35
+PMU *pmu = NULL;
 SemaphoreHandle_t axpSemaphore;
-// 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
-uint8_t pmu_irq = 0;
+extern uint8_t pmu_irq;
 
 const char *updateHost = "rdzsonde.mooo.com";
 int updatePort = 80;
@@ -72,24 +77,6 @@ WiFiClient client;
 /* Sonde.h: enum SondeType { STYPE_DFM,, STYPE_RS41, STYPE_RS92, STYPE_M10M20, STYPE_M10, STYPE_M20, STYPE_MP3H }; */
 const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
 
-#if 0
-// not used any more
-const char *dfmSubtypeStrSH[16] = { NULL, NULL, NULL, NULL, NULL, NULL,
-                                    "DFM06",  // 0x06
-                                    "PS15",   // 0x07
-                                    NULL, NULL,
-                                    "DFM09",  // 0x0A
-                                    "DFM17",  // 0x0B
-                                    "DFM09P", // 0x0C
-                                    "DFM17",  // 0x0D
-                                    NULL, NULL
-                                  };
-#endif
-
-// Times in ms, i.e. station: 10 minutes, mobile: 20 seconds
-#define APRS_STATION_UPDATE_TIME (10*60*1000)
-#define APRS_MOBILE_STATION_UPDATE_TIME (20*1000)
-unsigned long time_last_aprs_update = -APRS_STATION_UPDATE_TIME;
 
 #if FEATURE_SONDEHUB
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
@@ -99,34 +86,13 @@ int shImportInterval = 0;
 char shImport = 0;
 unsigned long time_last_update = 0;
 #endif
-/* SH_LOC_OFF: never send position information to SondeHub
-   SH_LOC_FIXED: send fixed position (if specified in config) to sondehub
-   SH_LOC_CHASE: always activate chase mode and send GPS position (if available)
-   SH_LOC_AUTO: if there is no valid GPS position, or GPS position < MIN_LOC_AUTO_DIST away from known fixed position: use FIXED mode
-                otherwise, i.e. if there is a valid GPS position and (either no fixed position in config, or GPS position is far away from fixed position), use CHASE mode.
-*/
-// same constants used for SondeHub and APRS
-enum { SH_LOC_OFF, SH_LOC_FIXED, SH_LOC_CHASE, SH_LOC_AUTO };
-/* auto mode is chase if valid GPS position and (no fixed location entered OR valid GPS position and distance in lat/lon deg to fixed location > threshold) */
-#define MIN_LOC_AUTO_DIST 200   /* meter */
-#define SH_LOC_AUTO_IS_CHASE ( gpsPos.valid && ( (isnan(sonde.config.rxlat) || isnan(sonde.config.rxlon) ) ||  \
-                               calcLatLonDist( gpsPos.lat, gpsPos.lon, sonde.config.rxlat, sonde.config.rxlon ) > MIN_LOC_AUTO_DIST ) )
-extern float calcLatLonDist(float lat1, float lon1, float lat2, float lon2);
 
-// KISS over TCP for communicating with APRSdroid
-WiFiServer tncserver(14580);
-WiFiClient tncclient;
 // JSON over TCP for communicating with the rdzSonde (rdzwx-go) Android app
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
-// APRS over TCP for radiosondy.info etc
-AsyncClient tcpclient;
 
-#if FEATURE_MQTT
-unsigned long lastMqttUptime = 0;
-boolean mqttEnabled;
-MQTT mqttclient;
-#endif
+
+
 boolean forceReloadScreenConfig = false;
 
 enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
@@ -153,8 +119,7 @@ static unsigned long specTimer;
 void enterMode(int mode);
 void WiFiEvent(WiFiEvent_t event);
 
-char buffer[85];
-MicroNMEA nmea(buffer, sizeof(buffer));
+
 
 // Read line from file, independent of line termination (LF or CR LF)
 String readLine(Stream &stream) {
@@ -183,6 +148,7 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
 String processor(const String& var) {
   Serial.println(var);
   if (var == "MAPCENTER") {
+#if 0
     double lat, lon;
     if (gpsPos.valid) {
       lat = gpsPos.lat;
@@ -192,9 +158,11 @@ String processor(const String& var) {
       lat = sonde.config.rxlat;
       lon = sonde.config.rxlon;
     }
-    if ( !isnan(lat) && !isnan(lon) ) {
+    //if ( !isnan(lat) && !isnan(lon) ) {
+#endif
+    if ( posInfo.valid ) {
       char p[40];
-      snprintf(p, 40, "%g,%g", lat, lon);
+      snprintf(p, 40, "%g,%g", posInfo.lat, posInfo.lon);
       return String(p);
     } else {
       return String("48,13");
@@ -225,7 +193,11 @@ String processor(const String& var) {
     return String(tmpstr);
   }
   if (var == "EPHSTATE") {
+#if FEATURE_RS92
     return String(ephtxt[ephstate]);
+#else
+    return String("Not supported");
+#endif
   }
   return String();
 }
@@ -250,7 +222,7 @@ const String sondeTypeSelect(int activeType) {
 //trying to work around
 //"assertion "heap != NULL && "free() target pointer is outside heap areas"" failed:"
 // which happens if request->send is called in createQRGForm!?!??
-char message[10240 * 4-2048]; //needs to be large enough for all forms (not checked in code)
+char message[10240 * 3 - 2048]; //needs to be large enough for all forms (not checked in code)
 // QRG form is currently about 24kb with 100 entries
 
 ///////////////////////// Functions for Reading / Writing QRG list from/to qrg.txt
@@ -317,7 +289,7 @@ void HTMLBODYEND(char *ptr) {
 }
 void HTMLSAVEBUTTON(char *ptr) {
   strcat(ptr, "</div><div class=\"footer\"><input type=\"submit\" class=\"save\" value=\"Save changes\"/>"
-	      "<span class=\"ttgoinfo\">rdzTTGOserver ");
+         "<span class=\"ttgoinfo\">rdzTTGOserver ");
   strcat(ptr, version_id);
   strcat(ptr, "</span>");
 }
@@ -343,7 +315,7 @@ const char *createQRGForm() {
   return message;
 }
 
-const char *handleQRGPost(AsyncWebServerRequest *request) {
+const char *handleQRGPost(AsyncWebServerRequest * request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
   File file = SPIFFS.open("/qrg.txt", "w");
@@ -451,7 +423,7 @@ const char *createWIFIForm() {
 }
 
 #if 0
-  // moved to map.html (active warning is still TODO 
+// moved to map.html (active warning is still TODO
 const char *createSondeHubMap() {
   SondeInfo *s = &sonde.sondeList[0];
   char *ptr = message;
@@ -476,7 +448,7 @@ const char *createSondeHubMap() {
 }
 #endif
 
-const char *handleWIFIPost(AsyncWebServerRequest *request) {
+const char *handleWIFIPost(AsyncWebServerRequest * request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
 #if 1
@@ -557,7 +529,7 @@ const char *createStatusForm() {
     }
   }
   strcat(ptr, "</div><div class=\"footer\"><span></span>"
-              "<span class=\"ttgoinfo\">rdzTTGOserver ");
+         "<span class=\"ttgoinfo\">rdzTTGOserver ");
   strcat(ptr, version_id);
   strcat(ptr, "</span>");
 
@@ -572,7 +544,7 @@ const char *createLiveJson() {
 
   strcpy(ptr, "{\"sonde\": {");
   // use the same JSON format here as for MQTT and for the Android App
-  sonde2json( ptr+strlen(ptr), 1024, s );
+  sonde2json( ptr + strlen(ptr), 1024, s );
 #if 0
   sprintf(ptr + strlen(ptr), "\"sonde\": {\"rssi\": %d, \"vframe\": %d, \"time\": %d,\"id\": \"%s\", \"freq\": %3.3f, \"type\": \"%s\"",
           s->rssi, s->d.vframe, s->d.time, s->d.id, s->freq, sondeTypeStr[sonde.realType(s)]);
@@ -591,15 +563,10 @@ const char *createLiveJson() {
   sprintf(ptr + strlen(ptr), ", \"launchsite\": \"%s\", \"res\": %d }", s->launchsite, s->rxStat[0]);
 #endif
   strcat(ptr, " }");
-  if (gpsPos.valid) {
-    sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.sat, gpsPos.speed, gpsPos.course, gpsPos.hdop);
+
+  if (posInfo.valid) {
+    sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", posInfo.lat, posInfo.lon, posInfo.alt, posInfo.sat, posInfo.speed, posInfo.course, posInfo.hdop);
     //}
-  } else {
-    // no GPS position, but maybe a fixed position
-    if ((!isnan(sonde.config.rxlat)) && (!isnan(sonde.config.rxlon))) {
-      int alt = isnan(sonde.config.rxalt) ? 0 : (int)sonde.config.rxalt;
-      sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": 0, \"speed\": 0, \"dir\": 0, \"hdop\": 0 }", sonde.config.rxlat, sonde.config.rxlon, alt);
-    }
   }
 
   strcat(ptr, "}");
@@ -655,19 +622,21 @@ struct st_configitems config_list[] = {
   {"m10m20.rxbw", 0, &sonde.config.m10m20.rxbw},
   {"mp3h.agcbw", 0, &sonde.config.mp3h.agcbw},
   {"mp3h.rxbw", 0, &sonde.config.mp3h.rxbw},
-  {"ephftp", 39, &sonde.config.ephftp},
+  {"ephftp", 79, &sonde.config.ephftp},
   /* APRS settings */
   {"call", 9, sonde.config.call},
   {"passcode", 0, &sonde.config.passcode},
   /* KISS tnc settings */
   {"kisstnc.active", 0, &sonde.config.kisstnc.active},
+#if FEATURE_APRS
   /* AXUDP settings */
   {"axudp.active", -3, &sonde.config.udpfeed.active},
   {"axudp.host", 63, sonde.config.udpfeed.host},
   {"axudp.port", 0, &sonde.config.udpfeed.port},
   {"axudp.highrate", 0, &sonde.config.udpfeed.highrate},
-  /* APRS TCP settings, current not used */
+  /* APRS TCP settings */
   {"tcp.active", -3, &sonde.config.tcpfeed.active},
+  {"tcp.timeout", 0, &sonde.config.tcpfeed.timeout},
   {"tcp.host", 63, sonde.config.tcpfeed.host},
   {"tcp.port", 0, &sonde.config.tcpfeed.port},
   {"tcp.chase", 0, &sonde.config.chase},
@@ -675,6 +644,7 @@ struct st_configitems config_list[] = {
   {"tcp.objcall", 9, sonde.config.objcall},
   {"tcp.beaconsym", 4, sonde.config.beaconsym},
   {"tcp.highrate", 0, &sonde.config.tcpfeed.highrate},
+#endif
 #if FEATURE_CHASEMAPPER
   /* Chasemapper settings */
   {"cm.active", -3, &sonde.config.cm.active},
@@ -836,6 +806,7 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   f.close();
   Serial.printf("Re-reading file file\n");
   setupConfigData();
+  if (!gpsPos.valid) fixedToPosInfo();
   // TODO: Check if this is better done elsewhere?
   // Use new config (whereever this is feasible without a reboot)
   disp.setContrast();
@@ -865,7 +836,7 @@ const char *createControlForm() {
     }
   }
   strcat(ptr, "</div><div class=\"footer\"><span></span>"
-              "<span class=\"ttgoinfo\">rdzTTGOserver ");
+         "<span class=\"ttgoinfo\">rdzTTGOserver ");
   strcat(ptr, version_id);
   strcat(ptr, "</span>");
   HTMLBODYEND(ptr);
@@ -1209,13 +1180,13 @@ void SetupAsyncServer() {
   });
 
 
-//  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-//    request->send(200, "text/html", createSondeHubMap());
-//  });
-//  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-//    handleWIFIPost(request);
-//    request->send(200, "text/html", createSondeHubMap());
-//  });
+  //  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+  //    request->send(200, "text/html", createSondeHubMap());
+  //  });
+  //  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+  //    handleWIFIPost(request);
+  //    request->send(200, "text/html", createSondeHubMap());
+  //  });
 
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createConfigForm());
@@ -1434,167 +1405,6 @@ void initTouch() {
 
 
 
-
-/// Arrg. MicroNMEA changes type definition... so lets auto-infer type
-template<typename T>
-//void unkHandler(const MicroNMEA& nmea) {
-void unkHandler(T nmea) {
-  if (strcmp(nmea.getMessageID(), "VTG") == 0) {
-    const char *s = nmea.getSentence();
-    while (*s && *s != ',') s++;
-    if (*s == ',') s++; else return;
-    if (*s == ',') return; /// no new course data
-    int lastCourse = nmea.parseFloat(s, 0, NULL);
-    Serial.printf("Course update: %d\n", lastCourse);
-  } else if (strcmp(nmea.getMessageID(), "GST") == 0) {
-    // get horizontal accuracy for android app on devices without gps
-    // GPGST,time,rms,-,-,-,stdlat,stdlon,stdalt,cs
-    const char *s = nmea.getSentence();
-    while (*s && *s != ',') s++;  // #0: GST
-    if (*s == ',') s++; else return;
-    while (*s && *s != ',') s++;  // #1: time: skip
-    if (*s == ',') s++; else return;
-    while (*s && *s != ',') s++;  // #1: rms: skip
-    if (*s == ',') s++; else return;
-    while (*s && *s != ',') s++;  // #1: (-): skip
-    if (*s == ',') s++; else return;
-    while (*s && *s != ',') s++;  // #1: (-): skip
-    if (*s == ',') s++; else return;
-    while (*s && *s != ',') s++;  // #1: (-): skip
-    if (*s == ',') s++; else return;
-    // stdlat
-    int stdlat = nmea.parseFloat(s, 1, NULL);
-    while (*s && *s != ',') s++;
-    if (*s == ',') s++; else return;
-    // stdlong
-    int stdlon = nmea.parseFloat(s, 1, NULL);
-    // calculate position error as 1-signma horizontal RMS
-    // I guess that is equivalent to Androids getAccurac()?
-    int poserr = 0;
-    if (stdlat < 10000 && stdlon < 10000) { // larger errors: no GPS fix, avoid overflow in *
-      poserr = (int)(sqrt(0.5 * (stdlat * stdlat + stdlon * stdlon)));
-    }
-    //Serial.printf("\nHorizontal accuracy: %d, %d => %.1fm\n", stdlat, stdlon, 0.1*poserr);
-    gpsPos.accuracy = poserr;
-  }
-}
-
-//#define DEBUG_GPS
-static bool gpsCourseOld;
-static int lastCourse;
-void gpsTask(void *parameter) {
-  nmea.setUnknownSentenceHandler(unkHandler);
-
-  while (1) {
-    while (Serial2.available()) {
-      char c = Serial2.read();
-      //Serial.print(c);
-      if (nmea.process(c)) {
-        gpsPos.valid = nmea.isValid();
-        if (gpsPos.valid) {
-          gpsPos.lon = nmea.getLongitude() * 0.000001;
-          gpsPos.lat = nmea.getLatitude() * 0.000001;
-          long alt = 0;
-          nmea.getAltitude(alt);
-          gpsPos.alt = (int)(alt / 1000);
-          gpsPos.course = (int)(nmea.getCourse() / 1000);
-          gpsCourseOld = false;
-          if (gpsPos.course == 0) {
-            // either north or not new
-            if (lastCourse != 0) // use old value...
-            {
-              gpsCourseOld = true;
-              gpsPos.course = lastCourse;
-            }
-          }
-	  if(gpsPos.lon == 0 && gpsPos.lat == 0) gpsPos.valid = false;
-        }
-        gpsPos.hdop = nmea.getHDOP();
-        gpsPos.sat = nmea.getNumSatellites();
-        gpsPos.speed = nmea.getSpeed() / 1000.0 * 0.514444; // speed is in m/s  nmea.getSpeed is in 0.001 knots
-#ifdef DEBUG_GPS
-        uint8_t hdop = nmea.getHDOP();
-        Serial.printf(" =>: valid: %d  N %f  E %f  alt %d  course:%d dop:%d\n", gpsPos.valid ? 1 : 0, gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.course, hdop);
-#endif
-      }
-    }
-    delay(50);
-  }
-}
-
-#define UBX_SYNCH_1 0xB5
-#define UBX_SYNCH_2 0x62
-uint8_t ubx_set9k6[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0xC0, 0x08, 0x00, 0x00, 0x80, 0x25, 0x00, 0x00, 0x03, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8D, 0x8F};
-uint8_t ubx_factorydef[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x09, 13, 0, 0xff, 0xff, 0xff, 0xff, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 0xff, 0x13, 0x7c };
-uint8_t ubx_hardreset[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x04, 4, 0, 0xff, 0xff, 0, 0, 0x0C, 0x5D };
-// GPGST: Class 0xF0 Id 0x07
-uint8_t ubx_enable_gpgst[] = {UBX_SYNCH_1, UBX_SYNCH_2, 0x06, 0x01, 3, 0, 0xF0, 0x07, 2, 0x03, 0x1F};
-
-void dumpGPS() {
-  while (Serial2.available()) {
-    char c = Serial2.read();
-    Serial.printf("%02x ", (uint8_t)c);
-  }
-}
-void initGPS() {
-  if (sonde.config.gps_rxd < 0) return; // GPS disabled
-  if (sonde.config.gps_txd >= 0) {  // TX enable, thus try setting baud to 9600 and do a factory reset
-    File testfile = SPIFFS.open("/GPSRESET", FILE_READ);
-    if (testfile && !testfile.isDirectory()) {
-      testfile.close();
-      Serial.println("GPS resetting baud to 9k6...");
-      /* TODO: debug:
-          Sometimes I have seen the Serial2.begin to cause a reset
-          Guru Meditation Error: Core  1 panic'ed (Interrupt wdt timeout on CPU1)
-         Backtrace: 0x40081d2f:0x3ffc11b0 0x40087969:0x3ffc11e0 0x4000bfed:0x3ffb1db0 0x4008b7dd:0x3ffb1dc0 0x4017afee:0x3ffb1de0 0x4017b04b:0x3ffb1e20 0x4010722b:0x3ffb1e50 0x40107303:0x3ffb1e70 0x4010782d:0x3ffb1e90 0x40103814:0x3ffb1ed0 0x400d8772:0x3ffb1f10 0x400d9057:0x3ffb1f60 0x40107aca:0x3ffb1fb0 0x4008a63e:0x3ffb1fd0
-         #0  0x40081d2f:0x3ffc11b0 in _uart_isr at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-         #1  0x40087969:0x3ffc11e0 in _xt_lowint1 at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/xtensa_vectors.S:1154
-         #2  0x4000bfed:0x3ffb1db0 in ?? ??:0
-         #3  0x4008b7dd:0x3ffb1dc0 in vTaskExitCritical at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/freertos/tasks.c:3507
-         #4  0x4017afee:0x3ffb1de0 in esp_intr_alloc_intrstatus at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-         #5  0x4017b04b:0x3ffb1e20 in esp_intr_alloc at /home/runner/work/esp32-arduino-lib-builder/esp32-arduino-lib-builder/esp-idf/components/esp32/intr_alloc.c:784
-         #6  0x4010722b:0x3ffb1e50 in uartEnableInterrupt at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-         #7  0x40107303:0x3ffb1e70 in uartAttachRx at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-         #8  0x4010782d:0x3ffb1e90 in uartBegin at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/esp32-hal-uart.c:464
-         #9  0x40103814:0x3ffb1ed0 in HardwareSerial::begin(unsigned long, unsigned int, signed char, signed char, bool, unsigned long) at /Users/hansi/.platformio/packages/framework-arduinoespressif32/cores/esp32/HardwareSerial.cpp:190
-      */
-      Serial2.begin(115200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-      Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      delay(200);
-      Serial2.begin(38400, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-      Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      delay(200);
-      Serial2.begin(19200, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-      Serial2.write(ubx_set9k6, sizeof(ubx_set9k6));
-      Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-      delay(1000);
-      dumpGPS();
-      Serial.println("GPS factory reset...");
-      Serial2.write(ubx_factorydef, sizeof(ubx_factorydef));
-      delay(1000);
-      dumpGPS();
-      delay(1000);
-      dumpGPS();
-      delay(1000);
-      dumpGPS();
-      SPIFFS.remove("/GPSRESET");
-    } else if (testfile) {
-      Serial.println("GPS reset file: not found/isdir");
-      testfile.close();
-      Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-    }
-    // Enable GPGST messages
-    Serial2.write(ubx_enable_gpgst, sizeof(ubx_enable_gpgst));
-  } else {
-    Serial2.begin(9600, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
-  }
-  xTaskCreate( gpsTask, "gpsTask",
-               5000, /* stack size */
-               NULL, /* paramter */
-               1, /* priority */
-               NULL);  /* task handle*/
-}
-
 const char *getStateStr(int what) {
   if (what < 0 || what >= (sizeof(mainStateStr) / sizeof(const char *)))
     return "--";
@@ -1782,23 +1592,10 @@ int getKeyPress() {
 void handlePMUirq() {
   if (sonde.config.button2_axp) {
     // Use AXP power button as second button
-    if (pmu_irq) {
-      Serial.println("PMU_IRQ is set\n");
-      xSemaphoreTake( axpSemaphore, portMAX_DELAY );
-      axp.readIRQ();
-      if (axp.isPEKShortPressIRQ()) {
-        button2.pressed = KP_SHORT;
-        button2.keydownTime = my_millis();
-      }
-      if (axp.isPEKLongtPressIRQ()) {
-        button2.pressed = KP_MID;
-        button2.keydownTime = my_millis();
-      }
-      if (pmu_irq != 2) {
-        pmu_irq = 0;
-      }
-      axp.clearIRQ();
-      xSemaphoreGive( axpSemaphore );
+    int key = pmu->handleIRQ();
+    if (key > 0) {
+      button2.pressed = (KeyPress)key;
+      button2.keydownTime = my_millis();
     }
   } else {
     Serial.println("handlePMIirq() called. THIS SHOULD NOT HAPPEN w/o button2_axp set");
@@ -1829,7 +1626,7 @@ int getKeyPressEvent() {
 
 #define SSD1306_ADDRESS 0x3c
 bool ssd1306_found = false;
-bool axp192_found = false;
+bool axp_found = false;
 
 int scanI2Cdevice(void)
 {
@@ -1850,9 +1647,9 @@ int scanI2Cdevice(void)
         ssd1306_found = true;
         Serial.println("ssd1306 display found");
       }
-      if (addr == AXP192_SLAVE_ADDRESS) {
-        axp192_found = true;
-        Serial.println("axp192 PMU found");
+      if (addr == AXP192_SLAVE_ADDRESS) {  // Same for AXP2101
+        axp_found = true;
+        Serial.println("axp2101 PMU found");
       }
     } else if (err == 4) {
       Serial.print("Unknow error at address 0x");
@@ -1909,7 +1706,6 @@ void setup()
   }
   Serial.println(" (before setup)");
   sonde.defaultConfig();  // including autoconfiguration
-  aprs_gencrctab();
 
   Serial.println("Initializing SPIFFS");
   // Initialize SPIFFS
@@ -1934,71 +1730,24 @@ void setup()
       delay(500);
 
       scanI2Cdevice();
-      if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-        Serial.println("AXP192 Begin PASS");
-      } else {
-        Serial.println("AXP192 Begin FAIL");
-      }
-      axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);
-      if (sonde.config.type == TYPE_M5_CORE2) {
-        // Display backlight on M5 Core2
-        axp.setPowerOutPut(AXP192_DCDC3, AXP202_ON);
-        axp.setDCDC3Voltage(3300);
-	// SetBusPowerMode(0):
-	// #define AXP192_GPIO0_CTL                        (0x90)
-	// #define AXP192_GPIO0_VOL                        (0x91)
-	// #define AXP202_LDO234_DC23_CTL                  (0x12)
 
-	// The axp class lacks a functino to set GPIO0 VDO to 3.3V (as is done by original M5Stack software)
-	// so do this manually (default value 2.8V did not have the expected effect :))
-	// data = Read8bit(0x91);
-        // write1Byte(0x91, (data & 0X0F) | 0XF0);
-	uint8_t reg;
-	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-	Wire.write(AXP192_GPIO0_VOL);
-	Wire.endTransmission();
-	Wire.requestFrom(AXP192_SLAVE_ADDRESS, 1);
-	reg = Wire.read();
-	reg = (reg&0x0F) | 0xF0;
-	Wire.beginTransmission((uint8_t)AXP192_SLAVE_ADDRESS);
-	Wire.write(AXP192_GPIO0_VOL);
-	Wire.write(reg);
-	Wire.endTransmission();
-	// data = Read8bit(0x90);
-        // Write1Byte(0x90, (data & 0XF8) | 0X02)
-	axp.setGPIOMode(AXP_GPIO_0, AXP_IO_LDO_MODE);  // disable AXP supply from VBUS
-        pmu_irq = 2; // IRQ pin is not connected on Core2
-	// data = Read8bit(0x12);         //read reg 0x12
-        // Write1Byte(0x12, data | 0x40);    // enable 3,3V => 5V booster
-	// this is done below anyway: axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-
-        axp.adc1Enable(AXP202_ACIN_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_ACIN_CUR_ADC1, 1);
-      } else {
-        // GPS on T-Beam, buzzer on M5 Core2
-        axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
-        axp.adc1Enable(AXP202_VBUS_VOL_ADC1, 1);
-        axp.adc1Enable(AXP202_VBUS_CUR_ADC1, 1);
-      }
-      axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-      axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-      axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
-      axp.setDCDC1Voltage(3300);
-      axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-      if (sonde.config.button2_axp ) {
-        if (pmu_irq != 2) {
-          pinMode(PMU_IRQ, INPUT_PULLUP);
-          attachInterrupt(PMU_IRQ, [] {
-            pmu_irq = 1;
-          }, FALLING);
+      if (!pmu) {
+        pmu = PMU::getInstance(Wire);
+        if (pmu) {
+          Serial.println("PMU found");
+          pmu->init();
+          if (sonde.config.button2_axp ) {
+            //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+            //axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
+            //axp.clearIRQ();
+            pmu->disableAllIRQ();
+            pmu->enableIRQ();
+          }
+          int ndevices = scanI2Cdevice();
+          if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
+          delay(500);
         }
-        //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-        axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-        axp.clearIRQ();
       }
-      int ndevices = scanI2Cdevice();
-      if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-      delay(500);
     }
   }
   if (sonde.config.batt_adc >= 0) {
@@ -2164,7 +1913,11 @@ void setup()
                NULL);  /* task handle*/
 #endif
   sonde.setup();
+  fixedToPosInfo();
   initGPS();
+#if FEATURE_APRS
+  connAPRS.init();
+#endif
 
   WiFi.onEvent(WiFiEvent);
   getKeyPress();    // clear key buffer
@@ -2190,6 +1943,7 @@ void enterMode(int mode) {
   } else if (mainState == ST_WIFISCAN) {
     sonde.clearDisplay();
   }
+
   if (mode == ST_DECODER) {
     // trigger activation of background task
     // currentSonde should be set before enterMode()
@@ -2219,52 +1973,6 @@ static const char *action2text(uint8_t action) {
 }
 
 #define RDZ_DATA_LEN 128
-
-void parseGpsJson(char *data) {
-  char *key = NULL;
-  char *value = NULL;
-  // very simple json parser: look for ", then key, then ", then :, then number, then , or } or \0
-  for (int i = 0; i < RDZ_DATA_LEN; i++) {
-    if (key == NULL) {
-      if (data[i] != '"') continue;
-      key = data + i + 1;
-      i += 2;
-      continue;
-    }
-    if (value == NULL) {
-      if (data[i] != ':') continue;
-      value = data + i + 1;
-      i += 2;
-      continue;
-    }
-    if (data[i] == ',' || data[i] == '}' || data[i] == 0) {
-      // get value
-      double val = strtod(value, NULL);
-      // get data
-      if (strncmp(key, "lat", 3) == 0) {
-        gpsPos.lat = val;
-      }
-      else if (strncmp(key, "lon", 3) == 0) {
-        gpsPos.lon = val;
-      }
-      else if (strncmp(key, "alt", 3) == 0) {
-        gpsPos.alt = (int)val;
-      }
-      else if (strncmp(key, "course", 6) == 0) {
-        gpsPos.course = (int)val;
-      }
-      gpsPos.valid = true;
-
-      // next item:
-      if (data[i] != ',') break;
-      key = NULL;
-      value = NULL;
-    }
-  }
-  if(gpsPos.lat == 0 && gpsPos.lon == 0) gpsPos.valid = false;
-  Serial.printf("Parse result: lat=%f, lon=%f, alt=%d, valid=%d\n", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.valid);
-}
-
 static char rdzData[RDZ_DATA_LEN];
 static int rdzDataPos = 0;
 
@@ -2303,20 +2011,7 @@ void loopDecoder() {
     }
   }
 
-  if (!tncclient.connected()) {
-    //Serial.println("TNC client not connected");
-    tncclient = tncserver.available();
-    if (tncclient.connected()) {
-      Serial.println("new TCP KISS connection");
-    }
-  }
-  if (tncclient.available()) {
-    Serial.print("TCP KISS socket: recevied ");
-    while (tncclient.available()) {
-      Serial.print(tncclient.read());  // Check if we receive anything from from APRSdroid
-    }
-    Serial.println("");
-  }
+
   if (rdzserver.hasClient()) {
     Serial.println("TCP JSON socket: new connection");
     rdzclient.stop();
@@ -2330,7 +2025,7 @@ void loopDecoder() {
       if (c == '\n' || c == '}' || rdzDataPos >= RDZ_DATA_LEN) {
         // parse GPS position from phone
         rdzData[rdzDataPos] = c;
-        if (rdzDataPos > 2) parseGpsJson(rdzData);
+        if (rdzDataPos > 2) parseGpsJson(rdzData, rdzDataPos + 1);
         rdzDataPos = 0;
       }
       else {
@@ -2351,6 +2046,11 @@ void loopDecoder() {
     // first check if ID and position lat+lonis ok
 
     if (s->d.validID && ((s->d.validPos & 0x03) == 0x03)) {
+#if FEATURE_APRS
+      connAPRS.updateSonde(s);
+#endif
+#if 0
+      // moved to conn-aprs.cpp
       char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
       char raw[201];
       int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
@@ -2373,7 +2073,7 @@ void loopDecoder() {
         }
         else if ( tcpclient.connected() ) {
           unsigned long now = millis();
-	  Serial.printf("aprs: now-last = %ld\n", (now-lasttcp));
+          Serial.printf("aprs: now-last = %ld\n", (now - lasttcp));
           if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
             strcat(str, "\r\n");
             Serial.print(str);
@@ -2382,9 +2082,11 @@ void loopDecoder() {
           }
         }
       }
+#endif
+
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
-        Chasemapper::send(udp, s);
+        connChasemapper.updateSonde( s );
       }
 #endif
     }
@@ -2395,21 +2097,26 @@ void loopDecoder() {
 #endif
 
 #if FEATURE_MQTT
-    // send to MQTT if enabledson
-    if (connected && mqttEnabled) {
-      Serial.println("Sending sonde info via MQTT");
-      mqttclient.publishPacket(s);
-    }
+    connMQTT.updateSonde( s );      // send to MQTT if enabled
 #endif
+
   } else {
 #if FEATURE_SONDEHUB
     sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
 #endif
   }
+
+
   // Send own position periodically
-  if (sonde.config.tcpfeed.active) {
-    aprs_station_update();
-  }
+#if FEATURE_MQTT
+  connMQTT.updateStation( NULL );
+#endif
+#if FEATURE_APRS
+  connAPRS.updateStation( NULL );
+  //if (sonde.config.tcpfeed.active) {
+  //  aprs_station_update();
+  //}
+#endif
   // always send data, even if not valid....
   if (rdzclient.connected()) {
     Serial.println("Sending position via TCP as rdzJSON");
@@ -2431,82 +2138,18 @@ void loopDecoder() {
     //
     raw[0] = '{';
     // Use same JSON format as for MQTT and HTML map........
-    sonde2json(raw+1, 1023, s);
-    sprintf(raw+strlen(raw),
-	",\"active\":%d"
-	",\"validId\":%d"
-	",\"validPos\":%d"
-	" %s}\n",
-	(int)s->active,
-	s->d.validID,
-	s->d.validPos,
-	gps);
+    sonde2json(raw + 1, 1023, s);
+    sprintf(raw + strlen(raw),
+            ",\"active\":%d"
+            ",\"validId\":%d"
+            ",\"validPos\":%d"
+            " %s}\n",
+            (int)s->active,
+            s->d.validID,
+            s->d.validPos,
+            gps);
     int len = strlen(raw);
-#if 0
-    //maintain backwords compatibility
-    float lat = isnan(s->d.lat) ? 0 : s->d.lat;
-    float lon = isnan(s->d.lon) ? 0 : s->d.lon;
-    float alt = isnan(s->d.alt) ? -1 : s->d.alt;
-    float vs = isnan(s->d.vs) ? 0 : s->d.vs;
-    float hs = isnan(s->d.hs) ? 0 : s->d.hs;
-    float dir = isnan(s->d.dir) ? 0 : s->d.dir;
 
-    int len = snprintf(raw, 1024, "{"
-                       "\"res\": %d,"
-                       "\"type\": \"%s\","
-                       "\"active\": %d,"
-                       "\"freq\": %.2f,"
-                       "\"id\": \"%s\","
-                       "\"ser\": \"%s\","
-                       "\"validId\": %d,"
-                       "\"launchsite\": \"%s\","
-                       "\"lat\": %.5f,"
-                       "\"lon\": %.5f,"
-                       "\"alt\": %.1f,"
-                       "\"vs\": %.1f,"
-                       "\"hs\": %.1f,"
-                       "\"dir\": %.1f,"
-                       "\"sats\": %d,"
-                       "\"validPos\": %d,"
-                       "\"time\": %d,"
-                       "\"frame\": %d,"
-                       "\"validTime\": %d,"
-                       "\"rssi\": %d,"
-                       "\"afc\": %d,"
-                       "\"launchKT\": %d,"
-                       "\"burstKT\": %d,"
-                       "\"countKT\": %d,"
-                       "\"crefKT\": %d"
-                       "%s"
-                       "}\n",
-                       res & 0xff,
-                       typestr,
-                       (int)s->active,
-                       s->freq,
-                       s->d.id,
-                       s->d.ser,
-                       (int)s->d.validID,
-                       s->launchsite,
-                       lat,
-                       lon,
-                       alt,
-                       vs,
-                       hs,
-                       dir,
-                       s->d.sats,
-                       s->d.validPos,
-                       s->d.time,
-                       s->d.frame,
-                       (int)s->d.validTime,
-                       s->rssi,
-                       s->afc,
-                       s->d.launchKT,
-                       s->d.burstKT,
-                       s->d.countKT,
-                       s->d.crefKT,
-                       gps
-                      );
-#endif
 
     //Serial.println("Writing rdzclient...");
     if (len > 1024) len = 1024;
@@ -2619,17 +2262,14 @@ void enableNetwork(bool enable) {
     SetupAsyncServer();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
-    MDNS.addService("kiss-tnc", "tcp", 14580);
+    // => moved to conn-aprs  MDNS.addService("kiss-tnc", "tcp", 14580);
     MDNS.addService("jsonrdz", "tcp", 14570);
-    if (sonde.config.kisstnc.active) {
-      tncserver.begin();
-      rdzserver.begin();
-    }
+    //if (sonde.config.kisstnc.active) {
+    //   tncserver.begin();
+    rdzserver.begin();
+    //}
 #if FEATURE_MQTT
-    if (sonde.config.mqtt.active && strlen(sonde.config.mqtt.host) > 0) {
-      mqttEnabled = true;
-      mqttclient.init(sonde.config.mqtt.host, sonde.config.mqtt.port, sonde.config.mqtt.id, sonde.config.mqtt.username, sonde.config.mqtt.password, sonde.config.mqtt.prefix);
-    }
+    connMQTT.netsetup();
 #endif
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
@@ -2643,15 +2283,11 @@ void enableNetwork(bool enable) {
     MDNS.end();
     connected = false;
   }
-  tcpclient.onConnect([](void *arg, AsyncClient * s) {
-    Serial.write("APRS: TCP connected\n");
-    char buf[128];
-    snprintf(buf, 128, "user %s pass %d vers %s %s\r\n", sonde.config.call, sonde.config.passcode, version_name, version_id);
-    s->write(buf, strlen(buf));
-  });
-  tcpclient.onData([](void *arg, AsyncClient * c, void *data, size_t len) {
-    Serial.write((const uint8_t *)data, len);
-  });
+
+#if FEATURE_APRS
+  connAPRS.netsetup();
+#endif
+
   Serial.println("enableNetwork done");
 }
 
@@ -3263,58 +2899,11 @@ void loop() {
     lastDisplay = currentDisplay;
   }
 
-#if FEATURE_MQTT
-  int now = millis();
-  if (mqttEnabled && (lastMqttUptime == 0 || (lastMqttUptime + 60000 < now) || (lastMqttUptime > now))) {
-    mqttclient.publishUptime();
-    lastMqttUptime = now;
-  }
-#endif
-
 }
 
-void aprs_station_update() {
-  int chase = sonde.config.chase;
-  // automatically decided if CHASE or FIXED mode is used (for config AUTO)
-  if (chase == SH_LOC_AUTO) {
-    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
-  }
-  unsigned long time_now = millis();
-  unsigned long time_delta = time_now - time_last_aprs_update;
-  unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
-  Serial.printf("aprs_station_update: delta: %ld, update in %ld\n", time_delta, update_time);
-  if (time_delta < update_time) return;
-  Serial.println("Update is due!!");
-
-  float lat, lon;
-  if (chase == SH_LOC_FIXED) {
-    // fixed location
-    lat = sonde.config.rxlat;
-    lon = sonde.config.rxlon;
-    if (isnan(lat) || isnan(lon)) return;
-  } else {
-    if (gpsPos.valid) {
-      lat = gpsPos.lat;
-      lon = gpsPos.lon;
-    } else {
-      return;
-    }
-  }
-  Serial.printf("Really updating!! (objcall is %s)", sonde.config.objcall);
-  char *bcn = aprs_send_beacon(sonde.config.call, lat, lon, sonde.config.beaconsym + ((chase==SH_LOC_CHASE)?2:0), sonde.config.comment);
-  if ( tcpclient.disconnected()) {
-    tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
-  }
-  if ( tcpclient.connected() ) {
-    strcat(bcn, "\r\n");
-    Serial.println("****BEACON****");
-    Serial.print(bcn);
-    tcpclient.write(bcn, strlen(bcn));
-    time_last_aprs_update = time_now;
-  }
-}
 
 #if FEATURE_SONDEHUB
+
 // Sondehub v2 DB related codes
 /*
  	Update station data to the sondehub v2 DB
@@ -3335,7 +2924,7 @@ void sondehub_station_update(WiFiClient * client, struct st_sondehub * conf) {
   int chase = conf->chase;
   // automatically decided if CHASE or FIXED mode is used (for config AUTO)
   if (chase == SH_LOC_AUTO) {
-    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
+    if (posInfo.chase) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
   // Use 30sec update time in chase mode, 60 min in station mode.
@@ -3565,7 +3154,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   int chase = conf->chase;
   // automatically decided if CHASE or FIXED mode is used (for config AUTO)
   if (chase == SH_LOC_AUTO) {
-    if (SH_LOC_AUTO_IS_CHASE) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
+    if (posInfo.chase) chase = SH_LOC_CHASE; else chase = SH_LOC_FIXED;
   }
 
 
@@ -3579,7 +3168,7 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
   }
 
   // Check if current sonde data is valid. If not, don't do anything....
-  if (*s->d.ser == 0 || s->d.validID==0 ) return;	// Don't send anything without serial number
+  if (*s->d.ser == 0 || s->d.validID == 0 ) return;	// Don't send anything without serial number
   if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;	// Sometimes these values are zeroes. Don't send those to the sondehub
   if ((int)s->d.alt > 50000) return;	// If alt is too high don't send to SondeHub
   // M20 data does not include #sat information
@@ -3655,12 +3244,12 @@ void sondehub_send_data(WiFiClient * client, SondeInfo * s, struct st_sondehub *
 
   /* if there is a subtype (DFM only) */
   if ( TYPE_IS_DFM(s->type) && s->d.subtype > 0 ) {
-    if( (s->d.subtype&0xF) != DFM_UNK) {
-      const char *t = dfmSubtypeLong[s->d.subtype&0xF];
+    if ( (s->d.subtype & 0xF) != DFM_UNK) {
+      const char *t = dfmSubtypeLong[s->d.subtype & 0xF];
       sprintf(w, "\"subtype\": \"%s\",", t);
     }
     else {
-      sprintf(w, "\"subtype\": \"DFMx%X\",", s->d.subtype>>4); // Unknown subtype
+      sprintf(w, "\"subtype\": \"DFMx%X\",", s->d.subtype >> 4); // Unknown subtype
     }
     w += strlen(w);
   } else if ( s->type == STYPE_RS41 ) {
