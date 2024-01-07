@@ -1,0 +1,123 @@
+Squashed commit of the following:
+
+commit fcaf88779dc91cec69f9359406d3aed904e55b6d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Jan 7 12:22:16 2024 +0000
+
+    (read partition table; preparation for future file system upload script)
+
+commit 9c7491d389a2c164e4a1675af225646812da7171
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Jan 6 23:51:44 2024 +0000
+
+    better license info on external libraries
+
+commit 12ede0e81d71a4c9ba0a26bddb408a5010e46c6f
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Dec 18 19:12:36 2023 +0100
+
+    esp32 version update
+
+commit 1687117bec2a60a1ad73305f73a9f7c402b5afce
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Dec 12 19:36:47 2023 +0000
+
+    tentative fix of M20 misclassification as M10 (untested)
+
+commit ff5aec544ecbede934a9e70dd742e57f199994b0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Dec 12 19:27:23 2023 +0000
+
+    tentative fix of M20 misclassification as M10 (untested)
+
+commit 2b88e072aca924f280547b8277a31f4466e6c85c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Dec 10 16:11:51 2023 +0000
+
+    reduce image size with platformio builds, make it (almost) same as for Arduino builds
+
+commit 8ee071de35c47b26e9b051eca6b4a775615206cf
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Dec 3 22:45:44 2023 +0000
+
+    T-Beam 1.2: charge battery fix
+
+commit 681f43676726e57049d6e91a8236b2f357669b36
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Dec 3 16:00:13 2023 +0000
+
+    newer library versions
+
+commit 6551fa0b5d4df5bba98135aa5d03afbccbafbe72
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Nov 10 09:43:02 2023 +0000
+
+    chasemapper: id format with type, as in auto_rx
+
+commit e5c2e2db7745fcb40f8bbe1a1c596ecc88c83d1a
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Aug 29 20:15:53 2023 +0000
+
+    more explanation in About tabw
+
+commit aec4d3986761a9c1e0c48c78b0576d45310d87d4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Aug 29 01:00:53 2023 +0000
+
+    fix travis build / wget issue with github
+
+commit d7026abb7b75e977251e4d1c70ecb167827f1a51
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Aug 29 00:22:48 2023 +0000
+
+    fix bug in eph config editor
+
+commit 6c98891b630b9330e75ecd870b5dd9b208218fd8
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Aug 28 12:35:06 2023 +0000
+
+    AXP2101: add missing irq handler
+
+commit c1231a11d42de37dd81221b16b45c5ef0de45040
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Aug 28 12:02:36 2023 +0000
+
+    bugfix (APX2101 related)
+
+commit 86263a7ad19c2a5dd2814b814fb1890224cf0b6e
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Aug 28 10:13:39 2023 +0000
+
+    fix
+
+commit 35156948cb772f27daed96e7a1621bd514dfc904
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Aug 28 10:07:09 2023 +0000
+
+    yet another fix for ftp eph
+
+commit 3ddbebf2fccc311f6e595172eb0c7b450429f8c4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Aug 26 23:33:33 2023 +0000
+
+    untested axp2101 support
+
+commit 60e97d917b699be32c06f1c89cde82335ba7b80b
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sat Aug 26 17:19:38 2023 +0000
+
+    pmu reorg, preparing for axp2101
+
+commit 082b6ccdf54e494e03a8650d2aee4277277da57d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue Aug 22 22:28:37 2023 +0000
+
+    fix posInfo bug; aprs timeout convert seconds to ms
+
+commit deec0d362fd369bbc647a257e5d2299e0ca5d04c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Jul 9 12:10:53 2023 +0200
+
+    (sync with master)
+    some code reorganization, preliminary SD card code (not active)
+    APRS timeout added
