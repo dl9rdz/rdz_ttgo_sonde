@@ -3,6 +3,7 @@ import requests
 import sys
 import os
 import socket
+import tempfile
 import esptool
 
 ttgohost = "rdzsonde.local"
@@ -56,6 +57,7 @@ if len(sys.argv)<=2:
   print("or:    ",sys.argv[0]," <get|put> file {filename}");
   print("or:    ",sys.argv[0]," update <devel-xxx|master-yyy>");
   print("or:    ",sys.argv[0]," <backup|restore> file.bin");
+  print("or:    ",sys.argv[0]," uploadfs directory");
   print("\n",
         "     screens is screens1.txt, screens2.txt, screens3.txt");
   print("     networks is networks.txt (Wifi ssid and password)")
@@ -93,6 +95,52 @@ if sys.argv[1]=="update":
   sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "write_flash", "-z", "--flash_mode", "dio", "--flash_freq", "80m", "--flash_size", "detect", "0x1000", "firmware.bin"]
   esptool.main()
   exit(0)
+
+
+def getpartinfo(partname):
+  import gen_esp32part as pt
+  # flash complete file system
+  # automatically get file system parameters from ESP (i.e. you need to program the partition table first)
+  if False:
+    tmpdir = tempfile.mkdtemp()
+    partbin = os.path.join(tmpdir, "partition.bin")
+    sys._argv = sys.argv[:]
+    sys.argv=[sys._argv[0], "--chip", "esp32", "--baud", "921600", "--before", "default_reset",
+      "--after", "no_reset", "read_flash", "0x8000", "0x1000", partbin]
+    esptool.main()
+  else:
+    # test only
+    partbin="partitions-esp32v2.csv"
+  with open(partbin,"rb") as f:
+    table, input_is_binary = pt.PartitionTable.from_file(f)
+  print("Partition table:")
+  tab = table.to_csv()
+  print(tab)
+  OFFSET = -1
+  SIZE = -1
+  for line in tab.split("\n"):
+    if line.startswith(partname):
+      l = line.split(",")
+      OFFSET = int(l[3],0)
+      SIZE = l[4]
+      mult = 1
+      if SIZE[-1].upper() == 'K':
+          SIZE = SIZE[:-1]
+          mult = 1024
+      print("SIZE is:"+SIZE+"!")
+      SIZE = int(SIZE,0) * mult
+ 
+  print("File system at ",hex(OFFSET)," size=",hex(SIZE))
+  return [OFFSET, SIZE]
+
+#OFFSET="0x3F0000"
+#SIZE="0x10000"
+
+if sys.argv[1]=="uploadfs":
+  (offset, size) = getpartinfo("spiffs")
+  print("Using offset ",offset,"; size is ",size)
+  exit(0)
+
 
 addrinfo = socket.gethostbyname(ttgohost)
 url = "http://"+addrinfo+"/"
