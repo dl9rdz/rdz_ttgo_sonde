@@ -87,8 +87,6 @@ char shImport = 0;
 unsigned long time_last_update = 0;
 #endif
 
-
-
 // JSON over TCP for communicating with the rdzSonde (rdzwx-go) Android app
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
@@ -1692,7 +1690,6 @@ void setup()
     int v = gpio_get_level((gpio_num_t)i);
     Serial.printf("%d:%d ", i, v);
   }
-  Serial.printf("Test%1$s%1$s\n", "hello");
 
   //NimBLEDevice::init("NimBLE-Arduino");
   //NimBLEServer* pServer = NimBLEDevice::createServer();;
