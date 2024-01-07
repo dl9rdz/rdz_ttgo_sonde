@@ -1,3 +1,22 @@
+livemap.html 720
+<!DOCTYPE html>
+<html>
+<head>
+  <title>rdzTTGOSonde Server LiveMap</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+  <link rel="stylesheet" type="text/css" href="style.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
+  <script>var mapcenter=[%MAPCENTER%];</script>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
+  <script src="livemap.js"></script>
+</head>
+<body>
+  <div id="map"></div>
+</body>
+</html>
 style.css 7441
 body, html {
 	height: 100%;
@@ -391,151 +410,6 @@ p{
     background: grey !important;
   }
 }
-livemap.html 720
-<!DOCTYPE html>
-<html>
-<head>
-  <title>rdzTTGOSonde Server LiveMap</title>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-  <link rel="stylesheet" type="text/css" href="style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
-  <script>var mapcenter=[%MAPCENTER%];</script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
-  <script src="livemap.js"></script>
-</head>
-<body>
-  <div id="map"></div>
-</body>
-</html>
-map.html 1206
-<html>
-<head>
-<script>
-maptype = "SH"; // TODO: Get from config
-
-const maps = {
-  "WS": ["https://www.wettersonde.net/map.php", (s)=>"?sonde="+s, (lat,lon)=>""],
-  "SH": ["https://sondehub.org/", (s)=>s, (lat,lon)=>'#!mz=8&mc=' + lat + ',' + lon],
-  "RS": ["https://radiosondy.info/", (s)=>"sonde.php?sondenumber="+s, (lat,lon)=>""],
-  "OW": ["https://v2.openwx.de/start.php", (s)=>"?sonde="+s, (lat,lon)=>"?mode=mobile"],
-};
-
-data = ["T4420541",63.5,-20.0];
-document.addEventListener("DOMContentLoaded", function(){
-   fetch('live.json')
-     .then((response) => response.json())
-     .then((data) => {
-        if (data.gps===undefined) { data.gps={} };
-  	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
-        if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
-          urlarg = maps[maptype][2](data.gps.lat, data.gps.lon);
-        } else {
-          urlarg = maps[maptype][1](data.sonde.ser||'');
-        }
-        iftxt='<iframe src="' + maps[maptype][0] + urlarg + '" style="border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%"></iframe>';
-        document.getElementsByTagName('body')[0].innerHTML = iftxt;
-     })
-})
-</script>
-</head>
-<body>
-</body>
-</html>
-rdz.js 1843
-let stypes=new Map();
-stypes.set('4', 'RS41');
-stypes.set('R', 'RS92');
-stypes.set('D', 'DFM');
-stypes.set('M', 'M10/M20');
-stypes.set('3', 'MP3H');
-
-function footer() {
-  document.addEventListener("DOMContentLoaded", function(){
-    var form = document.querySelector(".wrapper");
-    form.addEventListener("input", function() {
-      document.querySelector(".save").disabled = false;
-    });
-    document.querySelector(".save").disabled = true;
-  }); 
-}
-
-/* Used by qrg.html in RX_FSK.ino */
-function prep() {
-  var stlist=document.querySelectorAll("input.stype");
-  for(txt of stlist){
-    var val=txt.getAttribute('value'); var nam=txt.getAttribute('name'); 
-    if(val=='2') { val='M'; }
-    var sel=document.createElement('select');
-    sel.setAttribute('name',nam);
-    for(stype of stypes) { 
-      var opt=document.createElement('option');
-      opt.value=stype[0];
-      opt.innerHTML=stype[1];
-      if(stype[0]==val) { opt.setAttribute('selected','selected'); }
-      sel.appendChild(opt);
-    }
-    txt.replaceWith(sel);
-  }
-} 
-
-function qrgTable() {
-  var tab=document.getElementById("divTable");
-
-  var table = "<table><tr><th>Ch</th><th>Active</th><th>Frequency</th><th>Decoder</th><th>Launchsite</th></tr>";
-  for(i=0; i<qrgs.length; i++) {
-     var ck = "";
-     if(qrgs[i][0]) ck="checked";
-     table += "<tr><td class=\"ch\">" + (i+1) + "</td><td class=\"act\"><input name=\"A" + (i+1) + "\" type=\"checkbox\" " + ck + "/></td>";
-     table += "<td><input name=\"F" + (i+1) + "\" type=\"text\" size=7 value=\"" + qrgs[i][1] + "\"></td>";
-     table += "<td><input class=\"stype\" name=\"T" + (i+1) + "\" value=\"" + qrgs[i][3] + "\"></td>";
-     table += "<td><input name=\"S" + (i+1) + "\" type=\"text\" value=\"" + qrgs[i][2] +"\"></td></tr>";
-  }
-  table += "</table>";
-  tab.innerHTML = table;
-  prep();
-  footer();
-}
-
-upd.html 1353
-<html><head>
-<link rel="stylesheet" type="text/css" href="style.css">
-</head>
-<body>
-
-
-<form action="update.html" method="post"><p>Currently installed: %FULLNAMEID%</p>
-<p>
-Available master: <span id="masterDiv">(...checking...)</span>
-
-<br>
-Available devel: <span id="develDiv">(...checking...)</span>
-
-</p>
-<input type="submit" name="master" value="Master-Update"></input><br>
-<input type="submit" name="devel" value="Devel-Update"><br>
-<p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p></form>
-
-<script>
-const masterInfo = document.getElementById('masterDiv');
-const develInfo = document.getElementById('develDiv');
-
-let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.mooo.com/master/update-info.html');
-request.onload = function() {
-  masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
-}
-request.send();
-let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.mooo.com/devel/update-info.html');
-drequest.onload = function() {
-  develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
-}
-drequest.send();
-</script>
-</body></html>
 livemap.js 19784
 try {
   var check = $(document);
@@ -1067,6 +941,186 @@ function bearing(latlng1, latlng2) {
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
 }
+index.html 4368
+<!DOCTYPE html>
+<html>
+<head>
+  <title>rdzTTGOSonde Server</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+ <div class="wrapper"><div class="header">
+<div class="topnav" id="myTopnav">
+	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
+	<a href="#data" onclick="selTab(event,'Data')" class="tablinks">Data</a>
+	<a href="#map" onclick="selTab(event,'Map')" class="tablinks">Map</a>
+	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
+	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
+	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
+	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
+	<a href="#about" onclick="selTab(event,'About')" class="tablinks">About</a>
+	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
+		<span class="hamburger"></span>
+	</a>
+</div>
+</div>
+
+<div id="QRG" class="tabcontent" data-src="qrg.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="WiFi" class="tabcontent" data-src="wifi.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="Data" class="tabcontent" data-src="status.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="Map" class="tabcontent" data-src="map.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="Config" class="tabcontent" data-src="config.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="Control" class="tabcontent" data-src="control.html">
+	<iframe class="tci" src="" ></iframe>
+</div>
+
+<div id="About" class="tabcontent">
+<div class="tci">
+   %VERSION_NAME%<br>
+   Copyright &copy; 2019-2022 by Hansi Reiser, DL9RDZ<br>
+   (version %VERSION_ID%)<br><br>
+
+   <a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br><br>
+
+   with contributions by Vigor and Xavier (M20 support), 
+   <a href="https://github.com/LukePrior">Luke Prior</a> and <a href="https://github.com/oh3bsg">OH3BSG</a> (SondeHub support),
+   <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
+   <a href="https://github.com/bazjo">Johannes</a>, <a href="http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden">Robert Stefanowicz</a>,
+   <a href="https://github.com/puspis">Josema</a>, and probably some more people I forgot to mention here.
+
+<br>
+   <br>
+   Autodetect info: %AUTODETECT_INFO%<br>
+   <br>
+    RS92 RINEX eph state: %EPHSTATE%<br>
+    <br>
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License as
+    published by the Free Software Foundation; either version 2 of
+    the License, or (at your option) any later version.<br>
+    See <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
+    for details.
+</div>
+<div class="footer"><span></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
+</div>
+
+</div>
+<script>
+function selTab(evt, id) {
+	var i, tabcontent, tablinks;
+	tabcontent=document.getElementsByClassName("tabcontent");
+	for(i=0; i<tabcontent.length; i++) {
+		tabcontent[i].style.display = "none";
+		var link = tabcontent[i].dataset.src;
+		if(link) {
+			var iframe = tabcontent[i].getElementsByTagName("iframe")[0];
+			iframe.setAttribute("src", "");
+		}
+	}
+	tablinks=document.getElementsByClassName("tablinks");
+	for(i=0; i<tablinks.length; i++) {
+		tablinks[i].className = tablinks[i].className.replace(" active", "");
+	}	
+	var act = document.getElementById(id);
+	act.style.display = "flex";
+	evt.currentTarget.className += " active";
+	
+	var link = act.dataset.src;
+	if(link) {
+		var iframe = act.getElementsByTagName("iframe")[0];
+		iframe.setAttribute("src", link);
+	}
+	var x = document.getElementById("myTopnav");
+    x.className = "topnav";
+}
+/* Toggle between adding and removing the "responsive" class to topnav when the user clicks on the icon */
+function myFunction() {
+  var x = document.getElementById("myTopnav");
+  if (x.className === "topnav") {
+    x.className += " responsive";
+  } else {
+    x.className = "topnav";
+  }
+}
+document.getElementById("defaultTab").click();
+</script>
+
+</body>
+</html>
+
+rdz.js 1843
+let stypes=new Map();
+stypes.set('4', 'RS41');
+stypes.set('R', 'RS92');
+stypes.set('D', 'DFM');
+stypes.set('M', 'M10/M20');
+stypes.set('3', 'MP3H');
+
+function footer() {
+  document.addEventListener("DOMContentLoaded", function(){
+    var form = document.querySelector(".wrapper");
+    form.addEventListener("input", function() {
+      document.querySelector(".save").disabled = false;
+    });
+    document.querySelector(".save").disabled = true;
+  }); 
+}
+
+/* Used by qrg.html in RX_FSK.ino */
+function prep() {
+  var stlist=document.querySelectorAll("input.stype");
+  for(txt of stlist){
+    var val=txt.getAttribute('value'); var nam=txt.getAttribute('name'); 
+    if(val=='2') { val='M'; }
+    var sel=document.createElement('select');
+    sel.setAttribute('name',nam);
+    for(stype of stypes) { 
+      var opt=document.createElement('option');
+      opt.value=stype[0];
+      opt.innerHTML=stype[1];
+      if(stype[0]==val) { opt.setAttribute('selected','selected'); }
+      sel.appendChild(opt);
+    }
+    txt.replaceWith(sel);
+  }
+} 
+
+function qrgTable() {
+  var tab=document.getElementById("divTable");
+
+  var table = "<table><tr><th>Ch</th><th>Active</th><th>Frequency</th><th>Decoder</th><th>Launchsite</th></tr>";
+  for(i=0; i<qrgs.length; i++) {
+     var ck = "";
+     if(qrgs[i][0]) ck="checked";
+     table += "<tr><td class=\"ch\">" + (i+1) + "</td><td class=\"act\"><input name=\"A" + (i+1) + "\" type=\"checkbox\" " + ck + "/></td>";
+     table += "<td><input name=\"F" + (i+1) + "\" type=\"text\" size=7 value=\"" + qrgs[i][1] + "\"></td>";
+     table += "<td><input class=\"stype\" name=\"T" + (i+1) + "\" value=\"" + qrgs[i][3] + "\"></td>";
+     table += "<td><input name=\"S" + (i+1) + "\" type=\"text\" value=\"" + qrgs[i][2] +"\"></td></tr>";
+  }
+  table += "</table>";
+  tab.innerHTML = table;
+  prep();
+  footer();
+}
+
 cfg.js 8066
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
@@ -1243,128 +1297,74 @@ function configTable() {
   }
   acc[0].click();
 }
-index.html 4368
-<!DOCTYPE html>
+map.html 1206
 <html>
 <head>
-  <title>rdzTTGOSonde Server</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta charset="UTF-8">
-  <link rel="icon" href="data:,">
-  <link rel="stylesheet" type="text/css" href="style.css">
+<script>
+maptype = "SH"; // TODO: Get from config
+
+const maps = {
+  "WS": ["https://www.wettersonde.net/map.php", (s)=>"?sonde="+s, (lat,lon)=>""],
+  "SH": ["https://sondehub.org/", (s)=>s, (lat,lon)=>'#!mz=8&mc=' + lat + ',' + lon],
+  "RS": ["https://radiosondy.info/", (s)=>"sonde.php?sondenumber="+s, (lat,lon)=>""],
+  "OW": ["https://v2.openwx.de/start.php", (s)=>"?sonde="+s, (lat,lon)=>"?mode=mobile"],
+};
+
+data = ["T4420541",63.5,-20.0];
+document.addEventListener("DOMContentLoaded", function(){
+   fetch('live.json')
+     .then((response) => response.json())
+     .then((data) => {
+        if (data.gps===undefined) { data.gps={} };
+  	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
+        if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
+          urlarg = maps[maptype][2](data.gps.lat, data.gps.lon);
+        } else {
+          urlarg = maps[maptype][1](data.sonde.ser||'');
+        }
+        iftxt='<iframe src="' + maps[maptype][0] + urlarg + '" style="border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%"></iframe>';
+        document.getElementsByTagName('body')[0].innerHTML = iftxt;
+     })
+})
+</script>
 </head>
 <body>
- <div class="wrapper"><div class="header">
-<div class="topnav" id="myTopnav">
-	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks" id="defaultTab">QRG</a>
-	<a href="#data" onclick="selTab(event,'Data')" class="tablinks">Data</a>
-	<a href="#map" onclick="selTab(event,'Map')" class="tablinks">Map</a>
-	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">LiveMap</a>
-	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
-	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
-	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
-	<a href="#about" onclick="selTab(event,'About')" class="tablinks">About</a>
-	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
-		<span class="hamburger"></span>
-	</a>
-</div>
-</div>
-
-<div id="QRG" class="tabcontent" data-src="qrg.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="WiFi" class="tabcontent" data-src="wifi.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Data" class="tabcontent" data-src="status.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Map" class="tabcontent" data-src="map.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Config" class="tabcontent" data-src="config.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Control" class="tabcontent" data-src="control.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="About" class="tabcontent">
-<div class="tci">
-   %VERSION_NAME%<br>
-   Copyright &copy; 2019-2022 by Hansi Reiser, DL9RDZ<br>
-   (version %VERSION_ID%)<br><br>
-
-   <a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br><br>
-
-   with contributions by Vigor and Xavier (M20 support), 
-   <a href="https://github.com/LukePrior">Luke Prior</a> and <a href="https://github.com/oh3bsg">OH3BSG</a> (SondeHub support),
-   <a href="https://www.dl2mf.de/" target="_blank">Meinhard Guenther, DL2MF</a>,
-   <a href="https://github.com/bazjo">Johannes</a>, <a href="http://www.p1337.synology.me/dokuwiki/doku.php?id=public:wettersonden">Robert Stefanowicz</a>,
-   <a href="https://github.com/puspis">Josema</a>, and probably some more people I forgot to mention here.
-
-<br>
-   <br>
-   Autodetect info: %AUTODETECT_INFO%<br>
-   <br>
-    RS92 RINEX eph state: %EPHSTATE%<br>
-    <br>
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the GNU General Public License as
-    published by the Free Software Foundation; either version 2 of
-    the License, or (at your option) any later version.<br>
-    See <a href="https://www.gnu.org/licenses/gpl-2.0.txt">https://www.gnu.org/licenses/gpl-2.0.txt</a>
-    for details.
-</div>
-<div class="footer"><span></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
-</div>
-
-</div>
-<script>
-function selTab(evt, id) {
-	var i, tabcontent, tablinks;
-	tabcontent=document.getElementsByClassName("tabcontent");
-	for(i=0; i<tabcontent.length; i++) {
-		tabcontent[i].style.display = "none";
-		var link = tabcontent[i].dataset.src;
-		if(link) {
-			var iframe = tabcontent[i].getElementsByTagName("iframe")[0];
-			iframe.setAttribute("src", "");
-		}
-	}
-	tablinks=document.getElementsByClassName("tablinks");
-	for(i=0; i<tablinks.length; i++) {
-		tablinks[i].className = tablinks[i].className.replace(" active", "");
-	}	
-	var act = document.getElementById(id);
-	act.style.display = "flex";
-	evt.currentTarget.className += " active";
-	
-	var link = act.dataset.src;
-	if(link) {
-		var iframe = act.getElementsByTagName("iframe")[0];
-		iframe.setAttribute("src", link);
-	}
-	var x = document.getElementById("myTopnav");
-    x.className = "topnav";
-}
-/* Toggle between adding and removing the "responsive" class to topnav when the user clicks on the icon */
-function myFunction() {
-  var x = document.getElementById("myTopnav");
-  if (x.className === "topnav") {
-    x.className += " responsive";
-  } else {
-    x.className = "topnav";
-  }
-}
-document.getElementById("defaultTab").click();
-</script>
-
 </body>
 </html>
+upd.html 1353
+<html><head>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
 
+
+<form action="update.html" method="post"><p>Currently installed: %FULLNAMEID%</p>
+<p>
+Available master: <span id="masterDiv">(...checking...)</span>
+
+<br>
+Available devel: <span id="develDiv">(...checking...)</span>
+
+</p>
+<input type="submit" name="master" value="Master-Update"></input><br>
+<input type="submit" name="devel" value="Devel-Update"><br>
+<p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p></form>
+
+<script>
+const masterInfo = document.getElementById('masterDiv');
+const develInfo = document.getElementById('develDiv');
+
+let request = new XMLHttpRequest();
+request.open('GET', 'http://rdzsonde.mooo.com/master/update-info.html');
+request.onload = function() {
+  masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
+}
+request.send();
+let drequest = new XMLHttpRequest();
+drequest.open('GET', 'http://rdzsonde.mooo.com/devel/update-info.html');
+drequest.onload = function() {
+  develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
+}
+drequest.send();
+</script>
+</body></html>
