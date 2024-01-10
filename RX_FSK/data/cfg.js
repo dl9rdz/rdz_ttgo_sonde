@@ -1,6 +1,6 @@
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
-[ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP autoselect on startup)" ],
+[ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP, 4=client-noscan)" ],
 [ "mdnsname", "Network mDNS name"],
 [ "ephftp", "FTP server for ephemeris data (RS92 decoder)"],
 [ "debug", "Debug mode (0/1)" ],

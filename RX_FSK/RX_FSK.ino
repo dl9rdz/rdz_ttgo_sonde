@@ -398,6 +398,21 @@ void setupWifiList() {
   }
 }
 
+// copy string, replacing '"' with '&quot;'
+// max string length is 31 characters
+const String quoteString(const char *s) {
+   char buf[6*32];
+   uint16_t i = 0, o = 0;
+   int len = strlen(s);
+   if(len>31) len=31;
+   while(i<len) {
+      if(s[i]=='"') { strcpy(buf+o, "&quot;"); o+=6; }
+      else buf[o++] = s[i];
+      i++;
+   }
+   buf[o] = 0;
+   return String(buf);
+}
 
 const char *createWIFIForm() {
   char *ptr = message;
@@ -407,12 +422,13 @@ const char *createWIFIForm() {
   HTMLBODY(ptr, "wifi.html");
   strcat(ptr, "<table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
   for (int i = 0; i < MAX_WIFI; i++) {
+    String pw = i < nNetworks ? quoteString( networks[i].pw.c_str() ) : "";
     sprintf(tmp, "%d", i);
     sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"S%d\" type=\"text\" value=\"%s\"/></td>"
             "<td><input name=\"P%d\" type=\"text\" value=\"%s\"/></td>",
             i == 0 ? "<b>AP</b>" : tmp,
             i + 1, i < nNetworks ? networks[i].id.c_str() : "",
-            i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
+            i + 1, pw.c_str() );
   }
   strcat(ptr, "</table><script>footer()</script>");
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
@@ -1737,7 +1753,7 @@ void setup()
       // Make sure the whole thing powers up!?!?!?!?!?
       U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
       u8x8->initDisplay();
-      delay(500);
+      delay(100);
 
       scanI2Cdevice();
 
@@ -1755,7 +1771,7 @@ void setup()
           }
           int ndevices = scanI2Cdevice();
           if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-          delay(500);
+          delay(100);
         }
       }
     }
@@ -1875,7 +1891,6 @@ void setup()
 
   int i = 0;
   while (++i < 3) {
-    delay(500);
     // == check the radio chip by setting default frequency =========== //
     sx1278.ON();
     if (sx1278.setFrequency(402700000) == 0) {
@@ -1887,6 +1902,8 @@ void setup()
     Serial.print("Frequency set to ");
     Serial.println(f);
     // == check the radio chip by setting default frequency =========== //
+    if( f>402700000-1000 && f<402700000+1000 ) break;
+    delay(500);
   }
 #endif
 
@@ -2485,7 +2502,7 @@ void loopWifiBackground() {
       WiFi.disconnect(true);
     }
   } else if (wifi_state == WIFI_CONNECTED) {
-    Serial.printf("status: %d\n", ((WiFiSTAClass)WiFi).status());
+    //Serial.printf("status: %d\n", ((WiFiSTAClass)WiFi).status());
     if (!WiFi.isConnected()) {
       sonde.setIP("", false);
       sonde.updateDisplayIP();
@@ -2493,7 +2510,7 @@ void loopWifiBackground() {
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);
-    } else Serial.println("WiFi still connected");
+    } //else Serial.println("WiFi still connected");
   }
 }
 

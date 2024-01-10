@@ -124,12 +124,18 @@ void gpsTask(void *parameter) {
         if(gpsPos.valid) {
 	    float d = fabs(gpsPos.lon - sonde.config.rxlon);
 	    d += fabs(gpsPos.lat - sonde.config.rxlat);
-	    if(!posInfo.chase && d > AUTO_CHASE_THRESHOLD) {
+	    // Activate GPS position tracking as soon as it is a bit away from home position
+	    if(/*!posInfo.chase &&*/ d > AUTO_CHASE_THRESHOLD) {
 		posInfo = gpsPos;
                 posInfo.chase = 1;
             } else if ( posInfo.chase && d < AUTO_CHASE_THRESHOLD/2 ) {
+	    // Stop GPS position tracking / chase mode as soon as it is very close to home (fixeedToPosInfo sets chase to 0)
 		fixedToPosInfo();
-            }
+            } else {
+	    // Otherwise, continue tracking the GPS position
+		posInfo = gpsPos;
+                posInfo.chase = 1;
+	    }
 	}
 
         gpsPos.hdop = nmea.getHDOP();
