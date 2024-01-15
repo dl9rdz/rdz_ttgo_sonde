@@ -10,6 +10,7 @@ public:
 	void netsetup();
 	void updateSonde( SondeInfo *si );
 	void updateStation( PosInfo *pi );
+        String getStatus();
 };
 
 extern ConnChasemapper connChasemapper;

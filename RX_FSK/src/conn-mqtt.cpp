@@ -82,6 +82,10 @@ void MQTT::updateStation( PosInfo *pi ) {
     }
 }
 
+String MQTT::getStatus() {
+    return String("");
+}
+
 // Internal (private) functions
 //void MQTT::connectToMqtt() {
 //  Serial.println("Connecting to MQTT...");

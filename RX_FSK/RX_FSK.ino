@@ -1,5 +1,6 @@
 #include "features.h"
 #include "version.h"
+#include "core.h"
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -42,6 +43,9 @@
 #if FEATURE_APRS
 #include "src/conn-aprs.h"
 #endif
+#if FEATURE_SONDEHUB
+#include "src/conn-sondehub.h"
+#endif
 
 //#define ESP_MEM_DEBUG 1
 //int e;
@@ -78,14 +82,15 @@ WiFiClient client;
 const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
 
 
-#if FEATURE_SONDEHUB
-#define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
-#define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
-WiFiClient shclient;	// Sondehub v2
-int shImportInterval = 0;
-char shImport = 0;
-unsigned long time_last_update = 0;
-#endif
+// moved to connSondehub.cpp
+//#if FEATURE_SONDEHUB
+//#define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
+//#define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
+//WiFiClient shclient;	// Sondehub v2
+//int shImportInterval = 0;
+//char shImport = 0;
+//unsigned long time_last_update = 0;
+//#endif
 
 // JSON over TCP for communicating with the rdzSonde (rdzwx-go) Android app
 WiFiServer rdzserver(14570);
@@ -438,32 +443,6 @@ const char *createWIFIForm() {
   return message;
 }
 
-#if 0
-// moved to map.html (active warning is still TODO
-const char *createSondeHubMap() {
-  SondeInfo *s = &sonde.sondeList[0];
-  char *ptr = message;
-  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
-  HTMLBODY(ptr, "map.html");
-  if (!sonde.config.sondehub.active) {
-    strcat(ptr, "<div class=\"warning\">NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->d.ser == 0) && ( !isnan(sonde.config.rxlat))) {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
-    } else {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s->d.ser);
-    }
-  } else {
-    if ((*s->d.ser == 0) && (!isnan(sonde.config.rxlat))) {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
-    } else {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s->d.ser);
-    }
-  }
-  HTMLBODYEND(ptr);
-  return message;
-}
-#endif
-
 const char *handleWIFIPost(AsyncWebServerRequest * request) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
@@ -602,9 +581,6 @@ void setupConfigData() {
     sonde.setConfig(line.c_str());
   }
   sonde.checkConfig(); // eliminate invalid entries
-#if FEATURE_SONDEHUB
-  shImportInterval = 5;   // refresh now in 5 seconds
-#endif
 }
 
 
@@ -2062,10 +2038,6 @@ void loopDecoder() {
     Serial.println("");
   }
 
-#if FEATURE_SONDEHUB
-  sondehub_reply_handler(&shclient);
-#endif
-
   // wifi active and good packet received => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
   if ((res & 0xff) == 0 && connected) {
@@ -2076,40 +2048,6 @@ void loopDecoder() {
 #if FEATURE_APRS
       connAPRS.updateSonde(s);
 #endif
-#if 0
-      // moved to conn-aprs.cpp
-      char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
-      char raw[201];
-      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-      Serial.println("Sending AXUDP");
-      //Serial.println(raw);
-      udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
-      udp.write((const uint8_t *)raw, rawlen);
-      udp.endPacket();
-      if (tncclient.connected()) {
-        Serial.println("Sending position via TCP");
-        char raw[201];
-        int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
-        Serial.print("sending: "); Serial.println(raw);
-        tncclient.write(raw, rawlen);
-      }
-      if (sonde.config.tcpfeed.active) {
-        static unsigned long lasttcp = 0;
-        if ( tcpclient.disconnected()) {
-          tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
-        }
-        else if ( tcpclient.connected() ) {
-          unsigned long now = millis();
-          Serial.printf("aprs: now-last = %ld\n", (now - lasttcp));
-          if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
-            strcat(str, "\r\n");
-            Serial.print(str);
-            tcpclient.write(str, strlen(str));
-            lasttcp = now;
-          }
-        }
-      }
-#endif
 
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
@@ -2119,7 +2057,8 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+        connSondehub.updateSonde( s );   // invoke sh_send_data....
+      // sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
 
@@ -2129,10 +2068,10 @@ void loopDecoder() {
 
   } else {
 #if FEATURE_SONDEHUB
-    sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
+    connSondehub.updateSonde( NULL );
+    // sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
 #endif
   }
-
 
   // Send own position periodically
 #if FEATURE_MQTT
@@ -2140,9 +2079,6 @@ void loopDecoder() {
 #endif
 #if FEATURE_APRS
   connAPRS.updateStation( NULL );
-  //if (sonde.config.tcpfeed.active) {
-  //  aprs_station_update();
-  //}
 #endif
   // always send data, even if not valid....
   if (rdzclient.connected()) {
@@ -2279,9 +2215,10 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
-enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
+// in core.h
+//enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
 
-static t_wifi_state wifi_state = WIFI_DISABLED;
+t_wifi_state wifi_state = WIFI_DISABLED;
 
 void enableNetwork(bool enable) {
   if (enable) {
@@ -2299,21 +2236,22 @@ void enableNetwork(bool enable) {
     connMQTT.netsetup();
 #endif
 #if FEATURE_SONDEHUB
-    if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
-      time_last_update = millis() + 1000; /* force sending update */
-      sondehub_station_update(&shclient, &sonde.config.sondehub);
-    }
+    //if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
+    //  time_last_update = millis() + 1000; /* force sending update */
+    //  sondehub_station_update(&shclient, &sonde.config.sondehub);
+    //}
+    connSondehub.netsetup();
 #endif
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     connected = true;
+#if FEATURE_APRS
+    connAPRS.netsetup();
+#endif
   } else {
     MDNS.end();
     connected = false;
   }
 
-#if FEATURE_APRS
-  connAPRS.netsetup();
-#endif
 
   Serial.println("enableNetwork done");
 }
@@ -2962,7 +2900,8 @@ void loop() {
 }
 
 
-#if FEATURE_SONDEHUB
+#if 0
+// removed here, now in connSondehub
 
 // Sondehub v2 DB related codes
 /*

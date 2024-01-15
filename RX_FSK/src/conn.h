@@ -34,5 +34,7 @@ public:
 	/* Called approx 1x / second* */
 	virtual void updateStation( PosInfo *pi );
 
+	/* Called to retrieve status (used for Info in about tab) */
+	virtual String getStatus();
 };
 #endif

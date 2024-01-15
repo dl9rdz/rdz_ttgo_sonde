@@ -129,6 +129,10 @@ void ConnAPRS::updateStation( PosInfo *pi ) {
     }
 }
 
+String ConnAPRS::getStatus() {
+    return String("");
+}
+
 void ConnAPRS::aprs_station_update() {
   int chase = sonde.config.chase;
   // automatically decided if CHASE or FIXED mode is used (for config AUTO)

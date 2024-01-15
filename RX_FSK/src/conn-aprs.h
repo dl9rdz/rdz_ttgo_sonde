@@ -29,6 +29,8 @@ public:
         /* Called approx 1x / second* */
         void updateStation( PosInfo *pi );
 
+	String getStatus();
+
 private:
 	void aprs_station_update();
 };

@@ -25,6 +25,7 @@ public:
         /* Called approx 1x / second* */
         virtual void updateStation( PosInfo *pi );
 
+	virtual String getStatus();
 
 private:
     WiFiClient mqttWifiClient;

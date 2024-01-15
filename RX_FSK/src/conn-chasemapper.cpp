@@ -64,5 +64,9 @@ void ConnChasemapper::updateSonde(SondeInfo *si) {
 void ConnChasemapper::updateStation(PosInfo *pi) {
 }
 
+String ConnChasemapper::getStatus() {
+	return String("");
+}
+
 ConnChasemapper connChasemapper;
 #endif
