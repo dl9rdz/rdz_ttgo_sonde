@@ -453,13 +453,13 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    z = (double)getint32(b, b_len, p+8UL)*0.01;
    uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
    Serial.printf("x:%g, y:%g, z:%g  sats:%d\n", x, y, z, sats);
+   si->sats = sats;
    if( sats<4 || (x==0 && y==0 && z==0) ) {
       // RS41 sometimes sends frame with all 0
       // or, if sats<4, data is simply garbage. do not use.
       if(si->validPos) si->validPos |= 0x80; // flag as old
       return;
    }
-   si->sats = sats;
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
    si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
