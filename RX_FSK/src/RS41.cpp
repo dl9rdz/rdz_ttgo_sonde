@@ -688,7 +688,7 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
 int RS41::decode41(byte *data, int maxlen)
 {
 	char buf[128];	
-	int crcok = 1;
+	int crcok = 1, serialok = 0;
 	SondeData *si = &(sonde.si()->d);
 
 	int32_t corr = reedsolomon41(data, 560, 131);  // try short frame first
@@ -749,6 +749,7 @@ int RS41::decode41(byte *data, int maxlen)
 			strncpy(si->ser, (const char *)(data+p+2), 8);
 			si->ser[8]=0;
 			si->validID=true;
+			serialok = 1;
 			int calnr = data[p+23];
 			// not sure about this
 			if(calnr==0x31) {
@@ -858,7 +859,7 @@ int RS41::decode41(byte *data, int maxlen)
 		p += len;
 		Serial.println();
 	}
-	return crcok ? 0 : RX_ERROR;
+	return (serialok&&crcok) ? 0 : RX_ERROR;
 }
 void RS41::printRaw(uint8_t *data, int len)
 {
