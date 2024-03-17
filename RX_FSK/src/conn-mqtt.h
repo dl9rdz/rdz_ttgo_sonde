@@ -41,7 +41,7 @@ private:
     //void init(const char *host, uint16_t port, const char *id, const char *username, const char *password, const char *prefix);
     void publishPacket(SondeInfo *s);
     void publishUptime();
-    //void connectToMqtt();
+    int connectToMqtt();
 
     unsigned long lastMqttUptime = 0;
     boolean mqttEnabled;
