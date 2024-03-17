@@ -1,7 +1,7 @@
 #include "../features.h"
 #if FEATURE_MQTT
 
-#include "core.h"
+#include "../core.h"
 
 #include <Arduino.h>
 #include "conn-mqtt.h"
