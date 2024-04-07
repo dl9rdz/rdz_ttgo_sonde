@@ -1,1 +1,2 @@
 include for mqtt corrected
+M20 vframe based on GPS time, consistent with autorx, fix #322
