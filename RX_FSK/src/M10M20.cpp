@@ -646,7 +646,7 @@ int M10M20::decodeframeM20(uint8_t *data) {
  	uint32_t tow = getint24(data+15);
         uint16_t week = getint16(data+26);
         si->time = (tow+week*604800+315964800)-18;
-	si->vframe =si->time - 315964800;
+	si->vframe =si->time - 315964800 + 18;
                 
         si->validTime = true;
 	}
