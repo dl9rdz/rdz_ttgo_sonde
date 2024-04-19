@@ -68,7 +68,8 @@ if len(sys.argv)<=2:
 if sys.argv[1]=="backup":
   # backup installed firmware (+ all data) to backup.bin
   sys._argv = sys.argv[:]
-  sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "read_flash", "0x1000", "0x3FF000", sys.argv[2]]
+  # sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "read_flash", "0x1000", "0x3FF000", sys.argv[2]]
+  sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "115200", "--before", "default_reset", "--after", "hard_reset", "read_flash", "0x1000", "0x3FF000", sys.argv[2]]
   esptool.main()
   exit(0)
 

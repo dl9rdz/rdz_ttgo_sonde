@@ -59,8 +59,8 @@ spiproc = subprocess.Popen([MKSPIFFS,'-c',data_dir,'-b','4096','-p','256','-s',s
 spiproc.wait();
 
 files_in = [
-## for arduino esp32 2.0    ('bootloader', OFFSET_BOOTLOADER, esp32tools+"/sdk/esp32/bin/bootloader_dio_80m.bin"),
-    ('bootloader', OFFSET_BOOTLOADER, esp32tools+"/sdk/bin/bootloader_dio_80m.bin"),
+## for arduino esp32 2.0    ('bootloader', OFFSET_BOOTLOADER, esp32tools+"/sdk/esp32/bin/bootloader_dio_40m.bin"),
+    ('bootloader', OFFSET_BOOTLOADER, esp32tools+"/sdk/bin/bootloader_dio_40m.bin"),
     ('partitions', OFFSET_PARTITIONS, file_part),
     ('bootapp0', OFFSET_BOOTAPP0, esp32tools+"/partitions/boot_app0.bin"),
     ('application', OFFSET_APPLICATION, file_in),
