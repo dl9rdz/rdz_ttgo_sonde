@@ -441,7 +441,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
     '<b>Open:</b> <a href="https://www.google.de/maps/?q='+lat+', '+lon+'" target="_blank">GMaps</a> | <a href="https://www.openstreetmap.org/?mlat='+lat+'&mlon='+lon+'&zoom=15" target="_blank">OSM</a> | <a href="geo://'+lat+','+lon+'">GeoApp</a>';
 
     if (t == 'position') { return '<div class="i_position"><b>🎈 '+i.id+'</b>'+add+'</div>'; }
-    if (t == 'burst') { return '<div class="i_burst"><b>💥 Predicted Burst:</b><br />'+fd(i.datetime)+' in '+mr(i.altitude)+'m'+add+'</div>'; }
+    if (t == 'burst') { return '<div class="i_burst"><b>💥 Predicted Burst:</b><br />'+fd(i.datetime)+' at '+mr(i.altitude)+'m'+add+'</div>'; }
     if (t == 'highest') { return '<div class="i_burst"><b>💥 Burst:</b> '+mr(i.altitude)+'m'+add+'</div>';}
     if (t == 'landing') { return '<div class="i_landing"><b>🎯 Predicted Landing:</b><br />'+fd(i.datetime)+' at '+mr(i.altitude)+'m'+add+'</div>'; }
     if (t == 'gps') { return '<div class="i_gps">Position: '+(i.lat)+','+(i.lon)+'<br />Altitude: '+i.alt+'m<br />Speed: '+mr(i.speed * 3.6 * 10)/10+'km/h '+i.dir+'°<br />Sat: '+i.sat+' Hdop:'+(i.hdop/10)+'</div>'; }
