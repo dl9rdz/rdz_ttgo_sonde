@@ -1699,6 +1699,16 @@ void Display::drawBatt(DispEntry *de) {
 		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
 	        Serial.printf("Vbatt: %s\n", buf);
 		break;
+	case 'U':
+		if(sonde.config.type == TYPE_M5_CORE2) {
+		  val = pmu->getAcinVoltage();
+		} else {
+		  val = pmu->getVbusVoltage();
+		}
+		if(val<0) { *buf=0; break; }
+		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
+	        Serial.printf("Vbus: %s\n", buf);
+		break;
         }
         if(pmu->type==TYPE_AXP192) {
             switch(de->extra[0]) {
@@ -1711,15 +1721,6 @@ void Display::drawBatt(DispEntry *de) {
 		val = pmu->getBattDischargeCurrent();
 		snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 	        Serial.printf("Idischarge: %s\n", buf);
-		break;
-	    case 'U':
-		if(sonde.config.type == TYPE_M5_CORE2) {
-		  val = pmu->getAcinVoltage();
-		} else {
-		  val = pmu->getVbusVoltage();
-		}
-		snprintf(buf, 30, "%.2f%s", val/1000, de->extra+1);
-	        Serial.printf("Vbus: %s\n", buf);
 		break;
 	    case 'I':
 		if(sonde.config.type == TYPE_M5_CORE2) {
