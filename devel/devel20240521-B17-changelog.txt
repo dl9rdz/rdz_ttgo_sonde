@@ -1,0 +1,1 @@
+DFM with max chan 0xA: use polarity to decided if DFM17 or DFM09
