@@ -661,6 +661,7 @@ float GetRAHumidity( uint32_t humCurrent, uint32_t humMin, uint32_t humMax, floa
       powc *= Cp;
    }
    Cp -= sum;
+   sum = 0.0;
 
    float xj = 1.0f;
    for ( int j = 0; j < 7; j++) {
