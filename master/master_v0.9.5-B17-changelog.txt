@@ -1,0 +1,101 @@
+Squashed commit of the following:
+
+commit 9b9980df05c6e49e6a5a96f3e3256b521a7231ac
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Aug 4 15:09:58 2024 +0000
+
+    minor aprs format change
+
+commit 6816079f7f2d0b7741f52543a5b4f47b961c38c3
+Author: Michael Carter <mycarda@btinternet.com>
+Date:   Mon Jul 1 13:23:08 2024 +0100
+
+    issue 433 set sum to zero in humidity correction (#445)
+
+    Co-authored-by: michael carter <mycarda@btinterent.com>
+
+commit 93cb0689efa1b60044a6b67693aa2849c2f13c46
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue May 21 00:07:19 2024 +0000
+
+    DFM with max chan 0xA: use polarity to decided if DFM17 or DFM09
+
+commit a4744dbee17b5b39de85c85215c72294ce8eff10
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Tue May 14 10:53:09 2024 +0200
+
+    fix AXP2101 battery voltage
+
+commit b5113e9c22db29510d9f899f996f70f17c0f7767
+Author: smithse <sean.sssd@gmail.com>
+Date:   Sun Apr 28 22:56:37 2024 +0800
+
+    Update livemap.js (#436)
+
+    Updated the popup text to show altitude 'at' rather than 'in' which would imply a time.
+
+commit ffc143eb05c1b24e2f16cd4e6602845d623a65c0
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Apr 19 00:27:23 2024 +0000
+
+    40M instead of 80M bootloader in image
+
+commit 84ea892fb3fe2a6345e59d48680f2c4e96f9533c
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Apr 7 10:32:25 2024 +0100
+
+    M20 vframe based on GPS time, consistent with autorx, fix #322
+
+commit b45edaabd6ad19fe1aac984c4a369c9dc6251414
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Mar 17 10:06:04 2024 +0100
+
+    include for mqtt corrected
+
+commit aacd86aa8a4def9d23cb60b97847deb10945f402
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Mar 17 09:49:38 2024 +0100
+
+    better mqtt reconnect
+
+commit 20a5d728051ec96f3c47bd2493fe873d18149a88
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Feb 25 13:34:35 2024 +0000
+
+    Prevent reporting old RS41 on some bad frames
+
+commit ca6814303273c55e54b347bea8c50f5ff02eb4bc
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Feb 18 11:52:31 2024 +0000
+
+    RS41 update for sats==0
+
+commit 5ef01ba3a9f33dfe5cf96bed215d6e20b48bc0eb
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Fri Feb 2 22:36:01 2024 +0000
+
+    pio back to 3.3.2 - later version introduce different partitioning scheme, need to update in sync with Arduino
+
+commit af4940c8897bf6fb6a1254cfcb8c64eaee5a589d
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Mon Jan 15 19:52:29 2024 +0000
+
+    reorg sondehub
+
+commit 61b733cf92fdeb4e786fa73be6acd445729308e4
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Wed Jan 10 23:00:07 2024 +0100
+
+    GPS for Livemap tentative bugfix (not tested)
+
+commit d5393ca8ebe3813bf4aab6ec2971e1bdea1634a8
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Jan 7 22:31:03 2024 +0000
+
+    Enhanced WiFi setup
+
+commit 1081fc637352daa2caf2bcfdce62aae6df2ee7ba
+Author: Hansi, dl9rdz <dl9rdz@darc.de>
+Date:   Sun Jan 7 13:03:49 2024 +0000
+
+    new devel based on master0.9.4
