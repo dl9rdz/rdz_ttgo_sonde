@@ -357,7 +357,7 @@ char *aprs_senddata(SondeInfo *si, const char *usercall, const char *objcall, co
 	
 	sprintf(b+strlen(b), "%.3fMHz Type=%s ", si->freq, type /* sondeTypeStr[sonde.realType(si)] */ );
 	if( s->countKT != 0xffff && s->vframe - s->crefKT < 51 ) {
-		sprintf(b+strlen(b), "TxOff=%dh%dm ", s->countKT/3600, (s->countKT-s->countKT/3600*3600)/60);
+		sprintf(b+strlen(b), "TxOff=%dh%02dm ", s->countKT/3600, (s->countKT-s->countKT/3600*3600)/60);
 	}
 	if( TYPE_IS_DFM(si->type) || TYPE_IS_METEO(si->type) ) {
 		sprintf(b + strlen(b), "ser=%s ", s->ser);
