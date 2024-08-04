@@ -1,5 +1,6 @@
 #include "features.h"
 #include "version.h"
+#include "core.h"
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -42,6 +43,9 @@
 #if FEATURE_APRS
 #include "src/conn-aprs.h"
 #endif
+#if FEATURE_SONDEHUB
+#include "src/conn-sondehub.h"
+#endif
 
 //#define ESP_MEM_DEBUG 1
 //int e;
@@ -78,14 +82,15 @@ WiFiClient client;
 const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never sent*/, "M10", "M20", "MRZ" };
 
 
-#if FEATURE_SONDEHUB
-#define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
-#define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
-WiFiClient shclient;	// Sondehub v2
-int shImportInterval = 0;
-char shImport = 0;
-unsigned long time_last_update = 0;
-#endif
+// moved to connSondehub.cpp
+//#if FEATURE_SONDEHUB
+//#define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
+//#define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
+//WiFiClient shclient;	// Sondehub v2
+//int shImportInterval = 0;
+//char shImport = 0;
+//unsigned long time_last_update = 0;
+//#endif
 
 // JSON over TCP for communicating with the rdzSonde (rdzwx-go) Android app
 WiFiServer rdzserver(14570);
@@ -398,6 +403,21 @@ void setupWifiList() {
   }
 }
 
+// copy string, replacing '"' with '&quot;'
+// max string length is 31 characters
+const String quoteString(const char *s) {
+   char buf[6*32];
+   uint16_t i = 0, o = 0;
+   int len = strlen(s);
+   if(len>31) len=31;
+   while(i<len) {
+      if(s[i]=='"') { strcpy(buf+o, "&quot;"); o+=6; }
+      else buf[o++] = s[i];
+      i++;
+   }
+   buf[o] = 0;
+   return String(buf);
+}
 
 const char *createWIFIForm() {
   char *ptr = message;
@@ -407,12 +427,13 @@ const char *createWIFIForm() {
   HTMLBODY(ptr, "wifi.html");
   strcat(ptr, "<table><tr><th>Nr</th><th>SSID</th><th>Password</th></tr>");
   for (int i = 0; i < MAX_WIFI; i++) {
+    String pw = i < nNetworks ? quoteString( networks[i].pw.c_str() ) : "";
     sprintf(tmp, "%d", i);
     sprintf(ptr + strlen(ptr), "<tr><td>%s</td><td><input name=\"S%d\" type=\"text\" value=\"%s\"/></td>"
             "<td><input name=\"P%d\" type=\"text\" value=\"%s\"/></td>",
             i == 0 ? "<b>AP</b>" : tmp,
             i + 1, i < nNetworks ? networks[i].id.c_str() : "",
-            i + 1, i < nNetworks ? networks[i].pw.c_str() : "");
+            i + 1, pw.c_str() );
   }
   strcat(ptr, "</table><script>footer()</script>");
   //</div><div class=\"footer\"><input type=\"submit\" class=\"update\" value=\"Update\"/>");
@@ -421,32 +442,6 @@ const char *createWIFIForm() {
   Serial.printf("WIFI form: size=%d bytes\n", strlen(message));
   return message;
 }
-
-#if 0
-// moved to map.html (active warning is still TODO
-const char *createSondeHubMap() {
-  SondeInfo *s = &sonde.sondeList[0];
-  char *ptr = message;
-  strcpy(ptr, HTMLHEAD); strcat(ptr, "</head>");
-  HTMLBODY(ptr, "map.html");
-  if (!sonde.config.sondehub.active) {
-    strcat(ptr, "<div class=\"warning\">NOTE: SondeHub uploading is not enabled, detected sonde will not be visable on map</div>");
-    if ((*s->d.ser == 0) && ( !isnan(sonde.config.rxlat))) {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
-    } else {
-      sprintf(ptr + strlen(ptr), "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:95vh\"></iframe>", s->d.ser);
-    }
-  } else {
-    if ((*s->d.ser == 0) && (!isnan(sonde.config.rxlat))) {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/#!mc=%f,%f&mz=8\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", sonde.config.rxlat, sonde.config.rxlon);
-    } else {
-      sprintf(ptr, "<iframe src=\"https://sondehub.org/%s\" style=\"border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%%\"></iframe>", s->d.ser);
-    }
-  }
-  HTMLBODYEND(ptr);
-  return message;
-}
-#endif
 
 const char *handleWIFIPost(AsyncWebServerRequest * request) {
   char label[10];
@@ -586,9 +581,6 @@ void setupConfigData() {
     sonde.setConfig(line.c_str());
   }
   sonde.checkConfig(); // eliminate invalid entries
-#if FEATURE_SONDEHUB
-  shImportInterval = 5;   // refresh now in 5 seconds
-#endif
 }
 
 
@@ -1293,9 +1285,19 @@ void SetupAsyncServer() {
         request->send(200, "application/gpx+xml", sendGPX(request));
       else {
         // TODO: set correct type for .js
-        request->send(SPIFFS, url, "text/html");
+
+        // Caching is an important work-around for a bug somewhere in the network stack that causes corrupt replies
+        // with platform-espressif32 (some TCP segments simply get lost before being sent, so reply header and parts of data is missing)
+        // This happens with concurrent requests, notably if a browser fetches rdz.js and cfg.js concurrently for config.html
+        // With the cache, rdz.js is likely already in the cache...0
         Serial.printf("URL is %s\n", url.c_str());
-        //request->send(404);
+        AsyncWebServerResponse *response = request->beginResponse(SPIFFS, url, "text/html");
+        if(response) {
+          response->addHeader("Cache-Control", "max-age=900"); 
+          request->send(response);
+        } else {
+          request->send(404);
+        }
       }
     }
   });
@@ -1727,7 +1729,7 @@ void setup()
       // Make sure the whole thing powers up!?!?!?!?!?
       U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
       u8x8->initDisplay();
-      delay(500);
+      delay(100);
 
       scanI2Cdevice();
 
@@ -1745,7 +1747,7 @@ void setup()
           }
           int ndevices = scanI2Cdevice();
           if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-          delay(500);
+          delay(100);
         }
       }
     }
@@ -1865,7 +1867,6 @@ void setup()
 
   int i = 0;
   while (++i < 3) {
-    delay(500);
     // == check the radio chip by setting default frequency =========== //
     sx1278.ON();
     if (sx1278.setFrequency(402700000) == 0) {
@@ -1877,6 +1878,8 @@ void setup()
     Serial.print("Frequency set to ");
     Serial.println(f);
     // == check the radio chip by setting default frequency =========== //
+    if( f>402700000-1000 && f<402700000+1000 ) break;
+    delay(500);
   }
 #endif
 
@@ -2035,10 +2038,6 @@ void loopDecoder() {
     Serial.println("");
   }
 
-#if FEATURE_SONDEHUB
-  sondehub_reply_handler(&shclient);
-#endif
-
   // wifi active and good packet received => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
   if ((res & 0xff) == 0 && connected) {
@@ -2049,40 +2048,6 @@ void loopDecoder() {
 #if FEATURE_APRS
       connAPRS.updateSonde(s);
 #endif
-#if 0
-      // moved to conn-aprs.cpp
-      char *str = aprs_senddata(s, sonde.config.call, sonde.config.objcall, sonde.config.udpfeed.symbol);
-      char raw[201];
-      int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-      Serial.println("Sending AXUDP");
-      //Serial.println(raw);
-      udp.beginPacket(sonde.config.udpfeed.host, sonde.config.udpfeed.port);
-      udp.write((const uint8_t *)raw, rawlen);
-      udp.endPacket();
-      if (tncclient.connected()) {
-        Serial.println("Sending position via TCP");
-        char raw[201];
-        int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
-        Serial.print("sending: "); Serial.println(raw);
-        tncclient.write(raw, rawlen);
-      }
-      if (sonde.config.tcpfeed.active) {
-        static unsigned long lasttcp = 0;
-        if ( tcpclient.disconnected()) {
-          tcpclient.connect(sonde.config.tcpfeed.host, sonde.config.tcpfeed.port);
-        }
-        else if ( tcpclient.connected() ) {
-          unsigned long now = millis();
-          Serial.printf("aprs: now-last = %ld\n", (now - lasttcp));
-          if ( (now - lasttcp) > sonde.config.tcpfeed.highrate * 1000L ) {
-            strcat(str, "\r\n");
-            Serial.print(str);
-            tcpclient.write(str, strlen(str));
-            lasttcp = now;
-          }
-        }
-      }
-#endif
 
 #if FEATURE_CHASEMAPPER
       if (sonde.config.cm.active) {
@@ -2092,7 +2057,8 @@ void loopDecoder() {
     }
 #if FEATURE_SONDEHUB
     if (sonde.config.sondehub.active) {
-      sondehub_send_data(&shclient, s, &sonde.config.sondehub);
+        connSondehub.updateSonde( s );   // invoke sh_send_data....
+      // sondehub_send_data(&shclient, s, &sonde.config.sondehub);
     }
 #endif
 
@@ -2102,10 +2068,10 @@ void loopDecoder() {
 
   } else {
 #if FEATURE_SONDEHUB
-    sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
+    connSondehub.updateSonde( NULL );
+    // sondehub_finish_data(&shclient, s, &sonde.config.sondehub);
 #endif
   }
-
 
   // Send own position periodically
 #if FEATURE_MQTT
@@ -2113,9 +2079,6 @@ void loopDecoder() {
 #endif
 #if FEATURE_APRS
   connAPRS.updateStation( NULL );
-  //if (sonde.config.tcpfeed.active) {
-  //  aprs_station_update();
-  //}
 #endif
   // always send data, even if not valid....
   if (rdzclient.connected()) {
@@ -2173,7 +2136,7 @@ void loopDecoder() {
 }
 
 void setCurrentDisplay(int value) {
-  Serial.printf("setCurrentDisplay: setting index %d, entry %d\b", value, sonde.config.display[value]);
+  Serial.printf("setCurrentDisplay: setting index %d, entry %d\n", value, sonde.config.display[value]);
   currentDisplay = sonde.config.display[value];
 }
 
@@ -2252,9 +2215,10 @@ String translateEncryptionType(wifi_auth_mode_t encryptionType) {
   }
 }
 
-enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
+// in core.h
+//enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
 
-static t_wifi_state wifi_state = WIFI_DISABLED;
+t_wifi_state wifi_state = WIFI_DISABLED;
 
 void enableNetwork(bool enable) {
   if (enable) {
@@ -2272,21 +2236,22 @@ void enableNetwork(bool enable) {
     connMQTT.netsetup();
 #endif
 #if FEATURE_SONDEHUB
-    if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
-      time_last_update = millis() + 1000; /* force sending update */
-      sondehub_station_update(&shclient, &sonde.config.sondehub);
-    }
+    //if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
+    //  time_last_update = millis() + 1000; /* force sending update */
+    //  sondehub_station_update(&shclient, &sonde.config.sondehub);
+    //}
+    connSondehub.netsetup();
 #endif
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     connected = true;
+#if FEATURE_APRS
+    connAPRS.netsetup();
+#endif
   } else {
     MDNS.end();
     connected = false;
   }
 
-#if FEATURE_APRS
-  connAPRS.netsetup();
-#endif
 
   Serial.println("enableNetwork done");
 }
@@ -2320,6 +2285,7 @@ void WiFiEvent(WiFiEvent_t event)
         wifi_state = WIFI_DISABLED;
         WiFi.disconnect(true);
       }
+      WiFi.mode(WIFI_MODE_NULL);
       break;
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE:
       Serial.println("Authentication mode of access point has changed");
@@ -2422,17 +2388,28 @@ void wifiConnect(int16_t res) {
   }
 }
 
+void wifiConnectDirect(int16_t index) {
+  Serial.println("AP mode 4: trying direct reconnect");
+  WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+  wifi_state = WIFI_CONNECT;
+}
+
 static int wifi_cto;
 
 void loopWifiBackground() {
-  // Serial.printf("WifiBackground: state %d\n", wifi_state);
+  Serial.printf("WifiBackground: state %d\n", wifi_state);
   // handle Wifi station mode in background
   if (sonde.config.wifi == 0 || sonde.config.wifi == 2) return; // nothing to do if disabled or access point mode
 
   if (wifi_state == WIFI_DISABLED) {  // stopped => start can
-    wifi_state = WIFI_SCAN;
-    Serial.println("WiFi start scan");
-    WiFi.scanNetworks(true); // scan in async mode
+    if (sonde.config.wifi == 4) {  // direct connect to first network, supports hidden SSID
+       wifiConnectDirect(1);
+       wifi_cto = 0;
+    } else {
+      Serial.println("WiFi start scan");
+      wifi_state = WIFI_SCAN;
+      WiFi.scanNetworks(true); // scan in async mode
+    }
   } else if (wifi_state == WIFI_SCAN) {
     int16_t res = WiFi.scanComplete();
     if (res == 0 || res == WIFI_SCAN_FAILED) {
@@ -2463,6 +2440,7 @@ void loopWifiBackground() {
       WiFi.disconnect(true);
     }
   } else if (wifi_state == WIFI_CONNECTED) {
+    //Serial.printf("status: %d\n", ((WiFiSTAClass)WiFi).status());
     if (!WiFi.isConnected()) {
       sonde.setIP("", false);
       sonde.updateDisplayIP();
@@ -2470,7 +2448,7 @@ void loopWifiBackground() {
       wifi_state = WIFI_DISABLED;  // restart scan
       enableNetwork(false);
       WiFi.disconnect(true);
-    }
+    } //else Serial.println("WiFi still connected");
   }
 }
 
@@ -2526,84 +2504,92 @@ void loopTouchCalib() {
 
 // Wifi modes
 // 0: disabled. directly start initial mode (spectrum or scanner)
-// 1: station mode in background. directly start initial mode (spectrum or scanner)
-// 2: access point mode in background. directly start initial mode (spectrum or scanner)
+// 1: Station mode, new version: start with synchronous WiFi scan, then
+//    - if button was pressed, switch to AP mode
+//    - if connect successful, all good
+//    - otherwise, continue with station mode in background
+// 2: access point mode (wait for clients in background)
 // 3: traditional sync. WifiScan. Tries to connect to a network, in case of failure activates AP.
-//    Mode 3 shows more debug information on serial port and display.
+// 4: Station mode/hidden AP: same as 1, but instead of scan, just call espressif method to connect (will connect to hidden AP as well
 #define MAXWIFIDELAY 40
 static const char* _scan[2] = {"/", "\\"};
 void loopWifiScan() {
-  if (sonde.config.wifi == 0) {   // no Wifi
-    wifi_state = WIFI_DISABLED;
+  getKeyPressEvent(); // Clear any old events
+  WiFi.disconnect(true);
+  wifi_state = WIFI_DISABLED;
+  disp.rdis->setFont(FONT_SMALL);
+  uint8_t dispw, disph, dispxs, dispys;
+  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  int lastl = (disph / dispys - 2) * dispys;
+  int cnt = 0;
+  char abort = 0; // abort on keypress
+
+  switch(sonde.config.wifi) {
+  case 0:  // no WiFi
     initialMode();
     return;
-  }
-  if (sonde.config.wifi == 1) { // station mode, setup in background
-    wifi_state = WIFI_DISABLED;  // will start scanning in wifiLoopBackgroiund
-    initialMode();
-    return;
-  }
-  if (sonde.config.wifi == 2) { // AP mode, setup in background
+  case 2:  // AP mode, setup in background
     startAP();
     enableNetwork(true);
     initialMode();
     return;
-  }
-  // wifi==3 => original mode with non-async wifi setup
-  disp.rdis->setFont(FONT_SMALL);
-  disp.rdis->drawString(0, 0, "WiFi Scan...");
-  uint8_t dispw, disph, dispxs, dispys;
-  disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
+  case 4:  // direct connect without scan, only first item in network list
+    // Mode STN/DIRECT[4]: Connect directly (supports hidden AP)
+    {
+      disp.rdis->drawString(0, 0, "WiFi Connect...");
+      const char *ssid = fetchWifiSSID(1);
+      WiFi.mode(WIFI_STA);
+      WiFi.begin( ssid, fetchWifiPw(1) );
+      disp.rdis->drawString(0, dispys * 2, ssid);
+    }
+    break;
+  case 1:  // STATION mode (continue in BG if no connection)
+  case 3:  // old AUTO mode (change to AP if no connection)
+    // Mode STATION[1] or SETUP[3]: Scan for networks;
+    disp.rdis->drawString(0, 0, "WiFi Scan...");
+    int line = 0;
+    int index = -1;
+    WiFi.mode(WIFI_STA);
+    int n = WiFi.scanNetworks();
+    for (int i = 0; i < n; i++) {
+      String ssid = WiFi.SSID(i);
+      disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
+      line = (line + 1) % (disph / dispys);
+      String mac = WiFi.BSSIDstr(i);
+      String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
+      Serial.printf("Network %s: RSSI %d, MAC %s, enc: %s\n", ssid.c_str(), WiFi.RSSI(i), mac.c_str(), encryptionTypeDescription.c_str());
+      int curidx = fetchWifiIndex(ssid.c_str());
+      if (curidx >= 0 && index == -1) {
+        index = curidx;
+        Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
+      }
+    }
+    if (index >= 0) { // some network was found
+      Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
+      Serial.print(" with password "); Serial.println(fetchWifiPw(index));
 
-  int line = 0;
-  int cnt = 0;
-
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_STA);
-  int index = -1;
-  int n = WiFi.scanNetworks();
-  for (int i = 0; i < n; i++) {
-    String ssid = WiFi.SSID(i);
-    disp.rdis->drawString(0, dispys * (1 + line), ssid.c_str());
-    line = (line + 1) % (disph / dispys);
-    String mac = WiFi.BSSIDstr(i);
-    String encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
-    Serial.printf("Network %s: RSSI %d, MAC %s, enc: %s\n", ssid.c_str(), WiFi.RSSI(i), mac.c_str(), encryptionTypeDescription.c_str());
-    int curidx = fetchWifiIndex(ssid.c_str());
-    if (curidx >= 0 && index == -1) {
-      index = curidx;
-      Serial.printf("Match found at scan entry %d, config network %d\n", i, index);
+      disp.rdis->drawString(0, lastl, "Conn:");
+      disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
+      WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+    } else {
+      abort = 2;  // no network found in scan => abort right away
     }
   }
-  int lastl = (disph / dispys - 2) * dispys;
-  if (index >= 0) { // some network was found
-    Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
-    Serial.print(" with password "); Serial.println(fetchWifiPw(index));
-
-    disp.rdis->drawString(0, lastl, "Conn:");
-    disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
-    WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
-    while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY)  {
-      delay(500);
-      Serial.print(".");
-      disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
-      cnt++;
-    }
+  while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY && !abort)  {
+    delay(500);
+    Serial.print(".");
+    disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
+    cnt++;
+    handlePMUirq();    // Needed to react to PMU chip button
+    abort = (getKeyPressEvent() != EVT_NONE);
   }
-  if (index < 0 || cnt >= MAXWIFIDELAY) { // no network found, or connect not successful
-    WiFi.disconnect(true);
-    delay(1000);
-    startAP();
-    IPAddress myIP = WiFi.softAPIP();
-    Serial.print("AP IP address: ");
-    Serial.println(myIP);
-    disp.rdis->drawString(0, lastl, "AP:             ");
-    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
-    delay(3000);
-  } else {
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+  // We reach this point for mode 1, 3, and 4
+  // If connected (in any case) => all good, download eph if needed, all up and running
+  // Otherwise, If key was pressed, switch to AP mode
+  // Otherwise, if mode is 3 (old AUTO), switch to AP mode
+  // Otherwise, no network yet, keep trying to activate network in background (loopWiFiBackground)
+  if(WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected\nIP address:");
     String localIPstr = WiFi.localIP().toString();
     Serial.println(localIPstr);
     sonde.setIP(localIPstr.c_str(), false);
@@ -2620,9 +2606,21 @@ void loopWifiScan() {
       get_eph("/brdc");
     }
 #endif
+    enableNetwork(true);
     delay(3000);
   }
-  enableNetwork(true);
+  else if(sonde.config.wifi == 3 || abort==1 ) {
+    WiFi.disconnect(true);
+    delay(1000);
+    startAP();
+    IPAddress myIP = WiFi.softAPIP();
+    Serial.print("AP IP address: ");
+    Serial.println(myIP);
+    disp.rdis->drawString(0, lastl, "AP:             ");
+    disp.rdis->drawString(6 * dispxs, lastl + 1, networks[0].id.c_str());
+    enableNetwork(true);
+    delay(3000);
+  }
   initialMode();
 }
 
@@ -2902,7 +2900,8 @@ void loop() {
 }
 
 
-#if FEATURE_SONDEHUB
+#if 0
+// removed here, now in connSondehub
 
 // Sondehub v2 DB related codes
 /*

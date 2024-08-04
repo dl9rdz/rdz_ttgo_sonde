@@ -3,7 +3,7 @@
 #include "SX1278FSK.h"
 #include "Sonde.h"
 
-#define DECODERBASE_DEBUG 1
+#define DECODERBASE_DEBUG 0
 
 #if DECODERBASE_DEBUG
 #define DBG(x) x

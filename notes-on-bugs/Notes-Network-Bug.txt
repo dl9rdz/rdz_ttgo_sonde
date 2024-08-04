@@ -1,0 +1,37 @@
+We currently use https://github.com/platformio/platform-espressif32.git#v6.3.1 for platformIO builds
+
+When upgrading to v6.4.0, there is a problem:
+
+If a web browser sends concurrent requests (mainly reproducible with the "config" tab, where the config.html loads two files, rdz.js and cfg.js from SPIFFS),
+one of the two often gets garbled (TCP response is missing its first 4 frames)
+bad: two TCP packets with 1490 and 1094 bytes (data: 1436 and 1040 bytes)
+good: TCP packets with 1490 (5x) and 1094 bytes (data: 1436 and 1040 bytes)
+
+Somehow something seems to go wrong internally in the TCP stack. Not reproducible with a minimalistic example, but happens almost always with the full code base.
+
+
+Two mitigations:
+- Do not upgrade to v6.4.0
+- Avoid double request by browser. For this, cache control has been added (useful anyway). Implication: After an upgrade, browser might still use old rdz.js and cfg.js for 15 Minutes.
+
+
+
+
+**
+
+In v6.5.0 there seems to be another issue: In AP mode the client does no longer get an IP address -- needs to be checked
+
+
+**
+
+Tested with 6.3.1:
+
+Sometimes, when a AP is turned off (for < 1s) and turned on again, the WiFi produces a Disconnect event (#5) but no Clients cleared event (#3)
+In that case, the WiFi state remains connected (as in WiFi.isConnected()), so network is not working, but never reestablished.
+
+fix: added WiFi.mode(0) when event #5 is received.
+
+Still, for each reconnect, there apparently is a memory leak. Heap goes down by 40 bytes for each reconnect.
+
+
+

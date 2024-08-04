@@ -40,6 +40,7 @@ static struct st_dfmstat {
 	int idcnt1;
 	int lastfrid;
 	int lastfrcnt;
+	uint8_t invers;
 	uint8_t start[50];
 	uint16_t dat[50*2];
 	uint8_t cnt[50*2];
@@ -431,7 +432,11 @@ void DFM::decodeCFG(uint8_t *cfg)
 		case 0x6: si->subtype = DFM_06; break;
 		case 0x7: case 0x8:
 			si->subtype = DFM_06P; dfmstate.sensP = 1; break;  // (TODO: OR PS15)
-		case 0xA: si->subtype = DFM_09; break;
+		case 0xA: 
+			// Can be DFM_17 or DFM_09, decided based on polarity
+			if(dfmstate.invers) si->subtype = DFM_17;
+			else si->subtype = DFM_09;
+			break;
 		case 0xB: si->subtype = DFM_17; break;
 		case 0xC: // DFM-09P or DFM-17
 			if(dfmstate.meas[6]<220e3) { si->subtype = DFM_09P; dfmstate.sensP = 1; }
@@ -639,6 +644,9 @@ int DFM::processDFMdata(uint8_t dt) {
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 				invers = (rxdata == 0x6566A5AA)?1:0;
+				dfmstate.invers = invers;
+				// invers=1: DFM17 or DFM06; invers=0: DFM09
+				// Serial.printf("invers is %d\n", invers);
                         }
                 } else {
                         rxbitc = (rxbitc+1)%16; // 16;

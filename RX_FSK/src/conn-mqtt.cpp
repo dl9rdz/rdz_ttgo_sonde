@@ -1,6 +1,8 @@
 #include "../features.h"
 #if FEATURE_MQTT
 
+#include "../core.h"
+
 #include <Arduino.h>
 #include "conn-mqtt.h"
 #include <WiFi.h>
@@ -22,6 +24,9 @@ extern const char *version_id;
  */
 
 TimerHandle_t mqttReconnectTimer;
+
+extern t_wifi_state wifi_state;
+
 
 /* Global initalization (on TTGO startup) */
 void MQTT::init() {
@@ -75,22 +80,33 @@ void MQTT::updateStation( PosInfo *pi ) {
     if(!sonde.config.mqtt.active)
 	return;
 
-    int now = millis();
-    if ( (lastMqttUptime == 0 || (lastMqttUptime + 60000 < now) || (lastMqttUptime > now))) {
+    unsigned long now = millis();
+    if ( (lastMqttUptime == 0) || (now - lastMqttUptime > 60000) ) {
         publishUptime();
         lastMqttUptime = now;
     }
 }
 
+String MQTT::getStatus() {
+    return String("");
+}
+
 // Internal (private) functions
-//void MQTT::connectToMqtt() {
-//  Serial.println("Connecting to MQTT...");
-//  mqttClient.connect();
-//}
+int MQTT::connectToMqtt() {
+  if(mqttClient.connected())
+    return 1;
+  if(wifi_state != WIFI_CONNECTED)
+    return 0;
+  Serial.println("MQTT not connected, connecting....");
+  mqttClient.connect();
+  return 1;
+}
 
 void MQTT::publishUptime()
 {
-    mqttClient.connect(); // ensure we've got connection
+    // ensure we've got connection
+    if(!connectToMqtt())
+        return;
 
     Serial.println("[MQTT] writing");
     char payload[256];
@@ -110,7 +126,9 @@ void MQTT::publishUptime()
 void MQTT::publishPacket(SondeInfo *si)
 {
     SondeData *s = &(si->d);
-    mqttClient.connect(); // ensure we've got connection
+    // ensure we've got connection
+    if(!connectToMqtt())
+        return;
 
     char payload[1024];
     payload[0] = '{';

@@ -263,4 +263,29 @@ fonts=0,1
 6,0=xDist:
 6,6=gD
 
+###########
+# 
+# Default configuration for "Scanner" display:
+# - view timer disabled;  rx timer=0; norx timer = 0
+#   => after 1 second immediately an action is triggered
+#      (norx: go to next sonde; rx: go to default receiver display)
+# - key1 actions: D,0,F,W
+#   => Button press activates default receiver view, double press does nothing
+#      Mid press activates Spectrum display, long press activates Wifi scan
+# - key2 has no function
+@ScannerBatt
+timer=-1,0,0
+key1action=D,#,F,W
+key2action=D,#,#,#
+timeaction=#,D,+
+0,0=XScan
+0,5=S#:
+0,9=T
+2,0,16=s
+3,0=F MHz
+6,0=bS
+6,2=bVVb
+6,10=bUVu
+7,0=gV
+7,5=n
 

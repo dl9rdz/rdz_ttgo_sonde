@@ -366,16 +366,24 @@ float AXP192PMU::getTemperature() {
 /////// Functions for AXP2101
 
 // Registers
+#define AXP2101_PMU_STATUS1			 (0x00)
+#define AXP2101_PMU_STATUS2			 (0x01)
 #define AXP2101_CHARGE_GAUGE_WDT_CTRL            (0x18)
 #define AXP2101_BTN_BAT_CHG_VOL_SET              (0x6A)
 #define AXP2101_DC_ONOFF_DVM_CTRL                (0x80)
 #define AXP2101_LDO_ONOFF_CTRL0                  (0x90)
 #define AXP2101_LDO_ONOFF_CTRL1                  (0x91)
 
+// Not the right name....
+#define AXP2101_LDO_VOL0_CTRL                    (0x82)
+
 #define AXP2101_LDO_VOL1_CTRL                    (0x93)
 #define AXP2101_LDO_VOL2_CTRL                    (0x94)
 
 #define AXP2101_ADC_CHANNEL_CTRL		 (0x30)
+#define AXP2101_PMU_ADC0			 (0x34)
+#define AXP2101_PMU_ADC1			 (0x36)
+#define AXP2101_PMU_ADC2			 (0x38)
 
 // vterm_cfg: Bit 2:0, 4.2V = 011 (3)
 #define AXP2101_CHG_V_CFG		         (0x64)
@@ -431,6 +439,8 @@ int AXP2101PMU::init() {
 
     // ESP32 VDD 3300mV
     // No need to set, automatically open , Don't close it
+    val = readRegister(AXP2101_LDO_VOL0_CTRL);
+    Serial.printf("VDD: %x\n", val);
 
     // LoRa VDD 3300mV on ALDO2
     val =  readRegister(AXP2101_LDO_VOL1_CTRL);
@@ -530,15 +540,35 @@ int AXP2101PMU::getIrqKeyStatus()  {
     return KP_NONE;
 }
 
-int AXP2101PMU::isBatteryConnected() { return -1; }
+int AXP2101PMU::isBatteryConnected() { 
+	int val = readRegister(AXP2101_PMU_STATUS1);
+	// PMU status1, bit 3: battery present
+	return (val & 0x08) ? 1 : 0;
+}
 int AXP2101PMU::isVbusIn() { return -1; }
-int AXP2101PMU::isCharging() { return -1; }
-float AXP2101PMU::getBattVoltage() { return -1; }
+int AXP2101PMU::isCharging() { 
+	int val = readRegister(AXP2101_PMU_STATUS2);	
+	// PMU status2, bit 6:5 == 01 => charge (00: standby, 10: discharge)
+	return (val & 0x60) == 0x20 ? 1 : 0;
+}
+float AXP2101PMU::getBattVoltage() {   // returns mV
+	int hi = readRegister(AXP2101_PMU_ADC0) & 0x3F;
+	int lo = readRegister(AXP2101_PMU_ADC0+1);
+	return (float)((hi<<8) | lo );
+}
+
 float AXP2101PMU::getBattDischargeCurrent() { return -1; }
 float AXP2101PMU::getBattChargeCurrent() { return -1; }
 float AXP2101PMU::getAcinVoltage() { return -1; }
 float AXP2101PMU::getAcinCurrent() { return -1; }
-float AXP2101PMU::getVbusVoltage() { return -1; }
+float AXP2101PMU::getVbusVoltage() { 
+	int hi = readRegister(AXP2101_PMU_ADC2) & 0x3F;
+	int lo = readRegister(AXP2101_PMU_ADC2+1);
+	Serial.printf("vbus: %d %d\n", hi, lo);
+	float vbus = (float)((hi<<8) | lo );
+	if(vbus>7000) return -1;
+	return vbus;
+}
 float AXP2101PMU::getVbusCurrent() { return -1; }
 float AXP2101PMU::getTemperature() { return -1; }
 
