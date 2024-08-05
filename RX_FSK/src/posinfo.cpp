@@ -105,6 +105,7 @@ void gpsTask(void *parameter) {
         if (gpsPos.valid) {
           gpsPos.lon = nmea.getLongitude() * 0.000001;
           gpsPos.lat = nmea.getLatitude() * 0.000001;
+          gpsPos.speed = nmea.getSpeed() / 1000.0 * 0.514444; // speed is in m/s  nmea.getSpeed is in 0.001 knots
           long alt = 0;
           nmea.getAltitude(alt);
           gpsPos.alt = (int)(alt / 1000);

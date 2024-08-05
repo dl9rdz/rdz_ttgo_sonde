@@ -1661,6 +1661,18 @@ void Display::drawGPS(DispEntry *de) {
 	case 'E':
 		// elevation
 		break;
+	case 'S':
+		// Speed (in m/s)
+		snprintf(buf, 16, "%.2f", gpsPos.speed);
+		drawString(de, buf);
+		rdis->drawTile(de->x+5,de->y,2,ms_tiles);
+		break;	
+	case 'K':
+		// speed (in Km/h)
+		snprintf(buf, 16, "%.2f", gpsPos.speed * 3.6 );
+		drawString(de, buf);
+		rdis->drawTile(de->x+5,de->y,2,kmh_tiles);
+		break;			
 	}
 }
 
