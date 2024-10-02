@@ -10,6 +10,8 @@
 #button2_axp=0
 # LED port
 #led_pout=-1
+# Piezoe Speaker
+piezoe_pout=-1
 # OLED Setup is depending on hardware of LoRa board
 # TTGO v1:  SDA=4  SCL=15, RST=16 
 # TTGO v2:  SDA=21 SCL=22, RST=16

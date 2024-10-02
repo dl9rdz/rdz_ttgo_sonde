@@ -112,7 +112,7 @@ void MQTT::publishUptime()
     char payload[256];
     // maybe TODO: Use dynamic position if GPS is available?
     // rxlat, rxlon only if not empty
-    snprintf(payload, 256, "{\"uptime\": %lu, \"user\": \"%s\", ", millis(), sonde.config.mqtt.username);
+    snprintf(payload, 256, "{\"uptime\": %lu, \"user\": \"%s\", ", int (millis() / 1000, sonde.config.mqtt.username);
     if( !isnan(sonde.config.rxlat) && !isnan(sonde.config.rxlon) ) {
         snprintf(payload, 256, "%s\"rxlat\": %.5f, \"rxlon\": %.5f, ", payload, sonde.config.rxlat, sonde.config.rxlon);
     }

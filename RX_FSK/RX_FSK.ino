@@ -670,6 +670,7 @@ struct st_configitems config_list[] = {
   {"touch_thresh", 0, &sonde.config.touch_thresh},
   {"power_pout", 0, &sonde.config.power_pout},
   {"led_pout", 0, &sonde.config.led_pout},
+  {"piezoe_pout", 0, &sonde.config.piezoe_pout},
   {"gps_rxd", 0, &sonde.config.gps_rxd},
   {"gps_txd", 0, &sonde.config.gps_txd},
   {"batt_adc", 0, &sonde.config.batt_adc},
@@ -1380,6 +1381,7 @@ void touchISR2();
 
 Ticker ticker;
 Ticker ledFlasher;
+Ticker tone;
 
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
@@ -1499,6 +1501,17 @@ void flashLed(int ms) {
   if (sonde.config.led_pout >= 0) {
     digitalWrite(sonde.config.led_pout, HIGH);
     ledFlasher.once_ms(ms, ledOffCallback);
+  }
+}
+
+void toneOffCallback() {
+  ledcWriteTone(0,0);
+}
+
+void toneOn(int ms) {
+  if (sonde.config.piezoe_pout >= 0) {
+    ledcWriteTone(0,440); // 440 Hz - Middle A
+    tone.once_ms(ms, toneOffCallback);
   }
 }
 
@@ -1763,6 +1776,11 @@ void setup()
   if (sonde.config.led_pout >= 0) {
     pinMode(sonde.config.led_pout, OUTPUT);
     flashLed(1000); // testing
+  }
+
+  if (sonde.config.piezoe_pout >= 0) {
+    ledcAttachPin(sonde.config.piezoe_pout,0);
+    toneOn(1000); // testing
   }
 
   button1.pin = sonde.config.button_pin;

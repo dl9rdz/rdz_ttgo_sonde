@@ -240,6 +240,7 @@ typedef struct st_rdzconfig {
 	int button2_axp;		// Use AXP192 power button as button2
 	int touch_thresh;		// Threshold value (0..100) for touch input button
 	int led_pout;			// POUT port number of LED (used as serial monitor)
+	int piezoe_pout;		// POUT port number of Piezoe Speaker
 	int power_pout;			// Power control pin (for Heltec v2)
 	int disptype;			// 0=OLED; 1=ILI9225
 	int oled_sda;			// OLED/TFT data pin 

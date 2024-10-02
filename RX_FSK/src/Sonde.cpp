@@ -92,6 +92,7 @@ void Sonde::defaultConfig() {
 	}
 	config.touch_thresh = 70;
 	config.led_pout = -1;
+	config.piezoe_pout = -1;
 	config.power_pout = -1;
 	config.spectrum=10;
 	// Try autodetecting board type
@@ -462,6 +463,8 @@ void Sonde::setup() {
 
 extern void flashLed(int ms);
 
+extern void toneOn(int ms);
+
 void Sonde::receive() {
 	uint16_t res = 0;
 	SondeInfo *si = &sondeList[rxtask.currentSonde];
@@ -490,6 +493,7 @@ void Sonde::receive() {
 	// state information for RX_TIMER / NORX_TIMER events
         if(res==RX_OK || res==RX_ERROR) {  // something was received...
 		flashLed( (res==RX_OK)?700:100);
+		toneOn( (res==RX_OK)?200:50);
                 if(si->lastState != 1) {
                         si->rxStart = millis();
                         si->lastState = 1;
