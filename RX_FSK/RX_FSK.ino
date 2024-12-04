@@ -97,7 +97,8 @@ int updatePort = 80;
 const char *updatePrefixM = "/main/";
 const char *updatePrefixD = "/dev2/";
 const char *updatePrefix = updatePrefixM;
-
+const char *updateFs = "update.fs.bin";
+const char *updateIno = "update.ino.bin";
 
 #define LOCALUDPPORT 9002
 //Get real UTC time from NTP server
@@ -1125,6 +1126,36 @@ const char *handleUpdatePost(AsyncWebServerRequest * request) {
     else if (param.equals("main")) {
       Serial.println("equals main");
       updatePrefix = updatePrefixM;
+    }
+    else if (param.equals("local")) {
+      AsyncWebParameter *p = request->getParam(i+1);
+      if (p->name().equals("url")){
+        String localsrc = p->value();
+        int pos;
+
+        if (-1 != (pos = localsrc.indexOf("://")) ){
+          // strip off http://
+          localsrc = localsrc.substring(pos+3);
+        }
+
+        if (-1 != (pos = localsrc.indexOf("/")) ){
+          // see if there's a directory or updates are in the root
+          String tmp = localsrc.substring(pos);
+          updatePrefix = strdup(tmp.c_str());
+          localsrc = localsrc.substring(0, pos);
+        } else {
+          updatePrefix = strdup("/");
+        }
+
+        if (-1 != (pos = localsrc.indexOf(":"))) {
+          // extract port
+          updatePort = atoi(localsrc.substring(pos+1).c_str());
+          updateHost = strdup(localsrc.substring(0, pos).c_str());
+        } else {
+          updateHost = strdup(localsrc.c_str());
+        }
+        break;
+      }
     }
   }
   LOG_I(TAG, "Updating: %supdate.ino.bin\n", updatePrefix);
@@ -2807,6 +2838,8 @@ void execOTA() {
   bool isValidContentType = false;
   sonde.clearDisplay();
   uint8_t dispxs, dispys;
+  Serial.printf("Updater connecting to: %s:%d%s\n", updateHost, updatePort, updatePrefix);
+
   if ( ISOLED(sonde.config) ) {
     disp.rdis->setFont(FONT_SMALL);
     dispxs = dispys = 1;
@@ -2821,70 +2854,72 @@ void execOTA() {
     disp.rdis->drawString(0, 0, updateHost);
   }
 
-  Serial.print("Connecting to: "); Serial.println(updateHost);
   // Connect to Update host
   if (!client.connect(updateHost, updatePort)) {
-    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
-    return;
+    LOG_E(TAG, "Connection to %s:%d for fs update failed\n", updateHost, updatePort);
+    enterMode(ST_DECODER);
   }
 
-  // First, update file system
-  Serial.println("Fetching fs update");
+  // First, try update file system
+  LOG_I(TAG, "Fetching fs update from '%s:%d' '%s' '%s'\n", updateHost, updatePort, updatePrefix, updateFs);
   disp.rdis->drawString(0, 1 * dispys, "Fetching fs...");
-  client.printf("GET %supdate.fs.bin HTTP/1.1\r\n"
+  client.printf("GET %s%s HTTP/1.1\r\n"
                 "Host: %s\r\n"
                 "Cache-Control: no-cache\r\n"
-                "Connection: close\r\n\r\n", updatePrefix, updateHost);
+                "Connection: close\r\n\r\n", updatePrefix, updateFs, updateHost);
   // see if we get some data....
 
   int type = 0;
   int res = fetchHTTPheader(&type);
   if (res < 0) {
-    return;
-  }
-  // process data...
-  while (client.available()) {
-    // get header...
-    char fn[128];
-    fn[0] = '/';
-    client.readBytesUntil('\n', fn + 1, 128);
-    char *sz = strchr(fn, ' ');
-    if (!sz) {
-      client.stop();
-      return;
-    }
-    *sz = 0;
-    int len = atoi(sz + 1);
-    LOG_I(TAG, "Updating file %s (%d bytes)\n", fn, len);
-    char fnstr[17];
-    memset(fnstr, ' ', 16);
-    strncpy(fnstr, fn, 16);
-    fnstr[16] = 0;
-    disp.rdis->drawString(0, 2 * dispys, fnstr);
-    File f = SPIFFS.open(fn, FILE_WRITE);
-    // read sz bytes........
-    while (len > 0) {
-      unsigned char buf[1024];
-      int r = client.read(buf, len > 1024 ? 1024 : len);
-      if (r == -1) {
+    ; // no-op
+  } else {
+    // process data...
+    while (client.available()) {
+      // get header...
+      char fn[128];
+      fn[0] = '/';
+      client.readBytesUntil('\n', fn + 1, 128);
+      char *sz = strchr(fn, ' ');
+      if (!sz) {
         client.stop();
+        enterMode(ST_DECODER);
         return;
       }
-      f.write(buf, r);
-      len -= r;
+      *sz = 0;
+      int len = atoi(sz + 1);
+      LOG_I(TAG, "Updating file %s (%d bytes)\n", fn, len);
+      char fnstr[17];
+      memset(fnstr, ' ', 16);
+      strncpy(fnstr, fn, 16);
+      fnstr[16] = 0;
+      disp.rdis->drawString(0, 2 * dispys, fnstr);
+      File f = SPIFFS.open(fn, FILE_WRITE);
+      // read sz bytes........
+      while (len > 0) {
+        unsigned char buf[1024];
+        int r = client.read(buf, len > 1024 ? 1024 : len);
+        if (r == -1) {
+          client.stop();
+          enterMode(ST_DECODER);
+          return;
+        }
+        f.write(buf, r);
+        len -= r;
+      }
     }
+    client.stop();
   }
-  client.stop();
 
-  Serial.print("Connecting to: "); Serial.println(updateHost);
   // Connect to Update host
   if (!client.connect(updateHost, updatePort)) {
-    Serial.println("Connection to " + String(updateHost) + " failed. Please check your setup");
+    LOG_E(TAG, "Connection to %s:%d for app update failed\n", updateHost, updatePort);
+    enterMode(ST_DECODER);
     return;
   }
 
   // Connection succeeded, fecthing the bin
-  LOG_I(TAG, "Fetching bin: %supdate.ino.bin\n", updatePrefix);
+  LOG_I(TAG, "Fetching bin update from '%s:%d' '%s' '%s'", updateHost, updatePort, updatePrefix, updateIno);
   disp.rdis->drawString(0, 3 * dispys, "Fetching update");
 
   // Get the contents of the bin file
@@ -2905,7 +2940,7 @@ void execOTA() {
   if (validType == 1) isValidContentType = true;
 
   // Check what is the contentLength and if content type is `application/octet-stream`
-  Serial.println("contentLength : " + String(contentLength) + ", isValidContentType : " + String(isValidContentType));
+  Serial.printf("contentLength : %d, isValidContentType : %d\n",contentLength, isValidContentType);
   disp.rdis->drawString(0, 4 * dispys, "Len: ");
   String cls = String(contentLength);
   disp.rdis->drawString(5 * dispxs, 4 * dispys, cls.c_str());

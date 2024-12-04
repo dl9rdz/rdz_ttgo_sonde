@@ -14,7 +14,18 @@ Available dev2: <span id="develDiv">(...checking...)</span>
 </p>
 <input type="submit" name="main" value="Main-Update"></input><br>
 <input type="submit" name="dev2" value="Dev-Update"><br>
-<p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p></form>
+<input type="submit" name="local" value="Local-Update"> from
+<input type="text" name="url" placeholder="http://192.0.2.100/rdzsonde-update/" size="64"><br>
+</form>
+
+<p>Note: If suffix is the same, update should work fully. If the number is
+different, update contains changes in the file system. A full re-flash is
+required to get all new features, but the update should not break anything.
+If the letter is different, a full re-flash is mandatory, update will not
+work.</p>
+<p>The local-update feature is for developers and requires a path containing
+<tt>update.fs.bin</tt> and <tt>update.ino.bin</tt>. Reverting a local update
+will likely require a full re-flash to get back to official release.</p>
 
 <script>
 const masterInfo = document.getElementById('masterDiv');
