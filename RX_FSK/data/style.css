@@ -197,8 +197,10 @@ h1{
   text-align: center;
   text-decoration: none;
   display: block;
-  margin: 2;
   font-size: 4vh;
+  margin-top: 0.3em;
+  margin-left: 0.3em;
+  margin-right: 0.3em;
 }
 .update {
   margin: 0;
