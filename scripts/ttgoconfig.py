@@ -13,7 +13,7 @@ ttgohost = "rdzsonde.local"
 updatehost = "https://github.com/dl9rdz/rdz_ttgo_sonde/blob/gh-pages/{}/{}?raw=true"
 
 screens = ("screens1.txt", "screens2.txt", "screens3.txt")
-allfiles = ("config.txt", "qrg.txt", "networks.txt") + screens
+allfiles = ("config.txt", "qrg.txt", "localupd.txt", "networks.txt") + screens
 
 optprint = False
 optdir = ""
@@ -51,9 +51,9 @@ while len(sys.argv)>=2:
     del(sys.argv[1])
   else:
     break
-  
+
 if len(sys.argv)<=2:
-  print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
+  print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--print|--dir={dir}] <get|put> <all|config|qrg|upd|networks|screens>");
   print("or:    ",sys.argv[0]," <get|put> file {filename}");
   print("or:    ",sys.argv[0]," update <devel-xxx|master-yyy>");
   print("or:    ",sys.argv[0]," <backup|restore> file.bin");
@@ -62,7 +62,8 @@ if len(sys.argv)<=2:
         "     screens is screens1.txt, screens2.txt, screens3.txt");
   print("     networks is networks.txt (Wifi ssid and password)")
   print("     qrg is qrg.txt (List with scan frequencies)")
-  print("     all is screens + network + qrg")
+  print("     upd is localupd.txt (your locally administered update server)")
+  print("     all is screens + network + qrg + upd")
   sys.exit(1)
 
 if sys.argv[1]=="backup":
@@ -79,7 +80,7 @@ if sys.argv[1]=="restore":
   sys.argv=[sys._argv[0],"--chip", "esp32", "--baud", "921600", "--before", "default_reset", "--after", "hard_reset", "write_flash", "-z", "--flash_mode", "dio", "--flash_freq", "80m", "--flash_size", "detect", "0x1000", sys.argv[2]]
   esptool.main()
   exit(0)
-  
+
 
 if sys.argv[1]=="update":
   # update to a new version...
@@ -130,7 +131,7 @@ def getpartinfo(partname):
           mult = 1024
       print("SIZE is:"+SIZE+"!")
       SIZE = int(SIZE,0) * mult
- 
+
   print("File system at ",hex(OFFSET)," size=",hex(SIZE))
   return [OFFSET, SIZE]
 
@@ -158,6 +159,8 @@ elif sys.argv[2]=="config":
   files=("config.txt",)
 elif sys.argv[2]=="qrg":
   files=("qrg.txt",)
+elif sys.argv[2]=="upd":
+  files=("localupd.txt",)
 elif sys.argv[2]=="networks":
   files=("networks.txt",)
 elif sys.argv[2]=="screens":
