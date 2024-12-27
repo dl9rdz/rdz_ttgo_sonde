@@ -220,7 +220,7 @@ void MQTT::publishPeak(double pf, int rssi)
 
     timeFormat();
     char payload[256];
-    snprintf(payload, 256, "{\"time\": \"%s\". \"peak\": %.3f, \"rssi\": %.1f}",time_str, pf*1e-6, rssi/2.0);
+    snprintf(payload, 256, "{\"time\": \"%s\", \"peak\": %.3f, \"rssi\": %.1f}",time_str, pf*1e-6, rssi/2.0);
     LOG_D(TAG, "publishPeak: sending %s\n", payload);
 
     char topic[128];
