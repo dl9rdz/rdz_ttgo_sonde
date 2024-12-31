@@ -328,8 +328,9 @@ void Sonde::defaultConfig() {
 	strcpy(config.udpfeed.host, "192.168.42.20:9002");
 	config.udpfeed.ratelimit= 1;
 	config.tcpfeed.active = 0;
-	strcpy(config.tcpfeed.host, "wettersonde.net:14580");
-	strcpy(config.tcpfeed.host2, "radiosondy.info:14580");
+	strcpy(config.tcpfeed.host, "radiosondy.info:14580");
+	# default config with 
+	#strcpy(config.tcpfeed.host2, "wettersonde.net:14580");
 	strcpy(config.tcpfeed.symbol, "/O");
 	config.tcpfeed.highrate = 10;
 	config.kisstnc.active = 0;

@@ -107,8 +107,8 @@ axudp.ratelimit=1
 # connect to some aprs server
 #-------------------------------#
 tcp.active=0
-tcp.host=radiosondy.info:14590
-#tcp.host2=wettersonde.net:14590
+tcp.host=radiosondy.info:14580
+#tcp.host2=wettersonde.net:14580
 # Currently this is fixed...
 # tcp.symbol=/O
 tcp.highrate=20
