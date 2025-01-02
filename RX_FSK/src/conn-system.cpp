@@ -83,11 +83,15 @@ String ConnSystem::getStatus() {
   appendUptime(buf, 1024, uptime - netup_time);
   appendBatt(buf, 1024);
   p = strlen(buf);
-  snprintf(buf+p, 1024-p, " <br> rdzwxGO app: %sconnected<br>RS92 RINEX eph state: %s", rdzclient.connected()?"":"not ", rs92);
+  snprintf(buf+p, 1024-p, " <br> rdzwxGO app: %sconnected<br>", rdzclient.connected()?"":"not ");
+  #if FEATURE_RS92
+  p = strlen(buf);
+  snprintf(buf+p, 1024-p, "RS92 RINEX eph state: %s", rdzclient.connected()?"":"not ", rs92);
   if(ephstate == EPH_GOOD) {
      p = strlen(buf);
      snprintf(buf+p, 1024-p, "[%s]", eph_nowstr);
   }
+  #endif
   // get DNS info, debug info...
   String s = WiFi.dnsIP(0).toString();
   strlcat(buf, "<br>DNS: ", 1024);
