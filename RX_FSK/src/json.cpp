@@ -69,7 +69,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         "\"time\": %u,"
         "\"sats\": %d,"
         "\"freq\": %.2f,"
-        "\"rssi\": %d,"
+        "\"rssi\": %.1f,"
         "\"afc\": %d,"
         "\"launchKT\": %d,"
         "\"burstKT\": %d,"
@@ -85,7 +85,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         s->time,
         s->sats,
         si->freq,
-        si->rssi,
+        si->rssi/-2.0,
         si->afc,
         s->launchKT,
         s->burstKT,
