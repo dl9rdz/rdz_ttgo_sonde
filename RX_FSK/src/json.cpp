@@ -33,10 +33,17 @@ int float2json(char **buf, int *maxlen, const char *fmt, float value) {
 // - MQTT
 // - rdzJSON (for Android app)
 // - Web map
-int sonde2json(char *buf, int maxlen, SondeInfo *si)
+int sonde2json(char *buf, int maxlen, SondeInfo *si, bool rssi_as_dbm)
 {
     SondeData *s = &(si->d);
     int n;
+    float rssi_conversion = 1.0;
+
+    // this allows callers to get the raw reading and convert it themselves (mobile app)
+    // or to request the conversion to be done internally for the benefit of downstream
+    // consumers (mqtt subsystem, and anything else that calls this function)
+    if (rssi_as_dbm)
+      rssi_conversion = -0.5;
 
     n = float2json(&buf, &maxlen, "\"lat\": %.5f,", s->lat);
     if(n<0) return -1;
@@ -85,7 +92,7 @@ int sonde2json(char *buf, int maxlen, SondeInfo *si)
         s->time,
         s->sats,
         si->freq,
-        si->rssi/-2.0,
+        si->rssi * rssi_conversion,
         si->afc,
         s->launchKT,
         s->burstKT,

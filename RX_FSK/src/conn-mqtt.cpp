@@ -269,7 +269,7 @@ void MQTT::publishPacket(SondeInfo *si)
 
     char payload[1024];
     payload[0] = '{';
-    int n = sonde2json(payload+1, 1023, si);
+    int n = sonde2json(payload+1, 1023, si, true);
     if(n<0) {
 	// ERROR
         LOG_E(TAG, "publishPacket: sonde2json failed, string too long");

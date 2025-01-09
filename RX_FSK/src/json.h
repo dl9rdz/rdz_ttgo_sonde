@@ -3,6 +3,6 @@
 
 #include "Sonde.h"
 
-int sonde2json(char *buf, int maxlen, SondeInfo *si);
+int sonde2json(char *buf, int maxlen, SondeInfo *si, bool rssi_as_dbm=false);
 
 #endif
