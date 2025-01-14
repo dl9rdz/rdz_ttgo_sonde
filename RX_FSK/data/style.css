@@ -416,15 +416,13 @@ h1{
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #333;
+    color: #a9a9a9;
   }
   h1{
     color: #3378f6;
   } 
   h2{
     color: white;
-  }
-  .system-info p {
-	  color: #bdbdbd;
   }
   .status-table th {
 	  color: black;
@@ -441,6 +439,9 @@ h1{
   }
   a:link, a:visited {
     color: #D3D3D3;
+  }
+  a:hover {
+    color: #007BFF;
   }
   .topnav, td#sfreq {
     background-color: grey;
