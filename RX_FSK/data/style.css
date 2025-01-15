@@ -453,6 +453,13 @@ h1{
     color: white;
     background-color: grey;
   }
+  .save {
+    background-color: #CC1111;
+  }
+  .footer {
+	  background-color: #222222;
+  }
+
   .leaflet-center {
     color: white;
     background-color: grey;
