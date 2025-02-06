@@ -451,6 +451,8 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
+#if 0
+/* new X sonde are different, handle sats outside this function */
    uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
    Serial.printf("x:%g, y:%g, z:%g  sats:%d\n", x, y, z, sats);
    si->sats = sats;
@@ -460,6 +462,15 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
       if(si->validPos) si->validPos |= 0x80; // flag as old
       return;
    }
+#else
+   Serial.printf("x:%g, y:%g, z:%g\n", x, y, z);
+   if( x==0 && y==0 && z==0 ) {
+      // RS41 sometimes sends frame with all 0
+      if(si->validPos) si->validPos |= 0x80; // flag as old
+      return;           
+   }          
+#endif
+
    wgs84r(x, y, z, &lat, &long0, &heig);
    Serial.print(" ");
    si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
@@ -501,6 +512,20 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    else
       si->validPos = 0x7f;
 } /* end posrs41() */
+
+static uint32_t rs41date(const uint8_t f[])
+{
+   struct tm timeinfo={0};
+   timeinfo.tm_year =  (f[0] + (f[1]<<8)) - 1900;
+   timeinfo.tm_mon = f[2] - 1;
+   timeinfo.tm_mday = f[3];
+   timeinfo.tm_hour = f[4];
+   timeinfo.tm_min = f[5];
+   timeinfo.tm_sec = f[6];
+   uint32_t n = mktime(&timeinfo);
+   return n;
+}
+
 
 void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    // the total subframe consists of 51 rows, each row 16 bytes
@@ -796,11 +821,27 @@ int RS41::decode41(byte *data, int maxlen)
 			break;
 		case '{': // pos
 			posrs41(data+p, len, 0);
+			si->sats = (data+p)[18];
+			Serial.printf("sats: %d\n", si->sats);
+			// TODO: Maybe check elsewhere if sats < 4 => do not use position
 			break;
+		case '\202':    // pos, new X version
+			posrs41(data+p, len, 0);
+			si->time = rs41date(data+p+18);
+			break;
+		case '\203':   // sat info, new X version
+		{
+			int sats = 0;
+			for(int i=0; i<32; i++) {
+				if( (data+p)[18+i/8] & (1<<(i&7)) ) sats++;
+			}
+			si->sats = sats;
+			break;
+		}
 		case 'z': // 0x7a is character z - 7A-MEAS temperature and humidity frame
 		case '\x7f': //0x7f - short MEAS, no pressure
-         {
-      		uint32_t tempMeasMain = getint24(data, 560, p+0);
+         	{
+      			uint32_t tempMeasMain = getint24(data, 560, p+0);
 		      uint32_t tempMeasRef1 = getint24(data, 560, p+3);
 			   uint32_t tempMeasRef2 = getint24(data, 560, p+6);
   			   uint32_t humidityMain = getint24(data, 560, p+9);
