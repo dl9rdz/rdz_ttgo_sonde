@@ -1,1 +1,2 @@
 get time right (utc vs gps time)
+fix merge error
