@@ -827,7 +827,7 @@ int RS41::decode41(byte *data, int maxlen)
 			break;
 		case '\202':    // pos, new X version
 			posrs41(data+p, len, 0);
-			si->time = rs41date(data+p+18);
+			si->time = rs41date(data+p+18) - 18;
 			break;
 		case '\203':   // sat info, new X version
 		{

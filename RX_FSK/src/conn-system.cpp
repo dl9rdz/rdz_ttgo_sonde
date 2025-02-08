@@ -86,7 +86,7 @@ String ConnSystem::getStatus() {
   snprintf(buf+p, 1024-p, " <br> rdzwxGO app: %sconnected<br>", rdzclient.connected()?"":"not ");
   #if FEATURE_RS92
   p = strlen(buf);
-  snprintf(buf+p, 1024-p, "RS92 RINEX eph state: %s", rdzclient.connected()?"":"not ", rs92);
+  snprintf(buf+p, 1024-p, "RS92 RINEX eph state: %s", rs92);
   if(ephstate == EPH_GOOD) {
      p = strlen(buf);
      snprintf(buf+p, 1024-p, "[%s]", eph_nowstr);
