@@ -1,15 +1,15 @@
 {
   "name": "rdzTTGOsonde",
-  "version": "dev20250108",
+  "version": "dev20250110",
   "funding_url": "https://buymeacoffee.com/rdzsonde",
   "new_install_prompt_erase": false,
   "new_install_improv_wait_time": 3,
   "builds": [
     {
       "chipFamily": "ESP32",
-      "fwversion": "dev20250208",
+      "fwversion": "dev20250210",
       "parts": [
-        { "path": "dev2/dev20250208-C3-full.bin", "offset": 4096 }
+        { "path": "dev2/dev20250210-C3-full.bin", "offset": 4096 }
       ]
     },
     {
