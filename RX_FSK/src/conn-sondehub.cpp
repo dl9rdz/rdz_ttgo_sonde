@@ -66,7 +66,7 @@ void ConnSondehub::init() {
 }
 
 void ConnSondehub::netsetup() {
-    if (sonde.config.sondehub.active && wifi_state != WIFI_APMODE) {
+    if ((sonde.config.sondehub.active||sonde.config.sondehub.fiactive) && wifi_state != WIFI_APMODE) {
         // start connecting...
         sondehub_client_fsm();
         time_last_update = 0; /* force sending update */ 
@@ -88,10 +88,10 @@ void ConnSondehub::netshutdown() {
 //   each second, if good decode: sondehub_send_data
 //   each second, if no good decode: sondehub_finish_data
 void ConnSondehub::updateSonde( SondeInfo *si ) {
+    sondehub_client_fsm();
     if (!sonde.config.sondehub.active)
         return;
     LOG_D(TAG, "updateSonde: si:%s, SH_FSM in state %d (%s), next import in %d s\n", si?"yes":"null", shclient_state, state2str(shclient_state), (time_next_import-millis())/1000);
-    sondehub_client_fsm();
 
     if(si==NULL) {
         sondehub_finish_data();
@@ -315,10 +315,10 @@ error:
 */
 /* which_pos: 0=none, 1=fixed, 2=gps */
 void ConnSondehub::updateStation( PosInfo *pi ) {
+    sondehub_client_fsm();
     if (!sonde.config.sondehub.active)
         return;
     LOG_D(TAG, "updateStation\n");
-    sondehub_client_fsm();
     // Currently, internal handler uses gpsInfo global variable instead of this pi
 
   struct st_sondehub *conf = &sonde.config.sondehub;
@@ -431,51 +431,6 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
 /*
         Update sonde data to the sondehub v2 DB
 */
-
-#if 0
-void ConnSondehub::sondehub_reply_handler(const char *buf) {
-  // sondehub handler for tasks to be done even if no data is to be sent:
-  //   process response messages from sondehub
-  //   request frequency list (if active)
-  //  (probably the request part needs to be moved elsewhere!  ==> TODO
-
-  if(shclient_state == SH_CONN_WAITACK) {
-@@@@@
-      if(buf[i]=='\n') {
-          // We still wait for the beginning of the ACK
-          // so check if we got that. if yes, all good, continue reading :)
-          // If not, ignore everything we have read so far...
-          if(strncmp(rs_msg, "HTTP/1", 6)==0) { shclient_state = SH_CONN_IDLE; }
-          else rs_msg_len = 0;
-      }
-  } else if( shclient_state == SH_CONN_WAITIMPORTRES ) {   // we are waiting for a reply to a sondehub frequency import request
-    // while we are waiting, we do nothing else with sondehub...
-    int res = ShFreqImport::shImportHandleReply(shclient);
-    LOG_D(TAG, "shImportHandleReply: ret=%d\n", res);
-    // res==0 means more data is expected, res==1 means complete reply received (or error)
-    if (res == 1) {
-      shclient_state = SH_CONN_IDLE;
-      // shImport = 2; // finished
-      time_next_import = millis() + sonde.config.sondehub.fiinterval * 60 * 1000;
-    }
-    return;
-  }
-
-/// TODO: Move this elsewhere, get timing right!
-#if 1
-  if( shclient_state == SH_CONN_IDLE ) {   // we are connected and idle, so fine to send frequency import request
-    // send import requests if needed
-    if (sonde.config.sondehub.fiactive)  {
-	unsigned long now = millis();
-        LOG_D(TAG, "next sondehub frequncy import in %d seconds\n", (time_next_import-now)/1000);
-	if(now > time_next_import) {
-          sondehub_send_fimport();
-        }
-    }
-  }
-#endif
-}
-#endif
 
 void ConnSondehub::sondehub_send_fimport() {
   if (shclient_state != SH_CONN_IDLE) {

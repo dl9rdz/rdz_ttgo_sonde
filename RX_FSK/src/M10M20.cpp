@@ -646,6 +646,9 @@ int M10M20::decodeframeM20(uint8_t *data) {
         uint16_t week = getint16(data+26);
         si->time = (tow+week*604800+315964800)-18;
 	si->vframe =si->time - 315964800 + 18;
+
+	// vBatt
+	si->batteryVoltage = data[0x26] * (3.3/255);
                 
         si->validTime = true;
 	}

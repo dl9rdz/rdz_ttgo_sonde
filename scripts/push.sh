@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 MYPATH=$PWD
 # old/for Arduino builds
@@ -28,7 +28,7 @@ generate_website_index() {
   for i in `ls main|sort -r|grep -v update-info`; do
     TS=`git log main/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
-    echo "<li><a href=\"main/$i\">$i</a> ($TS)</li>\n" >> download.html
+    echo -e "<li><a href=\"main/$i\">$i</a> ($TS)</li>\n" >> download.html
   done
   echo "</ul>" >> download.html
   echo "<h2>Development repository (dev2)</h2><ul>" >> download.html
@@ -40,7 +40,7 @@ generate_website_index() {
     echo "VERS $VERS: CL $CL"
     echo "<li><a href=\"dev2/$i\">$i</a> ($TS)" >> download.html
     if [ -n "${CL}" ]; then echo "<br>${CL%??}" >> download.html; fi
-    echo "</li>\n" >> download.html
+    echo -e "</li>\n" >> download.html
   done
   echo "</ul>" >> download.html
 
@@ -48,7 +48,7 @@ generate_website_index() {
   for i in `ls master|sort -r|grep -v update-info`; do
     TS=`git log master/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
     if [ -z "$TS" ]; then TS=`date`; fi
-    echo "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
+    echo -e "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
   done
   echo "</ul><h2>Development repository (old IDF environment)</h2><ul>" >> download.html
   for i in `ls devel|sort -r|grep "\.bin"`; do
@@ -59,7 +59,7 @@ generate_website_index() {
     echo "VERS $VERS: CL $CL"
     echo "<li><a href=\"devel/$i\">$i</a> ($TS)" >> download.html
     if [ -n "${CL}" ]; then echo "<br>${CL}" >> download.html; fi
-    echo "</li>\n" >> download.html
+    echo -e "</li>\n" >> download.html
   done
   echo "</ul>
   <br>
@@ -71,6 +71,25 @@ generate_website_index() {
    </section></body></html>" >> download.html
   git add download.html
   git commit --amend --message "Build @ `date`"
+}
+update_json_file() {
+    local json_file="$1"
+    local full_filename="$2"
+
+    # Extract the version string from the filename (assuming pattern "devYYYYMMDD")
+    local version=$(basename "$full_filename" | grep -oE 'dev[0-9]{8}')
+
+    if [[ -z "$version" ]]; then
+        echo "Error: Could not extract version from filename."
+        return 1
+    fi
+
+    # Update the JSON file using jq
+    jq --arg version "$version" --arg full_filename "$full_filename" '
+        .version = $version |
+        .builds[0].fwversion = $version |
+        .builds[0].parts[0].path = $full_filename
+    ' "$json_file" > "${json_file}.tmp" && mv "${json_file}.tmp" "$json_file"
 }
 commit_website_files() {
   BRANCH=`git branch --show-current`
@@ -101,15 +120,15 @@ commit_website_files() {
   git add ${BRANCH}/update-info.html
   ${MYPATH}/scripts/makefsupdate.py ${MYPATH}/RX_FSK/data/ > ${BRANCH}/update.fs.bin
   git add ${BRANCH}/update.fs.bin
+  update_json_file "manifest.json" "${BRANCH}/${VERSION}-full.bin"
+  git add "manifest.json"
   git commit --message "Build @ `date`"
 }
 upload_files() {
-  #git remote add origin-pages https://${GITHUB_API_KEY}@github.com/dl9rdz/rdz_ttgo_sonde.git > /dev/null 2>&1
-  #git push --quiet --set-upstream origin-pages gh-pages 
   git push
 }
+
 setup_git
 commit_website_files
-#cd /tmp/rdz_ttgo_sonde
 generate_website_index
 upload_files
