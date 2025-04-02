@@ -47,6 +47,7 @@ static struct st_dfmstat {
 	uint16_t good;
 	uint32_t datesec;
 	uint8_t frame;
+	uint8_t posmode;
 	uint16_t msec;
 	uint8_t nameregok;
 	uint8_t nameregtop;
@@ -478,6 +479,7 @@ static int bitCount(int x) {
 
 uint16_t MON[]={0,0,31,59,90,120,151,181,212,243,273,304,334};
 
+
 void DFM::decodeDAT(uint8_t *dat)
 {
 	// TODO: Here we need to work on a shadow copy of SondeData in order to prevent concurrent changes while using data in main loop
@@ -534,58 +536,93 @@ void DFM::decodeDAT(uint8_t *dat)
 		dfmstate.lastdat = dat[6];
 	}
 	dfmstate.good |= (1<<dat[6]);
+
 	switch(dat[6]) {
 	case 0:
 		Serial.print("Packet counter: "); Serial.print(dat[3]);	
 		dfmstate.frame = dat[3];
-		break;
-	case 1:
-		{
-		int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
-		Serial.print("UTC-msec: "); Serial.print(val);
-		dfmstate.msec = val; 
-		//uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
-		//si->sats = bitCount(tmp); 
+		dfmstate.posmode = dat[2];
+		if(dat[2] <= 1 || dat[2] >= 5) dfmstate.posmode = 2;
+		if(dfmstate.posmode >= 3) {
+                        int val = (((uint16_t)dat[0])<<8) + (uint16_t)dat[1];
+			float vh = ((uint16_t)dat[4]<<8) + dat[5];
+			dfmstate.msec = val;
+			si->hs = vh * 0.01;
+                	if(si->hs != 0) si->validPos |= 0x10;  else si->validPos &= ~0x10;
+                        Serial.printf("UTC-msec: %d, hor-V: %f", val, si->hs);
 		}
 		break;
+	case 1:
+		if(dfmstate.posmode <=2) {
+			int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
+			Serial.print("UTC-msec: "); Serial.print(val);
+			dfmstate.msec = val; 
+			//uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
+			//si->sats = bitCount(tmp); 
+		}
+		else {  // lat and dir
+			float lat, dir;
+                	lat = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]));
+                	dir = ((uint16_t)dat[4]<<8) + dat[5];
+                	lat = lat*0.0000001;
+                	if( lat!=0 && si->lat!=0 && abs(lat-si->lat)>.25 ) killid();
+                	si->lat = lat;
+                	si->dir = dir*0.01;
+                	if(lat!=0 | dir!=0) si->validPos |= 0x21;  else si->validPos &= ~0x21;
+			Serial.printf("GPS-Lat: %f, dir: %f\n", si->lat, si->dir);
+               	}
+		break;
 	case 2:
-		{
-		float lat, vh;
-		lat = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]));
-		vh = ((uint16_t)dat[4]<<8) + dat[5];
-		Serial.print("GPS-lat: "); Serial.print(lat*0.0000001);
-		Serial.print(", hor-V: "); Serial.print(vh*0.01);
-		lat = lat*0.0000001;
-		if( lat!=0 && si->lat!=0 && abs(lat-si->lat)>.25 ) killid();
-		si->lat = lat;
-		si->hs = vh*0.01;
-		if(lat!=0 || vh!=0) si->validPos |= 0x11;  else si->validPos &= ~0x11;
+		if(dfmstate.posmode <= 2) { // Lat, Hor-V
+			float lat, vh;
+			lat = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]));
+			vh = ((uint16_t)dat[4]<<8) + dat[5];
+			lat = lat*0.0000001;
+			if( lat!=0 && si->lat!=0 && abs(lat-si->lat)>.25 ) killid();
+			si->lat = lat;
+			si->hs = vh*0.01;
+			if(lat!=0 || vh!=0) si->validPos |= 0x11;  else si->validPos &= ~0x11;
+			Serial.printf("GPS-Lat: %f, hor-V: %f\n", si->lat, si->hs);
+		} else {  // Lon, Vert-V
+			float lon, vv;
+			lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
+			vv = ((uint16_t)dat[4]<<8) + dat[5];
+			lon = lon*0.0000001;
+			if( lon!=0 && si->lon!=0 && abs(lon-si->lon)>.25 ) killid();
+			si->lon = lon;
+			si->vs = vv*0.01;
+			if(lon != 0 || vv != 0) si->validPos |= 0x0A; else si->validPos &= ~0x0A;
+			Serial.printf("GPS-Lon: %f, vv: %f\n", si->lon, si->vs);
 		}
 		break;
 	case 3:
-		{
-		float lon, dir;
-		lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
-		dir = ((uint16_t)dat[4]<<8) + dat[5];
-		lon = lon*0.0000001;
-		if( lon!=0 && si->lon!=0 && abs(lon-si->lon)>.25 ) killid();
-		si->lon = lon;
-		si->dir = dir*0.01;
-		Serial.print("GPS-lon: "); Serial.print(si->lon);
-		Serial.print(", dir: "); Serial.print(si->dir);
-		if(lon != 0 || dir != 0) si->validPos |= 0x22; else si->validPos &= ~0x22;
+		if(dfmstate.posmode <= 2) { // Lon, Dir
+			float lon, dir;
+			lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
+			dir = ((uint16_t)dat[4]<<8) + dat[5];
+			lon = lon*0.0000001;
+			if( lon!=0 && si->lon!=0 && abs(lon-si->lon)>.25 ) killid();
+			si->lon = lon;
+			si->dir = dir*0.01;
+			if(lon != 0 || dir != 0) si->validPos |= 0x22; else si->validPos &= ~0x22;
+			Serial.printf("GPS-Lon: %f, dir: %f\n", si->lon, si->dir);
+		} else {  // Alt
+			float alt;
+			alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
+			Serial.print("GPS-height: "); Serial.print(alt*0.01);
+			si->alt = alt*0.01;
+			if(alt!=0) si->validPos |= 0x04; else si->validPos &= ~0x04;
 		}
 		break;
 	case 4:
-		{
-		float alt, vv;
-		alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
-		vv = (int16_t)( ((int16_t)dat[4]<<8) | dat[5] );
-		Serial.print("GPS-height: "); Serial.print(alt*0.01);
-		Serial.print(", vv: "); Serial.print(vv*0.01);
-		si->alt = alt*0.01;
-		si->vs = vv*0.01;
-		if(alt!=0 || vv != 0) si->validPos |= 0x0C; else si->validPos &= ~0x0C;
+		if(dfmstate.posmode <= 2) {  // Alt, Vert-V
+			float alt, vv;
+			alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
+			vv = (int16_t)( ((int16_t)dat[4]<<8) | dat[5] );
+			si->alt = alt*0.01;
+			si->vs = vv*0.01;
+			if(alt!=0 || vv != 0) si->validPos |= 0x0C; else si->validPos &= ~0x0C;
+			Serial.printf("GPS-heiht: %f, vv: %f\n", si->alt, si->vs);
 		}
 		break;
 	case 8:
