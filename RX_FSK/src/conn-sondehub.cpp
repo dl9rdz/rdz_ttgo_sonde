@@ -213,7 +213,7 @@ void ConnSondehub::sondehub_client_fsm() {
         if (getsockopt(shclient, SOL_SOCKET, SO_ERROR, (void*)(&sockerr), &len) < 0) {
             goto error;
         }
-        LOG_D(TAG, "select returing %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(shclient, &fdset), FD_ISSET(shclient, &fdeset), sockerr);
+        LOG_D(TAG, "select returning %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(shclient, &fdset), FD_ISSET(shclient, &fdeset), sockerr);
         if(sockerr) {
             LOG_E(TAG, "SH connect error: %s\n", strerror(sockerr));
             goto error;
@@ -298,9 +298,9 @@ void ConnSondehub::sondehub_client_fsm() {
 
     default:
         LOG_I(TAG, "SH_FSM in state %d (%s)\n", shclient_state, state2str(shclient_state));
-        LOG_E(TAG, "UNHANLDED CASE: SHOULD NOT HAPPEN*****");
+        LOG_E(TAG, "UNHANDLED CASE: SHOULD NOT HAPPEN*****");
     }
-    LOG_I(TAG, "FSM RETRUNING*****");
+    LOG_I(TAG, "FSM RETURNING*****");
     return;
 
 error:

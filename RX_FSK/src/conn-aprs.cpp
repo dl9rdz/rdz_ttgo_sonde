@@ -160,7 +160,7 @@ void ConnAPRS::updateStation( PosInfo *pi ) {
         }
     }
     if (tncclient.available()) {
-        Serial.print("TCP KISS socket: recevied ");
+        Serial.print("TCP KISS socket: received ");
         while (tncclient.available()) {
            Serial.print(tncclient.read());  // Check if we receive anything from from APRSdroid
         }
@@ -188,7 +188,7 @@ void ConnAPRS::aprs_station_update() {
   unsigned long time_delta = time_now - time_last_aprs_update;
   unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
   long tts = update_time - time_delta;
-  Serial.printf("aprs_statio_update due in %d s", (int)(tts/1000));
+  Serial.printf("aprs_station_update due in %d s", (int)(tts/1000));
   if (tts>0) return;
 
   float lat, lon;
@@ -323,7 +323,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         // Poll to see if we are now connected 
         res = select(a->tcpclient+1, NULL, &fdset, &fdeset, &selto);
         if(res<0) {
-            Serial.println("TNS_CONNECTING: select error");
+            Serial.println("TCS_CONNECTING: select error");
             goto error;
         } else if (res==0) { // still pending
             break;
@@ -335,7 +335,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         if (getsockopt(a->tcpclient, SOL_SOCKET, SO_ERROR, (void*)(&sockerr), &len) < 0) {
             goto error;
         }
-        Serial.printf("select returing %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
+        Serial.printf("select returning %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
         if(sockerr) {
             Serial.printf("APRS connect error: %s\n", strerror(sockerr));
             goto error;
@@ -349,7 +349,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
       {
         res = select(a->tcpclient+1, &fdset, NULL, NULL, &selto);
         if(res<0) {
-            Serial.println("TCS_CONNECTING: select error");
+            Serial.println("TCS_CONNECTED: select error");
             goto error;
         } else if (res==0) { // still pending
             break;

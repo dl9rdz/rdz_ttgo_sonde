@@ -229,6 +229,12 @@ struct st_cm {
 	int port;
 };
 
+struct st_ss {
+ 	int active;
+ 	char host[64];
+ 	int port;
+ };
+ 
 struct st_sondehub {
 	int active;
 	int chase;
@@ -321,6 +327,7 @@ typedef struct st_rdzconfig {
 	struct st_sondehub sondehub;
 	struct st_cm cm;
 	struct st_sdcard sd;
+	struct st_ss ss;
 } RDZConfig;
 
 

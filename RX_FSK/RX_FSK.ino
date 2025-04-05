@@ -42,6 +42,9 @@
 
 
 /* Data exchange connectors */
+#if FEATURE_SONDESEEKER
+#include "src/conn-sondeseeker.h"
+#endif
 #if FEATURE_CHASEMAPPER
 #include "src/conn-chasemapper.h"
 #endif
@@ -70,6 +73,9 @@ Conn *connectors[] = { &connSystem,
 #endif
 #if FEATURE_CHASEMAPPER
 &connChasemapper,
+#endif
+#if FEATURE_SONDESEEKER
+&connSondeseeker,
 #endif
 #if FEATURE_MQTT
 &connMQTT,
@@ -389,6 +395,22 @@ const char *handleLoginPost(AsyncWebServerRequest * request) {
   }
   request->send(401, "text/plain", "Invalid credentials or session expired");
   return nullptr;
+}
+
+const char *getQRGAsJson() {
+  char *ptr = message;
+  strcpy(ptr, "{\"channels\":[");
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *si = &sonde.sondeList[i];
+    if (i > 0) {
+      strcat(ptr, ",");
+    }
+    sprintf(ptr + strlen(ptr),
+            "{\"channel\":%d, \"active\":%d, \"freq\":%.3f, \"launchsite\":\"%s\", \"type\":\"%s\"}",
+            i+1, si->active, si->freq, si->launchsite, sondeTypeStr[si->type]);
+  }
+  strcat(ptr, "]}");
+  return message;
 }
 
 const char *createQRGForm() {
@@ -752,6 +774,12 @@ struct st_configitems config_list[] = {
   {"cm.active", -3, &sonde.config.cm.active},
   {"cm.host", 63, &sonde.config.cm.host},
   {"cm.port", 0, &sonde.config.cm.port},
+#endif
+#if FEATURE_SONDESEEKER
+   /* Sondeseeker settings */
+   {"ss.active", -3, &sonde.config.ss.active},
+   {"ss.host", 63, &sonde.config.ss.host},
+   {"ss.port", 0, &sonde.config.ss.port},
 #endif
 #if FEATURE_MQTT
   /* MQTT */
@@ -1319,6 +1347,9 @@ void SetupAsyncServer() {
     request->send(LittleFS, "/test.html", String(), false, processor);
   });
 
+  server.on("/qrg.json", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", getQRGAsJson());
+  });
   server.on("/qrg.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createQRGForm());
   });
@@ -2311,6 +2342,9 @@ void loopDecoder() {
 #endif
 #if FEATURE_CHASEMAPPER
       connChasemapper.updateSonde( s );
+#endif
+#if FEATURE_SONDESEEKER
+  connSondeseeker.updateSonde( s );
 #endif
     }
 #if FEATURE_SONDEHUB

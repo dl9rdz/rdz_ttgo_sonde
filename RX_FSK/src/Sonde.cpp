@@ -18,6 +18,7 @@
 #include "Display.h"
 #include <Wire.h>
 #include "conn-mqtt.h"
+#include "conn-sondeseeker.h"
 
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
@@ -343,6 +344,10 @@ void Sonde::defaultConfig() {
 	strcpy(config.mqtt.password, "/0");
 	strcpy(config.mqtt.prefix, "rdz_sonde_server/");
 	config.mqtt.report_interval = 60000;
+
+	config.ss.active = 1;
+ 	config.ss.port = 62655;
+ 	strcpy(config.ss.host, "224.0.0.0");
 }
 
 extern struct st_configitems config_list[];
@@ -540,6 +545,12 @@ void Sonde::setup() {
 	LOG_I(TAG, "Sonde::setup() done: Type %s Freq %f, AFC BW: %d, RX BW: %d\n", sondeTypeStr[sondeList[rxtask.currentSonde].type], 0.000001*freq, afcbw, rxbw);
 #if FEATURE_MQTT
     connMQTT.publishQRG(
+		rxtask.currentSonde+1,
+		sondeTypeStr[sondeList[rxtask.currentSonde].type],
+		sondeList[rxtask.currentSonde].launchsite, freq/1e6);
+#endif
+#if FEATURE_SONDESEEKER
+    connSondeseeker.publishQRG(
 		rxtask.currentSonde+1,
 		sondeTypeStr[sondeList[rxtask.currentSonde].type],
 		sondeList[rxtask.currentSonde].launchsite, freq/1e6);

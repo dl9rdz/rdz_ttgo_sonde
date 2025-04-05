@@ -147,5 +147,11 @@ sondehub.fiinterval=60
 sondehub.fimaxdist=150
 sondehub.fimaxage=6
 #-------------------------------#
+# Sondeseeker settings
+#-------------------------------#
+ss.active=1
+ss.host=224.0.0.0
+ss.port=62655
+#-------------------------------#
 # EOF
 #-------------------------------#
