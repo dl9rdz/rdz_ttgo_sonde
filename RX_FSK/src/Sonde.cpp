@@ -347,7 +347,7 @@ void Sonde::defaultConfig() {
 
 	config.ss.active = 1;
  	config.ss.port = 62655;
- 	strcpy(config.ss.host, "224.0.0.0");
+ 	strcpy(config.ss.host, "239.255.0.1");
 }
 
 extern struct st_configitems config_list[];
