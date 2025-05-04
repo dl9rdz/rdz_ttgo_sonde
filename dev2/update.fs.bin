@@ -119,7 +119,7 @@ login.html 2068
  <div id="Login" class="tabcontent" style="display: flex;">
   <div class="system-info">
   <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-  <p>Copyright &copy; 2019-2024 by Hansi Reiser, DL9RDZ and contributors</p>
+  <p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
   <br>
     <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
         <label for="user">Username:</label>
@@ -138,7 +138,7 @@ login.html 2068
 </div>
 </body>
 </html>
-livemap.js 19784
+livemap.js 19658
 try {
   var check = $(document);
 } catch (e) {
@@ -494,9 +494,8 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
       if (data.alt > settings.overwrite_descend_till ) { descent = settings.overwrite_descend; }
     }
 
-    var m = new Date();
-    var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
-      az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
+    var m = new Date(data.time * 1000);
+    var datetime = m.toISOString().slice(0,19) + 'Z';
     var url = 'https://api.v2.sondehub.org/tawhiri';
     url += '?launch_latitude='+data.lat + '&launch_longitude='+tawhiri_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
@@ -872,7 +871,7 @@ livemap.html 720
   <div id="map"></div>
 </body>
 </html>
-index.html 6008
+index.html 6239
 <!DOCTYPE html>
 <html>
 <head>
@@ -901,7 +900,7 @@ index.html 6008
 <div id="Home" class="tabcontent">
 <div class="system-info">
 <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2024 by Hansi Reiser, DL9RDZ and contributors</p>
+<p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
 <p>
     This program is free software; you can redistribute it and/or
     modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
@@ -1022,6 +1021,13 @@ function myFunction() {
   }
 }
 document.getElementById("defaultTab").click();
+
+const bootID = "%BOOTID%";
+const prevID = localStorage.getItem("bootID");
+if(prevID && prevID !== bootID) {
+  document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+}
+localStorage.setItem("bootID", bootID);
 
 const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
 if(sessionC) {
