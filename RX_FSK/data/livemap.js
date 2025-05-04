@@ -353,9 +353,8 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
       if (data.alt > settings.overwrite_descend_till ) { descent = settings.overwrite_descend; }
     }
 
-    var m = new Date();
-    var datetime = m.getUTCFullYear() + "-" + az(m.getUTCMonth()+1) + "-" + az(m.getUTCDate()) + "T" +
-      az(m.getUTCHours()) + ":" + az(m.getUTCMinutes()) + ":" + az(m.getUTCSeconds()) + "Z";
+    var m = new Date(data.time * 1000);
+    var datetime = m.toISOString().slice(0,19) + 'Z';
     var url = 'https://api.v2.sondehub.org/tawhiri';
     url += '?launch_latitude='+data.lat + '&launch_longitude='+tawhiri_lon(data.lon);
     url += '&launch_altitude='+data.alt + '&launch_datetime='+datetime;
