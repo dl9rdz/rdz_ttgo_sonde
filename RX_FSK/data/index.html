@@ -26,7 +26,7 @@
 <div id="Home" class="tabcontent">
 <div class="system-info">
 <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2024 by Hansi Reiser, DL9RDZ and contributors</p>
+<p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
 <p>
     This program is free software; you can redistribute it and/or
     modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
@@ -147,6 +147,13 @@ function myFunction() {
   }
 }
 document.getElementById("defaultTab").click();
+
+const bootID = "%BOOTID%";
+const prevID = localStorage.getItem("bootID");
+if(prevID && prevID !== bootID) {
+  document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+}
+localStorage.setItem("bootID", bootID);
 
 const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
 if(sessionC) {

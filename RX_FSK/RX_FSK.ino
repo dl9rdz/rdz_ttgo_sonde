@@ -107,6 +107,12 @@ const char* ntpServer = "pool.ntp.org";
 const long  gmtOffset_sec = 0; //UTC
 const int   daylightOffset_sec = 0; //UTC
 
+// Authentication management
+// BootID is embedded in index.html so client can invalidate auth cookie after ttgo reboot
+// defaultUserLevel is read from user.txt
+char bootid[8];
+uint8_t defaultUserLevel = 2;
+
 boolean connected = false;
 WiFiUDP udp;
 WiFiClient client;
@@ -217,6 +223,9 @@ String processor(const String& var) {
     } else {
       return String("48,13");
     }
+  }
+  if (var == "BOOTID") {
+    return String(bootid);
   }
   if (var == "VERSION_NAME") {
     return String(version_name);
@@ -374,11 +383,12 @@ const char *handleLoginPost(AsyncWebServerRequest * request) {
   String preauth = preauthp->value();
   String auth = authp->value();
 
-  if (isValidUser(username.c_str(), preauth.c_str(), auth.c_str())) {
+  int ulvl = getUserPermissions(username.c_str(), preauth.c_str(), auth.c_str());
+  if(ulvl> 0) {
     // Generate a new session cookie
     char cookie[COOKIE_SIZE];
     generateRandomCookie(username.c_str(), cookie);
-    if(upgradeCookie(preauth.c_str(), cookie, 1)==0) {
+    if(upgradeCookie(preauth.c_str(), cookie, ulvl)==0) {
       // Set cookie and redirect
       AsyncWebServerResponse *response = request->beginResponse(302);
       response->addHeader("Location","/index.html");
@@ -1302,9 +1312,33 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   return message;
 }
 
+bool isAuthenticated(AsyncWebServerRequest *request, int level) {
+  if(defaultUserLevel >= level)
+    return 1;
+  if(request->hasHeader("Cookie")) {
+    String cookieHdr = request->getHeader("Cookie")->value();
+    int start = cookieHdr.indexOf("SESSION=") + strlen("SESSION=");
+    if(start!=-1) {
+      int end = cookieHdr.indexOf(';', start);
+      String session = (end==-1) ? cookieHdr.substring(start) : cookieHdr.substring(start, end);
+      session.trim();
+      int ulvl = getCookieAuthLevel(session.c_str());
+      if(ulvl >= level) {
+        return 1;
+      }
+    }
+  }
+  request->send(401, "text/plain", "Permission denied");
+  return false;
+}
+
 const char* PARAM_MESSAGE = "message";
+
 void SetupAsyncServer() {
   Serial.println("SetupAsyncServer()\n");
+  for(int i=0; i<7; i++) { bootid[i]=random(26)+'A'; }
+  bootid[7] = 0;
+  defaultUserLevel = getDefaultAuthLevel();
   server.reset();
   // Route for root / web page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
@@ -1315,39 +1349,32 @@ void SetupAsyncServer() {
     request->send(LittleFS, "/index.html", String(), false, processor);
   });
 
-  server.on("/test.html", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/test.html", String(), false, processor);
-  });
-
   server.on("/qrg.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createQRGForm());
   });
   server.on("/qrg.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     handleQRGPost(request);
     request->send(200, "text/html", createQRGForm());
   });
 
   server.on("/wifi.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     request->send(200, "text/html", createWIFIForm());
   });
   server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     handleWIFIPost(request);
     request->send(200, "text/html", createWIFIForm());
   });
 
 
-  //  server.on("/map.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-  //    request->send(200, "text/html", createSondeHubMap());
-  //  });
-  //  server.on("/map.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-  //    handleWIFIPost(request);
-  //    request->send(200, "text/html", createSondeHubMap());
-  //  });
-
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     request->send(200, "text/html", createConfigForm());
   });
   server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     handleConfigPost(request);
     request->send(200, "text/html", createConfigForm());
   });
@@ -1373,9 +1400,11 @@ void SetupAsyncServer() {
   });
 
   server.on("/control.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     request->send(200, "text/html", createControlForm());
   });
   server.on("/control.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     handleControlPost(request);
     request->send(200, "text/html", createControlForm());
   });
@@ -1388,6 +1417,7 @@ void SetupAsyncServer() {
   });
 
   server.on("/file", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     String url = request->url();
     const char *filename = url.c_str() + 5;
     if (*filename == 0) {
@@ -1398,6 +1428,7 @@ void SetupAsyncServer() {
   });
   
   server.on("/file", HTTP_POST,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     request->send(200);
   }, handleUpload);
 #if FEATURE_SDCARD
@@ -1449,6 +1480,7 @@ void SetupAsyncServer() {
 #endif
 
   server.on("/edit.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     // new version:
     // Open file
     // store file object in request->_tempObject
@@ -1467,6 +1499,7 @@ void SetupAsyncServer() {
     });
   });
   server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
+    if(!isAuthenticated(request, 2)) return;
     const char *ret = handleEditPost(request);
     if (ret == NULL)
       request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong (probably ESP32 out of memory). Uploaded file is empty.</p></body></hhtml>");
