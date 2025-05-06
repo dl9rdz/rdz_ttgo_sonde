@@ -153,27 +153,33 @@ void gpsTask(void *parameter) {
         }
         /* Check if home */
         if(gpsPos.valid) {
-            float d = fabs(gpsPos.lon - sonde.config.rxlon);
-            d += fabs(gpsPos.lat - sonde.config.rxlat);
-	    Serial.printf("pos diff is %f (%f %f %f %f)\n", d, gpsPos.lon , sonde.config.rxlon , gpsPos.lat, sonde.config.rxlat);
-
-            // Logic for auto chase mode:
-            // If close to home (below half of chase threshold): switch to fixed position
-            // If away from home (above chase threshold): switch to chase mode
-            // Otherwise, stay in current mode (update with GPS pos if in chase mode only)
-            //
-            if ( posInfo.chase && d < AUTO_CHASE_THRESHOLD/2 ) {
-                // Stop GPS chase mode very close to home (fixeedToPosInfo sets chase to 0)
-                fixedToPosInfo();	
-		LOG_I(TAG, "Stopping chase mode (d=%f)\n", d);
-	    } else if(d > AUTO_CHASE_THRESHOLD || posInfo.chase) {
-		if(!posInfo.chase)
-			LOG_I(TAG, "Activating chase mode (d=%f)\n", d);
-                // use / activate chase mode
-                posInfo = gpsPos;
-                posInfo.chase = 1;
+            if(isnan(sonde.config.rxlon)||isnan(sonde.config.rxlat)) {
+                 // no fixed position => always use GPS position
+                 posInfo = gpsPos;
+                 posInfo.chase = 1;
             } else {
-                // Serial.printf("Not updating gpspos / chase (chase is: %d)\n", posInfo.chase);
+                float d = fabs(gpsPos.lon - sonde.config.rxlon);
+                d += fabs(gpsPos.lat - sonde.config.rxlat);
+	        Serial.printf("pos diff is %f (%f %f %f %f)\n", d, gpsPos.lon , sonde.config.rxlon , gpsPos.lat, sonde.config.rxlat);
+
+		// Logic for auto chase mode:
+		// If close to home (below half of chase threshold): switch to fixed position
+		// If away from home (above chase threshold): switch to chase mode
+		// Otherwise, stay in current mode (update with GPS pos if in chase mode only)
+		//
+		if ( posInfo.chase && d < AUTO_CHASE_THRESHOLD/2 ) {
+		    // Stop GPS chase mode very close to home (fixeedToPosInfo sets chase to 0)
+		    fixedToPosInfo();	
+		    LOG_I(TAG, "Stopping chase mode (d=%f)\n", d);
+		} else if(d > AUTO_CHASE_THRESHOLD || posInfo.chase) {
+		    if(!posInfo.chase)
+			LOG_I(TAG, "Activating chase mode (d=%f)\n", d);
+		    // use / activate chase mode
+		    posInfo = gpsPos;
+		    posInfo.chase = 1;
+		} else {
+                    // Serial.printf("Not updating gpspos / chase (chase is: %d)\n", posInfo.chase);
+                }
             }
         }
 
