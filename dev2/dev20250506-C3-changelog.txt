@@ -1,0 +1,1 @@
+posinfo update - always use GPS if no fixed position is defined
