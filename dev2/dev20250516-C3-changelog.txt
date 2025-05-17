@@ -1,0 +1,1 @@
+added support for ST7796S (untested)
