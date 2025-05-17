@@ -83,7 +83,7 @@ var cfgs = [
 [ "sd.sync", "SD card sync interval [s]" ],
 [ "sd.name", "SD card naming (0=by sondeid, 1=by day)" ],
 [ "", "Hardware configuration (requires reboot)", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Hardware-configuration"],
-[ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342, 5=ST7789)"],
+[ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342, 5=ST7789, 6=ST7796)"],
 [ "oled_sda", "OLED SDA/TFT SDA"],
 [ "oled_scl", "OLED SCL/TFT CLK"],
 [ "oled_rst", "OLED RST/TFT RST (needs reboot)"],
