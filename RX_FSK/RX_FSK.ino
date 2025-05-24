@@ -935,11 +935,18 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   return "";
 }
 
-const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2", "rinex", "format", "reboot"};
+const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2",
+#if FEATURE_RS92
+	"rinex",
+#endif
+	"format", "reboot"};
 
 const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)",
                            "Button 2/next screen (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)",
-                           "Update RS92 RINEX eph", "Format SD Card", "Reboot"
+#if FEATURE_RS92
+                           "Update RS92 RINEX eph",
+#endif
+			   "Format SD Card", "Reboot"
                           };
 
 const char *createControlForm() {
@@ -2319,10 +2326,12 @@ void loopDecoder() {
         enterMode(ST_WIFISCAN);
         return;
       }
+#if FEATURE_RS92
       else if (action == ACT_RINEX_UPDATE) {
         enterMode(ST_RINEX_UPDATE);
         return;
       }
+#endif
       else if (action == ACT_FORMAT_SD) {
         enterMode(ST_FORMAT_SD);
         return;
@@ -2974,6 +2983,7 @@ void loopWifiScan() {
   initialMode();
 }
 
+#if FEATURE_RS92
 // Rinex update...
 void execRinexUpdate() {
    Serial.println("Fetching update for RINEX data...\n");
@@ -2984,6 +2994,7 @@ void execRinexUpdate() {
    setCurrentDisplay(0);
    enterMode(ST_DECODER);
 }
+#endif
 
 void execFormatSD() {
    Serial.println("format SD card\n");
@@ -3264,7 +3275,9 @@ void loop() {
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
     case ST_TOUCHCALIB: loopTouchCalib(); break;
+#if FEATURE_RS92
     case ST_RINEX_UPDATE: execRinexUpdate(); break;
+#endif
     case ST_FORMAT_SD: execFormatSD(); break;
   }
 #if 0
