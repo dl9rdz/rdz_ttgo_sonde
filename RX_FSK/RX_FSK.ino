@@ -939,14 +939,20 @@ const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "
 #if FEATURE_RS92
 	"rinex",
 #endif
-	"format", "reboot"};
+#if FEATURE_SDCARD
+	"format",
+#endif
+        "reboot"};
 
 const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)",
                            "Button 2/next screen (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)",
 #if FEATURE_RS92
                            "Update RS92 RINEX eph",
 #endif
-			   "Format SD Card", "Reboot"
+#if FEATURE_SDCARD
+			   "Format SD Card",
+#endif
+			   "Reboot"
                           };
 
 const char *createControlForm() {
@@ -2996,6 +3002,7 @@ void execRinexUpdate() {
 }
 #endif
 
+#if FEATURE_SDCARD
 void execFormatSD() {
    Serial.println("format SD card\n");
    if ( ISOLED(sonde.config) ) {
@@ -3009,6 +3016,7 @@ void execFormatSD() {
    setCurrentDisplay(0);
    enterMode(ST_DECODER);
 }
+#endif
 
 /// Testing OTA Updates
 /// somewhat based on Arduino's AWS_S3_OTA_Update
@@ -3278,7 +3286,9 @@ void loop() {
 #if FEATURE_RS92
     case ST_RINEX_UPDATE: execRinexUpdate(); break;
 #endif
+#if FEATURE_SDCARD
     case ST_FORMAT_SD: execFormatSD(); break;
+#endif
   }
 #if 0
   int rssi = sx1278.getRSSI();
