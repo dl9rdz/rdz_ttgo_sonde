@@ -601,8 +601,10 @@ void Sonde::receive() {
 	int event = getKeyPressEvent();
 	if (!event) event = timeoutEvent(si);
 	else sonde.dispsavectlON();
-	int action = (event==EVT_NONE) ? ACT_NONE : disp.layout->actions[event];
-	//if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x\n", event, action); }
+	int action = (event==EVT_NONE) ? ACT_NONE : 
+                     (event==EVT_RINEX) ? ACT_RINEX_UPDATE : 
+		     (event==EVT_FORMAT) ? ACT_FORMAT_SD : disp.layout->actions[event];
+	if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -759,6 +761,12 @@ uint8_t Sonde::updateState(uint8_t event) {
 		LOG_I(TAG, "previous not supported, advancing to next sonde\n");
 		sonde.nextConfig();
 		return ACT_NEXTSONDE;
+	}
+        if (event==ACT_RINEX_UPDATE) {
+                return ACT_RINEX_UPDATE;
+        }
+	if (event==ACT_FORMAT_SD) {
+		return ACT_FORMAT_SD;
 	}
 	if(event&0x80) {
 		sonde.currentSonde = (event&0x7F);

@@ -82,9 +82,9 @@ NULL };
 //#define ESP_MEM_DEBUG 1
 //int e;
 
-enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB };
-static MainState mainState = ST_WIFISCAN; // ST_WIFISCAN;
-const char *mainStateStr[5] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOUCHCALIB" };
+enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB, ST_RINEX_UPDATE, ST_FORMAT_SD };
+static MainState mainState = ST_WIFISCAN;
+const char *mainStateStr[] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOUCHCALIB", "RINEXUPDATE", "FORMATSD" };
 
 AsyncWebServer server(80);
 
@@ -143,7 +143,7 @@ char *localUpdates = NULL;
 
 boolean forceReloadScreenConfig = false;
 
-enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
+enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG, KP_RINEX, KP_FORMAT };
 
 // "doublepress" is now also used to eliminate key glitch on TTGO T-Beam startup (SENSOR_VN/GPIO39)
 struct Button {
@@ -935,11 +935,11 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   return "";
 }
 
-const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2", "reboot"};
+const char *ctrlid[] = {"rx", "scan", "spec", "wifi", "rx2", "scan2", "spec2", "wifi2", "rinex", "format", "reboot"};
 
 const char *ctrllabel[] = {"Receiver/next freq. (short keypress)", "Scanner (double keypress)", "Spectrum (medium keypress)", "WiFi (long keypress)",
                            "Button 2/next screen (short keypress)", "Button 2 (double keypress)", "Button 2 (medium keypress)", "Button 2 (long keypress)",
-                           "Reboot"
+                           "Update RS92 RINEX eph", "Format SD Card", "Reboot"
                           };
 
 const char *createControlForm() {
@@ -947,7 +947,7 @@ const char *createControlForm() {
   strcpy(ptr, HTMLHEAD);
   strcat(ptr, "</head>");
   HTMLBODY(ptr, "control.html");
-  for (int i = 0; i < 9; i++) {
+  for (int i = 0; i < sizeof(ctrllabel)/sizeof((ctrllabel)[0]); i++) {
     strcat(ptr, "<input class=\"ctlbtn\" type=\"submit\" name=\"");
     strcat(ptr, ctrlid[i]);
     strcat(ptr, "\" value=\"");
@@ -1004,6 +1004,14 @@ const char *handleControlPost(AsyncWebServerRequest * request) {
     else if (param.equals("wifi2")) {
       Serial.println("equals wifi2");
       button2.pressed = KP_LONG;
+    }
+    else if (param.equals("rinex")) {
+      Serial.println("equals rinex");
+      button2.pressed = KP_RINEX;
+    }
+    else if (param.equals("format")) {
+      Serial.println("equals format");
+      button2.pressed = KP_FORMAT;
     }
     else if (param.equals("reboot")) {
       Serial.println("equals reboot");
@@ -1912,6 +1920,10 @@ int getKeyPressEvent() {
     p = getKey2Press();
     if (p == KP_NONE)
       return EVT_NONE;
+    if (p == KP_RINEX)
+      return EVT_RINEX;
+    if (p == KP_FORMAT)
+      return EVT_FORMAT;
     LOG_D(TAG, "Key 2 was pressed [%d]\n", p + 4);
     // maybe not the best place, but easy to do: check for B2 medium keypress to mute LED
     if(p == KP_MID && sonde.config.b2mute > 0) {
@@ -2237,7 +2249,7 @@ void enterMode(int mode) {
     disp.rdis->setFont(FONT_SMALL);
     specTimer = millis();
     //scanner.init();
-  } else if (mainState == ST_WIFISCAN) {
+  } else if (mainState == ST_WIFISCAN || mainState == ST_RINEX_UPDATE || mainState == ST_FORMAT_SD) {
     sonde.clearDisplay();
   }
 
@@ -2260,6 +2272,8 @@ static const char *action2text(uint8_t action) {
   if (action == ACT_DISPLAY_WIFI) return "Wifi Scan Display";
   if (action == ACT_NEXTSONDE) return "Go to next sonde";
   if (action == ACT_PREVSONDE) return "presonde (not implemented)";
+  if (action == ACT_RINEX_UPDATE) return "update RINEX eph data";
+  if (action == ACT_FORMAT_SD) return "format SD card";
   if (action == ACT_NONE) return "none";
   if (action >= 128) {
     snprintf(text, 40, "Sonde=%d", action & 127);
@@ -2303,6 +2317,14 @@ void loopDecoder() {
       }
       else if (action == ACT_DISPLAY_WIFI) {
         enterMode(ST_WIFISCAN);
+        return;
+      }
+      else if (action == ACT_RINEX_UPDATE) {
+        enterMode(ST_RINEX_UPDATE);
+        return;
+      }
+      else if (action == ACT_FORMAT_SD) {
+        enterMode(ST_FORMAT_SD);
         return;
       }
     }
@@ -2952,6 +2974,30 @@ void loopWifiScan() {
   initialMode();
 }
 
+// Rinex update...
+void execRinexUpdate() {
+   Serial.println("Fetching update for RINEX data...\n");
+   geteph();
+   Serial.println("Reading RINEX data...\n");
+   if (ephstate == EPH_PENDING) ephstate = EPH_ERROR;
+   get_eph("/brdc");
+   setCurrentDisplay(0);
+   enterMode(ST_DECODER);
+}
+
+void execFormatSD() {
+   Serial.println("format SD card\n");
+   if ( ISOLED(sonde.config) ) {
+       disp.rdis->setFont(FONT_SMALL);
+   } else {
+       disp.rdis->setFont(5);
+   }
+   disp.rdis->drawString(0, 0, "Format SD card");
+
+   connSDCard.format();
+   setCurrentDisplay(0);
+   enterMode(ST_DECODER);
+}
 
 /// Testing OTA Updates
 /// somewhat based on Arduino's AWS_S3_OTA_Update
@@ -2959,6 +3005,7 @@ void loopWifiScan() {
 String getHeaderValue(String header, String headerName) {
   return header.substring(strlen(headerName.c_str()));
 }
+
 
 // OTA Logic
 void execOTA() {
@@ -3217,6 +3264,8 @@ void loop() {
     case ST_WIFISCAN: loopWifiScan(); break;
     case ST_UPDATE: execOTA(); break;
     case ST_TOUCHCALIB: loopTouchCalib(); break;
+    case ST_RINEX_UPDATE: execRinexUpdate(); break;
+    case ST_FORMAT_SD: execFormatSD(); break;
   }
 #if 0
   int rssi = sx1278.getRSSI();

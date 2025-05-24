@@ -3,8 +3,13 @@
 #if FEATURE_SDCARD
 
 #include "conn-sdcard.h"
+
+#define TAG "conn-sdcard"
+#include "logger.h"
+
 #include "posinfo.h"
 
+#include <ff.h>
 #include <dirent.h>
 #include <time.h>
 
@@ -39,16 +44,16 @@ void ConnSDCard::init() {
   // Use HSPI (if using a TFT with SPI, you have to make sure that the same pins are used for both (MISO/MOSI/CLK) 
   sdspi.begin(sonde.config.sd.clk, sonde.config.sd.miso, sonde.config.sd.mosi, sonde.config.sd.cs);
   initok = SD.begin(sonde.config.sd.cs, sdspi);
-  Serial.printf("SD card init: %s\n", initok ? "OK" : "Failed");
+  LOG_I(TAG, "SD card init: %s\n", initok ? "OK" : "Failed");
   uint8_t cardType = SD.cardType();
-  Serial.printf("SD Card Type: %s\n", cardTypeStr(cardType));
+  LOG_I(TAG, "SD Card Type: %s\n", cardTypeStr(cardType));
   if (cardType == CARD_NONE) { SPI_MUTEX_UNLOCK(); return; }
 
   uint32_t cardSize = SD.cardSize() / (1024 * 1024);
-  Serial.printf("SD Card Size: %luMB\n", cardSize);
+  LOG_I(TAG, "SD Card Size: %luMB\n", cardSize);
   uint32_t usedSize = SD.usedBytes() / (1024 * 1024);
   uint32_t totalSize = SD.totalBytes() / (1024 * 1024);
-  Serial.printf("SD Card used/total: %lu/%lu MB\n", usedSize, totalSize);
+  LOG_I(TAG, "SD Card used/total: %lu/%lu MB\n", usedSize, totalSize);
   SPI_MUTEX_UNLOCK();
 
 #if 0
@@ -82,6 +87,35 @@ void ConnSDCard::init() {
 #endif
 }
 
+int ConnSDCard::format() {
+    if(sonde.config.sd.clk==-1)
+        return -2;  // SD card disabled in config
+
+    SPI_MUTEX_LOCK();
+    int retval = 0;
+    if(!initok) {
+        // In case init() was not successfull on startup, re-run with format_if_empty set to yes
+        initok = SD.begin(sonde.config.sd.cs, sdspi, 4000000, "/sd", 5, true);
+        if(!initok) retval = -1;
+    } else {
+        // Force format...
+        // f_mkfs assumes that the SD card is registered already (i.e. SD.begin was called successfully before)
+        // if not f_mkfs will cause a crash as device 0 is not defined.
+        const MKFS_PARM opt = {(BYTE)FM_ANY, 0, 0, 0, 0};
+        BYTE *work = (BYTE *)malloc(FF_MAX_SS);
+        int res = f_mkfs("0:", &opt, work, FF_MAX_SS);
+        free(work);
+        if(res != FR_OK) retval = -1;
+        else {
+            SD.end();
+            initok = SD.begin(sonde.config.sd.cs, sdspi);
+        }
+    }
+    LOG_I(TAG, retval==0 ? "Successfully formatted the SD card\n" : "Formatting SD card failed\n");
+    SPI_MUTEX_UNLOCK();
+    return retval;
+}
+
 void ConnSDCard::netsetup() {
   /* empty function, we don't use any network here */
 }
@@ -109,10 +143,10 @@ void ConnSDCard::updateSonde( SondeInfo *si ) {
     if(file) file.close();
     file = SD.open(logName, FILE_APPEND);
     strcpy(logOldName, logName);
-    Serial.printf("Logging to file %s\n", logName);
+    LOG_I(TAG, "Logging to file %s\n", logName);
   }
   if (!file) {
-    Serial.println("Error opening file");
+    LOG_E(TAG, "Error opening file %s\n", logName);
     return;
   }
   file.printf("%d,%s,%s,%d,"
@@ -143,7 +177,7 @@ void ConnSDCard::updateStation( PosInfo *pi ) {
   SPI_MUTEX_LOCK();
   File posfile = SD.open("/mypos.csv", FILE_APPEND);
   if(!posfile) {
-    Serial.println("Error opening /mypos.csv");
+    LOG_E(TAG, "Error opening /mypos.csv\n");
     return;
   }
   char ftim[50];
