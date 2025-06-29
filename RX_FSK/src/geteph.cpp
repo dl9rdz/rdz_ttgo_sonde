@@ -56,7 +56,7 @@ void geteph() {
 	ephstate = EPH_PENDING;
 	struct tm tinfo;
 	configTime(0, 0, "pool.ntp.org");
-	bool ok = getLocalTime(&tinfo, 2000);  // wait max 2 seconds to get current time via ntp
+	bool ok = getLocalTime(&tinfo, 5000);  // wait max 5 seconds to get current time via ntp
 	if(!ok) {
 		ephstate = EPH_TIMEERR;
 		Serial.println("Failed to get current date/time");
@@ -146,7 +146,19 @@ void geteph() {
 	client.println(buf);
 	s = client.readStringUntil('\n');
 	Serial.println(s);
-	if(s.c_str()[0]>='4') { Serial.println("RETR failed"); return; }
+	if(s.c_str()[0]>='4') {
+	   Serial.println("RETR failed");
+           // retry with the previous day
+           snprintf(buf, 200, ptr+1, year, day-1, year-2000);
+	   client.print("RETR ");
+	   client.println(buf);
+	   s = client.readStringUntil('\n');
+	   Serial.println(s);
+	   if(s.c_str()[0]>='4') {
+             Serial.println("RETR failed (2)");
+             return;
+           }
+        }
 	int len=0;
 	while(dclient.connected()) {
 		while(dclient.available()) {

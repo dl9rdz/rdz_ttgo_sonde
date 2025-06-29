@@ -20,6 +20,9 @@ public:
         /* Called once on startup */
         void init();
 
+	/* Format card... */
+	int format();
+
         /* Called whenever the network becomes available */
         void netsetup();
 

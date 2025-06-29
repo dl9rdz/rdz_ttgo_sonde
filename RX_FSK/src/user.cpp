@@ -1,8 +1,8 @@
-
 #include "user.h"
 
 #define TAG "user"
 #include "logger.h"
+#include <LittleFS.h>
 
 #include <mbedtls/md.h>
 
@@ -11,7 +11,6 @@
 // Login form creates a random preauth ticket (nonce)
 // Client-side form calculates SHA256(username:preauth:password) as authenticator
 // Upon receiving correct authenticator, TTGO generates session ID and replaces preauth ticket with session ID in internal cookie store
-// (i.e. preauth ticket can be used only once)
 // (i.e. preauth ticket can be used only once)
 // TODO (optional) restrict session ID to specific client ID
 // TODO (maybe) update session ID expiration when being used (i.e. expire only after X minutes of idle?)
@@ -22,7 +21,7 @@
 
 struct SessionCookie {
   char value[USERLEN+RNDLEN+2];
-  char userclass;    // -1: preauth; 0=r/o user, 1=admin [0 not used yet]
+  char userclass;    // -1: preauth; 0=none/locked, 1=r/o user, 2=admin
   unsigned long expiry;
 };
 
@@ -33,6 +32,7 @@ int cookieCount = 0;
 const unsigned long COOKIE_EXPIRY_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 const unsigned long PREAUTH_EXPIRY_DURATION = 60 * 1000;  // 1 minute in milliseconds
 
+static const char *getUser(const char *user, char *line, int maxlen);
 
 void cleanupExpiredCookies() {
   unsigned long now = millis();
@@ -73,6 +73,7 @@ int upgradeCookie(const char *preauth, const char *cookie, char userclass) {
   for (int i = 0; i < cookieCount; i++) {
     if (strcmp(preauth, authCookies[i].value)==0) {
       strlcpy(authCookies[i].value, cookie, sizeof(authCookies[i].value));
+      authCookies[i].userclass = userclass;
       return 0;
     }
   }
@@ -94,14 +95,13 @@ void generateRandomCookie(const char *user, char *cookie) {
   cookie[j++] = '\0';
 }
 
-
-
-bool isCookieValid(const char *cookie) {
+// -1: invalid user; 0=PERM_NONE, 1=PERM_RO, 2=PERM_ADMIN
+int getCookieAuthLevel(const char *cookie) {
   unsigned long now = millis();
-  for (int i = 0; i < cookieCount; i++) {
+  for (int i = 0; i < cookieCount; i++) { 
     if (strcmp(authCookies[i].value, cookie) == 0) {
       if (authCookies[i].expiry > now) {
-        return true; // Valid and not expired
+        return authCookies[i].userclass; // Valid and not expired
       } else {
         // Cookie expired, remove it
         for (int j = i; j < cookieCount - 1; j++) {
@@ -112,19 +112,26 @@ bool isCookieValid(const char *cookie) {
       }
     }
   }
-  return false; // Not found or expired
+  return -1;
 }
 
-bool isValidUser(const char *user, const char *preauth, const char *auth) {
+
+// -1: user does not exist; 0=PERM_NONE, 1=PERM_RO, 2=PERM_ADMIN
+int getUserPermissions(const char *user, const char *preauth, const char *auth) {
     // simple digest authentication:
     // (we want to avoid sending plain text passwords via http)
     // digest is SHA256(user:preauth:password)
     char buf[256];
+    char line[128];
+    const char *pass = getUser(user, line, 128);
+    if(!pass) {  // user not found
+      return -1;
+    }
     strlcpy(buf, user, 256);
     strlcat(buf, ":", 256);
     strlcat(buf, preauth, 256);  // TODO: Check if it exists? (well upgrade will fail if not...)
     strlcat(buf, ":", 256);   // TODO bound checks.... this is user provided data!!!!!!
-    strlcat(buf, "1234", 256);  // TODO: pick password for user
+    strlcat(buf, pass, 256); 
     unsigned char sharesult[32];
     mbedtls_md_context_t ctx;
     mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
@@ -144,7 +151,40 @@ bool isValidUser(const char *user, const char *preauth, const char *auth) {
       auth += 2;
       Serial.print(str);
     } 
-    Serial.printf("Match: %d\n", match);
-    return match;
+    int authres = match ? pass[-2]-'0' : -1;   // ugly code, TODO: beautify...
+    LOG_I(TAG, "login: match: %d => auth level %d\n", match, authres);
+    return authres;
+}
+
+// Find user intry in password file
+extern int readLine(Stream &stream, char *buffer, int maxlen);  // impl in RX_FSK.ino
+
+
+static const char *getUser(const char *user, char *line, int maxlen) {
+  File file = LittleFS.open("/user.txt", "r");
+  if(!file) {
+    LOG_E(TAG, "Error opening '/user.txt'\n");
+    strcpy(line, ",2,");  // all permission by default...
+    return line+3;  // all permissions for unauthenticated user by default for now...
+  }
+  while (file.available()) {
+    int res = readLine(file, line, maxlen);
+    if(line[0] == '#') continue;
+    char *sep1 = strchr(line, ',');
+    if(!sep1) continue;
+    *sep1 = 0;
+    if(strcmp(user,line)==0) {
+      LOG_D(TAG, "Found pw entry with user '%s': %s\n", user, line);
+      return sep1+3; // hack-ish...  TODO: find separater 2? maybe...
+    }
+  }
+  return NULL;
+}
+
+int getDefaultAuthLevel() {
+  char line[128];
+  const char *ptr = getUser("", line, 128);
+  if(!ptr) return 2;
+  return ptr[-2]-'0';
 }
 
