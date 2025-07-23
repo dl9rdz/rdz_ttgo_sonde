@@ -289,3 +289,15 @@ timeaction=#,D,+
 7,0=gV
 7,5=n
 
+@AutoTracker
+timer=-1,W,L
+timeaction=#,M,M
+key1action=D,#,F,W
+key2action=#,#,#,#
+0,0=XAuto Tracker
+1,0=F MHz
+2,0=T (Is)  
+3,0=gD gI°
+4,0=R n
+5,0=State: listening/dwelling
+

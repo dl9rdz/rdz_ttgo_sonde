@@ -65,6 +65,7 @@ extern const char *RXstr[];
 #define ACT_NEXTSONDE 65
 #define ACT_PREVSONDE 66
 #define ACT_ADDFREQ(n) ((n)+64)
+#define ACT_AUTOTRACK_NEXT_FREQ 70
 #define ACT_SONDE(n) ((n)+128)
 #define ACT_RINEX_UPDATE 60
 #define ACT_FORMAT_SD 59
@@ -299,6 +300,8 @@ typedef struct st_rdzconfig {
 	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
 	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
+	int autotrack_listen_time;	// Auto Tracker listen timeout (seconds)
+	int autotrack_dwell_time;	// Auto Tracker dwell timeout (seconds)
 	int noisefloor;			// for spectrum display
 	char mdnsname[15];		// mDNS-Name, defaults to rdzsonde
 	// receiver configuration

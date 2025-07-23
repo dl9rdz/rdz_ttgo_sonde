@@ -166,6 +166,8 @@ void Sonde::defaultConfig() {
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
+	config.autotrack_listen_time = 1;
+	config.autotrack_dwell_time = 3;
 	config.screenfile = 1;
 	config.tft_spifreq = SPI_DEFAULT_FREQ;
 	// TFT RS and CS not used for LCD, if TFT detected this will be changed below
@@ -605,6 +607,15 @@ void Sonde::receive() {
                      (event==EVT_RINEX) ? ACT_RINEX_UPDATE : 
 		     (event==EVT_FORMAT) ? ACT_FORMAT_SD : disp.layout->actions[event];
 	if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x\n", event, action); }
+	// Auto Tracker custom action handler - advance frequency but stay in current display mode
+	if(action == ACT_AUTOTRACK_NEXT_FREQ) {
+		// Advance frequency but stay in current display mode
+		nextRxSonde();                               // ✓ Advance frequency
+		// DON'T call updateState()                 // ✓ Stay in same display  
+		rxtask.activate = ACT_SONDE(rxtask.currentSonde); // ✓ Update radio
+		return action;
+	}
+	
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)

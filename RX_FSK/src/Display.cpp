@@ -1009,6 +1009,8 @@ static uint8_t ACTION(char c) {
 			return ACT_DISPLAY_WIFI;
 		case '+':
 			return ACT_NEXTSONDE;
+		case 'M':
+			return ACT_AUTOTRACK_NEXT_FREQ;
 		case '#':	
 			return ACT_NONE;
 		case '>':
@@ -1125,9 +1127,15 @@ void Display::initFromFile(int index) {
 					char t1[10],t2[10],t3[10];
 					sscanf(s+6, "%5[0-9a-zA-Z-] , %5[0-9a-zA-Z-] , %5[0-9a-zA-Z-]", t1, t2, t3);
 					LOG_D(TAG, "timers are %s, %s, %s\n", t1, t2, t3);
-					newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout:atoi(t1);
-					newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N')?sonde.config.norx_timeout:atoi(t2);
-					newlayouts[idx].timeouts[2] = (*t3=='n'||*t3=='N')?sonde.config.norx_timeout:atoi(t3);
+					newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N') ? sonde.config.norx_timeout :
+								       (*t1=='l'||*t1=='L') ? sonde.config.autotrack_listen_time :
+								       (*t1=='w'||*t1=='W') ? sonde.config.autotrack_dwell_time : atoi(t1);
+					newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N') ? sonde.config.norx_timeout :
+								       (*t2=='l'||*t2=='L') ? sonde.config.autotrack_listen_time :
+								       (*t2=='w'||*t2=='W') ? sonde.config.autotrack_dwell_time : atoi(t2);
+					newlayouts[idx].timeouts[2] = (*t3=='n'||*t3=='N') ? sonde.config.norx_timeout :
+								       (*t3=='l'||*t3=='L') ? sonde.config.autotrack_listen_time :
+								       (*t3=='w'||*t3=='W') ? sonde.config.autotrack_dwell_time : atoi(t3);
 					// Code later assumes milliseconds, but config.txt and screens.txt use values in seconds
 					if(newlayouts[idx].timeouts[0]>0) newlayouts[idx].timeouts[0]*=1000;
 					if(newlayouts[idx].timeouts[1]>0) newlayouts[idx].timeouts[1]*=1000;

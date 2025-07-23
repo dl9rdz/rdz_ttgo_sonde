@@ -215,3 +215,19 @@ timeaction=#,#,#
 6.4,0=xTemp:
 6.4,5,5=bT C
 
+@AutoTrackerTFT
+timer=-1,W,L
+timeaction=#,M,M
+key1action=D,#,F,W
+key2action=#,#,#,#
+fonts=5,6
+0,0=XAuto Tracker
+1,0,8=F MHz
+1,9,7=T
+2,0=Is
+3,0=xDist: gD
+4,0=xBear: gI°  
+5,0=xAlt: A
+6,0=R frames:n
+7,0=State: listening/dwelling
+
