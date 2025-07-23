@@ -786,6 +786,7 @@ struct st_configitems config_list[] = {
   /* Hardware dependeing settings */
   {"disptype", 0, &sonde.config.disptype},
   {"norx_timeout", 0, &sonde.config.norx_timeout},
+  {"scan_dwell", 0, &sonde.config.scan_dwell},
   {"oled_sda", 0, &sonde.config.oled_sda},
   {"oled_scl", 0, &sonde.config.oled_scl},
   {"oled_rst", 0, &sonde.config.oled_rst},

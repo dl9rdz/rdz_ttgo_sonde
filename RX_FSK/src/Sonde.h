@@ -46,7 +46,7 @@ enum RxResult { RX_OK, RX_TIMEOUT, RX_ERROR, RX_UNKNOWN, RX_NOPOS };
 /* Keypress => Sonde++ / Sonde-- / Display:=N*/
 enum Events { EVT_NONE, EVT_KEY1SHORT, EVT_KEY1DOUBLE, EVT_KEY1MID, EVT_KEY1LONG,
                         EVT_KEY2SHORT, EVT_KEY2DOUBLE, EVT_KEY2MID, EVT_KEY2LONG,
-                        EVT_VIEWTO, EVT_RXTO, EVT_NORXTO,
+                        EVT_VIEWTO, EVT_RXTO, EVT_NORXTO, EVT_SCANDWELL,
 			EVT_RINEX, EVT_FORMAT,
               EVT_MAX };
 extern const char *evstring[];
@@ -142,6 +142,7 @@ typedef struct st_sondeinfo {
 	uint32_t norxStart;		// millis() timestamp of continuous no rx start
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
+	bool fromScanMode;		// true if we got to RX mode via scanning
 
 	// Third part: decoded data. Clear if reception of a new sonde has started
 	SondeData d;
@@ -299,6 +300,7 @@ typedef struct st_rdzconfig {
 	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
 	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
+	int scan_dwell;			// Time to dwell on signal when found during scanning (seconds)
 	int noisefloor;			// for spectrum display
 	char mdnsname[15];		// mDNS-Name, defaults to rdzsonde
 	// receiver configuration

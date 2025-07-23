@@ -15,6 +15,7 @@ var cfgs = [
 [ "dispsaver", "Display saver (0=never/1=always/2=ifnorx [+10*n: after n sec.])" ],
 [ "dispcontrast", "OLED contrast (-1=use default; 0..255=set contrast)" ],
 [ "norx_timeout", "No-RX-timeout in seconds (-1=disabled)"],
+[ "scan_dwell", "Scan dwell time (seconds, 0=disabled) - time to stay on signal when found during scanning"],
 [ "tft_orient", "TFT orientation (0/1/2/3), OLED flip: 3"],
 [ "", "Spectrum display configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Spectrum-configuration" ],
 [ "spectrum", "Show spectrum on start (-1=no, 0=forever, >0=time [sec])" ],

@@ -22,7 +22,7 @@
 RXTask rxtask = { -1, -1, -1, 0xFFFF, 0 };
 
 const char *evstring[]={"NONE", "KEY1S", "KEY1D", "KEY1M", "KEY1L", "KEY2S", "KEY2D", "KEY2M", "KEY2L",
-				   "VIEWTO", "RXTO", "NORXTO", "(max)"};
+				   "VIEWTO", "RXTO", "NORXTO", "SCANDWELL", "(max)"};
 
 const char *RXstr[]={"RX_OK", "RX_TIMEOUT", "RX_ERROR", "RX_UNKNOWN"};
 
@@ -166,6 +166,7 @@ void Sonde::defaultConfig() {
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
+	config.scan_dwell = 0;
 	config.screenfile = 1;
 	config.tft_spifreq = SPI_DEFAULT_FREQ;
 	// TFT RS and CS not used for LCD, if TFT detected this will be changed below
@@ -547,6 +548,7 @@ void Sonde::setup() {
 
 	// reset rxtimer / norxtimer state
 	sonde.sondeList[sonde.currentSonde].lastState = -1;
+	sonde.sondeList[sonde.currentSonde].fromScanMode = false;
 }
 
 extern void flashLed(int ms);
@@ -589,6 +591,8 @@ void Sonde::receive() {
 		if(si->lastState != 0) {
 			si->norxStart = millis();
 			si->lastState = 0;
+			// Clear fromScanMode when losing signal
+			si->fromScanMode = false;
 		}
 	}
 	// LOG_I(TAG, "debug: res was %d, now lastState is %d\n", res, si->lastState);
@@ -603,7 +607,8 @@ void Sonde::receive() {
 	else sonde.dispsavectlON();
 	int action = (event==EVT_NONE) ? ACT_NONE : 
                      (event==EVT_RINEX) ? ACT_RINEX_UPDATE : 
-		     (event==EVT_FORMAT) ? ACT_FORMAT_SD : disp.layout->actions[event];
+		     (event==EVT_FORMAT) ? ACT_FORMAT_SD :
+		     (event==EVT_SCANDWELL) ? ACT_NEXTSONDE : disp.layout->actions[event];
 	if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x\n", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
@@ -612,12 +617,16 @@ void Sonde::receive() {
 		// handled here...
 		if(action==ACT_DISPLAY_SCANNER) {
 			// nothing to do here, be re-call setup() for M10/M20 for repeating AFC
+			// Clear fromScanMode flag when manually returning to scanner
+			sonde.sondeList[sonde.currentSonde].fromScanMode = false;
 		}
 		else {
 			if(action==ACT_NEXTSONDE||action==ACT_PREVSONDE)
 				nextRxSonde();
 			else
 				nextRxFreq( action-64 );
+			// Clear fromScanMode flag when manually changing frequency/sonde
+			sonde.sondeList[sonde.currentSonde].fromScanMode = false;
 			action = ACT_SONDE(rxtask.currentSonde);
 		}
 		if(rxtask.activate==-1) {
@@ -704,6 +713,24 @@ uint8_t Sonde::timeoutEvent(SondeInfo *si) {
 		LOG_I(TAG, "Sonde::timeoutEvent: NORX\n");
 		return EVT_NORXTO;
 	}
+	// Scan dwell timeout - only if we came from scanning and are receiving
+	if(si->lastState==1 && si->fromScanMode && config.scan_dwell > 0) {
+		// Conflict resolution: if scan_dwell >= norx_timeout, reduce by 1 second
+		// If norx_timeout == 1, disable scan_dwell
+		int effective_scan_dwell = config.scan_dwell;
+		if(config.norx_timeout > 0) {  // norx_timeout enabled (not -1)
+			if(config.norx_timeout == 1) {
+				effective_scan_dwell = -1;  // disable scan_dwell
+			} else if(effective_scan_dwell >= config.norx_timeout) {
+				effective_scan_dwell = config.norx_timeout - 1;
+			}
+		}
+		// If norx_timeout is disabled (-1), scan_dwell works normally
+		if(effective_scan_dwell > 0 && now - si->rxStart >= effective_scan_dwell * 1000) {
+			LOG_I(TAG, "Sonde::timeoutEvent: SCAN_DWELL\n");
+			return EVT_SCANDWELL;
+		}
+	}
 	return 0;
 }
 
@@ -715,6 +742,7 @@ uint8_t Sonde::updateState(uint8_t event) {
 	// In all cases (new display mode, new sonde) we reset the mode change timers
 	sonde.sondeList[sonde.currentSonde].viewStart = millis();
 	sonde.sondeList[sonde.currentSonde].lastState = -1;
+	sonde.sondeList[sonde.currentSonde].fromScanMode = false;
 
 	// Moving to a different display mode
 	if (event==ACT_DISPLAY_SPECTRUM || event==ACT_DISPLAY_WIFI) {
@@ -724,6 +752,10 @@ uint8_t Sonde::updateState(uint8_t event) {
 	int n = event;
 	if(event==ACT_DISPLAY_DEFAULT) {
 		n = config.display[1];
+		// Set fromScanMode flag if we're switching from scanner to default display
+		if(disp.layoutIdx == config.display[0]) {  // currently on scanner display
+			sonde.sondeList[sonde.currentSonde].fromScanMode = true;
+		}
 	} else if(event==ACT_DISPLAY_SCANNER) {
 		n= config.display[0];
 	} else if(event==ACT_DISPLAY_NEXT) {
@@ -781,6 +813,8 @@ void Sonde::clearAllData(SondeInfo *si) {
 	// set floats to NaN
 	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
 	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
+	// Clear scan mode flag
+	si->fromScanMode = false;
 }
 
 void Sonde::updateDisplayPos() {
