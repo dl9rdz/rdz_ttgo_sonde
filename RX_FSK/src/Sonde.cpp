@@ -613,7 +613,6 @@ void Sonde::receive() {
 		nextRxSonde();                               // ✓ Advance frequency
 		// DON'T call updateState()                 // ✓ Stay in same display  
 		rxtask.activate = ACT_SONDE(rxtask.currentSonde); // ✓ Update radio
-		return action;
 	}
 	
 	// If action is to move to a different sonde index, we do update things here, set activate
