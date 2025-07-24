@@ -35,29 +35,7 @@ const char *dfmSubtypeShort[] = { "", "DFMx", "DFM6", "DF6P", "PS15",
  */
 
 // single data structure, search restarts after decoder change
-static struct st_dfmstat {
-	int idcnt0;
-	int idcnt1;
-	int lastfrid;
-	int lastfrcnt;
-	uint8_t invers;
-	uint8_t start[50];
-	uint16_t dat[50*2];
-	uint8_t cnt[50*2];
-	uint16_t good;
-	uint32_t datesec;
-	uint8_t frame;
-	uint8_t posmode;
-	uint16_t msec;
-	uint8_t nameregok;
-	uint8_t nameregtop;
-	uint8_t lastdat;
-	uint8_t cycledone; // 0=no; 1=OK, 2=partially/with errors
-	float meas[9];
-	uint16_t measok;   // Bit-mask showing which meas entries have been received
-	uint8_t ptu_chan;  // always the max channel. used as subtype before, but 0xC can be DFM09 (with P) or DFM17 (w/o P)
-	uint8_t sensP;     // P channel in data (0xC DMF09 (but not 0xC DFM17), 0xD DFM17P, 0x8 DFM6P (but not PS15) (0 or 1)
-} dfmstate;
+struct st_dfmstat dfmstate;
 
 decoderSetupCfg DFMSetupCfg {
 	.bitrate = 2500,

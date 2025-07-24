@@ -350,6 +350,8 @@ extern const int N_CONFIG;
 
 void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	// Set default for public data filtering (enabled by default for safety)
+	if(config.public_data_filtering < 0 || config.public_data_filtering > 1) config.public_data_filtering = 1;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
 	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
@@ -781,6 +783,8 @@ void Sonde::clearAllData(SondeInfo *si) {
 	// set floats to NaN
 	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
 	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
+	// Initialize transmission history for duplicate detection
+	si->d.has_transmission_history = false;
 }
 
 void Sonde::updateDisplayPos() {
@@ -833,5 +837,6 @@ SondeType Sonde::realType(SondeInfo *si) {
 	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
 	else return si->type;
 }
+
 
 Sonde sonde = Sonde();

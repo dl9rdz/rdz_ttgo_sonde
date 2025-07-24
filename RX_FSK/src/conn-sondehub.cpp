@@ -1,6 +1,7 @@
 #include "../features.h"
 #include <sstream>
 #include <iomanip>
+#include <cmath>
 
 #define TAG "conn-sondehub"
 #include "logger.h"
@@ -457,6 +458,102 @@ void ConnSondehub::sondehub_send_fimport() {
 }
 
 
+// Data quality validation functions for robust filtering
+static bool isValidPosition(SondeData* s) {
+    // Geographic bounds (slightly more permissive than current 50km limit)
+    if (s->lat < -90.0 || s->lat > 90.0 || 
+        s->lon < -180.0 || s->lon > 180.0) return false;
+        
+    // Altitude bounds (research shows max ~47km record, 50km is realistic limit)
+    if (s->alt < -2000 || s->alt > 50000) return false;
+    
+    // Not null island (matches original logic with int casting)
+    if (((int)s->lat == 0) && ((int)s->lon == 0)) return false;
+    
+    return true;
+}
+
+static bool isValidMeasurement(SondeData* s) {
+    // Temperature bounds (atmospheric extremes)
+    if (!isnan(s->temperature) && (s->temperature < -100.0 || s->temperature > 80.0)) return false;
+    
+    // Humidity bounds (with sensor margin)
+    if (!isnan(s->relativeHumidity) && 
+        (s->relativeHumidity < -2.0 || s->relativeHumidity > 102.0)) return false;
+    
+    // Pressure bounds
+    if (!isnan(s->pressure) && 
+        (s->pressure <= 0 || s->pressure > 1100)) return false;
+    
+    return true;
+}
+
+static bool isDataRecent(SondeInfo* si) {
+    // Data freshness - match existing code's 3 hour limit  
+    time_t now = time(NULL);
+    return (abs(now - (time_t)si->d.time) <= 3 * 3600);  // 3 hours
+}
+
+static bool validatePositionChange(SondeInfo* si, float new_lat, float new_lon, float new_alt) {
+    if (!si->d.has_transmission_history) {
+        return true;  // First position always accepted
+    }
+    
+    uint32_t time_diff_ms = millis() - si->d.last_transmission_time;
+    if (time_diff_ms < 1000 || time_diff_ms > 60000) {
+        return true;  // Can't validate or too much time passed (1 min max)
+    }
+    
+    // Calculate horizontal distance (simplified great circle approximation)
+    float lat_diff = new_lat - si->d.last_transmitted_lat;
+    float lon_diff = new_lon - si->d.last_transmitted_lon;
+    float avg_lat = (new_lat + si->d.last_transmitted_lat) / 2.0;
+    float lat_km = lat_diff * 111.0;  // Latitude: ~111 km per degree
+    float lon_km = lon_diff * 111.0 * cos(avg_lat * M_PI / 180.0);  // Longitude varies by latitude
+    float distance_km = sqrt(lat_km * lat_km + lon_km * lon_km);
+    
+    float time_diff_sec = time_diff_ms / 1000.0;
+    float speed_kmh = (distance_km * 3600.0) / time_diff_sec;
+    
+    // Based on research: max jet stream ~400 km/h, burst descent ~360 km/h
+    // Conservative limit with safety margin for measurement errors
+    return speed_kmh <= 400.0;  // Realistic limit covering extreme conditions
+}
+
+static bool isDuplicateFrame(SondeInfo* si) {
+    // Frame number based (most reliable)
+    if (si->d.frame > 0 && si->d.last_transmitted_frame == si->d.frame) {
+        return true;
+    }
+    
+    // Position-based fallback (handles sondes without frame numbers)
+    if (si->d.has_transmission_history) {
+        float lat_diff = si->d.lat - si->d.last_transmitted_lat;
+        float lon_diff = si->d.lon - si->d.last_transmitted_lon;
+        float avg_lat = (si->d.lat + si->d.last_transmitted_lat) / 2.0;
+        float lat_km = lat_diff * 111.0;
+        float lon_km = lon_diff * 111.0 * cos(avg_lat * M_PI / 180.0);
+        float position_diff_km = sqrt(lat_km * lat_km + lon_km * lon_km);
+        
+        uint32_t time_diff = millis() - si->d.last_transmission_time;
+        
+        // Same position within 0.01km (10m) and 10 seconds = likely duplicate
+        if (position_diff_km < 0.01 && time_diff < 10000) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+static void updateTransmissionHistory(SondeInfo* si) {
+    si->d.last_transmitted_frame = si->d.frame;
+    si->d.last_transmitted_lat = si->d.lat;
+    si->d.last_transmitted_lon = si->d.lon;
+    si->d.last_transmission_time = millis();
+    si->d.has_transmission_history = true;
+}
+
 // in hours.... max allowed diff UTC <-> sonde time
 #define SONDEHUB_TIME_THRESHOLD (3)
 void ConnSondehub::sondehub_send_data(SondeInfo * s) {
@@ -500,16 +597,67 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     return;
   }
 
-  // Check if current sonde data is valid. If not, don't do anything....
-  if (*s->d.ser == 0 || s->d.validID == 0 ) return;     // Don't send anything without serial number
-  if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;     // Sometimes these values are zeroes. Don't send those to the sondehub
-  if ((int)s->d.alt > 50000) return;    // If alt is too high don't send to SondeHub
-  // M20 data does not include #sat information
-  if ( realtype != STYPE_M20 && (int)s->d.sats < 4) return;     // If not enough sats don't send to SondeHub
+  // Apply enhanced filtering when public filtering is enabled
+  if (sonde.config.public_data_filtering) {
+    // Gate 1: Type-specific ID validation
+    if (realtype == STYPE_DFM) {
+      // DFM requires collision protection
+      extern struct st_dfmstat dfmstate;
+      
+      // Primary check: DFM's own collision detection  
+      // DFMIDTHRESHOLD = 2, so we need >= 4 for stability
+      bool dfm_stable = (dfmstate.lastfrcnt >= 4);
+      
+      // Fallback: Don't block forever - allow transmission after reasonable time
+      if (!dfm_stable) {
+        uint32_t time_since_first_frame = abs((int32_t)(now - (time_t)s->d.time));
+        if (time_since_first_frame > 30) {  // 30 seconds max delay
+          LOG_D(TAG, "DFM collision protection timeout - allowing transmission");
+          dfm_stable = true;
+        }
+      }
+      
+      if (!dfm_stable) {
+        LOG_D(TAG, "Skipping DFM transmission: ID not stable (collision protection)");
+        return;
+      }
+    }
+    // RS41/RS92/M10/M20 use immediate transmission (existing validID check)
 
- if ( abs(now - (time_t)s->d.time) > (3600 * SONDEHUB_TIME_THRESHOLD) ) {
-    LOG_E(TAG, "Sonde time %d too far from current UTC time %ld", s->d.time, now);
-    return;
+    // Gate 2: Basic data quality checks
+    if (!s->d.validID || !s->d.validPos) return;
+    if (!isValidPosition(&s->d)) {
+      LOG_D(TAG, "Skipping transmission: Invalid position");
+      return;
+    }
+    if (!isValidMeasurement(&s->d)) {
+      LOG_D(TAG, "Skipping transmission: Invalid measurements");
+      return;
+    }
+    if (!isDataRecent(s)) {
+      LOG_D(TAG, "Skipping transmission: Data not recent");
+      return;
+    }
+    if (isDuplicateFrame(s)) {
+      LOG_D(TAG, "Skipping transmission: Duplicate frame");
+      return;
+    }
+    if (!validatePositionChange(s, s->d.lat, s->d.lon, s->d.alt)) {
+      LOG_D(TAG, "Skipping transmission: Invalid position change (too fast)");
+      return;
+    }
+  } else {
+    // Basic validation when filtering is disabled
+    if (*s->d.ser == 0 || s->d.validID == 0 ) return;     // Don't send anything without serial number
+    if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;     // Sometimes these values are zeroes. Don't send those to the sondehub
+    if ((int)s->d.alt > 50000) return;    // If alt is too high don't send to SondeHub
+    // M20 data does not include #sat information
+    if ( realtype != STYPE_M20 && (int)s->d.sats < 4) return;     // If not enough sats don't send to SondeHub
+
+    if ( abs(now - (time_t)s->d.time) > (3600 * SONDEHUB_TIME_THRESHOLD) ) {
+      LOG_E(TAG, "Sonde time %d too far from current UTC time %ld", s->d.time, now);
+      return;
+    }
   }
 
   //  DFM uses UTC. Most of the other radiosondes use GPS time
@@ -653,6 +801,9 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     rs_msg_len = 0;   // wait for new msg: 
     shStart = 0;
   }
+  
+  // Update transmission history for future duplicate detection and position validation
+  updateTransmissionHistory(s);
 }
 
 void ConnSondehub::sondehub_finish_data() {

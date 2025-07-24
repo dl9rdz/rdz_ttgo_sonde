@@ -776,11 +776,16 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.print(buf);
 			si->batteryVoltage = data[p+10] / 10.0f;
 			// not needed, if we end up here, the type has to be RS41.... si->type=STYPE_RS41;
-			strncpy(si->id, (const char *)(data+p+2), 8);
-			si->id[8]=0;
-			strncpy(si->ser, (const char *)(data+p+2), 8);
-			si->ser[8]=0;
-			si->validID=true;
+			char temp_id[9];
+			strncpy(temp_id, (const char *)(data+p+2), 8);
+			temp_id[8] = 0;
+			
+			// Set ID and serial number
+			strncpy(si->id, temp_id, sizeof(si->id)-1);
+			si->id[sizeof(si->id)-1] = 0;
+			strncpy(si->ser, temp_id, sizeof(si->ser)-1);
+			si->ser[sizeof(si->ser)-1] = 0;
+			si->validID = true;
 			serialok = 1;
 			int calnr = data[p+23];
 			// not sure about this

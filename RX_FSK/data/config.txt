@@ -139,6 +139,12 @@ sondehub.host=api.v2.sondehub.org
 sondehub.callsign=CHANGEME_RDZTTGO
 sondehub.antenna=
 sondehub.email=
+# Enhanced data filtering for public feeds (0=off, 1=on)
+# Filters out invalid positions, measurements, and duplicates
+# Applies collision protection for DFM sondes (military training scenarios)
+# RS41/RS92/M10/M20 transmit immediately (scanning friendly)
+# Recommended: 1 (enabled) for better data quality on public services
+public_data_filtering=1
 #-------------------------------#
 # Sondehub freq import settings
 #-------------------------------#
