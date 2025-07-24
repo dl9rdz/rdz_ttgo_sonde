@@ -599,13 +599,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
 
   // Apply enhanced filtering when public filtering is enabled
   if (sonde.config.public_data_filtering) {
-    // Gate 1: Must have stable ID for public transmission
-    if (!s->d.id_stable) {
-      LOG_D(TAG, "Skipping transmission: ID not stable (count=%d)", s->d.id_confirmation_count);
-      return;  // Skip entire frame
-    }
-    
-    // Gate 2: Basic data quality checks
+    // Gate 1: Basic data quality checks
     if (!s->d.validID || !s->d.validPos) return;
     if (!isValidPosition(&s->d)) {
       LOG_D(TAG, "Skipping transmission: Invalid position");
@@ -628,7 +622,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
       return;
     }
   } else {
-    // Original validation logic when filtering is disabled
+    // Basic validation when filtering is disabled
     if (*s->d.ser == 0 || s->d.validID == 0 ) return;     // Don't send anything without serial number
     if (((int)s->d.lat == 0) && ((int)s->d.lon == 0)) return;     // Sometimes these values are zeroes. Don't send those to the sondehub
     if ((int)s->d.alt > 50000) return;    // If alt is too high don't send to SondeHub

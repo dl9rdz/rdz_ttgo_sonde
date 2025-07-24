@@ -123,11 +123,6 @@ typedef struct st_sondedata {
 	float pressure;
 	float batteryVoltage = -1;
 	
-	// ID stability tracking (for robust filtering)
-	char candidate_id[12];
-	uint8_t id_confirmation_count;
-	uint32_t id_first_seen_time;
-	bool id_stable;  // true after 5+ consistent frames for public feeds
 	
 	// Transmission history for duplicate detection
 	uint32_t last_transmitted_frame;
@@ -411,8 +406,6 @@ public:
         void dispsavectlON();
         void dispsavectlOFF(int rxactive);
 
-	// ID stability functions for robust filtering
-	bool updateSondeID(SondeInfo* si, const char* new_id);
 
 	void setIP(String ip, bool isAP);
 };

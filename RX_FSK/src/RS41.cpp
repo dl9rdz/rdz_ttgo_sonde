@@ -780,9 +780,12 @@ int RS41::decode41(byte *data, int maxlen)
 			strncpy(temp_id, (const char *)(data+p+2), 8);
 			temp_id[8] = 0;
 			
-			// Use ID stability system for robust filtering
-			sonde.updateSondeID(sonde.si(), temp_id);
-			// Original behavior: always set serialok for local display
+			// Set ID and serial number
+			strncpy(si->id, temp_id, sizeof(si->id)-1);
+			si->id[sizeof(si->id)-1] = 0;
+			strncpy(si->ser, temp_id, sizeof(si->ser)-1);
+			si->ser[sizeof(si->ser)-1] = 0;
+			si->validID = true;
 			serialok = 1;
 			int calnr = data[p+23];
 			// not sure about this
