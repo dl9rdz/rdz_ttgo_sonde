@@ -350,6 +350,8 @@ extern const int N_CONFIG;
 
 void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	// Set default for public data filtering (enabled by default for safety)
+	if(config.public_data_filtering < 0 || config.public_data_filtering > 1) config.public_data_filtering = 1;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
 	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
@@ -781,6 +783,12 @@ void Sonde::clearAllData(SondeInfo *si) {
 	// set floats to NaN
 	si->d.lat = si->d.lon = si->d.alt = si->d.vs = si->d.hs = si->d.dir = NAN;
 	si->d.temperature = si->d.tempRHSensor = si->d.relativeHumidity = si->d.pressure = si->d.batteryVoltage = NAN;
+	// Initialize ID stability fields explicitly
+	si->d.candidate_id[0] = '\0';
+	si->d.id_confirmation_count = 0;
+	si->d.id_first_seen_time = 0;
+	si->d.id_stable = false;
+	si->d.has_transmission_history = false;
 }
 
 void Sonde::updateDisplayPos() {
@@ -832,6 +840,47 @@ void Sonde::dispsavectlOFF(int rxactive) {
 SondeType Sonde::realType(SondeInfo *si) {
 	if(TYPE_IS_METEO(si->type) && si->d.subtype>0 ) { return si->d.subtype==1 ? STYPE_M10:STYPE_M20; }
 	else return si->type;
+}
+
+// ID stability system for robust filtering
+bool Sonde::updateSondeID(SondeInfo* si, const char* new_id) {
+	SondeData* s = &si->d;
+	
+	// Validate input
+	if (!new_id || strlen(new_id) == 0) {
+		return false;
+	}
+	
+	// If ID changed, reset confirmation  
+	if (strcmp(s->candidate_id, new_id) != 0) {
+		strncpy(s->candidate_id, new_id, sizeof(s->candidate_id)-1);
+		s->candidate_id[sizeof(s->candidate_id)-1] = '\0';
+		s->id_confirmation_count = 1;
+		s->id_first_seen_time = millis();
+		s->validID = false;
+		s->id_stable = false;
+		return false;
+	}
+	
+	// Same ID seen again - increment confirmation
+	s->id_confirmation_count++;
+	
+	// Require 3 consecutive frames for local confirmation
+	if (s->id_confirmation_count >= 3) {
+		strncpy(s->ser, new_id, sizeof(s->ser)-1);
+		s->ser[sizeof(s->ser)-1] = '\0';
+		strncpy(s->id, new_id, sizeof(s->id)-1);
+		s->id[sizeof(s->id)-1] = '\0';
+		s->validID = true;
+		
+		// Stable after 5 frames (for public feeds)
+		if (s->id_confirmation_count >= 5) {
+			s->id_stable = true;
+		}
+		return true;
+	}
+	
+	return false;
 }
 
 Sonde sonde = Sonde();

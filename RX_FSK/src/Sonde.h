@@ -122,6 +122,18 @@ typedef struct st_sondedata {
 	float relativeHumidity; // relative humidity
 	float pressure;
 	float batteryVoltage = -1;
+	
+	// ID stability tracking (for robust filtering)
+	char candidate_id[12];
+	uint8_t id_confirmation_count;
+	uint32_t id_first_seen_time;
+	bool id_stable;  // true after 5+ consistent frames for public feeds
+	
+	// Transmission history for duplicate detection
+	uint32_t last_transmitted_frame;
+	float last_transmitted_lat, last_transmitted_lon;
+	uint32_t last_transmission_time;
+	bool has_transmission_history;
 } SondeData;
 
 typedef struct st_sondeinfo {
@@ -324,6 +336,8 @@ typedef struct st_rdzconfig {
 	struct st_sondehub sondehub;
 	struct st_cm cm;
 	struct st_sdcard sd;
+	// Data filtering configuration
+	int public_data_filtering;  // Enable strict filtering for public feeds (0=off, 1=on)
 } RDZConfig;
 
 
@@ -396,6 +410,9 @@ public:
 	void clearDisplay();
         void dispsavectlON();
         void dispsavectlOFF(int rxactive);
+
+	// ID stability functions for robust filtering
+	bool updateSondeID(SondeInfo* si, const char* new_id);
 
 	void setIP(String ip, bool isAP);
 };

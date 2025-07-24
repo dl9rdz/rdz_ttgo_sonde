@@ -717,6 +717,7 @@ struct st_configitems config_list[] = {
   {"display", -6, sonde.config.display},
   {"dispsaver", 0, &sonde.config.dispsaver},
   {"dispcontrast", 0, &sonde.config.dispcontrast},
+  {"public_data_filtering", 0, &sonde.config.public_data_filtering},
   /* Spectrum display settings */
   {"spectrum", 0, &sonde.config.spectrum},
   {"startfreq", 0, &sonde.config.startfreq},

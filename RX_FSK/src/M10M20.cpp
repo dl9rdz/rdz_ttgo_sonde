@@ -335,8 +335,9 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[9] = dez((id/10)%10);
 		ids[10] = dez(id%10);
 		ids[11] = 0;
-		strncpy(si->ser, ids, 12);
-		si->validID = true;
+		
+		// Use ID stability system for robust filtering
+		sonde.updateSondeID(sonde.si(), ids);
 		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 		// position data
@@ -618,8 +619,9 @@ int M10M20::decodeframeM20(uint8_t *data) {
 
 	// TODO
 	if(crcok) {
-	si->validID = true;
-	//Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
+		// Use ID stability system for robust filtering  
+		sonde.updateSondeID(sonde.si(), si->ser);
+		//Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 	// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 	// position data
 	// 0x1C  4 byte
