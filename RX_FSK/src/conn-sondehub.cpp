@@ -599,7 +599,32 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
 
   // Apply enhanced filtering when public filtering is enabled
   if (sonde.config.public_data_filtering) {
-    // Gate 1: Basic data quality checks
+    // Gate 1: Type-specific ID validation
+    if (realtype == STYPE_DFM) {
+      // DFM requires collision protection
+      extern struct st_dfmstat dfmstate;
+      
+      // Primary check: DFM's own collision detection  
+      // DFMIDTHRESHOLD = 2, so we need >= 4 for stability
+      bool dfm_stable = (dfmstate.lastfrcnt >= 4);
+      
+      // Fallback: Don't block forever - allow transmission after reasonable time
+      if (!dfm_stable) {
+        uint32_t time_since_first_frame = abs((int32_t)(now - (time_t)s->d.time));
+        if (time_since_first_frame > 30) {  // 30 seconds max delay
+          LOG_D(TAG, "DFM collision protection timeout - allowing transmission");
+          dfm_stable = true;
+        }
+      }
+      
+      if (!dfm_stable) {
+        LOG_D(TAG, "Skipping DFM transmission: ID not stable (collision protection)");
+        return;
+      }
+    }
+    // RS41/RS92/M10/M20 use immediate transmission (existing validID check)
+
+    // Gate 2: Basic data quality checks
     if (!s->d.validID || !s->d.validPos) return;
     if (!isValidPosition(&s->d)) {
       LOG_D(TAG, "Skipping transmission: Invalid position");
