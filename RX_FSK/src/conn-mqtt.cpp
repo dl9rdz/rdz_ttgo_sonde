@@ -229,17 +229,23 @@ void MQTT::publishPeak(double pf, int rssi)
 }
 
 // What's the scanner looking at?
-void MQTT::publishQRG(int num, const char* type, char* launchsite, float mhz)
+void MQTT::updateQRG(int sondeIndex)
 {
     if(!mqttGate(MQTT_SEND_RFINFO))
       return;
+
+    SondeInfo *si = &sonde.sondeList[sondeIndex];
+    const char *type = sondeTypeStr[si->type];
+    const char *launchsite = si->launchsite;
+    float mhz = si->freq;
+    int num = sondeIndex + 1;
 
     char payload[256];
     snprintf(
         payload, 256,
         "{\"num\": %d, \"type\": \"%s\", \"site\": \"%s\", \"freq\": %.3f}",
         num, type, launchsite, mhz);
-    LOG_D(TAG, "publishQRG: sending %s\n", payload);
+    LOG_D(TAG, "updateQRG: sending %s\n", payload);
 
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "qrg");

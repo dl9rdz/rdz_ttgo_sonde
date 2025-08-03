@@ -6,7 +6,7 @@
 // Selection of data output connectors to be included in firmware
 // APRS includes AXUDP (e.g. for aprsmap) and APRS-IS (TCP) (e.g. for wettersonde.net, radiosondy.info)
 #define FEATURE_SONDEHUB 1
-
+#define FEATURE_SONDESEEKER 1
 #define FEATURE_CHASEMAPPER 1
 #define FEATURE_MQTT 1
 #define FEATURE_SDCARD 1

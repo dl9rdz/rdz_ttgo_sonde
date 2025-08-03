@@ -35,6 +35,9 @@ public:
         /* Called approx 1x / second* */
         void updateStation( PosInfo *pi );
 
+        /* Called when frequency changes */
+        void updateQRG( int nextIndex );
+
         /* Say whether MQTT is connected, disconnected, or even enabled */
 	String getStatus();
 
@@ -42,7 +45,6 @@ public:
 
         /* Radio debug - spectrum and scanner*/
         void publishPeak(double pf, int rssi);
-        void publishQRG(int num, const char* type, char* launchsite, float mhz);
         void publishDebug(char* debugmsg);
 
        private:

@@ -42,6 +42,9 @@
 
 
 /* Data exchange connectors */
+#if FEATURE_SONDESEEKER
+#include "src/conn-sondeseeker.h"
+#endif
 #if FEATURE_CHASEMAPPER
 #include "src/conn-chasemapper.h"
 #endif
@@ -70,6 +73,9 @@ Conn *connectors[] = { &connSystem,
 #endif
 #if FEATURE_CHASEMAPPER
 &connChasemapper,
+#endif
+#if FEATURE_SONDESEEKER
+&connSondeseeker,
 #endif
 #if FEATURE_MQTT
 &connMQTT,
@@ -399,6 +405,22 @@ const char *handleLoginPost(AsyncWebServerRequest * request) {
   }
   request->send(401, "text/plain", "Invalid credentials or session expired");
   return nullptr;
+}
+
+const char *getQRGAsJson() {
+  char *ptr = message;
+  strcpy(ptr, "{\"channels\":[");
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *si = &sonde.sondeList[i];
+    if (i > 0) {
+      strcat(ptr, ",");
+    }
+    sprintf(ptr + strlen(ptr),
+            "{\"channel\":%d, \"active\":%d, \"freq\":%.3f, \"launchsite\":\"%s\", \"type\":\"%s\"}",
+            i+1, si->active, si->freq, si->launchsite, sondeTypeStr[si->type]);
+  }
+  strcat(ptr, "]}");
+  return message;
 }
 
 const char *createQRGForm() {
@@ -762,6 +784,12 @@ struct st_configitems config_list[] = {
   {"cm.active", -3, &sonde.config.cm.active},
   {"cm.host", 63, &sonde.config.cm.host},
   {"cm.port", 0, &sonde.config.cm.port},
+#endif
+#if FEATURE_SONDESEEKER
+   /* Sondeseeker settings */
+   {"ss.active", -3, &sonde.config.ss.active},
+   {"ss.host", 63, &sonde.config.ss.host},
+   {"ss.port", 0, &sonde.config.ss.port},
 #endif
 #if FEATURE_MQTT
   /* MQTT */
@@ -1370,9 +1398,14 @@ void SetupAsyncServer() {
     request->send(LittleFS, "/index.html", String(), false, processor);
   });
 
+  server.on("/qrg.json", HTTP_GET,  [](AsyncWebServerRequest * request) {
+    request->send(200, "text/html", getQRGAsJson());
+  });
+
   server.on("/qrg.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     request->send(200, "text/html", createQRGForm());
   });
+ 
   server.on("/qrg.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     if(!isAuthenticated(request, 2)) return;
     handleQRGPost(request);
@@ -1383,17 +1416,18 @@ void SetupAsyncServer() {
     if(!isAuthenticated(request, 2)) return;
     request->send(200, "text/html", createWIFIForm());
   });
+  
   server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     if(!isAuthenticated(request, 2)) return;
     handleWIFIPost(request);
     request->send(200, "text/html", createWIFIForm());
   });
 
-
   server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
     if(!isAuthenticated(request, 2)) return;
     request->send(200, "text/html", createConfigForm());
   });
+  
   server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest * request) {
     if(!isAuthenticated(request, 2)) return;
     handleConfigPost(request);
@@ -2343,8 +2377,17 @@ void loopDecoder() {
         return;
       }
     }
+    // If action is to change to a different frequency, notify clients (MQTT and UDP-json for now)
+    // TODO: do the same for TCP-json (rdzjson)
+    if(ACT_IS_FREQ_CHANGE(action)) {
+#if FEATURE_SONDESEEKER
+      connSondeseeker.updateQRG(sonde.currentSonde);
+#endif
+#if FEATURE_MQTT
+      connMQTT.updateQRG(sonde.currentSonde);
+#endif
+    }
   }
-
 
   if (rdzserver.hasClient()) {
     Serial.println("TCP JSON socket: new connection");
@@ -2381,6 +2424,9 @@ void loopDecoder() {
 #endif
 #if FEATURE_CHASEMAPPER
       connChasemapper.updateSonde( s );
+#endif
+#if FEATURE_SONDESEEKER
+  connSondeseeker.updateSonde( s );
 #endif
     }
 #if FEATURE_SONDEHUB

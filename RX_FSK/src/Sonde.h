@@ -69,6 +69,8 @@ extern const char *RXstr[];
 #define ACT_RINEX_UPDATE 60
 #define ACT_FORMAT_SD 59
 
+#define ACT_IS_FREQ_CHANGE(n) (((n)>=65)&&((n)<255))
+
 // 0000nnnn => goto display nnnn
 // 01000000 => goto sonde -1
 // 01000001 => goto sonde +1
@@ -232,6 +234,12 @@ struct st_cm {
 	int port;
 };
 
+struct st_ss {
+ 	int active;
+ 	char host[64];
+ 	int port;
+ };
+ 
 struct st_sondehub {
 	int active;
 	int chase;
@@ -324,6 +332,7 @@ typedef struct st_rdzconfig {
 	struct st_sondehub sondehub;
 	struct st_cm cm;
 	struct st_sdcard sd;
+	struct st_ss ss;
 } RDZConfig;
 
 

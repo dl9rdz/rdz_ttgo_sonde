@@ -37,6 +37,9 @@ public:
 	/* Called approx 1x / second* */
 	virtual void updateStation( PosInfo *pi );
 
+	/* Called whenever frequency changes (QRG details are in sondeList[nextSonde] */
+	virtual void updateQRG( int nextSonde );
+
 	/* Called to retrieve status (used for Info in about tab) */
 	virtual String getStatus();
 
