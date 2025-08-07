@@ -322,7 +322,6 @@ void ConnSondehub::sondehub_client_fsm() {
         LOG_D(TAG, "client_fsm: got data (len=%d): %s\n", res, (char *)buf);
 	// TODO: Maybe timestamp last received data?
         // TODO: Maybe repeat
-        // TODO: Add timeout to WAITACK...
       }//for k=0..10
     }
     break;
