@@ -1515,7 +1515,7 @@ h1{
     background: grey !important;
   }
 }
-cfg.js 11292
+cfg.js 11535
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP, 4=client-noscan)" ],
@@ -1581,6 +1581,10 @@ var cfgs = [
 [ "cm.active", "Chasemapper active (0=disabled, 1=active)"],
 [ "cm.host", "Chasemapper UDP host"],
 [ "cm.port", "Chasemapper UDP port"],
+[ "", "Sondeseeker settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Sondeseeker-configuration"],
+[ "ss.active", "Sondeseeker active (0=disabled, 1=active)"],
+[ "ss.host", "Sondeseeker UDP host"],
+[ "ss.port", "Sondeseeker UDP port"],
 [ "", "SondeHub settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-settings"],
 [ "sondehub.active", "SondeHub reporting (0=disabled, 1=active)"],
 [ "sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
