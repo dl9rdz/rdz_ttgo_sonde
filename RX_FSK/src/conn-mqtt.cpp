@@ -172,16 +172,20 @@ void MQTT::publishPmuInfo()
     float i_d = pmu->getBattDischargeCurrent();
     float i_c = pmu->getBattChargeCurrent();
     float i_batt = 0;
+    float v_batt = pmu->getBattVoltage() / 1000.;
+    float i_bus = pmu->getVbusCurrent();
+    float v_bus = pmu->getVbusVoltage() / 1000.;
+    float p_bus = i_bus * v_bus / 1000.;
 
     if (i_c)
       i_batt = i_c;
     else if (i_d)
       i_batt = -i_d;
 
+    float p_batt = i_batt * v_batt / 1000.;
     snprintf(payload, sizeof(payload),
-        "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f, \"T_sys\": %.1f}",
-        i_batt, pmu->getBattVoltage() / 1000.,
-        pmu->getVbusCurrent(), pmu->getVbusVoltage() / 1000.,
+        "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"P_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f,  \"P_Vbus\": %.3f, \"T_sys\": %.1f}",
+        i_batt, v_batt, p_batt, i_bus, v_bus, p_bus,
         pmu->getTemperature());
     LOG_D(TAG, "publishPmuInfo: sending %s\n", payload);
 
