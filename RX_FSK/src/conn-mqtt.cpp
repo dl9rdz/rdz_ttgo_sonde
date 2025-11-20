@@ -80,7 +80,7 @@ void MQTT::netshutdown() {
 }
 
 void MQTT::updateSonde( SondeInfo *si ) {
-    if(mqttGate(MQTT_SEND_UPTIME)){
+    if(mqttGate(MQTT_SEND_SONDE)){
         LOG_D(TAG, "updateSonde publishing sonde info");
 	// TODO: Check if si is good / fresh
         publishPacket(si);
