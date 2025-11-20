@@ -1,0 +1,1 @@
+fix stupid bug that broke display handling on M5 Core / Core2
