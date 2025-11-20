@@ -38,8 +38,8 @@ extern PMU *pmu;
 static void appendBatt(char *buf, int maxlen) {
     float batt;
     if(!pmu) {
-        if(sonde.config.batt_adc<0) return;
-        batt = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+        batt = getBattNoPMU();
+        if(batt<0) return;
     } else {
         batt = pmu->getBattVoltage() * 0.001;
     }

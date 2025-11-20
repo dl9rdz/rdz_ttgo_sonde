@@ -169,20 +169,27 @@ void MQTT::publishPmuInfo()
         return;
 
     char payload[256];
-    float i_d = pmu->getBattDischargeCurrent();
-    float i_c = pmu->getBattChargeCurrent();
-    float i_batt = 0;
 
-    if (i_c)
-      i_batt = i_c;
-    else if (i_d)
-      i_batt = -i_d;
+    if(!pmu) {
+        float batt = getBattNoPMU();
+        if(batt<0) return;
+        snprintf(payload, sizeof(payload), "{\"V_Batt\": %.3f}", batt);
+    } else {
+	float i_batt = 0;
+	float i_d = pmu->getBattDischargeCurrent();
+	float i_c = pmu->getBattChargeCurrent();
 
-    snprintf(payload, sizeof(payload),
-        "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f, \"T_sys\": %.1f}",
-        i_batt, pmu->getBattVoltage() / 1000.,
-        pmu->getVbusCurrent(), pmu->getVbusVoltage() / 1000.,
-        pmu->getTemperature());
+	if (i_c)
+	  i_batt = i_c;
+	else if (i_d)
+	  i_batt = -i_d;
+
+	snprintf(payload, sizeof(payload),
+	    "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f, \"T_sys\": %.1f}",
+	    i_batt, pmu->getBattVoltage() / 1000.,
+	pmu->getVbusCurrent(), pmu->getVbusVoltage() / 1000.,
+	pmu->getTemperature());
+    }
     LOG_D(TAG, "publishPmuInfo: sending %s\n", payload);
 
     char topic[128];

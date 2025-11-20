@@ -1713,7 +1713,7 @@ void Display::drawGPS(DispEntry *de) {
 			switch (de->extra[0])
 			{
 				case 'V':
-					val = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+					val = getBattNoPMU();
 					snprintf(buf, 30, "%.2f%s", val, de->extra + 1);
 					break;
 				default:

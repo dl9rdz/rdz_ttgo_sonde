@@ -576,4 +576,9 @@ float AXP2101PMU::getVbusVoltage() {
 float AXP2101PMU::getVbusCurrent() { return -1; }
 float AXP2101PMU::getTemperature() { return -1; }
 
-
+/* Simple function to get battery voltage on systems that do not have a PMU */
+float getBattNoPMU() {
+    if(sonde.config.batt_adc<0) return -999;
+    float batt = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+    return batt;
+}

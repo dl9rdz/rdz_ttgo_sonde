@@ -5,6 +5,10 @@
 
 enum { TYPE_NONE=-1, TYPE_UNKNOWN=0, TYPE_AXP192, TYPE_AXP2101 };
 
+
+/* Simple function to get battery voltage on systems that do not have a PMU */
+float getBattNoPMU();
+
 class PMU {
 protected:
     PMU(TwoWire &wire) : _wire(wire) { };
