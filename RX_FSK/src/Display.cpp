@@ -520,9 +520,8 @@ void ILI9225Display::begin() {
 	if(sonde.config.type == TYPE_M5_CORE2 || sonde.config.type == TYPE_M5_CORE ) {
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sx1278_miso, VSPI);
-	}
-	// if we share the bus between SDcard and TFT then we must configure MISO even if the display's MISO is not configured/used
-	if( sonde.config.oled_scl == sonde.config.sd.clk) {
+	} else if( sonde.config.oled_scl == sonde.config.sd.clk) {
+		// if we share the bus between SDcard and TFT then we must configure MISO even if the display's MISO is not configured/used
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sd.miso, HSPI);
         } else {
