@@ -277,7 +277,7 @@ void MQTT::publishPacket(SondeInfo *si)
 {
     SondeData *s = &(si->d);
     // ensure we've got connection
-    if(!mqttGate(MQTT_SEND_UPTIME))
+    if(!mqttGate(MQTT_SEND_SONDE))
         return;
 
     char payload[1024];
