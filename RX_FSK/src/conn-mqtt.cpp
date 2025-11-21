@@ -37,7 +37,6 @@ TimerHandle_t mqttReconnectTimer;
 extern t_wifi_state wifi_state;
 char time_str[32];
 
-
 /* Global initalization (on TTGO startup) */
 void MQTT::init() {
 }
@@ -70,10 +69,16 @@ void MQTT::netsetup() {
     if (strlen(sonde.config.mqtt.password) > 0) {
         mqttClient.setCredentials(sonde.config.mqtt.username, sonde.config.mqtt.password);
     }
+
+    char lwt[128];
+    snprintf(lwt, sizeof(lwt), "%sstatus", sonde.config.mqtt.prefix);
+    mqttClient.setWill(lwt, MQTT_QOS, MQTT_RETAIN_TRUE, "lost connection");
+
     MQTT::connectToMqtt();
 }
 
 void MQTT::netshutdown() {
+    publishLwt("offline");
     mqttClient.disconnect(false);  // nice shutdown....
     delay(200);
     mqttClient.disconnect(true);  // force
@@ -91,6 +96,7 @@ void MQTT::updateStation( PosInfo *pi ) {
     unsigned long now = millis();
     if ( (lastMqttUptime == 0) || (now - lastMqttUptime >= sonde.config.mqtt.report_interval) ) {
       MQTT::connectToMqtt();
+      // publishLwt("online");
       publishUptime();
       publishPmuInfo();
       publishGps();
@@ -106,6 +112,12 @@ int MQTT::mqttGate(uint flag){
   return ((sonde.config.mqtt.active & flag) && mqttClient.connected());
 }
 
+void MQTT::publishLwt(const char *message) {
+  char lwt[128];
+  snprintf(lwt, sizeof(lwt), "%sstatus", sonde.config.mqtt.prefix);
+  mqttClient.publish(lwt, MQTT_QOS, MQTT_RETAIN_TRUE, message);
+}
+
 int MQTT::connectToMqtt() {
   if(mqttClient.connected())
     return 1;
@@ -115,6 +127,7 @@ int MQTT::connectToMqtt() {
     return 0;
   LOG_D(TAG, "MQTT not connected, connecting....");
   mqttClient.connect();
+  publishLwt("online");
   return 1;
 }
 
@@ -160,7 +173,7 @@ void MQTT::publishUptime()
     LOG_D(TAG, "publishUptime: sending %s\n", payload);
     char topic[128];
     snprintf(topic, 128, "%s%s", sonde.config.mqtt.prefix, "uptime");
-    mqttClient.publish(topic, 1, 1, payload);
+    mqttClient.publish(topic, MQTT_QOS, MQTT_RETAIN_TRUE, payload);
 }
 
 void MQTT::publishPmuInfo()
@@ -194,7 +207,7 @@ void MQTT::publishPmuInfo()
 
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "pmu");
-    mqttClient.publish(topic, 1, 1, payload);
+    mqttClient.publish(topic, MQTT_QOS, MQTT_RETAIN_TRUE, payload);
 }
 
 
@@ -216,7 +229,7 @@ void MQTT::publishGps()
 
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "gps");
-    mqttClient.publish(topic, 1, 1, payload);
+    mqttClient.publish(topic, MQTT_QOS, MQTT_RETAIN_TRUE, payload);
 }
 
 
@@ -232,7 +245,7 @@ void MQTT::publishPeak(double pf, int rssi)
 
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "spectrum");
-    mqttClient.publish(topic, 1, /* retain */ false, payload);
+    mqttClient.publish(topic, MQTT_QOS_NONE, MQTT_RETAIN_FALSE, payload);
 }
 
 // What's the scanner looking at?
@@ -256,7 +269,7 @@ void MQTT::updateQRG(int sondeIndex)
 
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "qrg");
-    mqttClient.publish(topic, 1, /*retain*/ false, payload);
+    mqttClient.publish(topic, MQTT_QOS_NONE, MQTT_RETAIN_FALSE, payload);
 }
 
 
@@ -270,7 +283,7 @@ void MQTT::publishDebug(char *debugmsg)
     snprintf(payload, 256, "{\"msg\": %s}", debugmsg);
     char topic[128];
     snprintf(topic, sizeof(topic), "%s%s", sonde.config.mqtt.prefix, "debug");
-    mqttClient.publish(topic, 1, /*retain*/ false, payload);
+    mqttClient.publish(topic, MQTT_QOS_NONE, MQTT_RETAIN_FALSE, payload);
 }
 
 void MQTT::publishPacket(SondeInfo *si)
@@ -292,7 +305,7 @@ void MQTT::publishPacket(SondeInfo *si)
     char topic[128];
     snprintf(topic, 128, "%s%s", sonde.config.mqtt.prefix, "packet");
     LOG_D(TAG, "publishPacket: %s\n", payload);
-    mqttClient.publish(topic, 1, 1, payload);
+    mqttClient.publish(topic, MQTT_QOS, MQTT_RETAIN_TRUE, payload);
 }
 
 String MQTT::getStatus() {

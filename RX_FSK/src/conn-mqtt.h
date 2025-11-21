@@ -17,6 +17,11 @@
 #define MQTT_SEND_DEBUG 0x80
 #define MQTT_SEND_ANY (MQTT_SEND_UPTIME|MQTT_SEND_SONDE|MQTT_SEND_PMU|MQTT_SEND_GPS|MQTT_SEND_RFINFO|MQTT_SEND_DEBUG)
 
+#define MQTT_QOS_NONE 0
+#define MQTT_QOS 1
+#define MQTT_RETAIN_TRUE true
+#define MQTT_RETAIN_FALSE false
+
 class MQTT : public Conn
 {
 public:
@@ -64,6 +69,7 @@ public:
         void publishUptime();
         void publishPmuInfo();
         void publishGps();
+        void publishLwt(const char *message);
         void timeFormat();
         int mqttGate(uint flag);
         int connectToMqtt();
