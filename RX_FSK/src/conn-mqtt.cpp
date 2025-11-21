@@ -96,7 +96,7 @@ void MQTT::updateStation( PosInfo *pi ) {
     unsigned long now = millis();
     if ( (lastMqttUptime == 0) || (now - lastMqttUptime >= sonde.config.mqtt.report_interval) ) {
       MQTT::connectToMqtt();
-      publishLwt("online");
+      // publishLwt("online");
       publishUptime();
       publishPmuInfo();
       publishGps();
