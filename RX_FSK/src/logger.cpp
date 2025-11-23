@@ -6,8 +6,11 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
+#define USE_BAD_DEBUGGING_CODE 1
+
 #if USE_BAD_DEBUGGING_CODE
 extern WiFiUDP udp;
+#define LOGUDPDEST "192.168.1.91"
 #endif
 
 extern boolean connected;
@@ -16,6 +19,10 @@ extern const char *version_name;
 extern const char *version_id;
 
 const char *lvlcol[]={RED, YEL, GRN, BLU};
+
+bool inimprov = false;
+
+extern void enableNetwork(bool enable); // in RX_FSK.ino
 
 void Logger::init() {
 	sonde.config.debug = 3; // Use as initial value until config file is read from file system
@@ -39,7 +46,15 @@ void Logger::logf(LOGLEVEL lvl, const char *module, const char *fmt, ...) {
 		if(buf[x-1]=='\n') { strlcpy(buf+x-1, COLOR_RESET, 512-x+1); strlcpy(buf+x-1+sizeof(COLOR_RESET)-1, "\n", 512-x+1-sizeof(COLOR_RESET)+1); }
 		else strlcat(buf, COLOR_RESET, 512); 
 	}
-	Serial.print(buf);
+	if(!inimprov) Serial.print(buf);
+#if USE_BAD_DEBUGGING_CODE
+	if(connected) {
+            udp.beginPacket(LOGUDPDEST, 12345);
+	    udp.write((const uint8_t *)"\nLog:",6);
+            udp.write((const uint8_t *)buf, strlen(buf));
+            udp.endPacket();
+	}
+#endif
 }
 
 Logger Log;
@@ -49,6 +64,7 @@ Logger Log;
 
 void Logger::sendImprov(int type, int len, const char *data) {
     char buf[100];
+    Serial.write("\n", 1);
     strcpy(buf, "IMPROV\x01");
     buf[7] = type;
     buf[8] = len;
@@ -60,7 +76,7 @@ void Logger::sendImprov(int type, int len, const char *data) {
     buf[9+len+2] = 0;
     Serial.write(buf, 9+len+2);
 #if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket("192.168.1.3", 12345);
+            udp.beginPacket(LOGUDPDEST, 12345);
 	    udp.write((const uint8_t *)"Reply:",6);
             udp.write((const uint8_t *)buf, 9+len+2);
             udp.endPacket();
@@ -68,7 +84,8 @@ void Logger::sendImprov(int type, int len, const char *data) {
 }
 
 void Logger::sendImprovResult(int replyto, const char *strings[]) {
-    char buf[250];
+    char buf[512];
+    Serial.write("\n", 1);
     strcpy(buf, "IMPROV\x01");
     buf[7] = 0x04; // type: RPC Response
     //buf[8] will be length, set at the end
@@ -94,7 +111,7 @@ void Logger::sendImprovResult(int replyto, const char *strings[]) {
     buf[i++] = 0; 
     Serial.write(buf, i-1);
 #if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket("192.168.1.3", 12345);
+            udp.beginPacket(LOGUDPDEST, 12345);
 	    udp.write((const uint8_t *)"Reply:",6);
             udp.write((const uint8_t *)buf, i-1);
             udp.endPacket();
@@ -138,11 +155,12 @@ void Logger::handleImprov() {
         cmd[cmdlen] = Serial.read();
         if(cmd[cmdlen] == '\n') { // check if command
 #if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket("192.168.1.3", 12345);
+            udp.beginPacket(LOGUDPDEST, 12345);
             udp.write((const uint8_t *)cmd, cmdlen+1);
             udp.endPacket();
 #endif
             if(strncmp(cmd, "IMPROV", 6)==0) {  // we have a command
+                inimprov = true;
                 // TODO: CHeck CRC
                 if(cmd[7]==0x03 && cmd[9]==0x03) { // RPC, get info
 		    const char *info[]={version_name, version_id, ESP.getChipModel(), "rdzSonde", NULL};
@@ -161,11 +179,21 @@ void Logger::handleImprov() {
 			sendImprovResult(0x02, i);
 		    }
 		}
-		if(cmd[7]==0x03 && cmd[9]==0x04) { // wifi scan, fake for now
-		    //const char *info[]={"Dinosauro", "-60", "YES", NULL};
-		    //sendImprovResult(0x04, info);
-		    const char *i2[]={ NULL};
-		    sendImprovResult(0x04, i2);
+		if(cmd[7]==0x03 && cmd[9]==0x04) { // wifi scan
+		    enableNetwork(false);
+		    WiFi.mode(WIFI_STA);
+                    int n = WiFi.scanNetworks();
+		    const char *info[4]={NULL};
+    		    for (int i = 0; i < n; i++) {
+			wifi_ap_record_t *it = reinterpret_cast<wifi_ap_record_t *>(WiFi.getScanInfoByIndex(i));
+		        if(!it) continue;
+			info[0] = (const char *)it->ssid;
+			info[1] = "-70";
+			info[2] = "YES";
+		        sendImprovResult(0x04, info);
+		    }
+		    info[0] = NULL;
+		    sendImprovResult(0x04, info);
 		}
 		if(cmd[7]==0x03 && cmd[9]==0x01) { // send Wi-Fi settings
 		    // data len, ssid len, ssid bytes, pw len, pw bytes
@@ -173,6 +201,23 @@ void Logger::handleImprov() {
 		    int pwpos = 12+cmd[11];
 		    String pw = String(cmd+pwpos+1, cmd[pwpos]);
 		    updateWiFi(ssid, pw);
+		    WiFi.mode(WIFI_STA);
+		    WiFi.begin(ssid, pw);
+		    for(int i=0; i<20; i++) {
+                        if(WiFi.status() == WL_CONNECTED) {
+ 			    enableNetwork(true);
+			    char url[50];
+			    const char *i[]={url, NULL};
+			    String ip = WiFi.localIP().toString();
+			    snprintf(url, 50, "http://%s/", ip.c_str());
+			    sendImprovResult(0x02, i);
+			    break;
+                        }
+                        delay(500);
+                    }
+		    // not successful....
+		    const char *i[]={NULL};
+                    sendImprovResult(0x02, i);
 		}
             }
             cmdlen = 0;
