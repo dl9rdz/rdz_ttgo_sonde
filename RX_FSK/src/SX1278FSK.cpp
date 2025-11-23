@@ -13,6 +13,9 @@
 #include "SPI.h"
 #include "Sonde.h"
 #include "Display.h"
+#include "logger.h"
+
+#define TAG "SX1278"
 
 
 #define SPI_MUTEX_LOCK() \
@@ -726,7 +729,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 #endif
 	// set RX mode
 	state = receive();
-	if(state != 0) { return state; }
+	if(state != 0) { delay(500); return state; }
 
 #if (SX1278FSK_debug_mode > 0)
 	Serial.println(F("RX mode sucessfully activated"));
@@ -780,7 +783,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	}
 
 #if (SX1278FSK_debug_mode > 0)
-	Serial.println(F("## Packet received:"));
+	Serial.printf("## Packet received [%d bytes]:\n", di);
 	for(unsigned int i = 0; i < di; i++)
 	{
 		Serial.print(data[i], HEX);		// Printing payload
@@ -788,6 +791,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
 	}
 	Serial.println(F(" ##"));
 #endif
+	if(di==0) { delay(1000); } 
 	state = 0;
 	// Initializing flags	
 	clearIRQFlags();	

@@ -452,7 +452,7 @@ const char *handleQRGPost(AsyncWebServerRequest * request) {
     LOG_E(TAG, "Error while opening '/qrg.txt' for writing");
     return "Error while opening '/qrg.txt' for writing";
   }
-  Serial.println("Handling post request");
+  LOG_D(TAG, "Handling post request");
 #if 0
   int params = request->params();
   for (int i = 0; i < params; i++) {
@@ -539,7 +539,6 @@ void setupWifiList() {
   }
   nNetworks = i;
   LOG_I(TAG, "%d networks in networks.txt\n", i);
-  // Serial.print(i); Serial.println(" networks in networks.txt\n");
   for (int j = 0; j < i; j++) {
     LOG_I(TAG, "%s: %s\n", networks[j].id, networks[j].pw);
   }
@@ -1013,49 +1012,38 @@ const char *handleControlPost(AsyncWebServerRequest * request) {
   int params = request->params();
   for (int i = 0; i < params; i++) {
     String param = request->getParam(i)->name();
-    Serial.println(param.c_str());
+    LOG_D(TAG, "Contral post: %s\n", param.c_str());
     if (param.equals("rx")) {
-      Serial.println("equals rx");
       button1.pressed = KP_SHORT;
     }
     else if (param.equals("scan")) {
-      Serial.println("equals scan");
       button1.pressed = KP_DOUBLE;
     }
     else if (param.equals("spec")) {
-      Serial.println("equals spec");
       button1.pressed = KP_MID;
     }
     else if (param.equals("wifi")) {
-      Serial.println("equals wifi");
       button1.pressed = KP_LONG;
     }
     else if (param.equals("rx2")) {
-      Serial.println("equals rx2");
       button2.pressed = KP_SHORT;
     }
     else if (param.equals("scan2")) {
-      Serial.println("equals scan2");
       button2.pressed = KP_DOUBLE;
     }
     else if (param.equals("spec2")) {
-      Serial.println("equals spec2");
       button2.pressed = KP_MID;
     }
     else if (param.equals("wifi2")) {
-      Serial.println("equals wifi2");
       button2.pressed = KP_LONG;
     }
     else if (param.equals("rinex")) {
-      Serial.println("equals rinex");
       button2.pressed = KP_RINEX;
     }
     else if (param.equals("format")) {
-      Serial.println("equals format");
       button2.pressed = KP_FORMAT;
     }
     else if (param.equals("reboot")) {
-      Serial.println("equals reboot");
       ESP.restart();
     }
   }
@@ -2092,7 +2080,7 @@ void setup()
   // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31/63)
   if ( ( (sonde.fingerprint & (64 + 31)) != 31) && ((sonde.fingerprint & 16) == 16) ) {
     // FOr T-Beam 1.0
-    for (int i = 0; i < 10; i++) { // try multiple times
+    for (int i = 0; i < 2; i++) { // try multiple times
       Wire.begin(21, 22);
       // Make sure the whole thing powers up!?!?!?!?!?
       U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
@@ -2175,8 +2163,13 @@ void setup()
   LOG_D(TAG, "disp.initFromFile... layouts is %p\n", disp.layouts);
 
 
-#if 1
+#if 0
+  if (1) { //testing cyd
+    digitalWrite(sonde.config.sx1278_ss, HIGH);
+    pinMode(sonde.config.sx1278_ss, OUTPUT);
 
+    SPI.begin(18, 19, 23, -1);    // CKL, MISO, MOSI, CS)
+  } else 
   if (sonde.config.type == TYPE_M5_CORE2) {
     // Core2 uses Pin 38 for MISO
     SPI.begin(18, 38, 23, -1);
@@ -2197,11 +2190,13 @@ void setup()
   SPI.setClockDivider(SPI_CLOCK_DIV2);
   //Set data mode
   SPI.setDataMode(SPI_MODE0);
+#endif
+#if 1
 
   sx1278.setup(globalLock);
 
   int i = 0;
-  while (++i < 3) {
+  while (++i < 10) {
     // == check the radio chip by setting default frequency =========== //
     sx1278.ON();
     if (sx1278.setFrequency(402700000) == 0) {
@@ -2210,8 +2205,7 @@ void setup()
       Serial.println(F("Setting freq: ERROR "));
     }
     float f = sx1278.getFrequency();
-    Serial.print("Frequency set to ");
-    Serial.println(f);
+    LOG_D(TAG, "Frequency set to %d", f);
     // == check the radio chip by setting default frequency =========== //
     if( f>402700000-1000 && f<402700000+1000 ) break;
     delay(500);
@@ -2594,7 +2588,7 @@ const char *translateEncryptionType(wifi_auth_mode_t encryptionType) {
 }
 
 // in core.h
-//enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECTED, WIFI_APMODE };
+//enum t_wifi_state { WIFI_DISABLED, WIFI_SCAN, WIFI_CONNECT, WIFI_CONNECT_GOT_DISCONNECT, WIFI_CONNECTED, WIFI_APMODE };
 
 t_wifi_state wifi_state = WIFI_DISABLED;
 
@@ -2673,6 +2667,7 @@ void WiFiEvent(WiFiEvent_t event)
 	// lets try somethign else:
 	/// This is not a good idea, lets check what if we do nothing:   WiFi.reconnect();
 	Serial.println("WiFi State was connect");
+        wifi_state = WIFI_CONNECT_GOT_DISCONNECT;
 	break;
       }
       LOG_D(TAG, "Turning off (state is %d)\n", wifi_state);
@@ -2988,6 +2983,9 @@ void loopWifiScan() {
   }
   while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY && !abort)  {
     delay(500);
+    if(wifi_state == WIFI_CONNECT_GOT_DISCONNECT) {
+      if(sonde.config.wifi==1 || sonde.config.wifi==3) { WiFi.reconnect(); wifi_state = WIFI_CONNECT; }
+    }
     Serial.print(".");
     disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
     cnt++;

@@ -518,13 +518,16 @@ void ILI9225Display::begin() {
 	// we must use the same SPI bus with correct locking 
 	// The bus init also must use the same miso as the sx1278 (even if we don't use miso at all for the display)
 	if(sonde.config.type == TYPE_M5_CORE2 || sonde.config.type == TYPE_M5_CORE ) {
+		LOG_D(TAG, "Type is M5 core/core2, using VSPI\n");
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sx1278_miso, VSPI);
 	} else if( sonde.config.oled_scl == sonde.config.sd.clk) {
+		LOG_D(TAG, "Sharing with SDcard and TFT on HSPI\n");
 		// if we share the bus between SDcard and TFT then we must configure MISO even if the display's MISO is not configured/used
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sd.miso, HSPI);
         } else {
+		LOG_D(TAG, "TFT on HSPI\n");
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, -1, HSPI);
 

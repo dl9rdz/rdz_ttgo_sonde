@@ -101,18 +101,19 @@ void ConnSondehub::updateSonde( SondeInfo *si ) {
 }
 
 
+// no logging in dns callback. this may crash if debug logging over network is enabled....
 static void _sh_dns_found(const char * name, const ip_addr_t *ipaddr, void * /*arg*/) {
-    LOG_I(TAG, "dns callback for %s\n", name);
+    //LOG_I(TAG, "dns callback for %s\n", name);
     if (ipaddr) {
         shclient_ipaddr = *ipaddr;
-        LOG_I(TAG, "dns addr: %x (%d)\n", ipaddr->u_addr.ip4, ipaddr->type);
+        //LOG_I(TAG, "dns addr: %x (%d)\n", ipaddr->u_addr.ip4, ipaddr->type);
         shclient_state = SH_DNSRESOLVED;    // DNS lookup success
     } else {
         memset(&shclient_ipaddr, 0, sizeof(shclient_ipaddr));
         shclient_state = SH_ERROR_RETRY;   // DNS lookup failed
         shStart = 0;
         // TODO: set "reply messge" to "DNS lookup failed"
-        LOG_I(TAG, "dns_failed for %s\n", name);
+        //LOG_I(TAG, "dns_failed for %s\n", name);
 	snprintf(rs_msg, MSG_SIZE, "DNS lookup failed for %s", name);
     }
 }
