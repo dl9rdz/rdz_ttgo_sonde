@@ -15,6 +15,7 @@ typedef enum BoardTypes {
    BOARD_TTGOv1_HELTEC,
    BOARD_M5_CORE_GRAY,
    BOARD_M5_CORE2,
+   BOARD_CYD_E32R28T,
    BOARD_UNKNOWN
 } BoardTypes;
 

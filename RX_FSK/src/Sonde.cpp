@@ -37,7 +37,7 @@ const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "
 //const char *DEFEPH="gssc.esa.int/gnss/data/daily/%1$04d/brdc/brdc%2$03d0.%3$02dn.gz";
 const char *DEFEPH="gssc.esa.int/cddis/gnss/data/daily/%04d/brdc/brdc%03d0.%02dn.gz";
 
-int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, 95, 79, -1 };
+int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, 95, 79, 91, -1 };
 const char *fingerprintText[]={
   "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
   "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
@@ -50,7 +50,8 @@ const char *fingerprintText[]={
   "TTGO T-Beam (V1.1), 0.9\" OLED@21,22",
   "TTGO T-Beam (V1.1), SPI TFT@4,13,14",
   "M5 Core Gray",
-  "M5 Core Gray?"
+  "M5 Core Gray?",
+  "CYB (USB-C) w/ SPI display + Ra02",
 };
 
 /* global variables from RX_FSK.ino */
@@ -119,6 +120,24 @@ void Sonde::setDefaultConfig(BoardTypes board) {
 		// -- serial speed is wrong (staring arduino-idf 3.0.4), and WiFi also is partially broken.
 		// So if using that old board, you need to recompile specifically for the 26 MHz.
 		break;
+	case BOARD_CYD_E32R28T:
+		LOG_I(TAG, "Autoconfig: looks like a CYD (new) E32R28T");
+		config.disptype = 3; // could be 3 or 5, both versions exist...
+		config.oled_sda = 13;
+		config.oled_scl = 14;
+		config.oled_rst = -1;
+		config.tft_rs = 2;
+		config.tft_cs = 15;
+		config.power_pout = 21 + 128;
+		config.gps_rxd = 35;
+		config.gps_txd = -1;
+		config.sx1278_ss = 27;
+		config.sx1278_miso = 19;
+		config.sx1278_mosi= 23;
+		config.sx1278_sck = 18;
+		config.button_pin = 0;
+		config.button_pin2 = -1;
+		break;
 	}
 }
 
@@ -167,7 +186,7 @@ void Sonde::defaultConfig() {
 	config.tft_orient = 1;
 	config.button2_axp = 0;
 	config.norx_timeout = 20;
-	config.screenfile = 1;
+	config.screenfile = 0;
 	config.tft_spifreq = SPI_DEFAULT_FREQ;
 	// TFT RS and CS not used for LCD, if TFT detected this will be changed below
 	config.tft_rs = -1;
@@ -273,7 +292,7 @@ void Sonde::defaultConfig() {
 				}
 			}
 		} else {
-			Serial.println("Looks like a TTGO V2.1_1.6, could also be a M5 Core");
+			Serial.println("Looks like a TTGO V2.1_1.6, could also be a M5 Core, or CYD");
 			// M5 core has I2C devices 0x16 0x68 0x75
 			Wire.begin(21, 22);
 #define BMM150 0x10
@@ -287,16 +306,22 @@ void Sonde::defaultConfig() {
 			if(err==0) {
 				setDefaultConfig(BOARD_M5_CORE_GRAY);
 			} else {
-			// Likely a TTGO V2.1_1.6
-			// TODO: Maybe find some other default values for touch buttons?
-			config.button_pin = -1;  // not good with SD-Card: 2 + 128;	 // GPIO2 / T2
-			config.button2_pin = -1;  // not good with SD-Card: 14 + 128;   // GPIO14 / T6
-			config.led_pout = 25;
-			config.batt_adc = 35; 
-			config.sd.cs = 13;
-			config.sd.miso = 2;
-			config.sd.mosi = 15;
+				// On CYD (new boards with USB-C, E32R28T&E32N28T)
+				// GPIO4 is pulled high (pull up on audio enable) and GPIO21 is pulled low (polldown on TFT backlight control)
+				if(initlevels[4]==1 && initlevels[21]==0) {
+					setDefaultConfig(BOARD_CYD_E32R28T);
+				} else { 
+					// Likely a TTGO V2.1_1.6
+					// TODO: Maybe find some other default values for touch buttons?
+					config.button_pin = -1;  // not good with SD-Card: 2 + 128;	 // GPIO2 / T2
+					config.button2_pin = -1;  // not good with SD-Card: 14 + 128;   // GPIO14 / T6
+					config.led_pout = 25;
+					config.batt_adc = 35; 
+					config.sd.cs = 13;
+					config.sd.miso = 2;
+					config.sd.mosi = 15;
 			config.sd.clk = 14;
+				}
 			}
 		}
 	}
