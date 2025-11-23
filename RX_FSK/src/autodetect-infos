@@ -42,14 +42,23 @@ Board fingerprint is 87 (nach power on)
 0:1 1:1 2:0 3:1 4:0 5:0 6:0 7:1 8:0 9:1 10:1 11:1 12:0 13:0 14:1 15:0 16:1 17:0 18:0 19:0 20:0 21:1 22:1 23:0 24:0 25:0 26:0 27:0 28:0 29:0 30:0 31:0 32:0 33:0 34:0 35:0 36:0 37:0 38:0  (before setup)
 Board fingerprint is 22 (nach reset)
 Autoconfig: looks like T-Beam 1.0 board
-
-
                                vs 0010111
+
+
 T-Beam 1.1 seems to be different: 1110111
 GPIO4 = 1 (additional pullup) => +64
 GPIO12 = 1 (maybe additional pullup) => +32
 
-1
+CYD mit Ra02: ST7789
+RX_FSK: 0:1 RX_FSK: 1:1 RX_FSK: 2:0 RX_FSK: 3:1 RX_FSK: 4:1 RX_FSK: 5:1 RX_FSK: 6:0 RX_FSK: 7:1 RX_FSK: 8:0 RX_FSK: 9:1 RX_FSK: 10:0 RX_FSK: 11:1 RX_FSK: 12:0 RX_FSK: 13:0 RX_FSK: 14:1 RX_FSK: 15:1 RX_FSK: 16:1 RX_FSK: 17:1 RX_FSK: 18:0 RX_FSK: 19:0 RX_FSK: 20:0 RX_FSK: 21:0 RX_FSK: 22:1 RX_FSK: 23:1 RX_FSK: 24:0 RX_FSK: 25:0 RX_FSK: 26:0 RX_FSK: 27:1 RX_FSK: 28:0 RX_FSK: 29:0 RX_FSK: 30:0 RX_FSK: 31:0 RX_FSK: 32:0 RX_FSK: 33:0 RX_FSK: 34:0 RX_FSK: 35:0 RX_FSK: 36:0 RX_FSK: 37:0 RX_FSK: 38:0 RX_FSK: sizeof long is 4
+
+RX_FSK: 0:1 RX_FSK: 1:1 RX_FSK: 2:0 RX_FSK: 3:1 RX_FSK: 4:1 RX_FSK: 5:1 RX_FSK: 6:0 RX_FSK: 7:1 RX_FSK: 8:0 RX_FSK: 9:1 RX_FSK: 10:0 RX_FSK: 11:1 RX_FSK: 12:0 RX_FSK: 13:0 RX_FSK: 14:1 RX_FSK: 15:1 RX_FSK: 16:1 RX_FSK: 17:1 RX_FSK: 18:0 RX_FSK: 19:0 RX_FSK: 20:0 RX_FSK: 21:0 RX_FSK: 22:1 RX_FSK: 23:1 RX_FSK: 24:0 RX_FSK: 25:0 RX_FSK: 26:0 RX_FSK: 27:0 RX_FSK: 28:0 RX_FSK: 29:0 RX_FSK: 30:0 RX_FSK: 31:0 RX_FSK: 32:0 RX_FSK: 33:0 RX_FSK: 34:0 RX_FSK: 35:0 RX_FSK: 36:0 RX_FSK: 37:0 RX_FSK: 38:0  (before setup)
+
+CYD (ILI9341)
+RX_FSK: 0:1 RX_FSK: 1:1 RX_FSK: 2:0 RX_FSK: 3:1 RX_FSK: 4:1 RX_FSK: 5:1 RX_FSK: 6:0 RX_FSK: 7:1 RX_FSK: 8:0 RX_FSK: 9:1 RX_FSK: 10:0 RX_FSK: 11:1 RX_FSK: 12:0 RX_FSK: 13:0 RX_FSK: 14:1 RX_FSK: 15:1 RX_FSK: 16:1 RX_FSK: 17:0 RX_FSK: 18:0 RX_FSK: 19:1 RX_FSK: 20:0 RX_FSK: 21:0 RX_FSK: 22:1 RX_FSK: 23:1 RX_FSK: 24:0 RX_FSK: 25:0 RX_FSK: 26:0 RX_FSK: 27:0 RX_FSK: 28:0 RX_FSK: 29:0 RX_FSK: 30:0 RX_FSK: 31:0 RX_FSK: 32:0 RX_FSK: 33:0 RX_FSK: 34:0 RX_FSK: 35:0 RX_FSK: 36:0 RX_FSK: 37:0 RX_FSK: 38:0  (before setup)
+Sonde.cpp: Board fingerprint is 83
+Sonde.cpp: Autoconfig: looks like T-Beam 1.0 or M5Stack Core2 board
+
 
 Fingerprint GPIOs:   4, 12, 16, 17, 21, 22, 23, 
 
