@@ -121,8 +121,44 @@ void Sonde::setDefaultConfig(BoardTypes board) {
 		// So if using that old board, you need to recompile specifically for the 26 MHz.
 		break;
 	case BOARD_CYD_E32R28T:
+	       {
+		SPIClass *hspi = new SPIClass(HSPI);
 		LOG_I(TAG, "Autoconfig: looks like a CYD (new) E32R28T");
-		config.disptype = 3; // could be 3 or 5, both versions exist...
+		// SPI.begin(SCK, MISO, MOSI, SS);
+		hspi->begin(14, 12, 13, -1);
+	 	pinMode(2, OUTPUT);
+		digitalWrite(15, 1);  // CS
+		pinMode(15, OUTPUT);
+		char buf[4];
+
+		digitalWrite(2, 0); // cmd/data -> cmd
+                hspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+                digitalWrite(15, 0);  // CS
+                hspi->transfer(0xD3); // cmd query identification (ID4)
+                digitalWrite(2, 1);
+		buf[0]=buf[1]=buf[2]=buf[3]=0;
+                hspi->transfer(buf, 4);
+                digitalWrite(15, 1);
+                hspi->endTransaction();
+		Serial.printf("Device ID4:  %x %x %x\n",  buf[1], buf[2], buf[3]);
+		// ST7789 identifes as 00 00 00
+		// ILI9341 should identify as 00 93 41 but also returns 00 00 00
+		//
+		digitalWrite(2, 0); // cmd/data -> cmd
+  		hspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+		digitalWrite(15, 0);  // CS
+		hspi->transfer(0x04); // cmd query identification (ID1-3)
+		digitalWrite(2, 1);
+		buf[0] = buf[1] = buf[2] = buf[3] = {0};
+		hspi->transfer(buf, 4);
+		digitalWrite(15, 1);
+                hspi->endTransaction();
+                hspi->end();
+		Serial.printf("Device ID: %x %x %x\n", buf[1], buf[2], buf[3]);
+		// my ST7789 identifies as c0 d9 ff
+		// my ILI9341 identifies as 00 00 00
+		
+		config.disptype = buf[2]==0xd9? 5 : 3; // could be 3 or 5, both versions exist...
 		config.oled_sda = 13;
 		config.oled_scl = 14;
 		config.oled_rst = -1;
@@ -136,8 +172,9 @@ void Sonde::setDefaultConfig(BoardTypes board) {
 		config.sx1278_mosi= 23;
 		config.sx1278_sck = 18;
 		config.button_pin = 0;
-		config.button_pin2 = -1;
-		break;
+		config.button2_pin = -1;
+	       }
+	       break;
 	}
 }
 
