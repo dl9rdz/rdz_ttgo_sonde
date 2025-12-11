@@ -24,6 +24,7 @@ extern const char *version_id;
 #include "fonts/FreeSans18pt7b.h"
 #include "fonts/Picopixel.h"
 #include "fonts/Terminal11x16.h"
+#include "fonts/ttgologo.h"
 
 extern Sonde sonde;
 
@@ -396,6 +397,7 @@ const GFXfont *legacygfl[] = {
 	&FreeSans12pt7b,	// 6
 	&Picopixel,             // 7
 	&FreeSans18pt7b,        // 8
+        &Logo,
 };
 
 const GFXfont **gfl = legacygfl;
@@ -618,6 +620,7 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 		width = -width;
 		alignright = true;
 	}
+	int16_t x1, y1;
 	// Standard font
 	if(findex==0) {
 		SPI_MUTEX_LOCK();
@@ -625,8 +628,8 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 		// for gpx fonts and new library, cursor is at baseline!!
 		int h = 6;
 		if( alignright ) {
-			//w = tft->getTextWidth(s);
-			/// TODO
+			tft->getTextBounds(buf, x, y + gfxoffsets[findex-1].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
+			LOG_D(TAG, "Simple Text: width is %d\n", w);
 			if( width==WIDTH_AUTO ) { width = w; }
 			if( width > w ) {
 				tft->writeFillRect(x, y, width - w, h - 1, bg);
@@ -644,7 +647,6 @@ void ILI9225Display::drawString(uint16_t x, uint16_t y, const char *s, int16_t w
 	}
 	// GFX font
 	SPI_MUTEX_LOCK();
-	int16_t x1, y1;
 	if(1||width==WIDTH_AUTO || alignright) {
 		tft->getTextBounds(buf, x, y + gfxoffsets[findex-1].yofs, &x1, &y1, (uint16_t *)&w, (uint16_t *)&h);
 		w += x1 - x + 1;
@@ -930,6 +932,10 @@ void Display::parseDispElement(char *text, DispEntry *de)
 			de->func = disp.drawAFC; break;
 		case 'f':
 			de->func = disp.drawFreq;
+			de->extra = strdup(text+1);
+			break;
+		case 'z':
+			de->func = disp.drawInfo;
 			de->extra = strdup(text+1);
 			break;
 		case 'm':
@@ -1251,6 +1257,18 @@ void Display::drawString(DispEntry *de, const char *str) {
 	rdis->drawString(de->x, de->y, str, de->width, de->fg, de->bg);
 }
 
+void Display::drawInfo(DispEntry *de) {
+	rdis->setFont(de->fmt);
+        switch(de->extra[0]) {
+	case 's':  // software name
+		drawString(de, version_name);
+		break;
+	case 'v':  // software version
+		drawString(de, version_id);
+		break;
+	}
+}
+
 void Display::drawLat(DispEntry *de) {
 	rdis->setFont(de->fmt);
 	if(!VALIDPOS(sonde.si()->d.validPos)) {
@@ -1382,7 +1400,7 @@ void Display::drawSite(DispEntry *de) {
 		case '#':
 			// currentSonde is index in array starting with 0;
 			// but we draw "1" for the first entry and so on...
-			snprintf(buf, 3, "%d ", sonde.currentSonde+1);
+			snprintf(buf, 3, "%2d ", sonde.currentSonde+1);
 			buf[2]=0;
 			break;
 		case 't':
