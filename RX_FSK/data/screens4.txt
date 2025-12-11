@@ -1,4 +1,3 @@
-## screens2.txt: TFT display (landscape)
 # Definition of display content and action behaviour
 #
 # Timer: (view timer, rx timer, norx timer)
@@ -108,11 +107,17 @@ key2action=D,#,#,#
 timeaction=#,D,+
 fonts=5,6
 0,0=XScan
-0,5,-3=S#:
-0,9,5.5=T
+0,3.5,-2.5=S#:
+0,7,5.5=T
 3,0=F MHz
-5,0,16=S
-7,5=n
+4.5,0,16=S
+fonts=6,5
+7,0=XIP:
+7,2=N
+color=FFD42A,0
+fonts=0,11
+0,13,-4.6=XA
+1.2,13,-4.6=zv
 
 ############
 @MainTFT
@@ -121,6 +126,7 @@ key1action=+,0,F,W
 key2action=>,#,#,#
 timeaction=#,#,0
 color=FFD700
+fonts=5,6
 0,0,10.5=Is
 color=0000FF
 0,11,-5.5=f
@@ -572,3 +578,4 @@ color=639AFF
 color=FF0000,000000
 12.7,0.4=Q4
 12.7,18=bVV
+

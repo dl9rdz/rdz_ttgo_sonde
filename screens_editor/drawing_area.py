@@ -22,6 +22,7 @@ myfonts = [
     GFXFont("assets/FreeSans18pt7b.json"),
     GFXFont("assets/FreeMono9pt8b.json"),
     GFXFont("assets/FreeMono12pt8b.json"),
+    GFXFont("assets/ttgologo.json"),
 ]
 
 

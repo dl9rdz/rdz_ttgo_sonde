@@ -133,11 +133,24 @@ def format_freq(state, extra):
     print("freq is ", freq)
     return f"{freq:3.3f}{extra or ''}"
 
+def format_site(state, extra):
+    if extra and extra[0]=='#':
+        return "12" + extra[1:]
+    else:
+        return state.get("launchsite", "")
+
+def format_ip(state, extra):
+    return state.get("ip")
 
 def format_afc(state, extra):
     afc = state.get("afc", 0.0)
     return f"     {afc * 0.001:+3.2f}k"[-8:]  # Format and right-align
 
+def format_version(state, extra):
+    if extra and extra[0] == 'v':
+        return state.get("version_id")
+    if extra and extra[0] == 's':
+        return state.get("version_name")
 
 object_classes = {
     "TextObject": create_object_class("TextObject", format_text),
@@ -150,5 +163,8 @@ object_classes = {
     "RSSIObject": create_object_class("RSSIObject", format_rssi),
     "TypeObject": create_object_class("TypeObject", format_type),
     "FreqObject": create_object_class("FreqObject", format_freq),
+    "SiteObject": create_object_class("SiteObject", format_site),
     "AFCObject": create_object_class("AFCObject", format_afc),
+    "IPObject": create_object_class("IPObject", format_ip),
+    "VersionObject": create_object_class("VersionObject", format_version),
 }

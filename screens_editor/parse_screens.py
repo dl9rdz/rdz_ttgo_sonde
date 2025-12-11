@@ -120,10 +120,10 @@ class FileParser:
         """
         if block_name in self.global_settings:
             # Get the persistent settings for this block
-            scale_x, scale_y = self.global_settings[block_name]["scale"]
+            scale_y, scale_x = self.global_settings[block_name]["scale"]
             current_font = self.global_settings[block_name]["fonts"]
         else:
-            scale_x, scale_y = 13, 22
+            scale_y, scale_x = 13, 22
             current_font = [0, 1]
 
         objects = []
@@ -194,6 +194,9 @@ class FileParser:
                     "T": "TypeObject",
                     "R": "RSSIObject",
                     "F": "FreqObject",
+                    "S": "SiteObject",
+                    "N": "IPObject",
+                    "Z": "VersionObject",
                 }
 
                 obj_class_name = object_mapping.get(letter.upper())
