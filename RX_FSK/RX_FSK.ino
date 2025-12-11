@@ -224,7 +224,7 @@ String processor(const String& var) {
 #endif
     if ( posInfo.valid ) {
       char p[40];
-      snprintf(p, 40, "%g,%g", posInfo.lat, posInfo.lon);
+      snprintf(p, 40, "%.8g,%.8g", posInfo.lat, posInfo.lon);
       return String(p);
     } else {
       return String("48,13");
@@ -701,7 +701,7 @@ const char *createLiveJson() {
   strcat(ptr, " }");
 
   if (posInfo.valid) {
-    sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %g, \"lon\": %g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", posInfo.lat, posInfo.lon, posInfo.alt, posInfo.sat, posInfo.speed, posInfo.course, posInfo.hdop);
+    sprintf(ptr + strlen(ptr), ", \"gps\": {\"lat\": %.8g, \"lon\": %.8g, \"alt\": %d, \"sat\": %d, \"speed\": %g, \"dir\": %d, \"hdop\": %d }", posInfo.lat, posInfo.lon, posInfo.alt, posInfo.sat, posInfo.speed, posInfo.course, posInfo.hdop);
     //}
   }
 
@@ -894,7 +894,7 @@ const char *createConfigForm() {
         break;
       case -7: // double
         if (!isnan(*(double *)config_list[i].data))
-          sprintf(ptr + strlen(ptr), "%g", *(double *)config_list[i].data);
+          sprintf(ptr + strlen(ptr), "%.8g", *(double *)config_list[i].data);
         break;
       default: // string
         strcat(ptr, (char *)config_list[i].data);
