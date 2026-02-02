@@ -14,6 +14,8 @@ protected:
     PMU(TwoWire &wire) : _wire(wire) { };
 
 public:
+    virtual ~PMU();
+
     TwoWire &_wire;
     static PMU *getInstance(TwoWire &wire);
     int type;
@@ -29,22 +31,23 @@ public:
 
     int handleIRQ();
 
-    virtual int init();
-    virtual void disableAllIRQ();
-    virtual void enableIRQ();
-    virtual int getIrqKeyStatus();
+    virtual int init() = 0;
+    virtual void disableAllIRQ() = 0;
+    virtual void enableIRQ() = 0;
+    virtual int getIrqKeyStatus() = 0;
 
-    virtual int isBatteryConnected();
-    virtual int isVbusIn();
-    virtual int isCharging();
-    virtual float getBattVoltage();
-    virtual float getBattDischargeCurrent();
-    virtual float getBattChargeCurrent();
-    virtual float getAcinVoltage();
-    virtual float getAcinCurrent();
-    virtual float getVbusVoltage();
-    virtual float getVbusCurrent();
-    virtual float getTemperature();
+    virtual int isBatteryConnected() = 0;
+    virtual int isVbusIn() = 0;
+    virtual int isCharging() = 0;
+    virtual float getBattVoltage() = 0;
+    virtual float getBattDischargeCurrent() = 0;
+    virtual float getBattChargeCurrent() = 0;
+    virtual float getAcinVoltage() = 0;
+    virtual float getAcinCurrent() = 0;
+    virtual float getVbusVoltage() = 0;
+    virtual float getVbusCurrent() = 0;
+    virtual float getTemperature() = 0;
+
 };
 
 /* Interface */

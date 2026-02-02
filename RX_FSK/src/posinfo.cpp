@@ -390,6 +390,7 @@ void ConnGPS::init() { }
 void ConnGPS::netsetup() { }
 void ConnGPS::updateSonde( SondeInfo *si ) { }
 void ConnGPS::updateStation( PosInfo *pi ) { }
+void ConnGPS::netshutdown() { }
 
 String ConnGPS::getName() {
   return String("GPS");

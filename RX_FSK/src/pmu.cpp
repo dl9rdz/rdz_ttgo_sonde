@@ -81,6 +81,10 @@ uint8_t pmu_irq = 0;
 extern SemaphoreHandle_t axpSemaphore;
 
 /////////////////////////////////////////////////////////////////////////////////////
+///
+
+PMU::~PMU() = default;
+
 /// High-level functions 
 PMU *PMU::getInstance(TwoWire &wire) {
     PMU *pmu = NULL;
