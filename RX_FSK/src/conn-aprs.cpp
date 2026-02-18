@@ -6,6 +6,7 @@
 #include "aprs.h"
 #include "posinfo.h"
 #include <ESPmDNS.h>
+#include <WiFi.h>
 #include <WiFiUdp.h>
 
 #include <sys/socket.h>

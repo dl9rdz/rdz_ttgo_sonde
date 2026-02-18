@@ -261,6 +261,7 @@ struct st_sdcard {
 	int clk;
 	int sync;
 	int name;
+	int speed;	/* SPI speed in Hz (0 = library default), e.g. 4000000, 8000000, 16000000 */
 };
 
 // to be extended

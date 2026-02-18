@@ -492,6 +492,11 @@ int AXP2101PMU::init() {
     val &= 0xFC;
     writeRegister(AXP2101_CHG_V_CFG, val | AXP2101_CHG_VOL_4V2);
 #endif
+    // enable blue LED
+#if 0
+    val = readRegister(0x69);
+    writeRegister(0x69, (val & 0xF9) | 0x02);
+#endif
 
     // Disable TS measurement, enable vsys, vbus, vbat measurement
     // Disable TS is important for T-Beam 1.2 (no TS thermistor), otherwise it will not charge.

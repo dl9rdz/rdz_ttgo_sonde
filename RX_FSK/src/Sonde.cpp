@@ -218,6 +218,8 @@ void Sonde::defaultConfig() {
 	config.sd.miso = -1;
 	config.sd.mosi = -1;
 	config.sd.clk = -1;
+	config.sd.name = 0;
+	config.sd.speed = 4000000;
 	config.disptype = 0;
 	config.dispcontrast = -1;
 	config.tft_orient = 1;
