@@ -34,6 +34,8 @@ ip_addr_t shclient_ipaddr;
 
 unsigned long time_next_import = 0;
 unsigned long time_last_update = 0;
+unsigned long time_waitack_start = 0;
+unsigned long time_waitimportres_start = 0;
 
 enum SHState { SH_DISCONNECTED, SH_DNSLOOKUP, SH_DNSRESOLVED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, SH_CONN_WAITACK, SH_CONN_WAITIMPORTRES, SH_ERROR_RETRY };
 
@@ -79,6 +81,8 @@ void ConnSondehub::netsetup() {
 void ConnSondehub::netshutdown() {
     close(shclient);
     shclient_state = SH_DISCONNECTED;
+    time_waitack_start = 0;
+    time_waitimportres_start = 0;
 }
 
 // Imitating the old non-modular code
@@ -239,6 +243,29 @@ void ConnSondehub::sondehub_client_fsm() {
     case SH_CONN_WAITACK:
     case SH_CONN_WAITIMPORTRES:
     {
+        // Check for timeouts
+        unsigned long now_millis = millis();
+        if(shclient_state == SH_CONN_WAITACK && time_waitack_start > 0) {
+            if(now_millis - time_waitack_start > 15000) { // 15 second timeout for ACK
+                LOG_W(TAG, "WAITACK timeout, reconnecting");
+                close(shclient);
+                shclient_state = SH_ERROR_RETRY;
+                time_waitack_start = 0;
+                shStart = 0;
+                break;
+            }
+        }
+        if(shclient_state == SH_CONN_WAITIMPORTRES && time_waitimportres_start > 0) {
+            if(now_millis - time_waitimportres_start > 30000) { // 30 second timeout for import
+                LOG_W(TAG, "WAITIMPORTRES timeout, reconnecting");
+                close(shclient);
+                shclient_state = SH_ERROR_RETRY;
+                time_waitimportres_start = 0;
+                shStart = 0;
+                break;
+            }
+        }
+
         // In CONN_WAITACK:
         // If data starts with HTTP/1 this is the expected response, move to state CONN_IDLE
         //   noise tolerant - should not be needed:
@@ -271,7 +298,10 @@ void ConnSondehub::sondehub_client_fsm() {
         	    // We still wait for the beginning of the ACK
         	    // so check if we got that. if yes, all good, continue reading :)
         	    // If not, ignore everything we have read so far...
-        	    if(strncmp(rs_msg, "HTTP/1", 6)==0) { shclient_state = SH_CONN_IDLE; }
+        	    if(strncmp(rs_msg, "HTTP/1", 6)==0) { 
+        	        shclient_state = SH_CONN_IDLE; 
+        	        time_waitack_start = 0;
+        	    }
         	    else rs_msg_len = 0;
                  }
                }
@@ -282,6 +312,7 @@ void ConnSondehub::sondehub_client_fsm() {
     		// import_ress==0 means more data is expected, import_res==1 means complete reply received (or error)
     		if (import_res == 1) {
       			shclient_state = SH_CONN_IDLE;
+      			time_waitimportres_start = 0;
 			time_next_import = millis() + sonde.config.sondehub.fiinterval * 60000;
     		}
             }
@@ -292,7 +323,6 @@ void ConnSondehub::sondehub_client_fsm() {
         LOG_D(TAG, "client_fsm: got data (len=%d): %s\n", res, (char *)buf);
 	// TODO: Maybe timestamp last received data?
         // TODO: Maybe repeat
-        // TODO: Add timeout to WAITACK...
       }//for k=0..10
     }
     break;
@@ -306,7 +336,9 @@ void ConnSondehub::sondehub_client_fsm() {
 
 error:
     close(shclient);
-    shclient = SH_ERROR_RETRY;
+    shclient_state = SH_ERROR_RETRY;
+    time_waitack_start = 0;
+    time_waitimportres_start = 0;
     shStart = 0;
 }
 
@@ -424,6 +456,7 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
   LOG_D(TAG, "Waiting for response");
   // Now we do this asychronously
   shclient_state = SH_CONN_WAITACK;
+  time_waitack_start = millis();
   rs_msg_len = 0;   // wait for new msg: 
 
   sondehub_client_fsm();
@@ -453,6 +486,7 @@ void ConnSondehub::sondehub_send_fimport() {
     int res = ShFreqImport::shImportSendRequest(shclient, lat, lon, maxdist, maxage);
     if (res == 0) { 
         shclient_state = SH_CONN_WAITIMPORTRES;
+        time_waitimportres_start = millis();
     }
   }
 }
@@ -651,6 +685,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
   if (now - shStart > SONDEHUB_MAXAGE) { // after MAXAGE seconds
     sondehub_send_last();
     shclient_state = SH_CONN_WAITACK;
+    time_waitack_start = millis();
     rs_msg_len = 0;   // wait for new msg: 
     shStart = 0;
   }
@@ -664,6 +699,7 @@ void ConnSondehub::sondehub_finish_data() {
     if (now - shStart > SONDEHUB_MAXAGE + 3) { // after MAXAGE seconds
       sondehub_send_last();
       shclient_state = SH_CONN_WAITACK;
+      time_waitack_start = millis();
     rs_msg_len = 0;   // wait for new msg: 
       shStart = 0;
     }
