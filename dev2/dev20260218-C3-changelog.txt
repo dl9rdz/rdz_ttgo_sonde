@@ -1,0 +1,1 @@
+sdcard subdir handling per month and newer idf version
