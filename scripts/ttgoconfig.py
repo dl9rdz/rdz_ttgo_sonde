@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+import hashlib
+import re
 import requests
 import sys
 import os
@@ -7,6 +9,8 @@ import tempfile
 import esptool
 
 ttgohost = "rdzsonde.local"
+auth_user = None
+auth_pass = None
 
 # usually, rdzsonde.mooo.com should be an alias for that:
 # or, more specifically:
@@ -18,10 +22,28 @@ allfiles = ("config.txt", "qrg.txt", "networks.txt") + screens
 optprint = False
 optdir = ""
 
-def getfile(name):
+def login(session, base_url, user, password):
+  """Challenge-response login: GET preauth from login.html, compute SHA256(user:preauth:password), POST to login."""
+  r = session.get(base_url + "login.html")
+  r.raise_for_status()
+  m = re.search(r'name="preauth"\s+value="([^"]+)"', r.text)
+  if not m:
+    print("Could not get login form / preauth", file=sys.stderr)
+    sys.exit(1)
+  preauth = m.group(1)
+  auth_hex = hashlib.sha256(f"{user}:{preauth}:{password}".encode()).hexdigest()
+  r2 = session.post(base_url + "login.html", data={"user": user, "preauth": preauth, "auth": auth_hex}, allow_redirects=True)
+  if r2.status_code == 401:
+    print("Invalid credentials or session expired", file=sys.stderr)
+    sys.exit(1)
+
+def getfile(name, session):
   urlg = url+"file/"+name;
   print("Downloading: ",urlg);
-  data = requests.get(urlg);
+  data = session.get(urlg);
+  if data.status_code == 401:
+    print("Permission denied. Use --user and --pass for authenticated devices.", file=sys.stderr)
+    sys.exit(1)
   if optprint:
     print(data.text)
   elif len(data.content)>0:
@@ -31,10 +53,14 @@ def getfile(name):
   else:
     print("Error: empty response")
 
-def putfile(name):
+def putfile(name, session):
   print("Uploading: ",optdir+name)
-  files = { 'data': (name, open(optdir+name, "rb")), }
-  response = requests.post(url+"file", files=files)
+  with open(optdir+name, "rb") as f:
+    files = { 'data': (name, f) }
+    response = session.post(url+"file", files=files)
+  if response.status_code == 401:
+    print("Permission denied. Use --user and --pass for authenticated devices.", file=sys.stderr)
+    sys.exit(1)
 
 while len(sys.argv)>=2:
   if sys.argv[1]=="--print":
@@ -49,11 +75,17 @@ while len(sys.argv)>=2:
   elif sys.argv[1].startswith("--ttgo="):
     ttgohost = sys.argv[1][7:]
     del(sys.argv[1])
+  elif sys.argv[1]=="--user" and len(sys.argv)>=3:
+    auth_user = sys.argv[2]
+    del(sys.argv[1:3])
+  elif sys.argv[1]=="--pass" and len(sys.argv)>=3:
+    auth_pass = sys.argv[2]
+    del(sys.argv[1:3])
   else:
     break
   
 if len(sys.argv)<=2:
-  print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
+  print("Usage: ",sys.argv[0]," [--ttgo={ip}] [--user USER --pass PASS] [--print|--dir={dir}] <get|put> <all|config|qrg|networks|screens>");
   print("or:    ",sys.argv[0]," <get|put> file {filename}");
   print("or:    ",sys.argv[0]," update <devel-xxx|master-yyy>");
   print("or:    ",sys.argv[0]," <backup|restore> file.bin");
@@ -63,6 +95,7 @@ if len(sys.argv)<=2:
   print("     networks is networks.txt (Wifi ssid and password)")
   print("     qrg is qrg.txt (List with scan frequencies)")
   print("     all is screens + network + qrg")
+  print("     --user/--pass for authenticated device (challenge-response login)")
   sys.exit(1)
 
 if sys.argv[1]=="backup":
@@ -147,6 +180,10 @@ addrinfo = socket.gethostbyname(ttgohost)
 url = "http://"+addrinfo+"/"
 print("Using URL ",url)
 
+session = requests.Session()
+if auth_user and auth_pass:
+  login(session, url, auth_user, auth_pass)
+
 files=()
 
 if sys.argv[2]=="file":
@@ -170,10 +207,10 @@ else:
 
 if(sys.argv[1]=="get"):
   for f in files:
-    getfile(f)
+    getfile(f, session)
 elif(sys.argv[1]=="put"):
   for f in files:
-    putfile(f)
+    putfile(f, session)
 else:
   print("Invalid command ",sys.argv[1])
 
