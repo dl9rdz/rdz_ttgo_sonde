@@ -11,6 +11,7 @@
 
 #include "conn.h"
 
+#include <stdio.h>
 //#include "FS.h"
 #include "SD.h"
 
@@ -40,7 +41,7 @@ public:
 	String getName();
 
 private:
-	File file;
+	FILE *datafile = nullptr;
 	uint8_t initok = 0;
 	uint16_t wcount = 0;
 

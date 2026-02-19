@@ -9,6 +9,7 @@
 
 #include "posinfo.h"
 
+#include <errno.h>
 #include <ff.h>
 #include <dirent.h>
 #include <time.h>
@@ -146,36 +147,6 @@ void ConnSDCard::init() {
 
   if (initok && sonde.config.sd.name == 1)
     reorganizeCsvRoot();
-
-#if 0
-  file = SD.open("/data.csv", FILE_APPEND);
-  if (!file) {
-    Serial.println("Cannot open file");
-    return;
-  }
-  file.printf("Hello word... test\n");
-  file.close();
-
-  //sdf = SD.open("/data.csv", FILE_READ);
-
-  // Just testcode
-  DIR *dir = opendir("/sd/");
-  struct dirent *dent;
-  struct stat attr;
-  char fname[1024];
-  strcpy(fname,"/sd/");
-  if(dir) {
-    while((dent=readdir(dir))!=NULL) {
-      strcpy(fname+4, dent->d_name);
-      stat(fname, &attr);
-      char ftim[50];
-      strftime(ftim, 50, "%Y-%m-%d %H:%M:%S", gmtime(&attr.st_mtime)); 
-      printf("%s %s %d\n", dent->d_name, ftim, attr.st_size);
-      
-    }
-    closedir(dir);
-  }
-#endif
 }
 
 int ConnSDCard::format() {
@@ -236,46 +207,50 @@ void ConnSDCard::updateSonde( SondeInfo *si ) {
   int mm = t.tm_mon + 1;
 
   if (!sd->validID) {
-    snprintf(logName, sizeof(logName), "/noid.csv");
+    snprintf(logName, sizeof(logName), "/sd/noid.csv");
   } else {
     if (sonde.config.sd.name == 0) {
-      snprintf(logName, sizeof(logName), "/%s.csv", sd->ser);
+      snprintf(logName, sizeof(logName), "/sd/%s.csv", sd->ser);
     } else {
-      snprintf(logName, sizeof(logName), "/%02d%02d/%s.csv", yy, mm, sd->ser);
+      snprintf(logName, sizeof(logName), "/sd/%02d%02d/%s.csv", yy, mm, sd->ser);
     }
   }
 
   SPI_MUTEX_LOCK();
-  if (strcmp(logName, logOldName) || !file) {
-    if (file) file.close();
-    if (sd->validID && sonde.config.sd.name == 1) {
-      char folder[8];
-      snprintf(folder, sizeof(folder), "/%02d%02d", yy, mm);
-      if (!SD.exists(folder)) SD.mkdir(folder);
+  if (strcmp(logName, logOldName) || !datafile) {
+    if (datafile) {
+      fclose(datafile);
+      datafile = nullptr;
     }
-    file = SD.open(logName, FILE_APPEND);
+    if (sd->validID && sonde.config.sd.name == 1) {
+      char vfsFolder[32];
+      snprintf(vfsFolder, sizeof(vfsFolder), "/sd/%02d%02d", yy, mm);
+      if (mkdir(vfsFolder, 0755) != 0 && errno != EEXIST)
+        LOG_E(TAG, "mkdir %s failed: %s\n", vfsFolder, strerror(errno));
+    }
+    datafile = fopen(logName, "a");
     strcpy(logOldName, logName);
     LOG_I(TAG, "Logging to file %s\n", logName);
   }
-  if (!file) {
+  if (!datafile) {
     SPI_MUTEX_UNLOCK();
     LOG_E(TAG, "Error opening file %s\n", logName);
     return;
   }
-  if (file.size() == 0)
-    file.print("validID,ser,typestr,subtype,lat,lon,alt,vs,hs,dir,sats,validPos,time,frame,vframe,validTime\n");
-  file.printf("%d,%s,%s,%d,"
-              "%f,%f,%f,%f,%f,%f,%d,%d,"
-              "%d,%d,%d,%d\n",
-              sd->validID, sd->ser, sd->typestr, sd->subtype,
-              sd->lat, sd->lon, sd->alt, sd->vs, sd->hs, sd->dir, sd->sats, sd->validPos,
-              sd->time, sd->frame, sd->vframe, sd->validTime);
+  if (ftell(datafile) == 0)
+    fprintf(datafile, "validID,ser,typestr,subtype,lat,lon,alt,vs,hs,dir,sats,validPos,time,frame,vframe,validTime\n");
+  fprintf(datafile, "%d,%s,%s,%d,"
+          "%f,%f,%f,%f,%f,%f,%d,%d,"
+          "%d,%d,%d,%d\n",
+          sd->validID, sd->ser, sd->typestr, sd->subtype,
+          sd->lat, sd->lon, sd->alt, sd->vs, sd->hs, sd->dir, sd->sats, sd->validPos,
+          sd->time, sd->frame, sd->vframe, sd->validTime);
 
   // TODO: Make this time based, not invocation based (well, should be the same, this is called
   // 1x per second)
   wcount++;
   if (wcount >= sonde.config.sd.sync) {
-    file.flush();
+    fflush(datafile);
     wcount = 0;
   }
   SPI_MUTEX_UNLOCK();
@@ -290,13 +265,14 @@ void ConnSDCard::updateStation( PosInfo *pi ) {
   if( lastPI.lat == posInfo.lat && lastPI.lon == posInfo.lon) return;
 
   SPI_MUTEX_LOCK();
-  File posfile = SD.open("/mypos.csv", FILE_APPEND);
-  if(!posfile) {
+  FILE *posfile = fopen("/sd/mypos.csv", "a");
+  if (!posfile) {
     LOG_E(TAG, "Error opening /mypos.csv\n");
+    SPI_MUTEX_UNLOCK();
     return;
   }
-  if (posfile.size() == 0)
-    posfile.print("timestamp,lat,lon\n");
+  if (ftell(posfile) == 0)
+    fprintf(posfile, "timestamp,lat,lon\n");
   char ftim[50];
   struct tm timeinfo;
   time_t now;
@@ -304,8 +280,8 @@ void ConnSDCard::updateStation( PosInfo *pi ) {
   gmtime_r(&now, &timeinfo);
   strftime(ftim, 50, "%Y-%m-%dT%H:%M:%SZ", &timeinfo);
 
-  posfile.printf("%s,%.6f,%.6f\n", ftim, posInfo.lat, posInfo.lon);
-  posfile.close();
+  fprintf(posfile, "%s,%.6f,%.6f\n", ftim, posInfo.lat, posInfo.lon);
+  fclose(posfile);
   SPI_MUTEX_UNLOCK();
   lastPI = posInfo;
 }
