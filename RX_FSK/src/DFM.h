@@ -55,6 +55,9 @@ private:
 	uint8_t block_conf[ 7*S];  //  7*4=28
 	uint8_t block_dat1[13*S];  // 13*4=52
 	uint8_t block_dat2[13*S];
+#undef B
+#undef S
+const int B=8;
 
 	uint8_t H[4][8] =  // extended Hamming(8,4) particy check matrix
              {{ 0, 1, 1, 1, 1, 0, 0, 0},

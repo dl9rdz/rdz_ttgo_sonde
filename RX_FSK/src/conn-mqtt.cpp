@@ -49,7 +49,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   Serial.println();
 }
-
+char lwt[128];
 /* Network initialization (as soon as network becomes available) */
 void MQTT::netsetup() {
     if (0 == sonde.config.mqtt.active)
@@ -70,8 +70,8 @@ void MQTT::netsetup() {
         mqttClient.setCredentials(sonde.config.mqtt.username, sonde.config.mqtt.password);
     }
 
-    char lwt[128];
     snprintf(lwt, sizeof(lwt), "%sstatus", sonde.config.mqtt.prefix);
+    LOG_D(TAG, "will toptic: %s\n", lwt);
     mqttClient.setWill(lwt, MQTT_QOS, MQTT_RETAIN_TRUE, "lost connection");
 
     MQTT::connectToMqtt();
