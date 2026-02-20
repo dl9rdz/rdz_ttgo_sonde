@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <utime.h>
+#include <unistd.h>
 
 extern SemaphoreHandle_t globalLock;
 #define SPI_MUTEX_LOCK() \
@@ -251,6 +252,7 @@ void ConnSDCard::updateSonde( SondeInfo *si ) {
   wcount++;
   if (wcount >= sonde.config.sd.sync) {
     fflush(datafile);
+    fsync(fileno(datafile));
     wcount = 0;
   }
   SPI_MUTEX_UNLOCK();
