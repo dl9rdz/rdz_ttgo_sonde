@@ -29,7 +29,7 @@ extern const char *version_id;
 
 #define ERROR_RETRY_DELAY 10  // seconds
 
-int shclient;    // Sondehub v2
+int shclient = -1;    // Sondehub v2
 ip_addr_t shclient_ipaddr;
 
 unsigned long time_next_import = 0;
@@ -77,7 +77,10 @@ void ConnSondehub::netsetup() {
 }
 
 void ConnSondehub::netshutdown() {
-    close(shclient);
+    if(shclient>0) {
+        close(shclient);
+        shclient = -1;
+    }
     shclient_state = SH_DISCONNECTED;
 }
 
@@ -257,6 +260,7 @@ void ConnSondehub::sondehub_client_fsm() {
         res = read(shclient, buf, 512);
         if(res<=0) {
             close(shclient);
+            shclient = -1;
             shclient_state = SH_ERROR_RETRY;
             shStart = 0;
         } else {
@@ -306,7 +310,8 @@ void ConnSondehub::sondehub_client_fsm() {
 
 error:
     close(shclient);
-    shclient = SH_ERROR_RETRY;
+    shclient = -1;
+    shclient_state = SH_ERROR_RETRY;
     shStart = 0;
 }
 
