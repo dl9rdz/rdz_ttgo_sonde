@@ -54,6 +54,7 @@ void ConnAPRS::init() {
         udpport = 9002;
     }
     Serial.printf("AXUDP: host=%s, port=%d\n", udphost, udpport);
+    aprs[0].tcpclient = aprs[1].tcpclient = -1;
 }
 
 void ConnAPRS::netsetup() {
@@ -133,7 +134,10 @@ static void check_timeout(st_aprs *a) {
     Serial.printf("Checking APRS timeout: last_in - new: %ld\n", millis() - a->last_in);
     if ( a->last_in && ( (millis() - a->last_in) > sonde.config.tcpfeed.timeout*1000 ) ) {
         Serial.println("APRS timeout - closing connection");
-        close(a->tcpclient);
+        if(a->tcpclient>0) {
+            close(a->tcpclient);
+            a->tcpclient = -1;
+        }
         a->tcpclient_state = TCS_DISCONNECTED;
     }
 }
@@ -232,7 +236,8 @@ void tcpclient_sendlogin(st_aprs *a) {
     Serial.printf("APRS login: %s, res=%d\n", buf, res);
     a->last_in = millis();
     if(res<=0) {
-        close(a->tcpclient);
+        if( a->tcpclient>0 ) close(a->tcpclient);
+        a->tcpclient = -1;
         a->tcpclient_state = TCS_DISCONNECTED;
     }
 }
@@ -311,6 +316,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
                 a->tcpclient_state = TCS_CONNECTING;
             } else {
                 close(a->tcpclient);
+                a->tcpclient = -1;
                 a->tcpclient_state = TCS_DISCONNECTED;
             }
         } else {
@@ -360,6 +366,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         res = read(a->tcpclient, buf, 512);
         if(res<=0) {
             close(a->tcpclient);
+            a->tcpclient = -1;
             a->tcpclient_state = TCS_DISCONNECTED;
         } else {
             buf[res] = 0;
@@ -377,7 +384,8 @@ static void tcpclient_fsm_single(st_aprs *a) {
     return;
 
 error:
-    close(a->tcpclient);
+    if(a->tcpclient > 0) close(a->tcpclient);
+    a->tcpclient = -1;
     a->tcpclient_state = TCS_DISCONNECTED;
     return;
 }

@@ -189,6 +189,7 @@ void ConnSondehub::sondehub_client_fsm() {
                 shclient_state = SH_CONNECTING;
             } else {
                 close(shclient);
+                shclient = -1;
                 shclient_state = SH_ERROR_RETRY;
                 shStart = 0;
             }
