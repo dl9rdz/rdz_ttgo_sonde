@@ -51,6 +51,34 @@ void writeFully(File &file, uint8_t *buf, size_t len)
 	}
 }
 
+/** Expand $Y $D $y in path_tmpl into out. $Y=4-digit year, $D=3-digit day, $y=2-digit year. */
+static void eph_fmt_path(char *out, size_t outsz, const char *path_tmpl, int year, int day, int yy)
+{
+	char y4[8], d3[8], y2[8];
+	snprintf(y4, sizeof(y4), "%04d", year);
+	snprintf(d3, sizeof(d3), "%03d", day);
+	snprintf(y2, sizeof(y2), "%02d", yy);
+	size_t n = 0;
+	if (outsz == 0) return;
+	outsz--;
+	for (const char *p = path_tmpl; *p && n < outsz; p++) {
+		if ((*p == '$' ) && p[1]) {
+			char c = p[1];
+			const char *sub = NULL;
+			if (c == 'Y') sub = y4;
+			else if (c == 'D') sub = d3;
+			else if (c == 'y') sub = y2;
+			if (sub) {
+				p++;
+				while (*sub && n < outsz) out[n++] = *sub++;
+				continue;
+			}
+		}
+		out[n++] = *p;
+	}
+	out[n] = '\0';
+}
+
 void geteph() {
 	// Set current time via network...	
 	ephstate = EPH_PENDING;
@@ -94,19 +122,15 @@ void geteph() {
         int hlen = ptr - sonde.config.ephftp;
         strncpy(host, sonde.config.ephftp, hlen);
         host[hlen] = 0;
-        snprintf(buf, 200, ptr+1, year, day, year-2000);
+        eph_fmt_path(buf, sizeof(buf), ptr+1, year, day, year-2000);
 	uint8_t dispw, disph, dispxs, dispys;
   	disp.rdis->getDispSize(&disph, &dispw, &dispxs, &dispys);
 	disp.rdis->clear();
 	disp.rdis->setFont(FONT_SMALL);
 	disp.rdis->drawString(0, 0, host);
-	// fetch rinex from server
-	// char *ptr = buf + strlen(buf);
-	// snprintf(ptr, 128, "%04d/%03d/brdc%03d0.%02dn.gz", year, day, day, year-2000);
-	// snprintf(ptr, 128, "%04d/brdc/brdc%03d0.%02dn.gz", year, /*day,*/ day, year-2000);
 	Serial.println("running geteph\n");
 	disp.rdis->drawString(0, 1*dispys, buf+9);
-	
+
 	if(!client.connect(host, 21)) {
 		Serial.printf("FTP connection to %s failed\n", host);
 		return;
@@ -149,7 +173,7 @@ void geteph() {
 	if(s.c_str()[0]>='4') {
 	   Serial.println("RETR failed");
            // retry with the previous day
-           snprintf(buf, 200, ptr+1, year, day-1, year-2000);
+           eph_fmt_path(buf, sizeof(buf), ptr+1, year, day-1, year-2000);
 	   client.print("RETR ");
 	   client.println(buf);
 	   s = client.readStringUntil('\n');

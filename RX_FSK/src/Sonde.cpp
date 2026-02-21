@@ -32,10 +32,8 @@ const char *sondeTypeStr[NSondeTypes] = { "DFM ", "RS41", "RS92", "Mxx ", "M10 "
 const char *sondeTypeLongStr[NSondeTypes] = { "DFM (all)", "RS41", "RS92", "M10/M20", "M10 ", "M20 ", "MP3-H1" };
 const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', 'M', '2', '3' };
 const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
-// tiny library printf does not support $ parameters, so remove....
-// for now, only urls with the right order of parameters are supported, this maybe will change in the future again.
-//const char *DEFEPH="gssc.esa.int/gnss/data/daily/%1$04d/brdc/brdc%2$03d0.%3$02dn.gz";
-const char *DEFEPH="gssc.esa.int/cddis/gnss/data/daily/%04d/brdc/brdc%03d0.%02dn.gz";
+// ephftp path template: $Y=4-digit year, $D=3-digit day of year, $y=2-digit year (see geteph.cpp eph_fmt_path)
+const char *DEFEPH="gssc.esa.int/cddis/gnss/data/daily/$Y/$D/brdc$D0.$yn.gz";
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, 95, 79, 91, -1 };
 const char *fingerprintText[]={
@@ -424,10 +422,8 @@ void Sonde::checkConfig() {
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;
 	if(config.sondehub.fimaxdist==0) config.sondehub.fimaxdist = 150;
 	if(config.sondehub.fimaxage==0) config.sondehub.fimaxage = 2;
-	// auto upgrade config to new version with format arguments in string
-	if(!strchr(sonde.config.ephftp,'%')) strcpy(sonde.config.ephftp,DEFEPH);
-	// $ not supported for now...
-	if(strchr(sonde.config.ephftp,'$')) strcpy(sonde.config.ephftp,DEFEPH);
+	// legacy ephftp: old-style %04d/%03d/%02d → replace with new default ($Y $D $y)
+	if(!strchr(sonde.config.ephftp,'$')) strcpy(sonde.config.ephftp,DEFEPH);
 	switch(strlen(config.beaconsym)) {
 		case 0: case 1:
 			strcpy(config.beaconsym,"/`/("); // default: dish antenne, mobile sat station
