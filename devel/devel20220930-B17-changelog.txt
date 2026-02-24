@@ -1,2 +1,0 @@
-set dhcp dns name to mdns name; preparation of configurable map link (dl2mf merge)
-gps from apk: 0/0 as invalid pos

@@ -1,1 +1,0 @@
-M10: fix serial number: consistent with M20 (with dashes), consistent with autorx

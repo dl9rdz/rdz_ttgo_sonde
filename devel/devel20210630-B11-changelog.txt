@@ -1,4 +1,0 @@
-more robust GPS reset, using clear+load CFG
-Fix SondeHub tracker link in web interface (#102)
-
-When we switched to the new interface the previous URL structure broke so I have updated it here

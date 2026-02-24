@@ -1,1 +1,0 @@
-fix horizontal speed value (was wrong for all except RS41)

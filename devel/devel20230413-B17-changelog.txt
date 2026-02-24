@@ -1,1 +1,0 @@
-Experimental: Modified DFM handling (DFM17 vs DFM09P for 0xC), untested 

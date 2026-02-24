@@ -1,1 +1,0 @@
-SPI locking and sx1278 configurability

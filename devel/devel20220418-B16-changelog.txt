@@ -1,2 +1,0 @@
-experimental: display screen saver (auto-off)
-Selectable livemap themes (#258)

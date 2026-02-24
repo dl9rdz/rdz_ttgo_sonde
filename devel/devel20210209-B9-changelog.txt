@@ -1,1 +1,0 @@
-detect rdzclient timeout and disconnect from app

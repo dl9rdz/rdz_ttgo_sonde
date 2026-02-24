@@ -1,4 +1,0 @@
-DFM: check for bit errors
-; dfm +temp, +bat
-increase upper bound on distance in sondehub import
-README update

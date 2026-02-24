@@ -1,2 +1,0 @@
-fix AXP2101 battery voltage
-fix AXP2101 battery voltage

@@ -1,3 +1,0 @@
-+ config upload/download tool
-+ config upload/download tool: --ttgo=<ip> option
-Update readme with installation instructions

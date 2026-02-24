@@ -1,1 +1,0 @@
-partial mp3h1, and (maybe) fix travis for esp 1.0.6

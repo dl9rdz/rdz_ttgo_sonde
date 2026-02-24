@@ -1,2 +1,0 @@
-GPS Support
-minor polishing of pull request for sondehub chase mode

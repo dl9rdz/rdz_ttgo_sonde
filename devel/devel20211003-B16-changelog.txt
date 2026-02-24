@@ -1,2 +1,0 @@
-mqtt clientid done right
-mqtt clientid done right (+no space in id)

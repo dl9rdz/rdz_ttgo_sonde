@@ -1,1 +1,0 @@
-support development with platformio (in addition to Arduino IDE)

@@ -1,1 +1,0 @@
-check M20 crc first, before decoding serial number

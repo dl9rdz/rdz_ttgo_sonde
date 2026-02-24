@@ -1,1 +1,0 @@
-GPS for Livemap tentative bugfix (not tested)
