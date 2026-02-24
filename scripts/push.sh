@@ -10,67 +10,216 @@ FULLIMG=${MYPATH}/.pio/build/ttgo-lora32/firmware-image.bin
 UPDIMG=${MYPATH}/.pio/build/ttgo-lora32/firmware.bin
 
 setup_git() {
-  git config --global user.email "dl9rdz@darc.de"
-  git config --global user.name "dl9rdz (via automated build)"
   GITHUB_API_KEY=`cat ~/.github.api.key`
 }
 generate_website_index() {
-  echo "<html><head>" > download.html
-  echo "<meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">" >> download.html
-  echo "<title>rdz_ttgo_sonde</title>" >> download.html
-  echo '<link rel="stylesheet" href="/assets/css/style.css?v=a43710928bb200926b87aed147b540673ccb0378">' >> download.html
-  echo "</head><body>" >> download.html
-  echo '<div class="wrapper"><header><h1><a href="https://dl9rdz.github.io/rdz_ttgo_sonde/">rdz_ttgo_sonde</a></h1><p></p>' >> download.html
-  echo '<p class="view"><a href="https://github.com/dl9rdz/rdz_ttgo_sonde">View the Project on GitHub <small>dl9rdz/rdz_ttgo_sonde</small></a></p>' >> download.html
-  echo '</header><section><h1 id="rdz_ttgo_sonde">rdz_ttgo_sonde</h1>' >> download.html
+  #local template="${MYPATH}/rdzsonde-web/download-template.html"
+  local template="_download-template.html"
+  local main_rows=$(mktemp)
+  local dev_rows=$(mktemp)
+  local legacy_section=$(mktemp)
+  trap "rm -f '$main_rows' '$dev_rows' '$legacy_section'" EXIT
 
-  echo "<h2>Main repository (future...)</h2><ul>" >> download.html
-  for i in `ls main|sort -r|grep -v update-info`; do
-    TS=`git log main/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
-    if [ -z "$TS" ]; then TS=`date`; fi
-    echo -e "<li><a href=\"main/$i\">$i</a> ($TS)</li>\n" >> download.html
-  done
-  echo "</ul>" >> download.html
-  echo "<h2>Development repository (dev2)</h2><ul>" >> download.html
-  for i in `ls dev2|sort -r|grep "\.bin"`; do
-    TS=`git log dev2/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
-    if [ -z "$TS" ]; then TS=`date`; fi
-    VERS=`basename $i -full.bin`
-    CL=$(awk '{printf "%s; ", $0}' dev2/${VERS}-changelog.txt 2>/dev/null)
-    echo "VERS $VERS: CL $CL"
-    echo "<li><a href=\"dev2/$i\">$i</a> ($TS)" >> download.html
-    if [ -n "${CL}" ]; then echo "<br>${CL%??}" >> download.html; fi
-    echo -e "</li>\n" >> download.html
-  done
-  echo "</ul>" >> download.html
+  # MAIN_ROWS: one <tbody> per version so version + changelog share same stripe
+  local first=1
+  for f in $(ls main/*-full.bin 2>/dev/null | sort -r); do
+    local vers=$(basename "$f" -full.bin)
+    local ts=$(git log -1 --format="%ad" --date=format:"%b %d %H:%M:%S %Y" -- "main/$vers-full.bin" 2>/dev/null)
 
-  echo "<h2>Master repository (old IDF environment)</h2><ul>" >> download.html
-  for i in `ls master|sort -r|grep -v update-info`; do
-    TS=`git log master/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
-    if [ -z "$TS" ]; then TS=`date`; fi
-    echo -e "<li><a href=\"master/$i\">$i</a> ($TS)</li>\n" >> download.html;
+    # Build changelog snippet from up to 3 lines:
+    # join with "; " unless the previous line already ends with punctuation.
+    local cl=""
+    local prev_raw=""
+    local i=0
+    if [ -f "main/${vers}-changelog.txt" ]; then
+      while IFS= read -r line && [ "$i" -lt 5 ]; do
+        i=$((i + 1))
+        # HTML-escape each line
+        local esc
+        esc=$(printf '%s' "$line" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/\"/\&quot;/g')
+        if [ -z "$cl" ]; then
+          cl="$esc"
+        else
+          if printf '%s' "$prev_raw" | grep -qE '[.!?:;]$'; then
+            cl="${cl} $esc"
+          else
+            cl="${cl}; $esc"
+          fi
+        fi
+        prev_raw="$line"
+      done < "main/${vers}-changelog.txt"
+    fi
+
+    local meta_text=""; [ -n "$ts" ] && meta_text="$ts"; [ -n "$cl" ] && meta_text="${meta_text:+$meta_text }$cl"
+    {
+      echo "                <tbody>"
+      echo "                  <tr>"
+      echo "                    <td><code>$vers</code></td>"
+      echo "                    <td>"
+      echo "                      <span class=\"badge badge-type-full\">Full image</span>"
+      echo "                    </td>"
+      echo "                    <td>"
+      echo "                      <a href=\"main/$vers-full.bin\">$vers-full.bin</a>"
+      echo "                    </td>"
+      echo "                  </tr>"
+      if [ -n "$meta_text" ]; then
+        echo "                  <tr class=\"download-meta-row\">"
+        echo "                    <td colspan=\"3\"><small class=\"download-meta\">$meta_text</small></td>"
+        echo "                  </tr>"
+      fi
+      if [ "$first" = 1 ]; then
+        if [ -f main/update.ino.bin ]; then
+          echo "                  <tr>"
+          echo "                    <td><code>$vers</code></td>"
+          echo "                    <td>"
+          echo "                      <span class=\"badge badge-type-update\">Code update</span>"
+          echo "                    </td>"
+          echo "                    <td>"
+          echo "                      <a href=\"main/update.ino.bin\">update.ino.bin</a>"
+          echo "                    </td>"
+          echo "                  </tr>"
+        fi
+        if [ -f main/update.fs.bin ]; then
+          echo "                  <tr>"
+          echo "                    <td><code>$vers</code></td>"
+          echo "                    <td>"
+          echo "                      <span class=\"badge badge-type-update\">Filesystem update</span>"
+          echo "                    </td>"
+          echo "                    <td>"
+          echo "                      <a href=\"main/update.fs.bin\">update.fs.bin</a>"
+          echo "                    </td>"
+          echo "                  </tr>"
+        fi
+        first=0
+      fi
+      echo "                </tbody>"
+    } >> "$main_rows"
   done
-  echo "</ul><h2>Development repository (old IDF environment)</h2><ul>" >> download.html
-  for i in `ls devel|sort -r|grep "\.bin"`; do
-    TS=`git log devel/$i | grep "Date:" | head -1 | awk '{$1="";$2="";$7="";print substr($0,3,length($0)-3)}'`
-    if [ -z "$TS" ]; then TS=`date`; fi
-    VERS=`basename $i -full.bin`
-    CL=`cat devel/${VERS}-changelog.txt 2>/dev/null`
-    echo "VERS $VERS: CL $CL"
-    echo "<li><a href=\"devel/$i\">$i</a> ($TS)" >> download.html
-    if [ -n "${CL}" ]; then echo "<br>${CL}" >> download.html; fi
-    echo -e "</li>\n" >> download.html
+
+  # DEV_ROWS: one <tbody> per version so version + changelog share same stripe
+  first=1
+  for f in $(ls dev2/*-full.bin 2>/dev/null | sort -r); do
+    vers=$(basename "$f" -full.bin)
+    ts=$(git log -1 --format="%ad" --date=format:"%b %d %H:%M:%S %Y" -- "dev2/$vers-full.bin" 2>/dev/null)
+
+    # Same changelog joining rules for dev builds
+    cl=""
+    prev_raw=""
+    i=0
+    if [ -f "dev2/${vers}-changelog.txt" ]; then
+      while IFS= read -r line && [ "$i" -lt 3 ]; do
+        i=$((i + 1))
+        esc=$(printf '%s' "$line" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/\"/\&quot;/g')
+        if [ -z "$cl" ]; then
+          cl="$esc"
+        else
+          if printf '%s' "$prev_raw" | grep -qE '[.!?:;]$'; then
+            cl="${cl} $esc"
+          else
+            cl="${cl}; $esc"
+          fi
+        fi
+        prev_raw="$line"
+      done < "dev2/${vers}-changelog.txt"
+    fi
+
+    meta_text=""; [ -n "$ts" ] && meta_text="$ts"; [ -n "$cl" ] && meta_text="${meta_text:+$meta_text }$cl"
+    {
+      echo "                <tbody>"
+      echo "                  <tr>"
+      echo "                    <td><code>$vers</code></td>"
+      echo "                    <td>"
+      echo "                      <span class=\"badge badge-type-full\">Full image</span>"
+      echo "                    </td>"
+      echo "                    <td>"
+      echo "                      <a href=\"dev2/$vers-full.bin\">$vers-full.bin</a>"
+      echo "                    </td>"
+      echo "                  </tr>"
+      if [ -n "$meta_text" ]; then
+        echo "                  <tr class=\"download-meta-row\">"
+        echo "                    <td colspan=\"3\"><small class=\"download-meta\">$meta_text</small></td>"
+        echo "                  </tr>"
+      fi
+      if [ "$first" = 1 ]; then
+        if [ -f dev2/update.ino.bin ]; then
+          echo "                  <tr>"
+          echo "                    <td><code>$vers</code></td>"
+          echo "                    <td>"
+          echo "                      <span class=\"badge badge-type-update\">Code update</span>"
+          echo "                    </td>"
+          echo "                    <td>"
+          echo "                      <a href=\"dev2/update.ino.bin\">update.ino.bin</a>"
+          echo "                    </td>"
+          echo "                  </tr>"
+        fi
+        if [ -f dev2/update.fs.bin ]; then
+          echo "                  <tr>"
+          echo "                    <td><code>$vers</code></td>"
+          echo "                    <td>"
+          echo "                      <span class=\"badge badge-type-update\">Filesystem update</span>"
+          echo "                    </td>"
+          echo "                    <td>"
+          echo "                      <a href=\"dev2/update.fs.bin\">update.fs.bin</a>"
+          echo "                    </td>"
+          echo "                  </tr>"
+        fi
+        first=0
+      fi
+      echo "                </tbody>"
+    } >> "$dev_rows"
   done
-  echo "</ul>
-  <br>
-  <p>Last latter/number of version number indicate SPI LittleFS file system version. If the first (upper-case)
-   letter has changed, then this version is incompabible with prevision versions and you have to flash
-   the full image. If the second part (number) has changed, then this version has some changes
-   (e.g. internal web page layout, LCD/TFT display layout) in the file system which you will not get with
-   a code-only (OTA or flashing update.bin) update, but it should not break anything.</p>
-   </section></body></html>" >> download.html
+
+  # LEGACY_SECTION: latest from master and devel only, with EOL note
+  {
+    echo "        <section class=\"section\">"
+    echo "          <div class=\"section-header\">"
+    echo "            <div>"
+    echo "              <h2 class=\"section-title\">Legacy builds</h2>"
+    echo "              <p class=\"section-lead\">"
+    echo "                Legacy builds for the old IDF environment. These are end-of-life and no longer updated; please use stable or development builds above for new deployments."
+    echo "              </p>"
+    echo "            </div>"
+    echo "          </div>"
+    echo "          <div class=\"table-scroll\">"
+    echo "            <div class=\"table-scroll-inner\">"
+    echo "              <table class=\"data-table\">"
+    echo "                <thead>"
+    echo "                  <tr>"
+    echo "                    <th>Version</th>"
+    echo "                    <th>Type</th>"
+    echo "                    <th>Download</th>"
+    echo "                  </tr>"
+    echo "                </thead>"
+    for dir in master devel; do
+      [ ! -d "$dir" ] && continue
+      latest_path=$(ls "$dir"/*-full.bin 2>/dev/null | sort -r | head -1)
+      [ -z "$latest_path" ] && continue
+      latest=$(basename "$latest_path")
+      vers=$(echo "$latest" | sed 's/-full\.bin$//')
+      ts=$(git log -1 --format="%ad" --date=format:"%b %d %H:%M:%S %Y" -- "$latest_path" 2>/dev/null)
+      meta=""; [ -n "$ts" ] && meta="<br><small class=\"download-meta\">$ts</small>"
+      echo "                <tbody>"
+      echo "                  <tr>"
+      echo "                    <td><code>$vers</code>$meta</td>"
+      echo "                    <td><span class=\"badge badge-type-full\">Full image</span></td>"
+      echo "                    <td><a href=\"$dir/$latest\">$latest</a></td>"
+      echo "                  </tr>"
+      echo "                </tbody>"
+    done
+    echo "              </table>"
+    echo "            </div>"
+    echo "          </div>"
+    echo "        </section>"
+  } >> "$legacy_section"
+
+  # Merge template + generated content into download.html
+  sed -e "/%%MAIN_ROWS%%/r $main_rows" -e "/%%MAIN_ROWS%%/d" \
+      -e "/%%DEV_ROWS%%/r $dev_rows" -e "/%%DEV_ROWS%%/d" \
+      -e "/%%LEGACY_SECTION%%/r $legacy_section" -e "/%%LEGACY_SECTION%%/d" \
+      "$template" > download.html
+
   git add download.html
-  git commit --amend --message "Build @ `date`"
+  git commit --amend --message "Build @ $(date)"
 }
 update_json_file() {
     local json_file="$1"
@@ -105,6 +254,8 @@ commit_website_files() {
   cd /tmp
   git clone https://${GITHUB_API_KEY}@github.com/dl9rdz/rdz_ttgo_sonde.git -b gh-pages
   cd rdz_ttgo_sonde
+  git config user.email "dl9rdz@darc.de"
+  git config user.name "dl9rdz (via automated build)"
   git pull
   mkdir -p master
   mkdir -p devel
@@ -128,7 +279,17 @@ upload_files() {
   git push
 }
 
+# Optional: --nopush skips "git push" (for local testing)
+NOPUSH=
+for arg in "$@"; do
+  [ "$arg" = "--nopush" ] && NOPUSH=1
+done
+
 setup_git
 commit_website_files
 generate_website_index
-upload_files
+if [ -z "$NOPUSH" ]; then
+  upload_files
+else
+  echo "Skipping git push (--nopush)."
+fi
