@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <link rel="icon" href="img/rdzttgosonde.png" type="image/png" />
+    <title>rdzTTGOsonde · Overview</title>
+    <link
+      rel="stylesheet"
+      href="assets/css/style.css?v=1"
+    />
+    <script src="assets/js/main.js" defer></script>
+  </head>
+  <body class="page-root">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a href="index.html" class="brand">
+          <span class="brand-mark">
+            <img src="img/rdzttgosonde.png" alt="" width="28" height="28" />
+          </span>
+          <span class="brand-text">
+            <span class="brand-title">rdzTTGOsonde</span>
+            <span class="brand-subtitle">ESP32 radiosonde receiver</span>
+          </span>
+        </a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+          data-nav-toggle
+        >
+          ☰
+        </button>
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html" class="nav-active">Overview</a>
+          <a href="install.html">Installation</a>
+          <a href="download.html">Downloads</a>
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/wiki">Documentation</a>
+        </nav>
+        <div class="header-actions">
+          <a
+            href="https://github.com/dl9rdz/rdz_ttgo_sonde"
+            class="btn btn-primary"
+            >View on GitHub</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="page-shell">
+        <section class="hero">
+          <div class="hero-grid">
+            <div>
+              <div class="eyebrow">
+                <span class="eyebrow-dot"></span>
+                Stand‑alone ESP32 radiosonde receiver
+              </div>
+              <h1 class="hero-title">
+                <span class="accent">rdzTTGOsonde</span> – ESP32‑based radiosonde
+                receiver.
+              </h1>
+              <p class="hero-lead">
+                Standalone ESP32/SX127x‑based radiosonde receiver with integrated
+                web UI – for portable chases and fixed stations.
+              </p>
+              <div class="hero-actions">
+                <a href="install.html" class="btn btn-primary">Installation guide</a>
+                <a href="download.html" class="btn btn-ghost">Download firmware</a>
+              </div>
+            </div>
+            <aside class="hero-card" aria-label="Deployment gallery">
+              <div class="hero-carousel-track" data-carousel>
+                <!-- To add a slide: copy one block below; set src to assets/img/gallery/YourFile.jpg and caption text. -->
+                <div class="hero-carousel-slide">
+                  <div class="hero-carousel-frame">
+                    <img src="assets/img/gallery/01-esp32-cyd-sx1278.jpg" alt="ESP32 CYD with external SX1278" loading="lazy" />
+                  </div>
+                  <div class="hero-carousel-caption">ESP32 CYD + extern SX1278</div>
+                </div>
+                <div class="hero-carousel-slide">
+                  <div class="hero-carousel-frame">
+                    <img src="assets/img/gallery/02-m5stack.jpg" alt="M5Stack" loading="lazy" />
+                  </div>
+                  <div class="hero-carousel-caption">M5Stack Core2 with GPS and LoRa unit</div>
+                </div>
+                <div class="hero-carousel-slide">
+                  <div class="hero-carousel-frame">
+                    <img src="assets/img/gallery/03-esp32-tft.jpg" alt="ESP32 with 2.4&quot; TFT display" loading="lazy" />
+                  </div>
+                  <div class="hero-carousel-caption">ESP32 + 2.4&quot; TFT display</div>
+                </div>
+                <div class="hero-carousel-slide">
+                  <div class="hero-carousel-frame">
+                    <img src="assets/img/gallery/04-esp32-oled.jpg" alt="ESP32 with 0.96&quot; OLED on board" loading="lazy" />
+                  </div>
+                  <div class="hero-carousel-caption">TTGO LoRa32 V2.1_1.6 with 0.96&quot; OLED</div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Why rdzTTGOsonde?</h2>
+              <p class="section-lead">
+                Built for radiosonde enthusiasts, with a focus on
+                practical use in the field and easy integration into tooling.
+		Decodes RS41, RS92, M10, M20, DFM6/9/17, MP3-H1.  Since 2019.
+              </p>
+            </div>
+          </div>
+          <div class="grid">
+            <article class="card">
+              <h3 class="card-title">Standalone device</h3>
+              <ul class="card-list">
+                <li>Runs entirely on ESP32 + SX127x</li>
+                <li>For portable and stationary use</li>
+                <li>Integrated web UI</li>
+                <li>WiFi connectivity</li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3 class="card-title">User interfaces</h3>
+              <ul class="card-list">
+                <li>Integrated map view in web UI</li>
+                <li>Dedicated Android app <code><a href="https://github.com/dl9rdz/rdzwx-go">rdzSonde</a></code></li>
+                <li>Coming soon: iPhone app</li>
+                <li><a href="https://github.com/oe5hpm/dxlAPRS">aprsmap</a> on Windows, Linux, and macOS</li>
+                <li><a href="https://github.com/projecthorus/chasemapper">Chasemapper</a></li>
+              </ul>
+            </article>
+            <article class="card">
+              <h3 class="card-title">Data backends</h3>
+              <p class="card-subtitle" style="margin: 0 0 0.5rem 0;">Data can be sent directly from the ESP32 to:</p>
+              <ul class="card-list">
+                <li>APRS (<a href="https://radiosondy.info/">radiosondy</a> etc)</li>
+                <li><a href="https://sondehub.org/">Sondehub</a></li>
+                <li>MQTT</li>
+                <li>…and more</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Source code and documentation</h2>
+              <p class="section-lead">
+                All development, documentation, and issue tracking on
+                GitHub.
+              </p>
+            </div>
+          </div>
+          <div class="grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">GitHub repository</div>
+                  <div class="card-subtitle">
+                    Source, issues, pull requests, and documentation.
+                  </div>
+                </div>
+              </div>
+              <ul class="clean">
+                <li>
+                  Main repo:
+                  <a href="https://github.com/dl9rdz/rdz_ttgo_sonde"
+                    >dl9rdz/rdz_ttgo_sonde</a
+                  >
+                </li>
+                <li>
+                  Documentation in
+                  <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/wiki"
+                    >dl9rdz/rdz_ttgo_sonde/wiki</a
+                  >
+                </li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>
+          rdzTTGOsonde firmware by
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">dl9rdz</a> & contributors
+        </span>
+      </div>
+    </footer>
+
+  </body>
+</html>
+

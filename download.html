@@ -1,895 +1,703 @@
-<html><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>rdz_ttgo_sonde</title>
-<link rel="stylesheet" href="/assets/css/style.css?v=a43710928bb200926b87aed147b540673ccb0378">
-</head><body>
-<div class="wrapper"><header><h1><a href="https://dl9rdz.github.io/rdz_ttgo_sonde/">rdz_ttgo_sonde</a></h1><p></p>
-<p class="view"><a href="https://github.com/dl9rdz/rdz_ttgo_sonde">View the Project on GitHub <small>dl9rdz/rdz_ttgo_sonde</small></a></p>
-</header><section><h1 id="rdz_ttgo_sonde">rdz_ttgo_sonde</h1>
-<h2>Main repository (future...)</h2><ul>
-<li><a href="main/update.ino.bin">update.ino.bin</a> (Jul 10 02:21:39 2025)</li>
-
-<li><a href="main/update.fs.bin">update.fs.bin</a> (Jul 10 02:21:39 2025)</li>
-
-<li><a href="main/main0.98-C3-full.bin">main0.98-C3-full.bin</a> (Jul 10 02:21:39 2025)</li>
-
-<li><a href="main/main0.98-C3-changelog.txt">main0.98-C3-changelog.txt</a> (Jul 10 02:21:39 2025)</li>
-
-</ul>
-<h2>Development repository (dev2)</h2><ul>
-<li><a href="dev2/update.ino.bin">update.ino.bin</a> (Feb 21 15:32:17 2026)
-</li>
-
-<li><a href="dev2/update.fs.bin">update.fs.bin</a> (Feb 19 04:07:49 2026)
-</li>
-
-<li><a href="dev2/dev20260221-C3-full.bin">dev20260221-C3-full.bin</a> (Feb 21 15:32:17 2026)
-<br>version update; modified flexible url handling for rinex
-</li>
-
-<li><a href="dev2/dev20260219-C3-full.bin">dev20260219-C3-full.bin</a> (Feb 20 19:04:52 2026)
-<br>mqtt: last will topic must not be on stack, it will be used later asynchronously.; sdcard: proper flush
-</li>
-
-<li><a href="dev2/dev20260218-C3-full.bin">dev20260218-C3-full.bin</a> (Feb 19 04:07:49 2026)
-<br>sdcard subdir handling per month and newer idf version
-</li>
-
-<li><a href="dev2/dev20251120-C3-full.bin">dev20251120-C3-full.bin</a> (Nov 21 00:21:25 2025)
-<br>fix stupid bug that broke display handling on M5 Core / Core2; fix mqtt problem #553; fix mqtt problem #553
-</li>
-
-<li><a href="dev2/dev20250822-C3-full.bin">dev20250822-C3-full.bin</a> (Aug 23 03:24:17 2025)
-<br>large scanner for large TFT display (4")
-</li>
-
-<li><a href="dev2/dev20250523b-C3-full.bin">dev20250523b-C3-full.bin</a> (Jul 9 16:25:44 2025)
-<br>re-generate image
-</li>
-
-<li><a href="dev2/dev20250523-C3-full.bin">dev20250523-C3-full.bin</a> (May 24 02:41:04 2025)
-<br>added function for formatting SD card;
-</li>
-
-<li><a href="dev2/dev20250516-C3-full.bin">dev20250516-C3-full.bin</a> (May 17 03:15:26 2025)
-<br>added support for ST7796S (untested)
-</li>
-
-<li><a href="dev2/dev20250506-C3-full.bin">dev20250506-C3-full.bin</a> (May 6 16:50:04 2025)
-<br>posinfo update - always use GPS if no fixed position is defined
-</li>
-
-<li><a href="dev2/dev20250504-C3-full.bin">dev20250504-C3-full.bin</a> (May 4 22:29:22 2025)
-<br>use rx time stamp for prediction (fix #490)
-</li>
-
-<li><a href="dev2/dev20250401-C3-full.bin">dev20250401-C3-full.bin</a> (Apr 1 18:58:46 2025)
-<br>DFM update
-</li>
-
-<li><a href="dev2/dev20250218-C3-full.bin">dev20250218-C3-full.bin</a> (Feb 18 18:59:02 2025)
-<br>added M20 voltage
-</li>
-
-<li><a href="dev2/dev20250210-C3-full.bin">dev20250210-C3-full.bin</a> (Feb 11 23:45:17 2025)
-<br>make sh import without sh enabled work again
-</li>
-
-<li><a href="dev2/dev20250208-C3-full.bin">dev20250208-C3-full.bin</a> (Feb 8 18:55:04 2025)
-<br>get time right (utc vs gps time); fix merge error
-</li>
-
-<li><a href="dev2/dev20250205-C3-full.bin">dev20250205-C3-full.bin</a> (Feb 5 18:25:57 2025)
-<br>tentative update for new RS41 version, untested
-</li>
-
-<li><a href="dev2/dev20250108-C3-full.bin">dev20250108-C3-full.bin</a> (Jan 8 11:05:17 2025)
-<br>remove possible startup crash cause
-</li>
-
-<li><a href="dev2/dev20241229-C3-full.bin">dev20241229-C3-full.bin</a> (Jan 1 11:40:27 2025)
-<br>update push script; update push script
-</li>
-
-<li><a href="dev2/dev20241225-C3-full.bin">dev20241225-C3-full.bin</a> (Dec 29 20:58:06 2024)
-<br>update push script; update push script
-</li>
-
-<li><a href="dev2/dev20241222-C3-full.bin">dev20241222-C3-full.bin</a> (Dec 22 14:25:02 2024)
-<br>local http updates for development; local http updates for development; update push script
-</li>
-
-<li><a href="dev2/dev20241209-C3-full.bin">dev20241209-C3-full.bin</a> (Dec 10 13:52:08 2024)
-<br>DNS debug code added
-</li>
-
-<li><a href="dev2/dev20241002-C3-full.bin">dev20241002-C3-full.bin</a> (Oct 3 00:23:26 2024)
-<br>tentative fix for iOS
-</li>
-
-<li><a href="dev2/dev20240924-C3-full.bin">dev20240924-C3-full.bin</a> (Sep 24 03:55:28 2024)
-<br>some webserial support
-</li>
-
-<li><a href="dev2/dev20240913-C3-full.bin">dev20240913-C3-full.bin</a> (Sep 14 01:44:42 2024)
-<br>sh import re-enabeld
-</li>
-
-<li><a href="dev2/dev20240912-C3-full.bin">dev20240912-C3-full.bin</a> (Sep 13 13:28:48 2024)
-<br> push script enhancements; undo accidental wifi default mode change
-</li>
-
-<li><a href="dev2/dev20240905b-C3-full.bin">dev20240905b-C3-full.bin</a> (Sep 8 16:42:41 2024)
-<br> wifi, take 2;  push script enhancements;  push script enhancements
-</li>
-
-<li><a href="dev2/dev20240905-C3-full.bin">dev20240905-C3-full.bin</a> (Sep 5 16:36:15 2024)
-<br>minor wifi reconnect change
-</li>
-
-<li><a href="dev2/dev20240903-C3-full.bin">dev20240903-C3-full.bin</a> (Sep 3 10:20:12 2024)
-<br>sondehub dfm vs version number workaounrd
-</li>
-
-<li><a href="dev2/dev20240901gps-C3-full.bin">dev20240901gps-C3-full.bin</a> (Sep 2 20:53:03 2024)
-<br>more GPS test code -- last nmea on status; last position NMEA in status
-</li>
-
-<li><a href="dev2/dev20240824gps-C3-full.bin">dev20240824gps-C3-full.bin</a> (Aug 30 00:10:31 2024)
-<br>gps debug info
-</li>
-
-<li><a href="dev2/dev20240824-C3-full.bin">dev20240824-C3-full.bin</a> (Aug 24 21:31:09 2024)
-<br>WiFi enhancement: wait for IP address; fix message about space on SD card
-</li>
-
-<li><a href="dev2/dev20240822-C3-full.bin">dev20240822-C3-full.bin</a> (Aug 22 23:52:56 2024)
-<br>TFT fonts fix
-</li>
-
-<li><a href="dev2/dev20240817-C2-full.bin">dev20240817-C2-full.bin</a> (Aug 18 18:03:05 2024)
-<br>add V_batt in status, gps fix, pin check in config form
-</li>
-
-<li><a href="dev2/dev20240815-C1-full.bin">dev20240815-C1-full.bin</a> (Aug 16 02:32:23 2024)
-<br>version update; bugfix
-</li>
-
-<li><a href="dev2/dev20240814-C1-full.bin">dev20240814-C1-full.bin</a> (Aug 16 02:16:25 2024)
-<br>more status tab refinements; minor bug fixes; minor fixes; SH connector reorg -> make it asynchronous; ; fixed
-</li>
-
-<li><a href="dev2/dev20240813-C0-full.bin">dev20240813-C0-full.bin</a> (Aug 14 12:19:54 2024)
-<br>sdcard and about tab refinements
-</li>
-
-<li><a href="dev2/dev20240812-C0-full.bin">dev20240812-C0-full.bin</a> (Aug 13 00:48:22 2024)
-<br>upgrade to new IDF / arduino version;  more refinements;  more refinements; don't send aprs position if disabled in config; avoid race conditions on DOM load (aprs symbol display)
-</li>
-
-</ul>
-<h2>Master repository (old IDF environment)</h2><ul>
-<li><a href="master/update.ino.bin">update.ino.bin</a> (Aug 4 17:23:21 2024)</li>
-
-<li><a href="master/update.fs.bin">update.fs.bin</a> (Aug 4 17:23:21 2024)</li>
-
-<li><a href="master/master_v0.9.5-B17-full.bin">master_v0.9.5-B17-full.bin</a> (Aug 4 17:23:21 2024)</li>
-
-<li><a href="master/master_v0.9.5-B17-changelog.txt">master_v0.9.5-B17-changelog.txt</a> (Aug 4 17:23:21 2024)</li>
-
-<li><a href="master/master_v0.9.4-B17-full.bin">master_v0.9.4-B17-full.bin</a> (Jan 7 12:50:49 2024)</li>
-
-<li><a href="master/master_v0.9.4-B17-changelog.txt">master_v0.9.4-B17-changelog.txt</a> (Jan 7 12:50:49 2024)</li>
-
-<li><a href="master/master_v0.9.3-B17-full.bin">master_v0.9.3-B17-full.bin</a> (Jul 9 10:20:50 2023)</li>
-
-<li><a href="master/master_v0.9.3-B17-changelog.txt">master_v0.9.3-B17-changelog.txt</a> (Jul 9 10:20:50 2023)</li>
-
-<li><a href="master/master_v0.9.2-B16-full.bin">master_v0.9.2-B16-full.bin</a> (Sep 24 22:40:15 2022)</li>
-
-<li><a href="master/master_v0.9.2-B16-changelog.txt">master_v0.9.2-B16-changelog.txt</a> (Sep 24 22:40:15 2022)</li>
-
-<li><a href="master/master_v0.9.1-B16-full.bin">master_v0.9.1-B16-full.bin</a> (Jan 23 23:40:42 2022)</li>
-
-<li><a href="master/master_v0.9.1-B16-changelog.txt">master_v0.9.1-B16-changelog.txt</a> (Jan 23 23:40:42 2022)</li>
-
-<li><a href="master/master_v0.9.0-B16-full.bin">master_v0.9.0-B16-full.bin</a> (Oct 7 19:56:22 2021)</li>
-
-<li><a href="master/master_v0.9.0-B16-changelog.txt">master_v0.9.0-B16-changelog.txt</a> (Oct 7 19:56:22 2021)</li>
-
-<li><a href="master/master_v0.8.0-B4-full.bin">master_v0.8.0-B4-full.bin</a> (Nov 11 07:51:45 2020)</li>
-
-<li><a href="master/master_v0.7.1-full.bin">master_v0.7.1-full.bin</a> (Jun 24 17:43:56 2020)</li>
-
-<li><a href="master/master_v0.7.0-full.bin">master_v0.7.0-full.bin</a> (Sep 9 16:26:41 2019)</li>
-
-<li><a href="master/master_v0.6c-full.bin">master_v0.6c-full.bin</a> (May 9 11:11:24 2019)</li>
-
-<li><a href="master/master_v0.6b-full.bin">master_v0.6b-full.bin</a> (May 3 12:16:57 2019)</li>
-
-<li><a href="master/master_v0.6a-full.bin">master_v0.6a-full.bin</a> (Apr 29 21:03:35 2019)</li>
-
-</ul><h2>Development repository (old IDF environment)</h2><ul>
-<li><a href="devel/update.ino.bin">update.ino.bin</a> (May 21 02:09:35 2024)
-</li>
-
-<li><a href="devel/update.fs.bin">update.fs.bin</a> (May 16 21:33:52 2024)
-</li>
-
-<li><a href="devel/test-st7789-0x10000.bin">test-st7789-0x10000.bin</a> (May 28 22:13:03 2022)
-</li>
-
-<li><a href="devel/devel20240521-B17-full.bin">devel20240521-B17-full.bin</a> (May 21 02:09:35 2024)
-<br>DFM with max chan 0xA: use polarity to decided if DFM17 or DFM09
-</li>
-
-<li><a href="devel/devel20240514-B17-full.bin">devel20240514-B17-full.bin</a> (May 16 21:33:52 2024)
-<br>fix AXP2101 battery voltage
-fix AXP2101 battery voltage
-</li>
-
-<li><a href="devel/devel20240316-B17-full.bin">devel20240316-B17-full.bin</a> (Apr 7 09:39:49 2024)
-<br>include for mqtt corrected
-M20 vframe based on GPS time, consistent with autorx, fix #322
-</li>
-
-<li><a href="devel/devel20240225-B17-full.bin">devel20240225-B17-full.bin</a> (Feb 25 13:41:24 2024)
-<br>Prevent reporting old RS41 on some bad frames
-</li>
-
-<li><a href="devel/devel20240209-B17-full.bin">devel20240209-B17-full.bin</a> (Feb 18 11:59:25 2024)
-<br>RS41 update for sats==0
-</li>
-
-<li><a href="devel/devel20240116-B17-full.bin">devel20240116-B17-full.bin</a> (Feb 18 11:49:23 2024)
-<br>pio back to 3.3.2 - later version introduce different partitioning scheme, need to update in sync with Arduino
-</li>
-
-<li><a href="devel/devel20240110-B17-full.bin">devel20240110-B17-full.bin</a> (Jan 10 22:11:02 2024)
-<br>GPS for Livemap tentative bugfix (not tested)
-</li>
-
-<li><a href="devel/devel20240107-B17-full.bin">devel20240107-B17-full.bin</a> (Jan 7 22:38:07 2024)
-<br>Enhanced WiFi setup
-</li>
-
-<li><a href="devel/devel20231212-B17-full.bin">devel20231212-B17-full.bin</a> (Jan 7 13:10:50 2024)
-<br>tentative fix of M20 misclassification as M10 (untested)
-devel version (no changes)
-new devel based on master0.9.4
-</li>
-
-<li><a href="devel/devel20231203-B17-full.bin">devel20231203-B17-full.bin</a> (Dec 3 22:53:21 2023)
-<br>T-Beam 1.2: charge battery fix
-reduce image size with platformio builds, make it (almost) same as for Arduino builds
-</li>
-
-<li><a href="devel/devel20231110-B17-full.bin">devel20231110-B17-full.bin</a> (Nov 10 09:47:19 2023)
-<br>chasemapper: id format with type, as in auto_rx
-</li>
-
-<li><a href="devel/devel20230829-B17-full.bin">devel20230829-B17-full.bin</a> (Aug 29 20:52:45 2023)
-<br>fix travis build / wget issue with github
-more explanation in About tabw
-</li>
-
-<li><a href="devel/devel20230828b-B17-full.bin">devel20230828b-B17-full.bin</a> (Aug 28 12:39:29 2023)
-<br>bugfix (APX2101 related)
-AXP2101: add missing irq handler
-</li>
-
-<li><a href="devel/devel20230828-B17-full.bin">devel20230828-B17-full.bin</a> (Aug 28 10:35:55 2023)
-<br>fix
-</li>
-
-<li><a href="devel/devel20230822-B17-full.bin">devel20230822-B17-full.bin</a> (Aug 22 22:34:42 2023)
-<br>fix posInfo bug; aprs timeout convert seconds to ms
-</li>
-
-<li><a href="devel/devel20230819-B17-full.bin">devel20230819-B17-full.bin</a> (Aug 19 10:55:46 2023)
-<br>(sync with master)
-some code reorganization, preliminary SD card code (not active)
-APRS timeout added
-</li>
-
-<li><a href="devel/devel20230427-B17-full.bin">devel20230427-B17-full.bin</a> (Apr 27 09:24:23 2023)
-<br>Fix stupid bug that caused RS92 to not work with last devel version
- 
-</li>
-
-<li><a href="devel/devel20230413-B17-full.bin">devel20230413-B17-full.bin</a> (Apr 13 15:45:29 2023)
-<br>Experimental: Modified DFM handling (DFM17 vs DFM09P for 0xC), untested 
-</li>
-
-<li><a href="devel/devel20230104-B17-full.bin">devel20230104-B17-full.bin</a> (Apr 13 14:06:20 2023)
-<br>fix #342: remove bug in code for right-justified text on OLED display
-fix #342: remove bug in code for right-justified text on OLED display
-</li>
-
-<li><a href="devel/devel20221217-B17-full.bin">devel20221217-B17-full.bin</a> (Dec 17 22:59:17 2022)
-<br>fix GD5 (untested)
-</li>
-
-<li><a href="devel/devel20221113-B17-full.bin">devel20221113-B17-full.bin</a> (Nov 13 23:08:05 2022)
-<br>handle display off timeouts > 127 seconds correctly
-</li>
-
-<li><a href="devel/devel20220930-B17-full.bin">devel20220930-B17-full.bin</a> (Oct 3 00:36:30 2022)
-<br>set dhcp dns name to mdns name; preparation of configurable map link (dl2mf merge)
-gps from apk: 0/0 as invalid pos
-</li>
-
-<li><a href="devel/devel20220925-B16-full.bin">devel20220925-B16-full.bin</a> (Sep 26 02:05:48 2022)
-<br>testing...
-fatal bug--
-sync w/ DL2MF: web interface enhancements
-</li>
-
-<li><a href="devel/devel20220918-B16-full.bin">devel20220918-B16-full.bin</a> (Sep 18 00:21:33 2022)
-<br>prepare for habhub going down
-</li>
-
-<li><a href="devel/devel20220531-B16-full.bin">devel20220531-B16-full.bin</a> (May 31 07:50:23 2022)
-<br>re-added lost commits of cixio
-</li>
-
-<li><a href="devel/devel20220528-B16-full.bin">devel20220528-B16-full.bin</a> (May 29 10:35:26 2022)
-<br>saving code space :) Support for ST7789 displays.
-</li>
-
-<li><a href="devel/devel20220426-B16-full.bin">devel20220426-B16-full.bin</a> (Apr 27 19:10:55 2022)
-<br>better DFM name change handling
-LiveMap updates (#298)
-
-* LiveMap updates
-
-- Update to Leaflet 1.8.0
-- Added Topo-Map
-- Bugfix: Map only changed after the second click
-- better darkmode handling
-- changed order of maps: (dark if darkmode enabled) -> white -> topo -> sat -> dark
-
-* Open any MapsApp with geo:// - Link
-Bugfix: zoom levels, removed debug outputs (#299)
-
-- it was not possible to zoom in deeply on the satellite image
-</li>
-
-<li><a href="devel/devel20220422-B16-full.bin">devel20220422-B16-full.bin</a> (Apr 23 00:39:57 2022)
-<br>display: set OLED contrast (config option); oled screen saver: also hide RSSI/stat
-</li>
-
-<li><a href="devel/devel20220418-B16-full.bin">devel20220418-B16-full.bin</a> (Apr 22 09:11:13 2022)
-<br>experimental: display screen saver (auto-off)
-Selectable livemap themes (#258)
-</li>
-
-<li><a href="devel/devel20220414-B16-full.bin">devel20220414-B16-full.bin</a> (Apr 17 22:11:21 2022)
-<br>json fix
-updated documentation in qrg.txt
-</li>
-
-<li><a href="devel/devel20220408-B16-full.bin">devel20220408-B16-full.bin</a> (Apr 8 00:05:04 2022)
-<br>version update
-</li>
-
-<li><a href="devel/devel20220407-B16-full.bin">devel20220407-B16-full.bin</a> (Apr 7 22:07:39 2022)
-<br>versio update
-</li>
-
-<li><a href="devel/devel20220323-B16-full.bin">devel20220323-B16-full.bin</a> (Apr 7 22:07:03 2022)
-<br>force old version, as long as no new released of fixed new version available for GFX library
-</li>
-
-<li><a href="devel/devel20220123-B16-full.bin">devel20220123-B16-full.bin</a> (Jan 24 00:00:55 2022)
-<br>check M20 crc first, before decoding serial number
-</li>
-
-<li><a href="devel/devel20220121-B16-full.bin">devel20220121-B16-full.bin</a> (Jan 23 23:42:19 2022)
-<br>Merge remote-tracking branch 'refs/remotes/origin/devel' into devel
-sticking to 3.3.2 for now, as 3.4 causes some issues
-Merge branch 'master' into devel
-</li>
-
-<li><a href="devel/devel20211101-B16-full.bin">devel20211101-B16-full.bin</a> (Jan 11 12:09:39 2022)
-<br>sh import last interval as double (for <1h)
-simply typo (#249)
-Remove RS92-NGP Support Note (#266)
-</li>
-
-<li><a href="devel/devel20211031-B16-full.bin">devel20211031-B16-full.bin</a> (Nov 1 13:26:38 2021)
-<br>fix sh import
-</li>
-
-<li><a href="devel/devel20211030-B16-full.bin">devel20211030-B16-full.bin</a> (Oct 30 21:33:48 2021)
-<br>version update
-test
-test
-test
-some APRS for wettersonde.net support
-some better APRS for wettersonde.net support
-simplification
-back to normal beacon frequency
-scan display for ILI934x
-remove updated Setup.mp, better instructions are now in the wiki
-</li>
-
-<li><a href="devel/devel20211023-B16-full.bin">devel20211023-B16-full.bin</a> (Oct 30 12:23:41 2021)
-<br>update screens5.txt
-Support dark mode fully in live map (#225)
-
-* Update style.css
-
-* dark mode map
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-typo fix
-typo fix
-bugfix
-</li>
-
-<li><a href="devel/devel20211016-B16-full.bin">devel20211016-B16-full.bin</a> (Oct 16 14:56:07 2021)
-<br>fix #224
-</li>
-
-<li><a href="devel/devel20211013-B16-full.bin">devel20211013-B16-full.bin</a> (Oct 13 17:24:23 2021)
-<br>no sh location report without enabling sh reporting
-</li>
-
-<li><a href="devel/devel20211010-B16-full.bin">devel20211010-B16-full.bin</a> (Oct 10 20:04:00 2021)
-<br>correct launchsite display on oled
-Few more changes (#217)
-</li>
-
-<li><a href="devel/devel20211009-B16-full.bin">devel20211009-B16-full.bin</a> (Oct 10 10:05:31 2021)
-<br>version update for dark mode enhancements
-fix correct M20 id (missing terminator)
-</li>
-
-<li><a href="devel/devel20211005-B16-full.bin">devel20211005-B16-full.bin</a> (Oct 7 19:52:19 2021)
-<br>version update
-Update README.md (#211)
-
-Small fix
-Merge branch 'eben80-darkmode' into devel
-Merge branch 'master' into devel
-</li>
-
-<li><a href="devel/devel20211003-B16-full.bin">devel20211003-B16-full.bin</a> (Oct 3 08:27:07 2021)
-<br>mqtt clientid done right
-mqtt clientid done right (+no space in id)
-</li>
-
-<li><a href="devel/devel20211002-B16-full.bin">devel20211002-B16-full.bin</a> (Oct 2 23:11:10 2021)
-<br>M10 batt,rh as in autorx
-issue #206
-some code cleanup
-</li>
-
-<li><a href="devel/devel20210930-B16-full.bin">devel20210930-B16-full.bin</a> (Sep 30 19:55:20 2021)
-<br>DFM: check for bit errors
-; dfm +temp, +bat
-increase upper bound on distance in sondehub import
-README update
-</li>
-
-<li><a href="devel/devel20210928-B16-full.bin">devel20210928-B16-full.bin</a> (Sep 28 15:31:36 2021)
-<br>less confusing M10/M20
-</li>
-
-<li><a href="devel/devel20210926-B16-full.bin">devel20210926-B16-full.bin</a> (Sep 26 13:09:01 2021)
-<br>RS41-SGP hum calc with real pressure
-RS41-SGP hum calc with real pressure. now correct.
-Fix Support Matrix (#193)
-</li>
-
-<li><a href="devel/devel20210925-B16-full.bin">devel20210925-B16-full.bin</a> (Sep 25 08:54:24 2021)
-<br>exception workaround
-</li>
-
-<li><a href="devel/devel20210924c-B16-full.bin">devel20210924c-B16-full.bin</a> (Sep 24 16:12:38 2021)
-<br>+Display telemetry - some enhancements
-</li>
-
-<li><a href="devel/devel20210924b-B16-full.bin">devel20210924b-B16-full.bin</a> (Sep 24 13:24:42 2021)
-<br>workaround for app
-m10 temp, done right :)
-</li>
-
-<li><a href="devel/devel20210924-B16-full.bin">devel20210924-B16-full.bin</a> (Sep 24 10:16:52 2021)
-<br>meteo in aprs frames
-use correct M10/M20 type everywhere
-</li>
-
-<li><a href="devel/devel20210923-B16-full.bin">devel20210923-B16-full.bin</a> (Sep 23 16:25:37 2021)
-<br>+version update
-update default config for RS92 eph
-(nits)
-Update README.md
-typo--
-async client test
-</li>
-
-<li><a href="devel/devel20210922-B16-full.bin">devel20210922-B16-full.bin</a> (Sep 23 10:14:17 2021)
-<br>fix temp/hum empty check in sync with recent updates
-Enhanced network handling for sondehub
-don't send NaN in LiveMap JSON
-chasemapper position accuracy fixed
-RS41 P to sondehub
-</li>
-
-<li><a href="devel/devel20210921-B16-full.bin">devel20210921-B16-full.bin</a> (Sep 22 09:31:50 2021)
-<br>+Chasemapper udp support
-Update README.md
-LiveMap updates to include last received datetime, heading and rssi (#182)
-
-* Add direction, UTC datetime and rssi to livemap
-
-* Further fixes
-
-Co-authored-by: dl9rdz <dl9rdz@darc.de>
-Add battery voltage (#183)
-send batt to sondehub; count down (burst_timer) only if fresh
-Merge branch 'eben80-patch-1' into devel
-some internal reorg that should not break anything but make it easier later to decouple decoding from updating global data, solving part of issue 186
-</li>
-
-<li><a href="devel/devel20210920-B16-full.bin">devel20210920-B16-full.bin</a> (Sep 21 07:47:30 2021)
-<br>don't use u8g2 2.31.1 due to https://github.com/olikraus/u8g2/issues/1594
-fix RS41 subtype
-really fix RS41 subtype
-sync sh import / sh telemetry
-keep data on livemap - restore old behaviour
-(good for now)
-</li>
-
-<li><a href="devel/devel20210919-B16-full.bin">devel20210919-B16-full.bin</a> (Sep 19 20:24:58 2021)
-<br>larger buffer for sh messages
-fixed pos used for live map if no gps pos available
-</li>
-
-<li><a href="devel/devel20210917-B16-full.bin">devel20210917-B16-full.bin</a> (Sep 17 11:07:33 2021)
-<br>clear subframebuffer if RS41 changes, + minor cleanup
-</li>
-
-<li><a href="devel/devel20210916-B16-full.bin">devel20210916-B16-full.bin</a> (Sep 17 09:50:29 2021)
-<br>OTA also for files (www/js/css)
-Fix padding on menu icon (#168)
-
-This is to fix alignment issues.
-</li>
-
-<li><a href="devel/devel20210915-B16-full.bin">devel20210915-B16-full.bin</a> (Sep 16 16:37:11 2021)
-<br>fix #164
-(travis test for fs ota)
-</li>
-
-<li><a href="devel/devel20210915-B15-full.bin">devel20210915-B15-full.bin</a> (Sep 16 15:03:56 2021)
-<br>SondeHub frequency import
-</li>
-
-<li><a href="devel/devel20210914-B14-full.bin">devel20210914-B14-full.bin</a> (Sep 14 23:48:25 2021)
-<br>OTA display output fix for TFT
-Responsive menu for web interface (#161)
-
-* Responsive Web Interface menu.
-
-* Add active page indicator
-
-* Update style.css
-
-* Update index.html
-</li>
-
-<li><a href="devel/devel20210913-B14-full.bin">devel20210913-B14-full.bin</a> (Sep 14 20:54:04 2021)
-<br>Merge branch 'LukePrior-devel' into devel
-Missed Sondehub improvements (#157)
-
-* fixes
-
-* fix
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-Merge branch 'LukePrior-patch-1' into devel
-</li>
-
-<li><a href="devel/devel20210912-B14-full.bin">devel20210912-B14-full.bin</a> (Sep 13 08:00:26 2021)
-<br>version update
-</li>
-
-<li><a href="devel/devel20210910test-B14-full.bin">devel20210910test-B14-full.bin</a> (Sep 10 13:48:02 2021)
-<br>arduino esp32 2.0 w/ updated espressif board mamanger url
-back to arduino esp23 1.0.6.  version 2.0.0 has only 60k instead of 130k RAM left, too little for reliable web server operation
-</li>
-
-<li><a href="devel/devel20210908b-B14-full.bin">devel20210908b-B14-full.bin</a> (Sep 12 08:37:48 2021)
-<br>+configurable batt adc, revert screens1.txt
-</li>
-
-<li><a href="devel/devel20210908-B14-full.bin">devel20210908-B14-full.bin</a> (Sep 9 14:30:04 2021)
-<br>enhancements for large ILI9341 display
-</li>
-
-<li><a href="devel/devel20210907-B14-full.bin">devel20210907-B14-full.bin</a> (Sep 9 07:50:35 2021)
-<br>update manufacturer strings, in sync with old dfm6/9 removal
-Merge ec660beeb17c47fee7cc01d5d4582e1fb849ba3e into 17dbf6ec7afe54c4439ec17e9b41df6fa0376abf
-</li>
-
-<li><a href="devel/devel20210906-B14-full.bin">devel20210906-B14-full.bin</a> (Sep 6 21:29:58 2021)
-<br>quite some reorg. virtual frame numbers now in decoders instead of RX_FSK. Better DFM support for sondehub. minor bugs removed, old DFM9 and DFM6 code removed, always use new DFM decoder
-</li>
-
-<li><a href="devel/devel20210905-B14-full.bin">devel20210905-B14-full.bin</a> (Sep 5 15:21:26 2021)
-<br>reset sonde info if configuration is changed (corrected), version update
-livemap: fix prediction for longituade < 0 (tawhiri api uses 0..360)  (#148)
-
-* Check internet connection
-
-* livemap: nicer dots - removed old emoji dots
-
-* livemap: fix prediction for longituade < 0 (tawhiri api uses 0..360)
-</li>
-
-<li><a href="devel/devel20210817-B14-full.bin">devel20210817-B14-full.bin</a> (Aug 17 20:38:35 2021)
-<br>probably fixing #97
-livemap: internet connection check + nicer dots (#134)
-
-* Check internet connection
-
-* livemap: nicer dots - removed old emoji dots
-Update README.md
-</li>
-
-<li><a href="devel/devel20210815-B14-full.bin">devel20210815-B14-full.bin</a> (Aug 15 08:31:52 2021)
-<br>enable network in AP mode (wifi mode 2)
-</li>
-
-<li><a href="devel/devel20210813-M5-B14-full.bin">devel20210813-M5-B14-full.bin</a> (Aug 13 22:34:03 2021)
-<br>SPI locking and sx1278 configurability
-</li>
-
-<li><a href="devel/devel20210812-B14-full.bin">devel20210812-B14-full.bin</a> (Aug 12 22:36:53 2021)
-<br>send real decoded type for M10/M20 to sondehub
-</li>
-
-<li><a href="devel/devel20210811-B14-full.bin">devel20210811-B14-full.bin</a> (Aug 12 20:27:15 2021)
-<br>use data only with valid CRC for M10
-added timeout for live.json request
-tentative better compatibility with older browsers not supporting Unicode 12
-</li>
-
-<li><a href="devel/devel20210810-B14-full.bin">devel20210810-B14-full.bin</a> (Aug 10 22:32:57 2021)
-<br>automated fixed/chase mode for sondehub. also fix #130
-</li>
-
-<li><a href="devel/devel20210809-B14-full.bin">devel20210809-B14-full.bin</a> (Aug 9 20:35:03 2021)
-<br>version udpate
-Merge branch 'LukePrior-patch-4' into devel
-</li>
-
-<li><a href="devel/devel20210807-B13-full.bin">devel20210807-B13-full.bin</a> (Aug 7 21:20:06 2021)
-<br>maybe a first step for #122
-</li>
-
-<li><a href="devel/devel20210806-B12-full.bin">devel20210806-B12-full.bin</a> (Aug 7 10:30:23 2021)
-<br>+longer wifi wait time
-fix #124
-</li>
-
-<li><a href="devel/devel20210728-B11-full.bin">devel20210728-B11-full.bin</a> (Aug 6 14:35:06 2021)
-<br>Add the changes back & M20 fix (#115)
-
-* Add the changes back
-
-* Update version number
-
-* Only send sats field if not M20
-
-Co-authored-by: dl9rdz <dl9rdz@darc.de>
-ILI9351 support
-</li>
-
-<li><a href="devel/devel20210727-B11-full.bin">devel20210727-B11-full.bin</a> (Jul 28 05:56:58 2021)
-<br>fix M10 dir and sondehub frame#
-fix chase car (#113)
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-Update precision of data sent (#114)
-(fixed previous commit)
-fix chase car (#113)
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-</li>
-
-<li><a href="devel/devel20210726-B11-full.bin">devel20210726-B11-full.bin</a> (Jul 26 19:17:31 2021)
-<br>add reboot to control buttons (#111)
-SondeHub Fix Chase Cars (#104)
-
-* fix chase cars
-
-* update version ID
-
-* fix version
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-Co-authored-by: dl9rdz <dl9rdz@darc.de>
-lat,lon,alt improvements (#103)
-
-Co-authored-by: Uskompuf <22492406+Uskompuf@users.noreply.github.com>
-Co-authored-by: dl9rdz <dl9rdz@darc.de>
-</li>
-
-<li><a href="devel/devel20210630-B11-full.bin">devel20210630-B11-full.bin</a> (Jul 24 14:57:03 2021)
-<br>more robust GPS reset, using clear+load CFG
-Fix SondeHub tracker link in web interface (#102)
-
-When we switched to the new interface the previous URL structure broke so I have updated it here
-</li>
-
-<li><a href="devel/devel20210619-B11-full.bin">devel20210619-B11-full.bin</a> (Jun 27 17:01:33 2021)
-<br>+version update
-wetterson.de is gone
-more ttgconfig script features: backup and restore
-</li>
-
-<li><a href="devel/devel20210618-B11-full.bin">devel20210618-B11-full.bin</a> (Jun 17 22:48:35 2021)
-<br>M10: fix serial number: consistent with M20 (with dashes), consistent with autorx
-</li>
-
-<li><a href="devel/devel20210614-B11-full.bin">devel20210614-B11-full.bin</a> (Jun 14 04:53:05 2021)
-<br>GPS Support
-minor polishing of pull request for sondehub chase mode
-</li>
-
-<li><a href="devel/devel20210531-B11-full.bin">devel20210531-B11-full.bin</a> (May 31 23:53:48 2021)
-<br>MP3-H1 extended data for SondeHub upload: #sats, timestamp (for frame#), rrsi; fix for wrong time check; filtering repeated frames
-</li>
-
-<li><a href="devel/devel20210530-B11-full.bin">devel20210530-B11-full.bin</a> (May 30 08:21:22 2021)
-<br>SondeHub: DFM frame numbers using gps time+sec) as in autorx
-</li>
-
-<li><a href="devel/devel20210529-B11-full.bin">devel20210529-B11-full.bin</a> (May 29 12:06:35 2021)
-<br>DFM subtypes enhancement for SondeHub
-... ntp time sync merge, moving init the network start
-+time check for SondeHub
-</li>
-
-<li><a href="devel/devel20210526-B11-full.bin">devel20210526-B11-full.bin</a> (May 26 23:19:29 2021)
-<br>+ config upload/download tool
-+ config upload/download tool: --ttgo=<ip> option
-Update readme with installation instructions
-</li>
-
-<li><a href="devel/devel20210524a-B11-full.bin">devel20210524a-B11-full.bin</a> (May 24 19:24:40 2021)
-<br>Compatible with newer version of APX library (consistent with platformio, make sure to upgrade your ArduinoIDE), and font enhancements for new ILI9225 libraray
-</li>
-
-<li><a href="devel/devel20210524-B11-full.bin">devel20210524-B11-full.bin</a> (May 24 14:18:29 2021)
-<br>some font enhancements for new display driver (working better with some displays)
-README update and other minor things
-; font update
-...and minor screen enhancements
-</li>
-
-<li><a href="devel/devel20210509-B11-full.bin">devel20210509-B11-full.bin</a> (May 23 09:00:30 2021)
-<br>Merge branch 'LukePrior-devel' into devel
-</li>
-
-<li><a href="devel/devel20210402-B11-full.bin">devel20210402-B11-full.bin</a> (Apr 2 21:23:54 2021)
-<br>partial mp3h1, and (maybe) fix travis for esp 1.0.6
-</li>
-
-<li><a href="devel/devel20210315-B10-full.bin">devel20210315-B10-full.bin</a> (Mar 15 20:54:22 2021)
-<br>M10/M20 test: reset pll fast hop (set by spectrum)
-</li>
-
-<li><a href="devel/devel20210314x-B10-full.bin">devel20210314x-B10-full.bin</a> (Mar 14 20:35:06 2021)
-<br>Merge branch 'temphum' into devel
-</li>
-
-<li><a href="devel/devel20210314-B10-full.bin">devel20210314-B10-full.bin</a> (Mar 14 17:14:38 2021)
-<br>gps init bugfix, less debug messages, gps for android w/o gps (+GPGST parser), merge kml live view
-</li>
-
-<li><a href="devel/devel20210226-B10-full.bin">devel20210226-B10-full.bin</a> (Feb 26 23:35:14 2021)
-<br>fix travis?
-</li>
-
-<li><a href="devel/devel20210220-B10-full.bin">devel20210220-B10-full.bin</a> (Feb 20 09:30:46 2021)
-<br>fix for wrong DFM position for negative lat/lon (untested)
-</li>
-
-<li><a href="devel/devel20210213-B10-full.bin">devel20210213-B10-full.bin</a> (Feb 13 11:26:14 2021)
-<br>web ui usability enhancements
-</li>
-
-<li><a href="devel/devel20210209-B9-full.bin">devel20210209-B9-full.bin</a> (Feb 9 00:07:08 2021)
-<br>detect rdzclient timeout and disconnect from app
-</li>
-
-<li><a href="devel/devel20210205-B9-full.bin">devel20210205-B9-full.bin</a> (Feb 5 15:54:13 2021)
-<br>rs92 eph: configurable ftp site
-</li>
-
-<li><a href="devel/devel20210126-B8-full.bin">devel20210126-B8-full.bin</a> (Jan 26 19:59:57 2021)
-<br>always send json data after each frame for rdzwx-go
-</li>
-
-<li><a href="devel/devel20210124-B8-full.bin">devel20210124-B8-full.bin</a> (Jan 24 12:22:23 2021)
-<br>better T-Beam 1.1 autodetect
-</li>
-
-<li><a href="devel/devel20201230b-B8-full.bin">devel20201230b-B8-full.bin</a> (Dec 30 23:13:13 2020)
-<br>some reorg, gps factory def, ftp bugfix
-</li>
-
-<li><a href="devel/devel20201230-B8-full.bin">devel20201230-B8-full.bin</a> (Dec 30 13:29:55 2020)
-<br>minor improvements (display, m10)
-</li>
-
-<li><a href="devel/devel20201230-B7-full.bin">devel20201230-B7-full.bin</a> (Dec 30 11:19:53 2020)
-<br>MicroNMEA update compatibility by type inference
-</li>
-
-<li><a href="devel/devel20201227m-B6-full.bin">devel20201227m-B6-full.bin</a> (Dec 27 22:10:55 2020)
-<br>tentative m20 supported (untested)
-</li>
-
-<li><a href="devel/devel20201227-B6-full.bin">devel20201227-B6-full.bin</a> (Dec 27 15:22:37 2020)
-<br>mqtt compatibility enhanced: remove trailing comma
-</li>
-
-<li><a href="devel/devel20201215-B6-full.bin">devel20201215-B6-full.bin</a> (Dec 15 20:18:07 2020)
-<br>reduce html size for QRG form
-</li>
-
-<li><a href="devel/devel20201120-B4-full.bin">devel20201120-B4-full.bin</a> (Nov 20 21:09:49 2020)
-<br>support development with platformio (in addition to Arduino IDE)
-</li>
-
-<li><a href="devel/devel20201118-B4-full.bin">devel20201118-B4-full.bin</a> (Nov 18 09:08:20 2020)
-<br>fix horizontal speed value (was wrong for all except RS41)
-</li>
-
-<li><a href="devel/devel20200728-B4-full.bin">devel20200728-B4-full.bin</a> (Jul 28 20:14:50 2020)
-</li>
-
-<li><a href="devel/devel20200414-B4-full.bin">devel20200414-B4-full.bin</a> (Apr 14 07:49:36 2020)
-</li>
-
-<li><a href="devel/devel20200131-B3-full.bin">devel20200131-B3-full.bin</a> (Jan 31 18:37:10 2020)
-</li>
-
-<li><a href="devel/devel20191222-B3-full.bin">devel20191222-B3-full.bin</a> (Dec 22 21:24:20 2019)
-</li>
-
-<li><a href="devel/devel20191211-B1-full.bin">devel20191211-B1-full.bin</a> (Dec 11 09:48:24 2019)
-</li>
-
-<li><a href="devel/devel20191110-B1-full.bin">devel20191110-B1-full.bin</a> (Nov 10 11:16:17 2019)
-</li>
-
-<li><a href="devel/devel20191103-B1-full.bin">devel20191103-B1-full.bin</a> (Nov 3 17:08:21 2019)
-</li>
-
-<li><a href="devel/devel20191027-full.bin">devel20191027-full.bin</a> (Oct 27 14:48:06 2019)
-</li>
-
-<li><a href="devel/devel20191005-full.bin">devel20191005-full.bin</a> (Oct 5 16:11:53 2019)
-</li>
-
-<li><a href="devel/devel20190911-full.bin">devel20190911-full.bin</a> (Sep 11 19:03:07 2019)
-</li>
-
-<li><a href="devel/devel20190602-full.bin">devel20190602-full.bin</a> (Jun 2 20:28:00 2019)
-</li>
-
-</ul>
-  <br>
-  <p>Last latter/number of version number indicate SPI LittleFS file system version. If the first (upper-case)
-   letter has changed, then this version is incompabible with prevision versions and you have to flash
-   the full image. If the second part (number) has changed, then this version has some changes
-   (e.g. internal web page layout, LCD/TFT display layout) in the file system which you will not get with
-   a code-only (OTA or flashing update.bin) update, but it should not break anything.</p>
-   </section></body></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <link rel="icon" href="img/rdzttgosonde.png" type="image/png" />
+    <title>rdzTTGOsonde · Downloads</title>
+    <link
+      rel="stylesheet"
+      href="assets/css/style.css?v=1"
+    />
+    <script src="assets/js/main.js" defer></script>
+  </head>
+  <body class="page-root">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a href="index.html" class="brand">
+          <span class="brand-mark">
+            <img src="img/rdzttgosonde.png" alt="" width="28" height="28" />
+          </span>
+          <span class="brand-text">
+            <span class="brand-title">rdzTTGOsonde</span>
+            <span class="brand-subtitle">ESP32 radiosonde receiver</span>
+          </span>
+        </a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+          data-nav-toggle
+        >
+          ☰
+        </button>
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Overview</a>
+          <a href="install.html">Installation</a>
+          <a href="download.html" class="nav-active">Downloads</a>
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/wiki">Documentation</a>
+        </nav>
+        <div class="header-actions">
+          <a
+            href="https://github.com/dl9rdz/rdz_ttgo_sonde"
+            class="btn btn-primary"
+            >View on GitHub</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="page-shell">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Firmware downloads</h1>
+              <p class="section-lead">
+                Choose the build that matches your hardware and update strategy. All
+                images are built from the
+                <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">GitHub
+                  repository</a
+                >.
+              </p>
+            </div>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Versioning and file system compatibility</div>
+            <p>
+              The last letter/number of the version encodes the internal file system
+              version (A/B: SPIFFS on legacy builds, C: LittleFS).
+            </p>
+            <ul>
+              <li>
+                If the <strong>first (upper‑case) letter</strong> changes, this
+                version is <strong>incompatible</strong> with previous versions and
+                you must flash the <strong>full image</strong>.
+              </li>
+              <li>
+                If only the <strong>second part (number)</strong> changes, the file
+                system layout has changed (web UI, display layout, …). These changes
+                are not included in a code‑only update (<code>update.bin</code>
+                flash), but they should not break existing installations.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Main builds</h2>
+              <p class="section-lead">
+                (Better) tested images, infrequent updates.
+              </p>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>main0.98-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="main/main0.98-C3-full.bin">main0.98-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Jul 10 02:21:39 2025 lets activate the main branch...</small></td>
+                  </tr>
+                  <tr>
+                    <td><code>main0.98-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-update">Code update</span>
+                    </td>
+                    <td>
+                      <a href="main/update.ino.bin">update.ino.bin</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>main0.98-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-update">Filesystem update</span>
+                    </td>
+                    <td>
+                      <a href="main/update.fs.bin">update.fs.bin</a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Development builds</h2>
+              <p class="section-lead">
+                Frequeny updates, for testing new features, sometimes only lightly tested. Expect occasional breakage.
+              </p>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>dev20260221-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20260221-C3-full.bin">dev20260221-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 21 15:32:17 2026 version update; modified flexible url handling for rinex</small></td>
+                  </tr>
+                  <tr>
+                    <td><code>dev20260221-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-update">Code update</span>
+                    </td>
+                    <td>
+                      <a href="dev2/update.ino.bin">update.ino.bin</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>dev20260221-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-update">Filesystem update</span>
+                    </td>
+                    <td>
+                      <a href="dev2/update.fs.bin">update.fs.bin</a>
+                    </td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20260219-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20260219-C3-full.bin">dev20260219-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 20 19:04:52 2026 mqtt: last will topic must not be on stack, it will be used later asynchronously. sdcard: proper flush</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20260218-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20260218-C3-full.bin">dev20260218-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 19 04:07:49 2026 sdcard subdir handling per month and newer idf version</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20251120-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20251120-C3-full.bin">dev20251120-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Nov 21 00:21:25 2025 fix stupid bug that broke display handling on M5 Core / Core2; fix mqtt problem #553</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250822-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250822-C3-full.bin">dev20250822-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 23 03:24:17 2025 large scanner for large TFT display (4&quot;)</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250523b-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250523b-C3-full.bin">dev20250523b-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Jul 09 16:25:44 2025 re-generate image</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250523-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250523-C3-full.bin">dev20250523-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">May 24 02:41:04 2025 added function for formatting SD card;</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250516-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250516-C3-full.bin">dev20250516-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">May 17 03:15:26 2025 added support for ST7796S (untested)</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250506-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250506-C3-full.bin">dev20250506-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">May 06 16:50:04 2025 posinfo update - always use GPS if no fixed position is defined</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250504-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250504-C3-full.bin">dev20250504-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">May 04 22:29:22 2025 use rx time stamp for prediction (fix #490)</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250401-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250401-C3-full.bin">dev20250401-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Apr 01 18:58:46 2025 DFM update</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250218-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250218-C3-full.bin">dev20250218-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 18 18:59:02 2025 added M20 voltage</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250210-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250210-C3-full.bin">dev20250210-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 11 23:45:17 2025 make sh import without sh enabled work again</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250208-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250208-C3-full.bin">dev20250208-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 08 18:55:04 2025 get time right (utc vs gps time); fix merge error</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250205-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250205-C3-full.bin">dev20250205-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Feb 05 18:25:57 2025 tentative update for new RS41 version, untested</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20250108-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20250108-C3-full.bin">dev20250108-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Jan 08 11:05:17 2025 remove possible startup crash cause</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20241229-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20241229-C3-full.bin">dev20241229-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Jan 01 11:40:27 2025 update push script</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20241222-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20241222-C3-full.bin">dev20241222-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Dec 22 14:25:02 2024 local http updates for development; local http updates for development; update push script</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20241209-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20241209-C3-full.bin">dev20241209-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Dec 10 13:52:08 2024 DNS debug code added</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20241002-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20241002-C3-full.bin">dev20241002-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Oct 03 00:23:26 2024 tentative fix for iOS</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240924-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240924-C3-full.bin">dev20240924-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 24 03:55:28 2024 some webserial support</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240913-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240913-C3-full.bin">dev20240913-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 14 01:44:42 2024 sh import re-enabeld</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240912-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240912-C3-full.bin">dev20240912-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 13 13:28:48 2024  push script enhancements; undo accidental wifi default mode change</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240905b-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240905b-C3-full.bin">dev20240905b-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 08 16:42:41 2024  wifi, take 2;  push script enhancements</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240905-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240905-C3-full.bin">dev20240905-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 05 16:36:15 2024 minor wifi reconnect change</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240903-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240903-C3-full.bin">dev20240903-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Sep 03 10:20:12 2024 sondehub dfm vs version number workaounrd</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240824-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240824-C3-full.bin">dev20240824-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 24 21:31:09 2024 WiFi enhancement: wait for IP address; fix message about space on SD card</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240822-C3</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240822-C3-full.bin">dev20240822-C3-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 22 23:52:56 2024 TFT fonts fix</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240817-C2</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240817-C2-full.bin">dev20240817-C2-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 18 18:03:05 2024 add V_batt in status, gps fix, pin check in config form</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240815-C1</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240815-C1-full.bin">dev20240815-C1-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 16 02:32:23 2024 version update; bugfix</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240814-C1</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240814-C1-full.bin">dev20240814-C1-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 16 02:16:25 2024 more status tab refinements; minor bug fixes; minor fixes</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240813-C0</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240813-C0-full.bin">dev20240813-C0-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 14 12:19:54 2024 sdcard and about tab refinements</small></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>dev20240812-C0</code></td>
+                    <td>
+                      <span class="badge badge-type-full">Full image</span>
+                    </td>
+                    <td>
+                      <a href="dev2/dev20240812-C0-full.bin">dev20240812-C0-full.bin</a>
+                    </td>
+                  </tr>
+                  <tr class="download-meta-row">
+                    <td colspan="3"><small class="download-meta">Aug 13 00:48:22 2024 upgrade to new IDF / arduino version; more refinements; don't send aprs position if disabled in config</small></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Legacy builds</h2>
+              <p class="section-lead">
+                Legacy builds for the old IDF environment. These are end-of-life and no longer updated; please use stable or development builds above for new deployments.
+              </p>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><code>master_v0.9.5-B17</code><br><small class="download-meta">Aug 04 17:23:21 2024</small></td>
+                    <td><span class="badge badge-type-full">Full image</span></td>
+                    <td><a href="master/master_v0.9.5-B17-full.bin">master_v0.9.5-B17-full.bin</a></td>
+                  </tr>
+                </tbody>
+                <tbody>
+                  <tr>
+                    <td><code>devel20240521-B17</code><br><small class="download-meta">May 21 02:09:35 2024</small></td>
+                    <td><span class="badge badge-type-full">Full image</span></td>
+                    <td><a href="devel/devel20240521-B17-full.bin">devel20240521-B17-full.bin</a></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>
+          rdzTTGOsonde firmware by
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">dl9rdz</a> & contributors
+        </span>
+      </div> 
+    </footer>
+  </body>
+</html>

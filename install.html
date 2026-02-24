@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <link rel="icon" href="img/rdzttgosonde.png" type="image/png" />
+    <title>rdzTTGOsonde · Installation</title>
+    <link
+      rel="stylesheet"
+      href="assets/css/style.css?v=1"
+    />
+    <script src="assets/js/main.js" defer></script>
+  </head>
+  <body class="page-root">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a href="index.html" class="brand">
+          <span class="brand-mark">
+            <img src="img/rdzttgosonde.png" alt="" width="28" height="28" />
+          </span>
+          <span class="brand-text">
+            <span class="brand-title">rdzTTGOsonde</span>
+            <span class="brand-subtitle">ESP32 radiosonde receiver</span>
+          </span>
+        </a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+          data-nav-toggle
+        >
+          ☰
+        </button>
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Overview</a>
+          <a href="install.html" class="nav-active">Installation</a>
+          <a href="download.html">Downloads</a>
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/wiki">Documentation</a>
+        </nav>
+        <div class="header-actions">
+          <a
+            href="https://github.com/dl9rdz/rdz_ttgo_sonde"
+            class="btn btn-primary"
+            >View on GitHub</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="page-shell">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Installation and flashing</h1>
+              <p class="section-lead">
+                You can flash <code>rdzTTGOsonde</code> via the browser-based web flash
+                tool, the <code>esptool.py</code> command‑line utility, or Espressif’s
+                Windows Flash Download Tool.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Option 1 – Flash from your browser (recommended)</h2>
+              <p class="section-lead">
+                When using a supported browser (Chrome/Edge/Opera), the ESP32 web flash tool can
+                program the TTGO board directly from this page.
+              </p>
+            </div>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Browser‑based flash tool</div>
+              </div>
+            </div>
+            <div id="web-flash-root">
+              <!-- Build/version choices come from manifest.json; add more builds there to offer more options in the dialog. -->
+              <esp-web-install-button
+                id="install-button"
+                manifest="https://rdzsonde.mooo.com/manifest.json"
+              ></esp-web-install-button>
+              <p class="section-lead" style="margin-top: 1rem;">
+                If your browser does not support WebSerial, you can use the command‑line or
+                Windows GUI options below.
+              </p>
+            </div>
+            <script type="module" src="webserial/install-button.js?module"></script>
+          </article>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Option 2 – Command‑line (esptool)</h2>
+              <p class="section-lead">
+                For first time installation, if you prefer the CLI.
+              </p>
+            </div>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Full image flashing</div>
+            <p>
+              Flashing a full image writes the application, the fonts, and the internal
+              filesystem. <strong>This overwrites all configuration</strong> stored
+              in flash.
+            </p>
+          </div>
+
+          <div class="code-block" data-code-block>
+            <div class="code-actions">
+              <button class="btn copy-btn" type="button" data-copy>Copy</button>
+            </div>
+            <pre><code>esptool --chip esp32 --baud 921600 \
+  --before default_reset --after hard_reset write_flash -z \
+  --flash_mode dio --flash_freq 80m --flash_size detect \
+  0x1000 &lt;filename.bin&gt;</code></pre>
+          </div>
+
+          <ul class="clean">
+            <li>The important part is the start offset <code>0x1000</code> for the full image.</li>
+            <li>Replace <code>&lt;filename.bin&gt;</code> with the downloaded firmware image.</li>
+            <li>Add <code>--port &lt;port&gt;</code> to select a specific device (e.g. <code>COM1:</code> on Windows or <code>/dev/cu.SLAB_USBtoUART</code> on macOS).</li>
+          </ul>
+
+          <details>
+            <summary>Updating code only (update.bin)</summary>
+            <p>
+              If you only want to update the application code and keep your
+              existing internal file system contents, flash <code>update.bin</code> at
+              <code>0x10000</code>:
+            </p>
+            <div class="code-block" data-code-block>
+              <div class="code-actions">
+                <button class="btn copy-btn" type="button" data-copy>Copy</button>
+              </div>
+              <pre><code>esptool --chip esp32 --port /dev/cu.SLAB_USBtoUART --baud 921600 \
+  --before default_reset --after hard_reset write_flash -z \
+  --flash_mode dio --flash_freq 80m --flash_size detect \
+  0x10000 update.bin</code></pre>
+            </div>
+            <p>
+              This only updates the firmware; the internal file system is left
+              unchanged. OTA does more: it applies the same code update and then
+              selectively updates some files in the internal file system while
+              keeping your config — prefer OTA when the device is on the network.
+              Layout changes in newer versions may not apply with code-only
+              flashing; see the versioning notes on the
+              <a href="download.html">Downloads</a> page.
+            </p>
+          </details>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Option 3 – Windows GUI (esptool)</h2>
+              <p class="section-lead">
+                For users who prefer a graphical tool on Windows, Espressif provides a
+                Flash Download Tool. The UI is older, but the correct offsets are
+                crucial.
+              </p>
+            </div>
+          </div>
+          <article class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Flash Download Tool</div>
+                <div class="card-subtitle">
+                  Use the screenshot as a reference for the correct offset fields.
+                </div>
+              </div>
+            </div>
+            <p>
+              You can download the GUI tool from Espressif:
+              <a href="https://www.espressif.com/en/support/download/other-tools"
+                >Flash Download Tools (Espressif)</a
+              >.
+            </p>
+            <p>
+              Select your binary file, then set the same offsets as in the
+              <code>esptool.py</code> example above (for example
+              <code>0x1000</code> for full images, <code>0x10000</code> for
+              <code>update.bin</code>).
+            </p>
+            <p>
+              <img
+                src="assets/img/flashtool.png"
+                alt="Example configuration of the Espressif Flash Download Tool with correct offset fields"
+                style="max-width: 100%; border-radius: 12px;"
+              />
+            </p>
+          </article>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">After flashing</h2>
+              <p class="section-lead">
+                First boot, Wi‑Fi setup, and accessing the web UI.
+              </p>
+            </div>
+          </div>
+
+          <div class="grid">
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">First boot</div>
+                  <div class="card-subtitle">
+                    Power up and wait for the device to start.
+                  </div>
+                </div>
+              </div>
+              <ul class="clean">
+                <li>Disconnect and reconnect power after flashing completes.</li>
+                <li>Wait for the device to create its Wi‑Fi AP or join your WLAN.</li>
+              </ul>
+            </article>
+            <article class="card">
+              <div class="card-header">
+                <div>
+                  <div class="card-title">Accessing the web UI</div>
+                  <div class="card-subtitle">
+                    Use your browser to reach the device.
+                  </div>
+                </div>
+              </div>
+              <ul class="clean">
+                <li>Connect to the device’s AP or your configured network.</li>
+                <li>
+                  Open the status page in your browser (for example:
+                  <code>http://rdzsonde.local/</code>, depending on your setup).
+                </li>
+                <li>Use the web UI to configure channels, Wi‑Fi, and other options.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>
+          rdzTTGOsonde firmware by
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">dl9rdz</a> & contributors
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>
+

@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <link rel="icon" href="img/rdzttgosonde.png" type="image/png" />
+    <title>rdzTTGOsonde · Downloads</title>
+    <link
+      rel="stylesheet"
+      href="assets/css/style.css?v=1"
+    />
+    <script src="assets/js/main.js" defer></script>
+  </head>
+  <body class="page-root">
+    <header class="site-header">
+      <div class="site-header-inner">
+        <a href="index.html" class="brand">
+          <span class="brand-mark">
+            <img src="img/rdzttgosonde.png" alt="" width="28" height="28" />
+          </span>
+          <span class="brand-text">
+            <span class="brand-title">rdzTTGOsonde</span>
+            <span class="brand-subtitle">ESP32 radiosonde receiver</span>
+          </span>
+        </a>
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+          data-nav-toggle
+        >
+          ☰
+        </button>
+        <nav class="site-nav" data-site-nav>
+          <a href="index.html">Overview</a>
+          <a href="install.html">Installation</a>
+          <a href="download.html" class="nav-active">Downloads</a>
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/wiki">Documentation</a>
+        </nav>
+        <div class="header-actions">
+          <a
+            href="https://github.com/dl9rdz/rdz_ttgo_sonde"
+            class="btn btn-primary"
+            >View on GitHub</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <div class="page-shell">
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title">Firmware downloads</h1>
+              <p class="section-lead">
+                Choose the build that matches your hardware and update strategy. All
+                images are built from the
+                <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">GitHub
+                  repository</a
+                >.
+              </p>
+            </div>
+          </div>
+
+          <div class="callout">
+            <div class="callout-title">Versioning and file system compatibility</div>
+            <p>
+              The last letter/number of the version encodes the internal file system
+              version (A/B: SPIFFS on legacy builds, C: LittleFS).
+            </p>
+            <ul>
+              <li>
+                If the <strong>first (upper‑case) letter</strong> changes, this
+                version is <strong>incompatible</strong> with previous versions and
+                you must flash the <strong>full image</strong>.
+              </li>
+              <li>
+                If only the <strong>second part (number)</strong> changes, the file
+                system layout has changed (web UI, display layout, …). These changes
+                are not included in a code‑only update (<code>update.bin</code>
+                flash), but they should not break existing installations.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Main builds</h2>
+              <p class="section-lead">
+                (Better) tested images, infrequent updates.
+              </p>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+%%MAIN_ROWS%%
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Development builds</h2>
+              <p class="section-lead">
+                Frequeny updates, for testing new features, sometimes only lightly tested. Expect occasional breakage.
+              </p>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <div class="table-scroll-inner">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Version</th>
+                    <th>Type</th>
+                    <th>Download</th>
+                  </tr>
+                </thead>
+%%DEV_ROWS%%
+              </table>
+            </div>
+          </div>
+        </section>
+
+%%LEGACY_SECTION%%
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-inner">
+        <span>
+          rdzTTGOsonde firmware by
+          <a href="https://github.com/dl9rdz/rdz_ttgo_sonde">dl9rdz</a> & contributors
+        </span>
+      </div> 
+    </footer>
+  </body>
+</html>
