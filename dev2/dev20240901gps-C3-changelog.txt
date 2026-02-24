@@ -1,2 +1,0 @@
-more GPS test code -- last nmea on status
-last position NMEA in status
