@@ -1,3 +1,2 @@
 fix stupid bug that broke display handling on M5 Core / Core2
 fix mqtt problem #553
-fix mqtt problem #553

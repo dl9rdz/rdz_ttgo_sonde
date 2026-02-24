@@ -1,5 +1,4 @@
 upgrade to new IDF / arduino version
- more refinements
- more refinements
+more refinements
 don't send aprs position if disabled in config
 avoid race conditions on DOM load (aprs symbol display)
