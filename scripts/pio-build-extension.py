@@ -28,11 +28,24 @@ def generate_image(source, target, env):
 # default target is elf file (if not target buildfs or uploadfs on command line)
 # so this target will build elf file and file system bin as dependency
 # Also, as a post actino for the elf file, we generate fonts.bin
-target_fsbin = env.DataToBin(join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}"), "$PROJECT_DATA_DIR")
+#target_fsbin = env.DataToBin(join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}"), "$PROJECT_DATA_DIR")
+#env.AddCustomTarget(
+#  "firmware",
+#  ["$BUILD_DIR/${PROGNAME}.bin", target_fsbin],
+#  generate_image)
+
 env.AddCustomTarget(
   "firmware",
-  ["$BUILD_DIR/${PROGNAME}.bin", target_fsbin],
-  generate_image)
+  ["$BUILD_DIR/${PROGNAME}.bin"],
+  generate_image
+)
+
+# Ensure littlefs.bin is the "good" one before merging
+mk = env.get("MAKE_GOOD_LITTLEFS")
+if mk:
+  env.AddPreAction("firmware", mk)
+else:
+  print("WARNING: MAKE_GOOD_LITTLEFS not found; firmware will use existing littlefs.bin")
 
 
 # After generating the elf file, generate fonts.bin as well
