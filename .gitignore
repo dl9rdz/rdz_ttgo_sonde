@@ -33,3 +33,8 @@
 
 .pio
 .vscode
+
+local-doc
+__pycache__
+.venv
+.DS_Store
