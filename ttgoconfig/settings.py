@@ -16,6 +16,8 @@ from typing import Any
 DEFAULT_BACKUP_FOLDER = "~/rdzTTGOsonde/backups"
 DEFAULT_DOWNLOAD_URL = "https://rdzsonde.org"
 DEFAULT_BAUD = "921600"
+DEFAULT_BAUD_READ = "115200"
+DEFAULT_BAUD_WRITE = "921600"
 DEFAULT_SERIAL_LOG_LINES = 10000
 
 
@@ -60,6 +62,11 @@ def _defaults() -> dict[str, Any]:
         "serial_log_buffer_lines": DEFAULT_SERIAL_LOG_LINES,
         "strip_ansi_when_saving": False,
         "last_mode": "Flash",
+        "no_stub": False,
+        "baud_rate_read": DEFAULT_BAUD_READ,
+        "baud_rate_write": DEFAULT_BAUD_WRITE,
+        "no_stub_read": False,
+        "no_stub_write": False,
     }
 
 

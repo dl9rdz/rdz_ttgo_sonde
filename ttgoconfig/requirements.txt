@@ -3,3 +3,4 @@ customtkinter>=5.2.0
 pyserial>=3.5
 esptool>=4.0
 requests>=2.28.0
+littlefs-python>=0.15.0

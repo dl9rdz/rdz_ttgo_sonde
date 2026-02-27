@@ -4,7 +4,7 @@ rdzTTGOsonde Desktop Flasher – UI implementation per plan.
 Top-level: Flash | USB | Wi-Fi | Serial | Settings.
 Settings persisted; Flash/USB use esptool; Serial uses pyserial; Wi-Fi uses HTTP.
 
-Run: python -m installer.app
+Run: python -m ttgoconfig.app
 """
 
 import os
@@ -12,14 +12,31 @@ import queue
 import re
 import threading
 import tkinter as tk
-from html.parser import HTMLParser
 from tkinter import filedialog, messagebox
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import customtkinter as ctk
 
 from . import settings as settings_mod
-from .esptool_helper import flash_firmware, read_backup, write_backup
+from .esptool_helper import (
+    flash_firmware, flash_app_partition, read_backup, write_backup,
+    download_filesystem, upload_filesystem,
+    PARTITION_SPIFFS_OFFSET, PARTITION_SPIFFS_SIZE,
+    set_no_stub, set_no_stub_read, set_no_stub_write,
+)
+from .littlefs_helper import (
+    pack_directory as lfs_pack_directory,
+    unpack_image as lfs_unpack_image,
+    extract_from_backup as lfs_extract_from_backup,
+    BLOCK_SIZE as LFS_BLOCK_SIZE,
+)
+from .firmware import (
+    fetch_manifest_firmware_url as _fetch_firmware_url_for_source,
+    fetch_download_html_versions as _fetch_download_html_versions,
+    download_firmware_to_temp,
+)
+from . import wifi_ops as wifi_ops_mod
+from . import sd_ops as sd_ops_mod
 
 # Compact labels for the top bar
 MODE_VALUES = ["Flash", "Serial", "USB", "Wi-Fi", "SD (via WiFi)", "Settings"]
@@ -229,118 +246,6 @@ def _parse_ansi_to_segments(s: str) -> list[tuple[str, str]]:
     return out
 
 
-def _fetch_firmware_url_for_source(
-    base_url: str, choice: str
-) -> tuple[Optional[str], Optional[str]]:
-    """Return (firmware_url, error_msg). choice is 'Stable (main)' or 'Development (dev2)'."""
-    base = base_url.rstrip("/")
-    manifest_url = base + "/manifest.json"
-    try:
-        import urllib.request
-        req = urllib.request.Request(manifest_url)
-        with urllib.request.urlopen(req, timeout=15) as r:
-            import json as _json
-            data = _json.loads(r.read().decode("utf-8"))
-    except Exception as e:
-        return None, "Failed to fetch manifest: %s" % e
-    builds = data.get("builds") or []
-    want_main = "main" in choice.lower() or "Stable" in choice
-    for b in builds:
-        fw = (b.get("fwversion") or "").strip()
-        if want_main and fw.startswith("main"):
-            parts = b.get("parts") or []
-            if not parts:
-                return None, "Manifest build has no parts."
-            path = (parts[0].get("path") or "").strip()
-            if not path:
-                return None, "Manifest part has no path."
-            return base + "/" + path.lstrip("/"), None
-        if not want_main and (fw.startswith("dev") or "dev" in choice.lower()):
-            parts = b.get("parts") or []
-            if not parts:
-                return None, "Manifest build has no parts."
-            path = (parts[0].get("path") or "").strip()
-            if not path:
-                return None, "Manifest part has no path."
-            return base + "/" + path.lstrip("/"), None
-    return None, "No matching build in manifest (Stable/main or Development/dev2)."
-
-
-class _DownloadTableParser(HTMLParser):
-    """Extract (version, href) from download.html data-table rows that contain a -full.bin link."""
-    def __init__(self) -> None:
-        super().__init__()
-        self.rows: List[Tuple[str, str]] = []
-        self._in_table = False
-        self._in_row = False
-        self._current_code = ""
-        self._current_href = ""
-        self._in_code = False
-        self._in_a = False
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag == "table" and any(k == "class" and (v or "").find("data-table") != -1 for k, v in attrs):
-            self._in_table = True
-        if self._in_table and tag == "tr":
-            self._in_row = True
-            self._current_code = ""
-            self._current_href = ""
-        if self._in_row and tag == "code":
-            self._in_code = True
-        if self._in_row and tag == "a":
-            self._in_a = True
-            for k, v in attrs:
-                if k == "href" and v and v.endswith("-full.bin"):
-                    self._current_href = v
-                    break
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag == "table" and self._in_table:
-            self._in_table = False
-        if tag == "tr" and self._in_row:
-            if self._current_code and self._current_href:
-                self.rows.append((self._current_code.strip(), self._current_href))
-            self._in_row = False
-        if tag == "code":
-            self._in_code = False
-        if tag == "a":
-            self._in_a = False
-
-    def handle_data(self, data: str) -> None:
-        if self._in_code:
-            self._current_code += data
-
-
-def _fetch_download_html_versions(base_url: str) -> Tuple[List[Tuple[str, str]], Optional[str]]:
-    """Fetch download.html from base_url and parse for (version, href) full-image rows. Return ([(display, url)], error)."""
-    url = base_url.rstrip("/") + "/download.html"
-    try:
-        import urllib.request
-        req = urllib.request.Request(url)
-        with urllib.request.urlopen(req, timeout=15) as r:
-            html = r.read().decode("utf-8", errors="replace")
-    except Exception as e:
-        return [], "Failed to fetch download.html: %s" % e
-    parser = _DownloadTableParser()
-    try:
-        parser.feed(html)
-    except Exception as e:
-        return [], "Failed to parse download.html: %s" % e
-    base = base_url.rstrip("/")
-    seen: Dict[str, int] = {}
-    result: List[Tuple[str, str]] = []
-    for version, href in parser.rows:
-        full_url = base + "/" + href.lstrip("/")
-        display = version
-        if display in seen:
-            seen[display] += 1
-            display = "%s (%d)" % (version, seen[display])
-        else:
-            seen[version] = 1
-        result.append((display, full_url))
-    return result, None
-
-
 def get_serial_ports() -> list[str]:
     """Return list of serial port names for dropdowns. Placeholder: fake list if pyserial missing."""
     try:
@@ -420,6 +325,17 @@ class FlashFrame(ContentFrame):
         self.fw_opts_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=10)
         self.fw_opts_frame.grid_columnconfigure(0, weight=1)
         self._build_fw_opts()
+        row += 1
+
+        flash_type_frame = ctk.CTkFrame(self, fg_color="transparent")
+        flash_type_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(5, 10))
+        flash_type_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(flash_type_frame, text="What to flash:").grid(row=0, column=0, padx=(0, 10), pady=5)
+        self.flash_type = ctk.CTkComboBox(
+            flash_type_frame, values=["Full image", "Code update"], width=180
+        )
+        self.flash_type.set("Full image")
+        self.flash_type.grid(row=0, column=1, sticky="w", pady=5)
         row += 1
 
         self.flash_btn = ctk.CTkButton(
@@ -561,7 +477,7 @@ class FlashFrame(ContentFrame):
         src = self.fw_source.get()
         port = self.port_combo.get()
         s = self.app.settings if self.app else {}
-        baud = s.get("baud_rate", "921600")
+        baud = s.get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE)
 
         if src == "Download from website":
             choice = self.download_combo.get() if hasattr(self, "download_combo") else "Stable (main)"
@@ -579,22 +495,21 @@ class FlashFrame(ContentFrame):
                     if err or not url:
                         return False, err or "No firmware URL"
                 self.after(0, lambda: self._log("Downloading %s...\n" % url))
-                import tempfile
-                import urllib.request
+                temp_path, err = download_firmware_to_temp(url)
+                if err:
+                    return False, err
                 try:
-                    req = urllib.request.Request(url)
-                    with urllib.request.urlopen(req, timeout=120) as r:
-                        tf = tempfile.NamedTemporaryFile(delete=False, suffix=".bin")
-                        tf.write(r.read())
-                        tf.close()
-                        temp_path = tf.name
-                except Exception as e:
-                    return False, "Download failed: %s" % e
-                try:
-                    ok, msg = flash_firmware(
-                        port, baud, temp_path,
-                        on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
-                    )
+                    code_only = self.flash_type.get() == "Code update"
+                    if code_only:
+                        ok, msg = flash_app_partition(
+                            port, baud, temp_path,
+                            on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                        )
+                    else:
+                        ok, msg = flash_firmware(
+                            port, baud, temp_path,
+                            on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                        )
                     return ok, msg
                 finally:
                     try:
@@ -623,6 +538,11 @@ class FlashFrame(ContentFrame):
         self._log("\n--- Flashing %s ---\n" % path)
 
         def work():
+            code_only = self.flash_type.get() == "Code update"
+            if code_only:
+                return flash_app_partition(
+                    port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l))
+                )
             return flash_firmware(port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l)))
 
         def on_done(ok: bool, _msg: str) -> None:
@@ -669,12 +589,13 @@ class USBManageFrame(ContentFrame):
         ctk.CTkButton(actions_frame, text="Restore full backup", command=self._restore_full_backup).grid(
             row=1, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ctk.CTkButton(actions_frame, text="Extract filesystem").grid(
+        ctk.CTkButton(actions_frame, text="Extract filesystem", command=self._downloadfs).grid(
             row=2, column=0, sticky="ew", padx=(0, 10), pady=3)
-        ctk.CTkButton(actions_frame, text="Upload filesystem").grid(
+        ctk.CTkButton(actions_frame, text="Upload filesystem", command=self._uploadfs).grid(
             row=2, column=1, sticky="ew", padx=(10, 0), pady=3)
 
-        ctk.CTkButton(actions_frame, text="Extract filesystem from backup image").grid(
+        ctk.CTkButton(actions_frame, text="Extract filesystem from backup image",
+                      command=self._extractfs_from_backup).grid(
             row=3, column=0, sticky="ew", padx=(0, 10), pady=3)
         ctk.CTkButton(actions_frame, text="Setup WiFi via IMPROV").grid(
             row=3, column=1, sticky="ew", padx=(10, 0), pady=3)
@@ -712,7 +633,7 @@ class USBManageFrame(ContentFrame):
         if not path:
             return
         port = self.port_combo.get()
-        baud = "115200"  # read_flash is more reliable at 115200 (matches ttgoconfig)
+        baud = (self.app.settings if self.app else {}).get("baud_rate_read", settings_mod.DEFAULT_BAUD_READ)
         self._log("\n--- Make backup to %s ---\n" % path)
 
         def work():
@@ -736,7 +657,7 @@ class USBManageFrame(ContentFrame):
         if not messagebox.askyesno("Restore", "Restore full backup from %s? This will overwrite the device flash." % path):
             return
         port = self.port_combo.get()
-        baud = (self.app.settings if self.app else {}).get("baud_rate", "921600")
+        baud = (self.app.settings if self.app else {}).get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE)
         self._log("\n--- Restore from %s ---\n" % path)
 
         def work():
@@ -754,6 +675,113 @@ class USBManageFrame(ContentFrame):
     def _restore_selected_files(self) -> None:
         messagebox.showinfo("Restore selected files", "Not yet implemented.")
 
+    def _downloadfs(self) -> None:
+        dest_dir = filedialog.askdirectory(title="Select directory to extract filesystem into")
+        if not dest_dir:
+            return
+        port = self.port_combo.get()
+        baud = (self.app.settings if self.app else {}).get("baud_rate_read", settings_mod.DEFAULT_BAUD_READ)
+        block_count = PARTITION_SPIFFS_SIZE // LFS_BLOCK_SIZE
+        self._log("\n--- Extract filesystem from device to %s ---\n" % dest_dir)
+        import tempfile
+
+        def work():
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".bin", prefix="lfs_dl_")
+            os.close(tmp_fd)
+            try:
+                ok, msg = download_filesystem(
+                    port, baud, tmp_path,
+                    on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                )
+                if not ok:
+                    return False, msg
+                lfs_unpack_image(tmp_path, dest_dir, block_count)
+                return True, ""
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+        def on_done(ok: bool, _msg: str) -> None:
+            if ok:
+                self._log("Filesystem extracted to %s\n" % dest_dir)
+                messagebox.showinfo("Extract filesystem", "Filesystem extracted to:\n%s" % dest_dir)
+            else:
+                messagebox.showerror("Extract filesystem", "Failed. Check the log.")
+
+        _run_in_background(work, on_done)
+
+    def _uploadfs(self) -> None:
+        src_dir = filedialog.askdirectory(title="Select directory to upload as filesystem")
+        if not src_dir:
+            return
+        if not messagebox.askyesno(
+            "Upload filesystem",
+            "Upload '%s' as filesystem to device?\nThis will overwrite the current filesystem." % src_dir,
+        ):
+            return
+        port = self.port_combo.get()
+        baud = (self.app.settings if self.app else {}).get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE)
+        block_count = PARTITION_SPIFFS_SIZE // LFS_BLOCK_SIZE
+        self._log("\n--- Upload filesystem from %s ---\n" % src_dir)
+        import tempfile
+
+        def work():
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".bin", prefix="lfs_ul_")
+            os.close(tmp_fd)
+            try:
+                lfs_pack_directory(src_dir, tmp_path, block_count)
+                self.after(0, lambda: self._log("LittleFS image built, flashing…\n"))
+                ok, msg = upload_filesystem(
+                    port, baud, tmp_path,
+                    on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                )
+                return ok, msg
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+
+        def on_done(ok: bool, _msg: str) -> None:
+            if ok:
+                self._log("Filesystem uploaded successfully.\n")
+                messagebox.showinfo("Upload filesystem", "Filesystem uploaded successfully.")
+            else:
+                messagebox.showerror("Upload filesystem", "Failed. Check the log.")
+
+        _run_in_background(work, on_done)
+
+    def _extractfs_from_backup(self) -> None:
+        backup_path = filedialog.askopenfilename(
+            title="Select backup image (.bin)",
+            filetypes=[("Binary", "*.bin"), ("All", "*.*")],
+        )
+        if not backup_path:
+            return
+        dest_dir = filedialog.askdirectory(title="Select directory to extract filesystem into")
+        if not dest_dir:
+            return
+        self._log("\n--- Extract filesystem from backup %s to %s ---\n" % (backup_path, dest_dir))
+
+        def work():
+            try:
+                lfs_extract_from_backup(backup_path, dest_dir, PARTITION_SPIFFS_OFFSET, PARTITION_SPIFFS_SIZE)
+                return True, ""
+            except Exception as e:
+                return False, str(e)
+
+        def on_done(ok: bool, msg: str) -> None:
+            if ok:
+                self._log("Filesystem extracted to %s\n" % dest_dir)
+                messagebox.showinfo("Extract filesystem", "Filesystem extracted to:\n%s" % dest_dir)
+            else:
+                self._log("Error: %s\n" % msg)
+                messagebox.showerror("Extract filesystem", "Failed: %s" % msg)
+
+        _run_in_background(work, on_done)
+
 
 class WiFiManageFrame(ContentFrame):
     def __init__(self, master, app: Optional["App"] = None, **kwargs):
@@ -766,8 +794,9 @@ class WiFiManageFrame(ContentFrame):
         host_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         self.host_entry = ctk.CTkEntry(host_frame, placeholder_text="rdzsonde.local or IP")
+        self.host_entry.insert(0, "rdzsonde.local")
         self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
-        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray")
+        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
         self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
         ctk.CTkButton(host_frame, text="Resolve", width=80, command=self._resolve_host).grid(row=0, column=3, padx=0, pady=0)
         ctk.CTkButton(host_frame, text="Test connection", width=120, command=self._test_connection).grid(
@@ -800,6 +829,15 @@ class WiFiManageFrame(ContentFrame):
         ).grid(row=row, column=0, sticky="ew", padx=20, pady=3)
         row += 1
 
+        self.grid_rowconfigure(row, weight=1)
+        self.wifi_log = ctk.CTkTextbox(self, height=160, wrap="word", state="disabled")
+        self.wifi_log.grid(row=row, column=0, sticky="nsew", padx=20, pady=(8, 10))
+
+    def _log(self, msg: str) -> None:
+        self.wifi_log.configure(state="normal")
+        self.wifi_log.insert("end", msg)
+        self.wifi_log.see("end")
+        self.wifi_log.configure(state="disabled")
 
     def _base_url(self) -> str:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
@@ -812,40 +850,28 @@ class WiFiManageFrame(ContentFrame):
         try:
             import socket
             ip = socket.gethostbyname(host)
-            # remember resolved IP and show it inline next to the host entry
             self._resolved_ip = ip
             if hasattr(self, "ip_label"):
                 self.ip_label.configure(text="IP: %s" % ip)
+            self._log("Resolved %s → %s\n" % (host, ip))
         except Exception as e:
             self._resolved_ip = ""
             if hasattr(self, "ip_label"):
                 self.ip_label.configure(text="")
-            messagebox.showerror("Resolve", str(e))
+            self._log("Resolve failed: %s\n" % e)
 
     def _test_connection(self) -> None:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        ip = getattr(self, "_resolved_ip", "")
-        if ip and host and host != ip and "://" not in host:
-            base = "http://%s/" % ip
-        else:
-            base = self._base_url()
-        url = base.rstrip("/") + "/status.json"
+        self._log("\n--- Test connection: %s ---\n" % host)
 
         def work():
-            try:
-                import urllib.request
-                req = urllib.request.Request(url)
-                with urllib.request.urlopen(req, timeout=5) as r:
-                    body = r.read().decode("utf-8", errors="replace")[:500]
-                return True, body
-            except Exception as e:
-                return False, str(e)
+            return wifi_ops_mod.test_connection(host)
 
         def on_done(ok: bool, msg: str) -> None:
             if ok:
-                messagebox.showinfo("Test connection", "Connected.\n\n%s" % (msg[:300] + "..." if len(msg) > 300 else msg))
+                self._log("Connected.\n%s\n" % (msg[:300] + "..." if len(msg) > 300 else msg))
             else:
-                messagebox.showerror("Test connection", msg)
+                self._log("Failed: %s\n" % msg)
 
         _run_in_background(work, on_done)
 
@@ -854,62 +880,33 @@ class WiFiManageFrame(ContentFrame):
         if not folder:
             return
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        try:
-            import socket
-            ip = socket.gethostbyname(host.split("://")[-1].split("/")[0].split(":")[0])
-        except Exception as e:
-            messagebox.showerror("Extract files", "Could not resolve host: %s" % e)
-            return
-        base_url = "http://%s/" % ip
         user = (self.auth_user_entry.get() or "").strip()
         password = (self.auth_pass_entry.get() or "").strip()
-        files_to_get = ["config.txt", "qrg.txt", "networks.txt"] + ["screens%d.txt" % i for i in range(1, 6)]
+        session, base_url, err = wifi_ops_mod.session_for_host(host, user or None, password or None)
+        if err:
+            self._log("Error: %s\n" % err)
+            return
+        files_to_get = wifi_ops_mod.FILE_SETS["all"]
+        self._log("\n--- Download files from %s → %s ---\n" % (host, folder))
 
         def work():
-            import hashlib
-            import requests
-            session = requests.Session()
-            if user and password:
-                try:
-                    r = session.get(base_url + "login.html", timeout=10)
-                    r.raise_for_status()
-                    m = re.search(r'name="preauth"\s+value="([^"]+)"', r.text)
-                    if not m:
-                        return False, "Could not get login form (preauth)."
-                    preauth = m.group(1)
-                    auth_hex = hashlib.sha256(("%s:%s:%s" % (user, preauth, password)).encode()).hexdigest()
-                    r2 = session.post(base_url + "login.html", data={"user": user, "preauth": preauth, "auth": auth_hex}, allow_redirects=True, timeout=10)
-                    if r2.status_code == 401:
-                        return False, "Invalid credentials or login failed."
-                except Exception as e:
-                    return False, "Login failed: %s" % e
             saved = 0
-            errors = []
             for name in files_to_get:
-                try:
-                    r = session.get(base_url + "file/" + name, timeout=10)
-                    if r.status_code == 401:
-                        return False, "Permission denied (401). Use Auth if the device requires login."
-                    if r.status_code == 404:
+                content, ferr = wifi_ops_mod.get_file(session, base_url, name)
+                if ferr:
+                    if "404" in ferr:
+                        self.after(0, lambda n=name: self._log("  skip %s (not found)\n" % n))
                         continue
-                    if r.status_code != 200:
-                        errors.append("%s: HTTP %s" % (name, r.status_code))
-                        continue
-                    path = os.path.join(folder, name)
-                    with open(path, "wb") as f:
-                        f.write(r.content)
-                    saved += 1
-                except Exception as e:
-                    errors.append("%s: %s" % (name, e))
-            if errors:
-                return False, "Downloaded %d file(s). Errors: %s" % (saved, "; ".join(errors[:5]))
-            return True, "Downloaded %d file(s) to %s" % (saved, folder)
+                    return False, ferr
+                path = os.path.join(folder, name)
+                with open(path, "wb") as f:
+                    f.write(content)
+                saved += 1
+                self.after(0, lambda n=name: self._log("  saved %s\n" % n))
+            return True, "Done – %d file(s) downloaded to %s\n" % (saved, folder)
 
         def on_done(ok: bool, msg: str) -> None:
-            if ok:
-                messagebox.showinfo("Extract files", msg)
-            else:
-                messagebox.showerror("Extract files", msg)
+            self._log(msg if msg.endswith("\n") else msg + "\n")
 
         _run_in_background(work, on_done)
 
@@ -920,46 +917,18 @@ class WiFiManageFrame(ContentFrame):
         self.sd_scroll.grid_remove()
 
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        if "://" in host:
-            base = host.rstrip("/") + "/"
-            url = base.rstrip("/") + "/files.json"
-        else:
-            try:
-                import socket
-                ip = socket.gethostbyname(host)
-                base = "http://%s/" % ip
-                url = base + "files.json"
-            except Exception as e:
-                err_msg = str(e)
-                def fail():
-                    self.sd_placeholder.configure(text="Error: Could not resolve host. %s" % err_msg)
-                    self.sd_refresh_btn.configure(state="normal")
-                self.after(0, fail)
-                return
-        if self._sd_current_dir:
-            url += "?dir=" + self._sd_current_dir
+        user = (self.auth_user_entry.get() or "").strip() or None
+        password = (self.auth_pass_entry.get() or "").strip() or None
+        dir_path = self._sd_current_dir
 
         def work():
-            try:
-                import urllib.request
-                import urllib.error
-                req = urllib.request.Request(url)
-                with urllib.request.urlopen(req, timeout=8) as r:
-                    if r.status != 200:
-                        return False, "HTTP %s – SD card may not be available (device firmware may not have SD support)." % r.status
-                    raw = r.read().decode("utf-8")
-                    import json as _json
-                    data = _json.loads(raw)
-                return True, data
-            except urllib.error.HTTPError as e:
-                return False, "HTTP %s – SD card not available or device error." % e.code
-            except urllib.error.URLError as e:
-                err = str(e.reason) if getattr(e, "reason", None) else str(e)
-                if "timed out" in err.lower():
-                    return False, "Connection timed out. Check host and network."
-                return False, "Connection failed: %s" % err
-            except Exception as e:
-                return False, "SD card not available or device error: %s" % e
+            session, base_url, err = wifi_ops_mod.session_for_host(host, user, password)
+            if err:
+                return False, err
+            entries, err = sd_ops_mod.list_dir(session, base_url, dir_path)
+            if err:
+                return False, err
+            return True, entries
 
         def on_done(ok: bool, msg: Any) -> None:
             self.sd_refresh_btn.configure(state="normal")
@@ -1013,78 +982,37 @@ class WiFiManageFrame(ContentFrame):
     def _sd_get_session_and_base(self) -> tuple[Any, str]:
         """Return (session, base_url) with auth if set. session has get(url)."""
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        try:
-            import socket
-            ip = socket.gethostbyname(host.split("://")[-1].split("/")[0].split(":")[0])
-        except Exception:
-            ip = host
-        base_url = "http://%s/" % ip
-        import requests
-        session = requests.Session()
-        user = (self.auth_user_entry.get() or "").strip()
-        password = (self.auth_pass_entry.get() or "").strip()
-        if user and password:
-            import hashlib
-            r = session.get(base_url + "login.html", timeout=10)
-            r.raise_for_status()
-            m = re.search(r'name="preauth"\s+value="([^"]+)"', r.text)
-            if m:
-                preauth = m.group(1)
-                auth_hex = hashlib.sha256(("%s:%s:%s" % (user, preauth, password)).encode()).hexdigest()
-                session.post(base_url + "login.html", data={"user": user, "preauth": preauth, "auth": auth_hex}, timeout=10)
+        user = (self.auth_user_entry.get() or "").strip() or None
+        password = (self.auth_pass_entry.get() or "").strip() or None
+        session, base_url, err = wifi_ops_mod.session_for_host(host, user, password)
+        if err:
+            raise RuntimeError(err)
         return session, base_url
 
     def _sd_collect_files_recursive(self, session: Any, base_url: str, dir_path: str) -> list[str]:
-        """Return list of SD paths (dir_path/name) for all files under dir_path."""
-        import json as _json
-        url = base_url + "files.json"
-        if dir_path:
-            url += "?dir=" + dir_path
-        out: list[str] = []
-        try:
-            r = session.get(url, timeout=8)
-            if r.status_code != 200:
-                return out
-            data = r.json()
-        except Exception:
-            return out
-        for item in (data or []):
-            name = item.get("name", "")
-            if not name:
-                continue
-            full = (dir_path + "/" + name).strip("/") if dir_path else name
-            if item.get("dir"):
-                out.extend(self._sd_collect_files_recursive(session, base_url, full))
-            else:
-                out.append(full)
-        return out
+        """Return list of SD paths for all files under dir_path."""
+        return sd_ops_mod.collect_files_recursive(session, base_url, dir_path)
 
     def _sd_download_all(self) -> None:
         dest = filedialog.askdirectory(title="Choose folder to save SD files")
         if not dest:
             return
-        session, base_url = self._sd_get_session_and_base()
+        try:
+            session, base_url = self._sd_get_session_and_base()
+        except RuntimeError as e:
+            messagebox.showerror("SD Download", str(e))
+            return
+        try:
+            session, base_url = self._sd_get_session_and_base()
+        except RuntimeError as e:
+            messagebox.showerror("SD Download", str(e))
+            return
 
         def work(progress_cb=None):
-            files = self._sd_collect_files_recursive(session, base_url, self._sd_current_dir)
-            total = len(files)
-            saved = 0
-            errs = []
-            for i, path in enumerate(files):
-                try:
-                    r = session.get(base_url + "sd/" + path, timeout=15)
-                    if r.status_code != 200:
-                        errs.append("%s: HTTP %s" % (path, r.status_code))
-                        continue
-                    local = os.path.join(dest, path)
-                    os.makedirs(os.path.dirname(local) or ".", exist_ok=True)
-                    with open(local, "wb") as f:
-                        f.write(r.content)
-                    saved += 1
-                except Exception as e:
-                    errs.append("%s: %s" % (path, e))
-                if progress_cb and total:
-                    progress_cb(i + 1, total)
+            files = sd_ops_mod.collect_files_recursive(session, base_url, self._sd_current_dir)
+            saved, errs = sd_ops_mod.fetch_paths_to_dir(
+                session, base_url, files, dest, progress_cb
+            )
             if errs:
                 return False, "Downloaded %s file(s). Errors: %s" % (saved, "; ".join(errs[:3]))
             return True, "Downloaded %s file(s) to %s" % (saved, dest)
@@ -1113,7 +1041,11 @@ class WiFiManageFrame(ContentFrame):
         dest = filedialog.askdirectory(title="Choose folder to save SD files")
         if not dest:
             return
-        session, base_url = self._sd_get_session_and_base()
+        try:
+            session, base_url = self._sd_get_session_and_base()
+        except RuntimeError as e:
+            messagebox.showerror("SD Download", str(e))
+            return
 
         def work(progress_cb=None):
             all_paths: list[str] = []
@@ -1123,27 +1055,12 @@ class WiFiManageFrame(ContentFrame):
                     continue
                 full = (self._sd_current_dir + "/" + name).strip("/") if self._sd_current_dir else name
                 if entry.get("dir"):
-                    all_paths.extend(self._sd_collect_files_recursive(session, base_url, full))
+                    all_paths.extend(sd_ops_mod.collect_files_recursive(session, base_url, full))
                 else:
                     all_paths.append(full)
-            total = len(all_paths)
-            saved = 0
-            errs = []
-            for i, path in enumerate(all_paths):
-                try:
-                    r = session.get(base_url + "sd/" + path, timeout=15)
-                    if r.status_code != 200:
-                        errs.append("%s: HTTP %s" % (path, r.status_code))
-                        continue
-                    local = os.path.join(dest, path)
-                    os.makedirs(os.path.dirname(local) or ".", exist_ok=True)
-                    with open(local, "wb") as f:
-                        f.write(r.content)
-                    saved += 1
-                except Exception as e:
-                    errs.append("%s: %s" % (path, e))
-                if progress_cb and total:
-                    progress_cb(i + 1, total)
+            saved, errs = sd_ops_mod.fetch_paths_to_dir(
+                session, base_url, all_paths, dest, progress_cb
+            )
             if errs:
                 return False, "Downloaded %s file(s). Errors: %s" % (saved, "; ".join(errs[:3]))
             return True, "Downloaded %s file(s) to %s" % (saved, dest)
@@ -1178,8 +1095,9 @@ class SDWiFiFrame(WiFiManageFrame):
         host_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         self.host_entry = ctk.CTkEntry(host_frame, placeholder_text="rdzsonde.local or IP")
+        self.host_entry.insert(0, "rdzsonde.local")
         self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
-        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray")
+        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
         self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
         ctk.CTkButton(host_frame, text="Resolve", width=80, command=self._resolve_host).grid(row=0, column=3, padx=0, pady=0)
         ctk.CTkButton(host_frame, text="Test connection", width=120, command=self._test_connection).grid(
@@ -1224,6 +1142,7 @@ class SDWiFiFrame(WiFiManageFrame):
         self.sd_scroll.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 6))
         self.sd_scroll.grid_remove()
         sd_frame.grid_rowconfigure(0, weight=1)
+        self._setup_sd_scroll_binding()
         sd_btns = ctk.CTkFrame(sd_frame, fg_color="transparent")
         sd_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 4))
         self.sd_refresh_btn = ctk.CTkButton(sd_btns, text="Refresh list", width=100, command=self._sd_refresh)
@@ -1238,6 +1157,48 @@ class SDWiFiFrame(WiFiManageFrame):
         self.sd_progress.set(0)
         self.sd_progress_label = ctk.CTkLabel(sd_frame, text="", text_color="gray", height=0)
         self.sd_progress_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 0))
+
+    def _setup_sd_scroll_binding(self) -> None:
+        """Register a single bind_all handler that scrolls sd_scroll whenever the mouse
+        pointer is physically over the scroll area, regardless of which widget received
+        the event (works on macOS where scroll events may go to the focused widget)."""
+        import sys
+
+        def _over_sd() -> bool:
+            pf = self.sd_scroll._parent_frame
+            try:
+                mx, my = pf.winfo_pointerx(), pf.winfo_pointery()
+                x1, y1 = pf.winfo_rootx(), pf.winfo_rooty()
+                x2, y2 = x1 + pf.winfo_width(), y1 + pf.winfo_height()
+                return x1 <= mx <= x2 and y1 <= my <= y2
+            except Exception:
+                return False
+
+        def _on_wheel(event):
+            if not _over_sd():
+                return
+            canvas = self.sd_scroll._parent_canvas
+            if sys.platform.startswith("win"):
+                canvas.yview_scroll(int(-event.delta / 6), "units")
+            else:
+                canvas.yview_scroll(-event.delta, "units")
+            return "break"
+
+        def _on_btn4(event):
+            if _over_sd():
+                self.sd_scroll._parent_canvas.yview_scroll(-1, "units")
+
+        def _on_btn5(event):
+            if _over_sd():
+                self.sd_scroll._parent_canvas.yview_scroll(1, "units")
+
+        # Use tkinter.Misc.bind_all directly — CTkBaseClass overrides bind_all and
+        # raises AttributeError to prevent accidental global bindings, so we bypass it.
+        import tkinter
+        tkinter.Misc.bind_all(self, "<MouseWheel>", _on_wheel, add="+")
+        tkinter.Misc.bind_all(self, "<Button-4>", _on_btn4, add="+")
+        tkinter.Misc.bind_all(self, "<Button-5>", _on_btn5, add="+")
+
 
 
 class SerialLogFrame(ContentFrame):
@@ -1483,6 +1444,44 @@ class SettingsFrame(ContentFrame):
         ctk.CTkEntry(self, textvariable=self.serial_log_lines_var, width=100, placeholder_text="10000").grid(
             row=row, column=1, sticky="w", padx=0, pady=4)
         row += 1
+
+        ctk.CTkLabel(self, text="esptool (advanced)", font=ctk.CTkFont(weight="bold")).grid(
+            row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
+        row += 1
+
+        # Read operations sub-section
+        ctk.CTkLabel(self, text="Read (backup, download FS):", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(20, 10), pady=(4, 0))
+        row += 1
+        ctk.CTkLabel(self, text="Baud rate:", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(36, 10), pady=2)
+        self.baud_read_var = ctk.StringVar(value="115200")
+        ctk.CTkComboBox(self, values=["115200", "460800", "921600"], variable=self.baud_read_var, width=120).grid(
+            row=row, column=1, sticky="w", padx=0, pady=2)
+        row += 1
+        self.no_stub_read_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            self, text="Use --no-stub for read operations",
+            variable=self.no_stub_read_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=(36, 20), pady=2)
+        row += 1
+
+        # Write operations sub-section
+        ctk.CTkLabel(self, text="Write (flash, restore, upload FS):", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(20, 10), pady=(8, 0))
+        row += 1
+        ctk.CTkLabel(self, text="Baud rate:", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(36, 10), pady=2)
+        self.baud_write_var = ctk.StringVar(value="921600")
+        ctk.CTkComboBox(self, values=["921600", "460800", "115200"], variable=self.baud_write_var, width=120).grid(
+            row=row, column=1, sticky="w", padx=0, pady=2)
+        row += 1
+        self.no_stub_write_var = ctk.BooleanVar(value=False)
+        ctk.CTkCheckBox(
+            self, text="Use --no-stub for write operations",
+            variable=self.no_stub_write_var,
+        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=(36, 20), pady=2)
+        row += 1
         self.grid_rowconfigure(row, weight=1)
 
     def _browse_backup(self) -> None:
@@ -1496,6 +1495,10 @@ class SettingsFrame(ContentFrame):
         self.download_url_var.set(s.get("download_url", settings_mod.DEFAULT_DOWNLOAD_URL))
         self.baud_var.set(s.get("baud_rate", settings_mod.DEFAULT_BAUD))
         self.serial_log_lines_var.set(str(s.get("serial_log_buffer_lines", settings_mod.DEFAULT_SERIAL_LOG_LINES)))
+        self.baud_read_var.set(s.get("baud_rate_read", settings_mod.DEFAULT_BAUD_READ))
+        self.baud_write_var.set(s.get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE))
+        self.no_stub_read_var.set(bool(s.get("no_stub_read", False)))
+        self.no_stub_write_var.set(bool(s.get("no_stub_write", False)))
 
     def _save_from_ui(self) -> None:
         if not self.app:
@@ -1504,12 +1507,20 @@ class SettingsFrame(ContentFrame):
             n = int(self.serial_log_lines_var.get().strip() or "10000")
         except ValueError:
             n = settings_mod.DEFAULT_SERIAL_LOG_LINES
+        no_stub_read = bool(self.no_stub_read_var.get())
+        no_stub_write = bool(self.no_stub_write_var.get())
         self.app.settings.update({
             "backup_folder": self.backup_folder_var.get().strip() or settings_mod.DEFAULT_BACKUP_FOLDER,
             "download_url": self.download_url_var.get().strip() or settings_mod.DEFAULT_DOWNLOAD_URL,
             "baud_rate": self.baud_var.get(),
             "serial_log_buffer_lines": n,
+            "baud_rate_read": self.baud_read_var.get(),
+            "baud_rate_write": self.baud_write_var.get(),
+            "no_stub_read": no_stub_read,
+            "no_stub_write": no_stub_write,
         })
+        set_no_stub_read(no_stub_read)
+        set_no_stub_write(no_stub_write)
         settings_mod.save(self.app.settings)
 
 
@@ -1521,6 +1532,8 @@ class App(ctk.CTk):
         self.minsize(500, 400)
 
         self.settings = settings_mod.load()
+        set_no_stub_read(bool(self.settings.get("no_stub_read", False)))
+        set_no_stub_write(bool(self.settings.get("no_stub_write", False)))
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -1601,7 +1614,7 @@ def main():
         _tk.messagebox.showerror(
             "Missing dependency",
             "esptool not found. Please run:\n  pip install -r requirements.txt\n"
-            "(Use the same Python/venv you use to run this app, e.g. from installer folder or project root.)"
+            "(Use the same Python/venv you use to run this app, e.g. from ttgoconfig folder or project root.)"
         )
         return
     ctk.set_appearance_mode("system")
