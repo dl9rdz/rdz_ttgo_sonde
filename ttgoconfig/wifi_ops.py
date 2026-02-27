@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 import socket
+import urllib.parse
 from typing import Any, List, Optional, Tuple
 
 # Set name → list of filenames (align with scripts/ttgoconfig.py and GUI)
@@ -68,6 +69,8 @@ def login(session: Any, base_url: str, user: str, password: str) -> Optional[str
         )
         if r2.status_code == 401:
             return "Invalid credentials or login failed."
+        if not r2.ok:
+            return "Login failed: HTTP %s" % r2.status_code
         return None
     except Exception as e:
         return "Login failed: %s" % e
@@ -101,7 +104,7 @@ def get_file(
     session: Any, base_url: str, name: str
 ) -> Tuple[Optional[bytes], Optional[str]]:
     """GET file from device. Return (content, error_msg)."""
-    url = base_url + "file/" + name
+    url = base_url + "file/" + urllib.parse.quote(name)
     try:
         r = session.get(url, timeout=10)
         if r.status_code == 401:

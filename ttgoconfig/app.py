@@ -11,6 +11,7 @@ import os
 import queue
 import re
 import threading
+import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from typing import Any, Callable, Dict, List, Optional, Tuple
@@ -263,12 +264,57 @@ class ContentFrame(ctk.CTkFrame):
         super().__init__(master, fg_color="transparent", **kwargs)
         self.mode_name = mode_name
         self.app = app  # type: Optional[App]
+        self._log_widget: Optional[Any] = None
 
     def show(self) -> None:
         self.grid(row=0, column=0, sticky="nsew")
 
     def hide(self) -> None:
         self.grid_remove()
+
+    def _make_log_widget(self, **kwargs) -> ctk.CTkTextbox:
+        """Create a CTkTextbox, configure ANSI color tags, and register as self._log_widget."""
+        widget = ctk.CTkTextbox(self, **kwargs)
+        _configure_ansi_tags_for_log(widget)
+        self._log_widget = widget
+        return widget
+
+    def _log(self, text: str) -> None:
+        widget = self._log_widget
+        if widget is None:
+            return
+        actions = _parse_ansi_to_actions_debug(text)
+        tb = getattr(widget, "_textbox", None) or widget
+        widget.configure(state="normal")
+        for _act in actions:
+            _, seg_text, tag = _act
+            _log_insert_el_aware(widget, tb, seg_text, tag)
+        widget.see("end")
+        widget.configure(state="disabled")
+
+    def _refresh_ports(self) -> None:
+        if not hasattr(self, "port_combo"):
+            return
+        current = self.port_combo.get()
+        ports = get_serial_ports()
+        self.port_combo.configure(values=ports)
+        if current in ports:
+            self.port_combo.set(current)
+
+    def _on_line_cb(self) -> Callable[[str], None]:
+        """Return a thread-safe on_line callback that appends to this frame's log."""
+        return lambda line: self.after(0, lambda l=line: self._log(l))
+
+    def _make_port_combo_row(self, parent: Any) -> int:
+        """Add Port label, port_combo, and Refresh button to parent at row 0. Returns next available column index."""
+        parent.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(parent, text="Port:").grid(row=0, column=0, padx=(0, 10), pady=5)
+        self.port_combo = ctk.CTkComboBox(parent, values=get_serial_ports(), width=220)
+        self.port_combo.grid(row=0, column=1, padx=0, pady=5, sticky="w")
+        ctk.CTkButton(parent, text="Refresh", width=80, command=self._refresh_ports).grid(
+            row=0, column=2, padx=(10, 0), pady=5
+        )
+        return 3
 
 
 def _run_in_background(
@@ -289,8 +335,12 @@ def _run_in_background(
                 ok, msg = work()
         except Exception as e:
             ok, msg = False, str(e)
-        if on_done and tk._default_root:
-            tk._default_root.after(0, lambda: on_done(ok, msg))
+        if on_done:
+            root = tk._default_root
+            if root:
+                root.after(0, lambda: on_done(ok, msg))
+            else:
+                on_done(ok, msg)
     t = threading.Thread(target=run, daemon=True)
     t.start()
 
@@ -303,19 +353,15 @@ class FlashFrame(ContentFrame):
         row = 0
         dev_frame = ctk.CTkFrame(self, fg_color="transparent")
         dev_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(20, 10))
-        dev_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(dev_frame, text="Port:").grid(row=0, column=0, padx=(0, 10), pady=5)
-        self.port_combo = ctk.CTkComboBox(dev_frame, values=get_serial_ports(), width=220)
-        self.port_combo.grid(row=0, column=1, padx=0, pady=5, sticky="w")
-        ref_btn = ctk.CTkButton(dev_frame, text="Refresh", width=80, command=self._refresh_ports)
-        ref_btn.grid(row=0, column=2, padx=(10, 0), pady=5)
+        self._make_port_combo_row(dev_frame)
         row += 1
 
         src_label = ctk.CTkLabel(self, text="Firmware source:")
         src_label.grid(row=row, column=0, sticky="w", padx=20, pady=(10, 5))
         row += 1
         self.fw_source = ctk.CTkSegmentedButton(
-            self, values=["Download from website", "Local file", "From backup"], command=self._on_fw_source_change
+            self, values=["Download from website", "Local file", "From backup"],
+            command=self._on_fw_source_change, dynamic_resizing=False,
         )
         self.fw_source.set("Download from website")
         self.fw_source.grid(row=row, column=0, sticky="ew", padx=20, pady=5)
@@ -344,14 +390,10 @@ class FlashFrame(ContentFrame):
         self.flash_btn.grid(row=row, column=0, padx=20, pady=20, sticky="ew")
         row += 1
 
-        self.log_text = ctk.CTkTextbox(self, height=120, state="disabled")
+        self.log_text = self._make_log_widget(height=120, state="disabled")
         self.log_text.grid(row=row, column=0, sticky="nsew", padx=20, pady=(0, 20))
         self.grid_rowconfigure(row, weight=1)
-        _configure_ansi_tags_for_log(self.log_text)
         self._flash_running = False
-
-    def _refresh_ports(self) -> None:
-        self.port_combo.configure(values=get_serial_ports())
 
     def _build_fw_opts(self) -> None:
         for w in self.fw_opts_frame.winfo_children():
@@ -432,7 +474,10 @@ class FlashFrame(ContentFrame):
             self.download_combo.configure(values=displays)
 
         def run() -> None:
-            ok, msg, rows = work()
+            try:
+                ok, msg, rows = work()
+            except Exception as e:
+                ok, msg, rows = False, str(e), []
             if self.winfo_exists():
                 self.after(0, lambda: on_done(ok, msg, rows))
         threading.Thread(target=run, daemon=True).start()
@@ -461,19 +506,7 @@ class FlashFrame(ContentFrame):
             return os.path.join(folder, name)
         return None
 
-    def _log(self, text: str) -> None:
-        actions = _parse_ansi_to_actions_debug(text)
-        tb = getattr(self.log_text, "_textbox", None) or self.log_text
-        self.log_text.configure(state="normal")
-        for _act in actions:
-            _, seg_text, tag = _act
-            _log_insert_el_aware(self.log_text, tb, seg_text, tag)
-        self.log_text.see("end")
-        self.log_text.configure(state="disabled")
-
     def _do_flash(self) -> None:
-        if self._flash_running:
-            return
         src = self.fw_source.get()
         port = self.port_combo.get()
         s = self.app.settings if self.app else {}
@@ -503,12 +536,12 @@ class FlashFrame(ContentFrame):
                     if code_only:
                         ok, msg = flash_app_partition(
                             port, baud, temp_path,
-                            on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                            on_line=self._on_line_cb(),
                         )
                     else:
                         ok, msg = flash_firmware(
                             port, baud, temp_path,
-                            on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                            on_line=self._on_line_cb(),
                         )
                     return ok, msg
                 finally:
@@ -540,10 +573,8 @@ class FlashFrame(ContentFrame):
         def work():
             code_only = self.flash_type.get() == "Code update"
             if code_only:
-                return flash_app_partition(
-                    port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l))
-                )
-            return flash_firmware(port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l)))
+                return flash_app_partition(port, baud, path, on_line=self._on_line_cb())
+            return flash_firmware(port, baud, path, on_line=self._on_line_cb())
 
         def on_done(ok: bool, _msg: str) -> None:
             self._flash_running = False
@@ -565,19 +596,13 @@ class USBManageFrame(ContentFrame):
         row = 0
         dev_frame = ctk.CTkFrame(self, fg_color="transparent")
         dev_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(20, 10))
-        dev_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(dev_frame, text="Port:").grid(row=0, column=0, padx=(0, 10), pady=5)
-        self.port_combo = ctk.CTkComboBox(dev_frame, values=get_serial_ports(), width=220)
-        self.port_combo.grid(row=0, column=1, padx=0, pady=5, sticky="w")
-        ctk.CTkButton(dev_frame, text="Refresh", width=80, command=self._refresh_ports).grid(
-            row=0, column=2, padx=(10, 0), pady=5
-        )
+        self._make_port_combo_row(dev_frame)
         row += 1
 
         actions_frame = ctk.CTkFrame(self, fg_color="transparent")
         actions_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(15, 5))
-        actions_frame.grid_columnconfigure(0, weight=1)
-        actions_frame.grid_columnconfigure(1, weight=1)
+        actions_frame.grid_columnconfigure(0, weight=1, uniform="col")
+        actions_frame.grid_columnconfigure(1, weight=1, uniform="col")
 
         ctk.CTkLabel(actions_frame, text="TTGO→PC", font=ctk.CTkFont(weight="bold")).grid(
             row=0, column=0, sticky="w", padx=(0, 10), pady=(0, 6))
@@ -594,32 +619,19 @@ class USBManageFrame(ContentFrame):
         ctk.CTkButton(actions_frame, text="Upload filesystem", command=self._uploadfs).grid(
             row=2, column=1, sticky="ew", padx=(10, 0), pady=3)
 
+        ctk.CTkFrame(actions_frame, height=1, fg_color=("gray70", "gray40")).grid(
+            row=3, column=0, columnspan=2, sticky="ew", padx=0, pady=(10, 6))
+
         ctk.CTkButton(actions_frame, text="Extract filesystem from backup image",
                       command=self._extractfs_from_backup).grid(
-            row=3, column=0, sticky="ew", padx=(0, 10), pady=3)
+            row=4, column=0, sticky="ew", padx=(0, 10), pady=3)
         ctk.CTkButton(actions_frame, text="Setup WiFi via IMPROV").grid(
-            row=3, column=1, sticky="ew", padx=(10, 0), pady=3)
+            row=4, column=1, sticky="ew", padx=(10, 0), pady=3)
 
         row += 1
-        self._op_log = ctk.CTkTextbox(self, height=100, state="disabled")
+        self._op_log = self._make_log_widget(height=100, state="disabled")
         self._op_log.grid(row=row, column=0, sticky="nsew", padx=20, pady=(10, 20))
         self.grid_rowconfigure(row, weight=1)
-        _configure_ansi_tags_for_log(self._op_log)
-
-    def _refresh_ports(self) -> None:
-        self.port_combo.configure(values=get_serial_ports())
-
-    def _log(self, text: str) -> None:
-        if not self._op_log:
-            return
-        actions = _parse_ansi_to_actions_debug(text)
-        tb = getattr(self._op_log, "_textbox", None) or self._op_log
-        self._op_log.configure(state="normal")
-        for _act in actions:
-            _, seg_text, tag = _act
-            _log_insert_el_aware(self._op_log, tb, seg_text, tag)
-        self._op_log.see("end")
-        self._op_log.configure(state="disabled")
 
     def _make_backup(self) -> None:
         folder = settings_mod.get_backup_folder_expanded(self.app.settings if self.app else {})
@@ -637,7 +649,7 @@ class USBManageFrame(ContentFrame):
         self._log("\n--- Make backup to %s ---\n" % path)
 
         def work():
-            return read_backup(port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l)))
+            return read_backup(port, baud, path, on_line=self._on_line_cb())
 
         def on_done(ok: bool, _msg: str) -> None:
             if ok:
@@ -661,7 +673,7 @@ class USBManageFrame(ContentFrame):
         self._log("\n--- Restore from %s ---\n" % path)
 
         def work():
-            return write_backup(port, baud, path, on_line=lambda line: self.after(0, lambda l=line: self._log(l)))
+            return write_backup(port, baud, path, on_line=self._on_line_cb())
 
         def on_done(ok: bool, _msg: str) -> None:
             if ok:
@@ -691,7 +703,7 @@ class USBManageFrame(ContentFrame):
             try:
                 ok, msg = download_filesystem(
                     port, baud, tmp_path,
-                    on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                    on_line=self._on_line_cb(),
                 )
                 if not ok:
                     return False, msg
@@ -735,7 +747,7 @@ class USBManageFrame(ContentFrame):
                 self.after(0, lambda: self._log("LittleFS image built, flashing…\n"))
                 ok, msg = upload_filesystem(
                     port, baud, tmp_path,
-                    on_line=lambda line: self.after(0, lambda l=line: self._log(l)),
+                    on_line=self._on_line_cb(),
                 )
                 return ok, msg
             finally:
@@ -793,8 +805,11 @@ class WiFiManageFrame(ContentFrame):
         host_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(10, 4))
         host_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        self.host_entry = ctk.CTkEntry(host_frame, placeholder_text="rdzsonde.local or IP")
-        self.host_entry.insert(0, "rdzsonde.local")
+        self.host_entry = ctk.CTkEntry(
+            host_frame,
+            textvariable=self.app.wifi_host_var,
+            placeholder_text="rdzsonde.local or IP",
+        )
         self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
         self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
         self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
@@ -809,10 +824,21 @@ class WiFiManageFrame(ContentFrame):
         auth_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
-        self.auth_user_entry = ctk.CTkEntry(auth_frame, width=120, placeholder_text="username")
+        self.auth_user_entry = ctk.CTkEntry(
+            auth_frame,
+            width=120,
+            textvariable=self.app.wifi_user_var,
+            placeholder_text="username",
+        )
         self.auth_user_entry.grid(row=0, column=3, padx=(0, 12), pady=0, sticky="w")
         ctk.CTkLabel(auth_frame, text="Password").grid(row=0, column=4, padx=(0, 4), pady=0)
-        self.auth_pass_entry = ctk.CTkEntry(auth_frame, width=120, placeholder_text="password", show="•")
+        self.auth_pass_entry = ctk.CTkEntry(
+            auth_frame,
+            width=120,
+            textvariable=self.app.wifi_pass_var,
+            placeholder_text="password",
+            show="•",
+        )
         self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
         row += 1
 
@@ -830,14 +856,8 @@ class WiFiManageFrame(ContentFrame):
         row += 1
 
         self.grid_rowconfigure(row, weight=1)
-        self.wifi_log = ctk.CTkTextbox(self, height=160, wrap="word", state="disabled")
+        self.wifi_log = self._make_log_widget(height=160, wrap="word", state="disabled")
         self.wifi_log.grid(row=row, column=0, sticky="nsew", padx=20, pady=(8, 10))
-
-    def _log(self, msg: str) -> None:
-        self.wifi_log.configure(state="normal")
-        self.wifi_log.insert("end", msg)
-        self.wifi_log.see("end")
-        self.wifi_log.configure(state="disabled")
 
     def _base_url(self) -> str:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
@@ -948,28 +968,59 @@ class WiFiManageFrame(ContentFrame):
         for child in self.sd_scroll.winfo_children():
             child.destroy()
         self._sd_row_vars.clear()
-        for i, item in enumerate(self._sd_entries):
+
+        def _format_ts(ts: str) -> str:
+            if not ts:
+                return ""
+            try:
+                dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+            except Exception:
+                return ts
+            return dt.strftime("%Y-%m-%d %H:%M")
+
+        entries = sorted(
+            self._sd_entries,
+            key=lambda it: (
+                0 if it.get("dir") else 1,
+                str(it.get("name", "")).lower(),
+            ),
+        )
+
+        for i, item in enumerate(entries):
             name = item.get("name", "?")
             is_dir = bool(item.get("dir"))
-            size = item.get("size", 0)
-            row_f = ctk.CTkFrame(self.sd_scroll, fg_color="transparent")
-            row_f.grid(row=i, column=0, sticky="w", pady=1)
+            size = int(item.get("size", 0)) if not is_dir else 0
+            ts = item.get("ts", "")
+
+            row = ctk.CTkFrame(self.sd_scroll, fg_color="transparent")
+            row.grid(row=i, column=0, sticky="ew")
+            row.grid_columnconfigure(1, weight=1)
+
             var = ctk.BooleanVar(value=False)
-            ctk.CTkCheckBox(row_f, text="", variable=var, width=24).grid(row=0, column=0, padx=(0, 6), pady=2)
+            ctk.CTkCheckBox(row, text="", variable=var, width=18).grid(
+                row=0, column=0, padx=(0, 4), pady=0
+            )
+
+            prefix = "▸" if is_dir else "•"
+            display_name = name + ("/" if is_dir else "")
+            name_lbl = ctk.CTkLabel(row, text=f"{prefix} {display_name}", anchor="w")
+            name_lbl.grid(row=0, column=1, sticky="w", padx=0, pady=0)
+
+            size_text = "" if is_dir else f"{size} B"
+            size_lbl = ctk.CTkLabel(row, text=size_text, text_color="gray")
+            size_lbl.grid(row=0, column=2, padx=(8, 0), sticky="e")
+
+            ts_text = _format_ts(ts)
+            ts_lbl = ctk.CTkLabel(row, text=ts_text, text_color="gray")
+            ts_lbl.grid(row=0, column=3, padx=(8, 0), sticky="e")
+
             if is_dir:
-                label_text = "[DIR]  %s/" % name
-            else:
-                label_text = "%s  (%s bytes)" % (name, size)
-            lbl = ctk.CTkLabel(row_f, text=label_text, anchor="w")
-            lbl.grid(row=0, column=1, sticky="w", padx=0, pady=2)
-            if is_dir:
-                def make_enter(d=self._sd_current_dir, n=name):
-                    def enter():
-                        self._sd_current_dir = (d + "/" + n).strip("/") if d else n
-                        self._sd_refresh()
-                    return enter
-                btn = ctk.CTkButton(row_f, text="Open", width=50, command=make_enter())
-                btn.grid(row=0, column=2, padx=(8, 0), pady=2)
+                def enter_dir(event=None, d=self._sd_current_dir, n=name):
+                    self._sd_current_dir = (d + "/" + n).strip("/") if d else n
+                    self._sd_refresh()
+                row.bind("<Double-Button-1>", enter_dir)
+                name_lbl.bind("<Double-Button-1>", enter_dir)
+
             self._sd_row_vars.append((var, item))
 
     def _sd_go_up(self) -> None:
@@ -996,11 +1047,6 @@ class WiFiManageFrame(ContentFrame):
     def _sd_download_all(self) -> None:
         dest = filedialog.askdirectory(title="Choose folder to save SD files")
         if not dest:
-            return
-        try:
-            session, base_url = self._sd_get_session_and_base()
-        except RuntimeError as e:
-            messagebox.showerror("SD Download", str(e))
             return
         try:
             session, base_url = self._sd_get_session_and_base()
@@ -1094,8 +1140,11 @@ class SDWiFiFrame(WiFiManageFrame):
         host_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(10, 4))
         host_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        self.host_entry = ctk.CTkEntry(host_frame, placeholder_text="rdzsonde.local or IP")
-        self.host_entry.insert(0, "rdzsonde.local")
+        self.host_entry = ctk.CTkEntry(
+            host_frame,
+            textvariable=self.app.wifi_host_var,
+            placeholder_text="rdzsonde.local or IP",
+        )
         self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
         self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
         self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
@@ -1110,10 +1159,21 @@ class SDWiFiFrame(WiFiManageFrame):
         auth_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
-        self.auth_user_entry = ctk.CTkEntry(auth_frame, width=120, placeholder_text="username")
+        self.auth_user_entry = ctk.CTkEntry(
+            auth_frame,
+            width=120,
+            textvariable=self.app.wifi_user_var,
+            placeholder_text="username",
+        )
         self.auth_user_entry.grid(row=0, column=3, padx=(0, 12), pady=0, sticky="w")
         ctk.CTkLabel(auth_frame, text="Password").grid(row=0, column=4, padx=(0, 4), pady=0)
-        self.auth_pass_entry = ctk.CTkEntry(auth_frame, width=120, placeholder_text="password", show="•")
+        self.auth_pass_entry = ctk.CTkEntry(
+            auth_frame,
+            width=120,
+            textvariable=self.app.wifi_pass_var,
+            placeholder_text="password",
+            show="•",
+        )
         self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
         row += 1
 
@@ -1199,6 +1259,31 @@ class SDWiFiFrame(WiFiManageFrame):
         tkinter.Misc.bind_all(self, "<Button-4>", _on_btn4, add="+")
         tkinter.Misc.bind_all(self, "<Button-5>", _on_btn5, add="+")
 
+    def _test_connection(self) -> None:
+        host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
+        self.sd_placeholder.configure(
+            text="Testing connection to %s…" % host,
+            text_color="gray",
+        )
+        self.sd_placeholder.grid()
+        self.sd_scroll.grid_remove()
+
+        def work():
+            return wifi_ops_mod.test_connection(host)
+
+        def on_done(ok: bool, msg: str) -> None:
+            if ok:
+                text = "Connected to %s" % host
+                color = "green"
+            else:
+                text = "Connection failed: %s" % msg
+                color = "red"
+            self.sd_placeholder.configure(text=text, text_color=color)
+            self.sd_placeholder.grid()
+            self.sd_scroll.grid_remove()
+
+        _run_in_background(work, on_done)
+
 
 
 class SerialLogFrame(ContentFrame):
@@ -1214,22 +1299,17 @@ class SerialLogFrame(ContentFrame):
         row = 0
         dev_frame = ctk.CTkFrame(self, fg_color="transparent")
         dev_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(20, 10))
-        dev_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(dev_frame, text="Port:").grid(row=0, column=0, padx=(0, 10), pady=5)
-        self.port_combo = ctk.CTkComboBox(dev_frame, values=get_serial_ports(), width=220)
-        self.port_combo.grid(row=0, column=1, padx=0, pady=5, sticky="w")
-        ctk.CTkLabel(dev_frame, text="Baud:").grid(row=0, column=2, padx=(20, 8), pady=5)
+        next_col = self._make_port_combo_row(dev_frame)
+        ctk.CTkLabel(dev_frame, text="Baud:").grid(row=0, column=next_col, padx=(20, 8), pady=5)
         self.baud_combo = ctk.CTkComboBox(
             dev_frame, values=["115200", "9600", "19200", "38400", "57600", "230400", "460800", "921600"],
             width=100,
         )
-        self.baud_combo.set("115200")
-        self.baud_combo.grid(row=0, column=3, padx=0, pady=5, sticky="w")
-        ctk.CTkButton(dev_frame, text="Refresh", width=80, command=self._refresh_ports).grid(
-            row=0, column=4, padx=(10, 0), pady=5
-        )
+        saved_baud = (app.settings if app else {}).get("baud_rate", "115200")
+        self.baud_combo.set(saved_baud if saved_baud in self.baud_combo.cget("values") else "115200")
+        self.baud_combo.grid(row=0, column=next_col + 1, padx=0, pady=5, sticky="w")
         self.connect_btn = ctk.CTkButton(dev_frame, text="Connect", width=90, command=self._toggle_connect)
-        self.connect_btn.grid(row=0, column=5, padx=(10, 0), pady=5)
+        self.connect_btn.grid(row=0, column=next_col + 2, padx=(10, 0), pady=5)
         row += 1
 
         self.log_text = ctk.CTkTextbox(self, font=ctk.CTkFont(family="monospace"))
@@ -1244,14 +1324,17 @@ class SerialLogFrame(ContentFrame):
         bot.grid_columnconfigure(0, weight=1)
         ctk.CTkButton(bot, text="Save to file", width=100, command=self._save_log).grid(row=0, column=0, padx=(0, 10), pady=0)
         self.strip_ansi_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(bot, text="Strip ANSI when saving", variable=self.strip_ansi_var).grid(
+        ctk.CTkCheckBox(bot, text="Strip ANSI when saving", variable=self.strip_ansi_var,
+                        command=self._save_strip_ansi_setting).grid(
             row=0, column=1, padx=10, pady=0
         )
         ctk.CTkButton(bot, text="Clear", width=80, command=self._clear_log).grid(row=0, column=2, padx=10, pady=0)
         ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=3, padx=0, pady=0)
 
-    def _refresh_ports(self) -> None:
-        self.port_combo.configure(values=get_serial_ports())
+    def _save_strip_ansi_setting(self) -> None:
+        if self.app:
+            self.app.settings["strip_ansi_when_saving"] = bool(self.strip_ansi_var.get())
+            settings_mod.save(self.app.settings)
 
     def _append_log(self, text: str) -> None:
         """Append text to serial log with ANSI color parsing."""
@@ -1310,6 +1393,7 @@ class SerialLogFrame(ContentFrame):
             except Exception:
                 pass
             self._serial = None
+            self._serial_thread = None
             self.connect_btn.configure(text="Connect")
             return
         port = self.port_combo.get()
@@ -1351,7 +1435,7 @@ class SerialLogFrame(ContentFrame):
             self._serial_queue.put("\n[Disconnected]\n")
 
     def _drain_serial_queue(self) -> None:
-        """Drain serial queue and append to log on main thread; reschedule if still connected."""
+        """Drain serial queue and append to log on main thread; reschedule while connected."""
         chunks: list[str] = []
         try:
             while True:
@@ -1373,7 +1457,13 @@ class SerialLogFrame(ContentFrame):
                 self.log_text.see("end")
                 self.log_text.configure(state="disabled")
             self.after(0, do)
-        if self._serial and self._serial.is_open:
+        # Only keep polling while the connection is active and the widget still exists.
+        if (
+            self.winfo_exists()
+            and self._serial is not None
+            and getattr(self._serial, "is_open", False)
+            and not self._serial_stop.is_set()
+        ):
             self.after(200, self._drain_serial_queue)
 
     def show(self) -> None:
@@ -1389,6 +1479,7 @@ class SerialLogFrame(ContentFrame):
             except Exception:
                 pass
             self._serial = None
+            self._serial_thread = None
         super().hide()
 
 
@@ -1403,39 +1494,25 @@ class SettingsFrame(ContentFrame):
         ENTRY_MIN_W = 320
 
         row = 0
-        ctk.CTkLabel(self, text="Backups", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(20, 8))
-        row += 1
         ctk.CTkLabel(self, text="Backup folder:", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(20, 10), pady=4)
+            row=row, column=0, sticky="w", padx=(20, 10), pady=(20, 4))
         self.backup_folder_var = ctk.StringVar(value="")
         self.backup_entry = ctk.CTkEntry(
             self, textvariable=self.backup_folder_var, placeholder_text="e.g. ~/rdzTTGOsonde/backups", width=ENTRY_MIN_W
         )
-        self.backup_entry.grid(row=row, column=1, sticky="ew", padx=0, pady=4)
-        ctk.CTkButton(self, text="Browse…", width=80, command=self._browse_backup).grid(row=row, column=2, padx=(10, 20), pady=4)
+        self.backup_entry.grid(row=row, column=1, sticky="ew", padx=0, pady=(20, 4))
+        ctk.CTkButton(self, text="Browse…", width=80, command=self._browse_backup).grid(
+            row=row, column=2, padx=(10, 20), pady=(20, 4))
         row += 1
 
-        ctk.CTkLabel(self, text="Firmware", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
-        row += 1
-        ctk.CTkLabel(self, text="Download server URL:", width=LABEL_W, anchor="w").grid(
+        ctk.CTkLabel(self, text="Firmware server URL:", width=LABEL_W, anchor="w").grid(
             row=row, column=0, sticky="w", padx=(20, 10), pady=4)
         self.download_url_var = ctk.StringVar(value="")
         ctk.CTkEntry(self, textvariable=self.download_url_var, placeholder_text="https://rdzsonde.org", width=ENTRY_MIN_W).grid(
             row=row, column=1, sticky="ew", padx=0, pady=4)
         row += 1
 
-        ctk.CTkLabel(self, text="Serial (advanced)", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
-        row += 1
-        ctk.CTkLabel(self, text="Default baud:", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(20, 10), pady=4)
-        self.baud_var = ctk.StringVar(value="921600")
-        ctk.CTkComboBox(self, values=["921600", "115200", "460800"], variable=self.baud_var, width=120).grid(
-            row=row, column=1, sticky="w", padx=0, pady=4)
-        row += 1
-        ctk.CTkLabel(self, text="Serial log", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(self, text="Serial", font=ctk.CTkFont(weight="bold")).grid(
             row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
         row += 1
         ctk.CTkLabel(self, text="Scroll-back buffer (lines):", width=LABEL_W, anchor="w").grid(
@@ -1445,42 +1522,28 @@ class SettingsFrame(ContentFrame):
             row=row, column=1, sticky="w", padx=0, pady=4)
         row += 1
 
-        ctk.CTkLabel(self, text="esptool (advanced)", font=ctk.CTkFont(weight="bold")).grid(
+        ctk.CTkLabel(self, text="ESPtool advanced settings", font=ctk.CTkFont(weight="bold")).grid(
             row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
         row += 1
 
-        # Read operations sub-section
-        ctk.CTkLabel(self, text="Read (backup, download FS):", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(20, 10), pady=(4, 0))
-        row += 1
-        ctk.CTkLabel(self, text="Baud rate:", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(36, 10), pady=2)
         self.baud_read_var = ctk.StringVar(value="115200")
-        ctk.CTkComboBox(self, values=["115200", "460800", "921600"], variable=self.baud_read_var, width=120).grid(
-            row=row, column=1, sticky="w", padx=0, pady=2)
-        row += 1
         self.no_stub_read_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            self, text="Use --no-stub for read operations",
-            variable=self.no_stub_read_var,
-        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=(36, 20), pady=2)
+        ctk.CTkLabel(self, text="read-flash baud rate:", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(20, 10), pady=4)
+        ctk.CTkComboBox(self, values=["115200", "460800", "921600"], variable=self.baud_read_var, width=120).grid(
+            row=row, column=1, sticky="w", padx=0, pady=4)
+        ctk.CTkCheckBox(self, text="Use --no-stub", variable=self.no_stub_read_var).grid(
+            row=row, column=2, sticky="w", padx=(10, 20), pady=4)
         row += 1
 
-        # Write operations sub-section
-        ctk.CTkLabel(self, text="Write (flash, restore, upload FS):", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(20, 10), pady=(8, 0))
-        row += 1
-        ctk.CTkLabel(self, text="Baud rate:", width=LABEL_W, anchor="w").grid(
-            row=row, column=0, sticky="w", padx=(36, 10), pady=2)
         self.baud_write_var = ctk.StringVar(value="921600")
-        ctk.CTkComboBox(self, values=["921600", "460800", "115200"], variable=self.baud_write_var, width=120).grid(
-            row=row, column=1, sticky="w", padx=0, pady=2)
-        row += 1
         self.no_stub_write_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            self, text="Use --no-stub for write operations",
-            variable=self.no_stub_write_var,
-        ).grid(row=row, column=0, columnspan=3, sticky="w", padx=(36, 20), pady=2)
+        ctk.CTkLabel(self, text="write-flash baud rate:", width=LABEL_W, anchor="w").grid(
+            row=row, column=0, sticky="w", padx=(20, 10), pady=4)
+        ctk.CTkComboBox(self, values=["921600", "460800", "115200"], variable=self.baud_write_var, width=120).grid(
+            row=row, column=1, sticky="w", padx=0, pady=4)
+        ctk.CTkCheckBox(self, text="Use --no-stub", variable=self.no_stub_write_var).grid(
+            row=row, column=2, sticky="w", padx=(10, 20), pady=4)
         row += 1
         self.grid_rowconfigure(row, weight=1)
 
@@ -1493,7 +1556,6 @@ class SettingsFrame(ContentFrame):
     def load_from_settings(self, s: Dict[str, Any]) -> None:
         self.backup_folder_var.set(s.get("backup_folder", settings_mod.DEFAULT_BACKUP_FOLDER))
         self.download_url_var.set(s.get("download_url", settings_mod.DEFAULT_DOWNLOAD_URL))
-        self.baud_var.set(s.get("baud_rate", settings_mod.DEFAULT_BAUD))
         self.serial_log_lines_var.set(str(s.get("serial_log_buffer_lines", settings_mod.DEFAULT_SERIAL_LOG_LINES)))
         self.baud_read_var.set(s.get("baud_rate_read", settings_mod.DEFAULT_BAUD_READ))
         self.baud_write_var.set(s.get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE))
@@ -1512,7 +1574,6 @@ class SettingsFrame(ContentFrame):
         self.app.settings.update({
             "backup_folder": self.backup_folder_var.get().strip() or settings_mod.DEFAULT_BACKUP_FOLDER,
             "download_url": self.download_url_var.get().strip() or settings_mod.DEFAULT_DOWNLOAD_URL,
-            "baud_rate": self.baud_var.get(),
             "serial_log_buffer_lines": n,
             "baud_rate_read": self.baud_read_var.get(),
             "baud_rate_write": self.baud_write_var.get(),
@@ -1535,6 +1596,10 @@ class App(ctk.CTk):
         set_no_stub_read(bool(self.settings.get("no_stub_read", False)))
         set_no_stub_write(bool(self.settings.get("no_stub_write", False)))
 
+        self.wifi_host_var = tk.StringVar(value="rdzsonde.local")
+        self.wifi_user_var = tk.StringVar(value="")
+        self.wifi_pass_var = tk.StringVar(value="")
+
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
 
@@ -1546,6 +1611,7 @@ class App(ctk.CTk):
             values=MODE_VALUES,
             variable=self.mode_var,
             command=self._on_mode_change,
+            dynamic_resizing=False,
         )
         self.seg.grid(row=0, column=0, sticky="ew", padx=15, pady=(15, 10))
 
@@ -1588,6 +1654,8 @@ class App(ctk.CTk):
             if k in self.frames and hasattr(self.frames[k], "port_combo"):
                 self.settings["last_port"] = self.frames[k].port_combo.get()
                 break
+        if "Serial" in self.frames and hasattr(self.frames["Serial"], "baud_combo"):
+            self.settings["baud_rate"] = self.frames["Serial"].baud_combo.get()
         settings_mod.save(self.settings)
         self.destroy()
 

@@ -162,6 +162,9 @@ PARTITION_APP0_SIZE = 0x140000
 PARTITION_SPIFFS_OFFSET = 0x320000
 PARTITION_SPIFFS_SIZE = 0xD0000
 
+# Size of the full-flash backup region (0x1000 … end of usable flash)
+BACKUP_SIZE = 0x3FF000
+
 
 def download_filesystem(
     port: Optional[str],
@@ -314,11 +317,11 @@ def read_backup(
     out_path: str,
     on_line: Optional[Callable[[str], None]] = None,
 ) -> tuple[bool, str]:
-    """Read flash 0x1000 size 0x3FF000 to out_path."""
+    """Read flash 0x1000 size BACKUP_SIZE to out_path."""
     return _esptool_cmd(
         port,
         baud,
-        ["read-flash", "0x1000", "0x3FF000", out_path],
+        ["read-flash", "%#x" % FLASH_IMAGE_BASE, "%#x" % BACKUP_SIZE, out_path],
         on_line=on_line,
         no_stub=_no_stub_read,
     )

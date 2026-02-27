@@ -82,7 +82,13 @@ def extract_from_backup(backup_path: str, dest_dir: str, flash_offset: int, size
     so backup byte 0 = flash 0x1000.  File offset = flash_offset - BACKUP_FLASH_BASE.
     """
     file_offset = flash_offset - BACKUP_FLASH_BASE
+    if file_offset < 0:
+        raise ValueError(
+            "flash_offset 0x%x is below BACKUP_FLASH_BASE 0x%x; cannot extract." % (
+                flash_offset, BACKUP_FLASH_BASE
+            )
+        )
     with open(backup_path, "rb") as f:
         f.seek(file_offset)
         data = f.read(size)
-    unpack_bytes(data, dest_dir, size // BLOCK_SIZE)
+    unpack_bytes(data, dest_dir, (size + BLOCK_SIZE - 1) // BLOCK_SIZE)

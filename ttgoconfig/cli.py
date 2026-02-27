@@ -197,7 +197,7 @@ def cmd_improv(args: argparse.Namespace) -> int:
 
 def cmd_uploadfs(args: argparse.Namespace) -> int:
     port = _port_value(getattr(args, "port", None))
-    baud = getattr(args, "baud", None) or "921600"
+    baud = getattr(args, "baud", None) or settings_mod.DEFAULT_BAUD_WRITE
     src_dir = args.directory
     keep_image = getattr(args, "keep_image", False)
     if not os.path.isdir(src_dir):
@@ -230,7 +230,7 @@ def cmd_uploadfs(args: argparse.Namespace) -> int:
 
 def cmd_downloadfs(args: argparse.Namespace) -> int:
     port = _port_value(getattr(args, "port", None))
-    baud = getattr(args, "baud", None) or "115200"
+    baud = getattr(args, "baud", None) or settings_mod.DEFAULT_BAUD_READ
     dest_dir = args.directory
     block_count = PARTITION_SPIFFS_SIZE // LFS_BLOCK_SIZE
     keep_image = getattr(args, "keep_image", False)

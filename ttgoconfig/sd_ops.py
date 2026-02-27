@@ -7,6 +7,7 @@ Shared by GUI and CLI. Uses same session/auth as wifi_ops.
 from __future__ import annotations
 
 import os
+import urllib.parse
 from typing import Any, List, Optional, Tuple
 
 
@@ -14,21 +15,34 @@ def list_dir(
     session: Any, base_url: str, dir_path: str = ""
 ) -> Tuple[List[dict], Optional[str]]:
     """
-    GET files.json?dir=... Return list of entries [{name, dir, size}, ...].
+    GET /files.json in pages with optional dir and start=...
+    Return (all_entries, error_msg).
     """
-    url = base_url.rstrip("/") + "/files.json"
-    if dir_path:
-        url += "?dir=" + dir_path
-    try:
-        r = session.get(url, timeout=8)
-        if r.status_code != 200:
-            return [], "HTTP %s – SD card may not be available." % r.status_code
-        data = r.json()
+    base = base_url.rstrip("/") + "/files.json"
+    all_entries: List[dict] = []
+    start = 0
+
+    while True:
+        params = {"start": str(start)}
+        if dir_path:
+            params["dir"] = dir_path
+        query = urllib.parse.urlencode(params, safe="/")
+        url = base + "?" + query
+        try:
+            r = session.get(url, timeout=8)
+            if r.status_code != 200:
+                return [], "HTTP %s – SD card may not be available." % r.status_code
+            data = r.json()
+        except Exception as e:
+            return [], str(e)
         if not isinstance(data, list):
             return [], "Invalid files.json response."
-        return data, None
-    except Exception as e:
-        return [], str(e)
+        if not data:
+            break
+        all_entries.extend(data)
+        start += len(data)
+
+    return all_entries, None
 
 
 def collect_files_recursive(
@@ -68,7 +82,7 @@ def fetch_paths_to_dir(
     total = len(paths)
     for i, path in enumerate(paths):
         try:
-            r = session.get(base_url + "sd/" + path, timeout=15)
+            r = session.get(base_url + "sd/" + urllib.parse.quote(path), timeout=15)
             if r.status_code != 200:
                 errors.append("%s: HTTP %s" % (path, r.status_code))
                 if progress_cb and total:
