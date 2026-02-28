@@ -2765,6 +2765,10 @@ void WiFiEvent(WiFiEvent_t event)
       break;
     case ARDUINO_EVENT_WIFI_STA_CONNECTED:
       Serial.println("Connected to access point");
+      if (wifi_state == WIFI_CONNECT_GOT_DISCONNECT) {
+        /* Connection came back on its own; don't run the disconnect+retry path */
+        wifi_state = WIFI_CONNECT;
+      }
       break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
       Serial.println("Disconnected from WiFi access point");
@@ -3038,6 +3042,7 @@ void loopWifiScan() {
   int lastl = (disph / dispys - 2) * dispys;
   int cnt = 0;
   char abort = 0; // abort on keypress
+  int net_index = -1;
 
   switch(sonde.config.wifi) {
   case 0:  // no WiFi
@@ -3061,7 +3066,6 @@ void loopWifiScan() {
     // Mode STATION[1] or SETUP[3]: Scan for networks;
     disp.rdis->drawString(0, 0, "WiFi Scan...");
     int line = 0;
-    int index = -1;
     WiFi.mode(WIFI_STA);
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
@@ -3072,20 +3076,20 @@ void loopWifiScan() {
       const char *encryptionTypeDescription = translateEncryptionType(WiFi.encryptionType(i));
       LOG_I(TAG, "Network %s: RSSI %d, MAC %s, enc: %s\n", ssid.c_str(), WiFi.RSSI(i), mac.c_str(), encryptionTypeDescription);
       int curidx = fetchWifiIndex(ssid.c_str());
-      if (curidx >= 0 && index == -1) {
-        index = curidx;
-        LOG_I(TAG, "Match found at scan entry %d, config network %d\n", i, index);
+      if (curidx >= 0 && net_index == -1) {
+        net_index = curidx;
+        LOG_I(TAG, "Match found at scan entry %d, config network %d\n", i, net_index);
       }
     }
-    if (index >= 0) { // some network was found
-      Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(index));
-      Serial.print(" with password "); Serial.println(fetchWifiPw(index));
+    if (net_index >= 0) { // some network was found
+      Serial.print("Connecting to: "); Serial.print(fetchWifiSSID(net_index));
+      Serial.print(" with password "); Serial.println(fetchWifiPw(net_index));
 
       disp.rdis->drawString(0, lastl, "Conn:");
-      disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(index));
+      disp.rdis->drawString(6 * dispxs, lastl, fetchWifiSSID(net_index));
       // TODO: wifi_state is used inconsistently
       wifi_state = WIFI_CONNECT;
-      WiFi.begin(fetchWifiSSID(index), fetchWifiPw(index));
+      WiFi.begin(fetchWifiSSID(net_index), fetchWifiPw(net_index));
     } else {
       abort = 2;  // no network found in scan => abort right away
     }
@@ -3093,7 +3097,19 @@ void loopWifiScan() {
   while (WiFi.status() != WL_CONNECTED && cnt < MAXWIFIDELAY && !abort)  {
     delay(500);
     if(wifi_state == WIFI_CONNECT_GOT_DISCONNECT) {
-      if(sonde.config.wifi==1 || sonde.config.wifi==3) { WiFi.reconnect(); wifi_state = WIFI_CONNECT; }
+      if(WiFi.status() == WL_CONNECTED) { /* connection came back, avoid tearing it down */
+        wifi_state = WIFI_CONNECT;
+      } else {
+        int connectIndex = (sonde.config.wifi == 4) ? 1 : net_index;
+        WiFi.disconnect(true);   // Disconnect and wait, allowing full dissassociation, then retry
+        Serial.print("_d_");
+        delay(2000); // 2sec delay
+        handlePMUirq();
+        abort = (getKeyPressEvent() != EVT_NONE);
+        if(abort) break;
+        WiFi.begin(fetchWifiSSID(connectIndex), fetchWifiPw(connectIndex));
+        wifi_state = WIFI_CONNECT;
+      }
     }
     Serial.print(".");
     disp.rdis->drawString(15 * dispxs, lastl + dispys, _scan[cnt & 1]);
