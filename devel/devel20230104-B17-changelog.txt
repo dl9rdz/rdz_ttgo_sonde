@@ -1,2 +1,0 @@
-fix #342: remove bug in code for right-justified text on OLED display
-fix #342: remove bug in code for right-justified text on OLED display
