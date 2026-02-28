@@ -13,7 +13,7 @@ import re
 import threading
 import datetime
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import customtkinter as ctk
@@ -29,6 +29,9 @@ from .littlefs_helper import (
     pack_directory as lfs_pack_directory,
     unpack_image as lfs_unpack_image,
     extract_from_backup as lfs_extract_from_backup,
+    list_fs_from_bin as lfs_list_fs_from_bin,
+    read_file_from_bin as lfs_read_file_from_bin,
+    BACKUP_FLASH_BASE as LFS_BACKUP_FLASH_BASE,
     BLOCK_SIZE as LFS_BLOCK_SIZE,
 )
 from .firmware import (
@@ -316,6 +319,31 @@ class ContentFrame(ctk.CTkFrame):
         )
         return 3
 
+    def _initial_dir(self) -> str:
+        """Default directory for save/extract dialogs: last used, or home."""
+        if not self.app:
+            return os.path.expanduser("~")
+        raw = (self.app.settings.get("last_directory") or "").strip()
+        if raw and os.path.isdir(raw):
+            return raw
+        return os.path.expanduser("~")
+
+    def _set_last_directory(self, path: str) -> None:
+        """Remember chosen path for next dialog (directory or file's parent)."""
+        if not path or not self.app:
+            return
+        dir_path = path if os.path.isdir(path) else os.path.dirname(path)
+        if dir_path and os.path.isdir(dir_path):
+            self.app.settings["last_directory"] = dir_path
+            settings_mod.save(self.app.settings)
+
+    def _backup_initial_dir(self) -> str:
+        """Initial directory for backup-related dialogs: configured backup folder."""
+        if not self.app:
+            return os.path.expanduser("~")
+        folder = settings_mod.get_backup_folder_expanded(self.app.settings)
+        return folder if folder else os.path.expanduser("~")
+
 
 def _run_in_background(
     work: Callable[..., tuple[bool, str]],
@@ -483,8 +511,13 @@ class FlashFrame(ContentFrame):
         threading.Thread(target=run, daemon=True).start()
 
     def _browse_local(self) -> None:
-        path = filedialog.askopenfilename(title="Select firmware image", filetypes=[("Binary", "*.bin"), ("All", "*.*")])
+        path = filedialog.askopenfilename(
+            title="Select firmware image – choose .bin file",
+            initialdir=self._initial_dir(),
+            filetypes=[("Binary", "*.bin"), ("All", "*.*")],
+        )
         if path:
+            self._set_last_directory(path)
             self.local_path_var.set(path)
 
     def _get_image_path(self) -> Optional[str]:
@@ -625,8 +658,6 @@ class USBManageFrame(ContentFrame):
         ctk.CTkButton(actions_frame, text="Extract filesystem from backup image",
                       command=self._extractfs_from_backup).grid(
             row=4, column=0, sticky="ew", padx=(0, 10), pady=3)
-        ctk.CTkButton(actions_frame, text="Setup WiFi via IMPROV").grid(
-            row=4, column=1, sticky="ew", padx=(10, 0), pady=3)
 
         row += 1
         self._op_log = self._make_log_widget(height=100, state="disabled")
@@ -634,13 +665,16 @@ class USBManageFrame(ContentFrame):
         self.grid_rowconfigure(row, weight=1)
 
     def _make_backup(self) -> None:
-        folder = settings_mod.get_backup_folder_expanded(self.app.settings if self.app else {})
+        folder = self._backup_initial_dir()
         os.makedirs(folder, exist_ok=True)
         from datetime import datetime
         default_name = "backup-%s.bin" % datetime.now().strftime("%Y%m%d-%H%M")
         path = filedialog.asksaveasfilename(
-            title="Save backup as", initialdir=folder, initialfile=default_name,
-            defaultextension=".bin", filetypes=[("Binary", "*.bin"), ("All", "*.*")]
+            title="Save backup as – choose location",
+            initialdir=folder,
+            initialfile=default_name,
+            defaultextension=".bin",
+            filetypes=[("Binary", "*.bin"), ("All", "*.*")],
         )
         if not path:
             return
@@ -662,7 +696,9 @@ class USBManageFrame(ContentFrame):
 
     def _restore_full_backup(self) -> None:
         path = filedialog.askopenfilename(
-            title="Select backup image", filetypes=[("Binary", "*.bin"), ("All", "*.*")]
+            title="Restore full backup – select backup image (.bin)",
+            initialdir=self._backup_initial_dir(),
+            filetypes=[("Binary", "*.bin"), ("All", "*.*")],
         )
         if not path:
             return
@@ -688,7 +724,10 @@ class USBManageFrame(ContentFrame):
         messagebox.showinfo("Restore selected files", "Not yet implemented.")
 
     def _downloadfs(self) -> None:
-        dest_dir = filedialog.askdirectory(title="Select directory to extract filesystem into")
+        dest_dir = filedialog.askdirectory(
+            title="Extract device filesystem – choose destination folder",
+            initialdir=self._initial_dir(),
+        )
         if not dest_dir:
             return
         port = self.port_combo.get()
@@ -717,6 +756,7 @@ class USBManageFrame(ContentFrame):
 
         def on_done(ok: bool, _msg: str) -> None:
             if ok:
+                self._set_last_directory(dest_dir)
                 self._log("Filesystem extracted to %s\n" % dest_dir)
                 messagebox.showinfo("Extract filesystem", "Filesystem extracted to:\n%s" % dest_dir)
             else:
@@ -725,7 +765,10 @@ class USBManageFrame(ContentFrame):
         _run_in_background(work, on_done)
 
     def _uploadfs(self) -> None:
-        src_dir = filedialog.askdirectory(title="Select directory to upload as filesystem")
+        src_dir = filedialog.askdirectory(
+            title="Upload filesystem to device – choose source folder",
+            initialdir=self._initial_dir(),
+        )
         if not src_dir:
             return
         if not messagebox.askyesno(
@@ -758,6 +801,7 @@ class USBManageFrame(ContentFrame):
 
         def on_done(ok: bool, _msg: str) -> None:
             if ok:
+                self._set_last_directory(src_dir)
                 self._log("Filesystem uploaded successfully.\n")
                 messagebox.showinfo("Upload filesystem", "Filesystem uploaded successfully.")
             else:
@@ -767,12 +811,16 @@ class USBManageFrame(ContentFrame):
 
     def _extractfs_from_backup(self) -> None:
         backup_path = filedialog.askopenfilename(
-            title="Select backup image (.bin)",
+            title="Extract from backup – select backup image (.bin)",
+            initialdir=self._backup_initial_dir(),
             filetypes=[("Binary", "*.bin"), ("All", "*.*")],
         )
         if not backup_path:
             return
-        dest_dir = filedialog.askdirectory(title="Select directory to extract filesystem into")
+        dest_dir = filedialog.askdirectory(
+            title="Extract from backup – choose destination folder",
+            initialdir=self._backup_initial_dir(),
+        )
         if not dest_dir:
             return
         self._log("\n--- Extract filesystem from backup %s to %s ---\n" % (backup_path, dest_dir))
@@ -802,7 +850,7 @@ class WiFiManageFrame(ContentFrame):
 
         row = 0
         host_frame = ctk.CTkFrame(self, fg_color="transparent")
-        host_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(10, 4))
+        host_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 4))
         host_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         self.host_entry = ctk.CTkEntry(
@@ -820,7 +868,7 @@ class WiFiManageFrame(ContentFrame):
         row += 1
 
         auth_frame = ctk.CTkFrame(self, fg_color="transparent")
-        auth_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(4, 4))
+        auth_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=20, pady=(4, 4))
         auth_frame.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
         ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
@@ -840,24 +888,103 @@ class WiFiManageFrame(ContentFrame):
             show="•",
         )
         self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
+        ctk.CTkCheckBox(
+            auth_frame,
+            text="Save password",
+            variable=self.app.wifi_save_pass_var,
+            width=0,
+        ).grid(row=0, column=6, padx=(12, 0), pady=0, sticky="w")
         row += 1
 
-        ctk.CTkLabel(self, text="Actions:", font=ctk.CTkFont(weight="bold")).grid(
-            row=row, column=0, sticky="w", padx=20, pady=(8, 4))
-        row += 1
-        for a in ["Restore selected files from backup", "Restore from backup .bin to TTGO"]:
-            ctk.CTkButton(self, text=a).grid(
-                row=row, column=0, sticky="ew", padx=20, pady=3)
-            row += 1
-        ctk.CTkButton(
-            self, text="Download files from TTGO",
-            command=self._extract_files,
-        ).grid(row=row, column=0, sticky="ew", padx=20, pady=3)
-        row += 1
+        # Dual-pane: local folder (left) | device files (right)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_columnconfigure(1, weight=1)
+        panes_row = row
+        self.grid_rowconfigure(panes_row, weight=1)
 
-        self.grid_rowconfigure(row, weight=1)
-        self.wifi_log = self._make_log_widget(height=160, wrap="word", state="disabled")
-        self.wifi_log.grid(row=row, column=0, sticky="nsew", padx=20, pady=(8, 10))
+        # Left: local folder (header row + path line + tree aligned with right)
+        left_frame = ctk.CTkFrame(self, fg_color="transparent")
+        left_frame.grid(row=panes_row, column=0, sticky="nsew", padx=(20, 10), pady=8)
+        left_frame.grid_columnconfigure(0, weight=1)
+        left_frame.grid_rowconfigure(1, weight=1)
+        left_head = ctk.CTkFrame(left_frame, fg_color="transparent")
+        left_head.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        left_head.grid_columnconfigure(0, weight=1)
+        self._wifi_local_path = self._initial_dir()
+        self._wifi_local_path_var = tk.StringVar(value=self._wifi_local_path)
+        self._wifi_left_mode = "folder"  # "folder" | "bin"
+        self._wifi_local_bin_path: Optional[str] = None
+        self._wifi_local_path_label = ctk.CTkLabel(
+            left_head, text="", anchor="w", font=ctk.CTkFont(weight="bold"),
+        )
+        self._wifi_local_path_label.grid(row=0, column=0, sticky="w")
+        self._wifi_local_path_tooltip = None
+        self._wifi_local_path_tooltip_after = None
+        self._wifi_local_path_label.bind("<Enter>", self._wifi_local_path_show_tooltip)
+        self._wifi_local_path_label.bind("<Leave>", self._wifi_local_path_hide_tooltip)
+        local_container = tk.Frame(left_frame)
+        local_container.grid(row=1, column=0, sticky="nsew", pady=(0, 4))
+        local_container.grid_columnconfigure(0, weight=1)
+        local_container.grid_rowconfigure(0, weight=1)
+        self.wifi_local_tree = ttk.Treeview(local_container, columns=("size",), show="tree headings", selectmode="extended")
+        self.wifi_local_tree.heading("#0", text="Name")
+        self.wifi_local_tree.column("#0", width=180)
+        self.wifi_local_tree.heading("size", text="Size")
+        self.wifi_local_tree.column("size", width=70, anchor="e")
+        local_yscroll = ttk.Scrollbar(local_container, orient="vertical", command=self.wifi_local_tree.yview)
+        self.wifi_local_tree.configure(yscrollcommand=local_yscroll.set)
+        self.wifi_local_tree.pack(side="left", fill="both", expand=True)
+        local_yscroll.pack(side="right", fill="y")
+        self.wifi_local_tree.bind("<Double-1>", self._wifi_local_on_double_click)
+
+        # Right: device files (header row, tree aligned with left)
+        right_frame = ctk.CTkFrame(self, fg_color="transparent")
+        right_frame.grid(row=panes_row, column=1, sticky="nsew", padx=(10, 20), pady=8)
+        right_frame.grid_columnconfigure(0, weight=1)
+        right_frame.grid_rowconfigure(1, weight=1)
+        right_head = ctk.CTkFrame(right_frame, fg_color="transparent")
+        right_head.grid(row=0, column=0, sticky="ew", pady=(0, 4))
+        right_head.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(right_head, text="Device files", font=ctk.CTkFont(weight="bold")).grid(row=0, column=0, sticky="w")
+        device_container = tk.Frame(right_frame)
+        device_container.grid(row=1, column=0, sticky="nsew", pady=(0, 4))
+        device_container.grid_columnconfigure(0, weight=1)
+        device_container.grid_rowconfigure(0, weight=1)
+        self.wifi_device_tree = ttk.Treeview(device_container, columns=("size",), show="tree headings", selectmode="extended")
+        self.wifi_device_tree.heading("#0", text="Name")
+        self.wifi_device_tree.column("#0", width=180)
+        self.wifi_device_tree.heading("size", text="Size")
+        self.wifi_device_tree.column("size", width=70, anchor="e")
+        device_yscroll = ttk.Scrollbar(device_container, orient="vertical", command=self.wifi_device_tree.yview)
+        self.wifi_device_tree.configure(yscrollcommand=device_yscroll.set)
+        self.wifi_device_tree.pack(side="left", fill="both", expand=True)
+        device_yscroll.pack(side="right", fill="y")
+        self._wifi_device_entries: List[dict] = []
+
+        # Buttons row below tables, then status (columns equal width so buttons spread evenly)
+        row = panes_row + 1
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=20, pady=(8, 4))
+        for c in range(5):
+            btn_frame.grid_columnconfigure(c, weight=1)
+        btn_frame.grid_rowconfigure(1, weight=0)
+        ctk.CTkButton(btn_frame, text="Change", width=70, command=self._wifi_local_change).grid(row=0, column=0, padx=4, pady=0)
+        ctk.CTkButton(btn_frame, text="Open .bin", width=80, command=self._wifi_local_open_bin).grid(row=0, column=1, padx=4, pady=0)
+        self._wifi_upload_btn = ctk.CTkButton(
+            btn_frame, text="Upload to device →", width=160, command=self._wifi_upload_selected
+        )
+        self._wifi_upload_btn.grid(row=0, column=2, padx=4, pady=0)
+        self._wifi_download_btn = ctk.CTkButton(
+            btn_frame, text="← Download", width=120, command=self._wifi_download_selected
+        )
+        self._wifi_download_btn.grid(row=0, column=3, padx=4, pady=0)
+        ctk.CTkButton(btn_frame, text="Refresh", width=80, command=self._wifi_device_refresh).grid(row=0, column=4, padx=4, pady=0)
+        self.wifi_status_label = ctk.CTkLabel(btn_frame, text="", text_color="gray", anchor="w")
+        self.wifi_status_label.grid(row=1, column=0, columnspan=5, sticky="ew", pady=(6, 0))
+
+        self._wifi_populate_local()
+        self._wifi_set_status("Click Refresh to load device files.")
+        self._wifi_update_sync_buttons_state()
 
     def _base_url(self) -> str:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
@@ -873,62 +1000,406 @@ class WiFiManageFrame(ContentFrame):
             self._resolved_ip = ip
             if hasattr(self, "ip_label"):
                 self.ip_label.configure(text="IP: %s" % ip)
-            self._log("Resolved %s → %s\n" % (host, ip))
+            self._wifi_set_status("Resolved %s → %s" % (host, ip))
         except Exception as e:
             self._resolved_ip = ""
             if hasattr(self, "ip_label"):
                 self.ip_label.configure(text="")
-            self._log("Resolve failed: %s\n" % e)
+            self._wifi_set_status("Resolve failed: %s" % e)
 
     def _test_connection(self) -> None:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        self._log("\n--- Test connection: %s ---\n" % host)
+        self._wifi_set_status("Testing connection…")
 
         def work():
             return wifi_ops_mod.test_connection(host)
 
         def on_done(ok: bool, msg: str) -> None:
             if ok:
-                self._log("Connected.\n%s\n" % (msg[:300] + "..." if len(msg) > 300 else msg))
+                self._wifi_set_status("Connected. %s" % (msg[:80] + "…" if len(msg) > 80 else msg))
             else:
-                self._log("Failed: %s\n" % msg)
+                self._wifi_set_status("Failed: %s" % msg)
 
         _run_in_background(work, on_done)
 
-    def _extract_files(self) -> None:
-        folder = filedialog.askdirectory(title="Choose folder to save files")
-        if not folder:
+    def _wifi_set_status(self, text: str) -> None:
+        if hasattr(self, "wifi_status_label"):
+            self.wifi_status_label.configure(text=text)
+
+    def _wifi_bin_offset_size(self) -> Tuple[int, Optional[int]]:
+        """Return (file_offset, partition_size) for current _wifi_local_bin_path. partition_size None = whole file."""
+        if not self._wifi_local_bin_path or not os.path.isfile(self._wifi_local_bin_path):
+            return 0, None
+        try:
+            sz = os.path.getsize(self._wifi_local_bin_path)
+        except OSError:
+            return 0, None
+        if sz > PARTITION_SPIFFS_SIZE:
+            file_offset = PARTITION_SPIFFS_OFFSET - LFS_BACKUP_FLASH_BASE
+            return file_offset, PARTITION_SPIFFS_SIZE
+        return 0, None
+
+    def _wifi_populate_local(self) -> None:
+        if not hasattr(self, "wifi_local_tree"):
             return
+        tree = self.wifi_local_tree
+        tree.delete(*tree.get_children())
+
+        if getattr(self, "_wifi_left_mode", "folder") == "bin" and self._wifi_local_bin_path:
+            # Show contents of .bin image (root only)
+            self._wifi_local_path_var.set(self._wifi_local_bin_path)
+            tree.insert("", "end", iid="..", text="📁 ..", values=("",))
+            off, size = self._wifi_bin_offset_size()
+            try:
+                entries = lfs_list_fs_from_bin(self._wifi_local_bin_path, file_offset=off, partition_size=size)
+            except Exception as e:
+                self._wifi_set_status("Failed to read .bin: %s" % e)
+                self._wifi_update_local_path_display()
+                self._wifi_update_sync_buttons_state()
+                return
+            def _bin_sort_key(x: dict) -> tuple:
+                name = x.get("name", "")
+                ext = os.path.splitext(name)[1].lower()
+                return (not x.get("dir", False), ext, name)
+            for it in sorted(entries, key=_bin_sort_key):
+                name = it.get("name", "?")
+                is_dir = it.get("dir", False)
+                sz = it.get("size", 0)
+                iid = ("d:" if is_dir else "f:") + name
+                size_str = (self._wifi_format_size_dots(sz) + " B") if sz else ""
+                tree.insert("", "end", iid=iid, text=("📁 " if is_dir else "📄 ") + name, values=(size_str,))
+            self._wifi_set_status("Showing %d entries from .bin image." % len(entries))
+        else:
+            # Folder mode
+            self._wifi_left_mode = "folder"
+            self._wifi_local_bin_path = None
+            path = (self._wifi_local_path_var.get() or "").strip() or os.path.expanduser("~")
+            if not os.path.isdir(path):
+                path = os.path.expanduser("~")
+            self._wifi_local_path = os.path.abspath(path)
+            self._wifi_local_path_var.set(self._wifi_local_path)
+            try:
+                names = sorted(os.listdir(self._wifi_local_path))
+            except OSError:
+                self._wifi_update_local_path_display()
+                self._wifi_update_sync_buttons_state()
+                return
+            dirs = [n for n in names if os.path.isdir(os.path.join(self._wifi_local_path, n))]
+            files = [n for n in names if os.path.isfile(os.path.join(self._wifi_local_path, n))]
+            if self._wifi_local_path != os.path.expanduser("~") and self._wifi_local_path != "/":
+                tree.insert("", "end", iid="..", text="📁 ..", values=("",))
+            for n in sorted(dirs):
+                tree.insert("", "end", iid="d:" + n, text="📁 " + n, values=("",))
+            for n in sorted(files, key=lambda fn: (os.path.splitext(fn)[1].lower(), fn)):
+                try:
+                    size = os.path.getsize(os.path.join(self._wifi_local_path, n))
+                    tree.insert("", "end", iid="f:" + n, text="📄 " + n, values=(self._wifi_format_size_dots(size) + " B",))
+                except OSError:
+                    tree.insert("", "end", iid="f:" + n, text="📄 " + n, values=("",))
+
+        self._wifi_update_local_path_display()
+        self._wifi_update_sync_buttons_state()
+
+    def _wifi_short_path_display(self, path: str) -> str:
+        """Abbreviate path for display: show last component if long."""
+        if not path:
+            return ""
+        if len(path) <= 40:
+            return path
+        base = os.path.basename(path)
+        if len(base) > 38:
+            return base[:35] + "..."
+        return "…" + os.path.sep + base
+
+    @staticmethod
+    def _wifi_format_size_dots(n: int) -> str:
+        """Format integer with '.' as thousands separator (e.g. 1234567 -> 1.234.567)."""
+        s = str(max(0, n))
+        if not s:
+            return "0"
+        parts = []
+        for i in range(len(s), 0, -3):
+            parts.append(s[max(0, i - 3) : i])
+        return ".".join(reversed(parts))
+
+    def _wifi_update_local_path_display(self) -> None:
+        if not hasattr(self, "_wifi_local_path_label"):
+            return
+        if getattr(self, "_wifi_left_mode", "folder") == "bin" and self._wifi_local_bin_path:
+            path = self._wifi_local_bin_path
+        else:
+            path = (self._wifi_local_path_var.get() or "").strip() or self._wifi_local_path
+        self._wifi_local_path_label.configure(text=self._wifi_short_path_display(path))
+
+    def _wifi_update_sync_buttons_state(self) -> None:
+        if not hasattr(self, "_wifi_download_btn"):
+            return
+        if getattr(self, "_wifi_left_mode", "folder") == "bin":
+            self._wifi_download_btn.configure(state="disabled")
+        else:
+            self._wifi_download_btn.configure(state="normal")
+
+    def _wifi_local_path_show_tooltip(self, event: Any) -> None:
+        if getattr(self, "_wifi_local_path_tooltip_after", None) is not None:
+            self.after_cancel(self._wifi_local_path_tooltip_after)
+            self._wifi_local_path_tooltip_after = None
+
+        def show() -> None:
+            self._wifi_local_path_tooltip_after = None
+            path = (self._wifi_local_path_var.get() or "").strip() or getattr(self, "_wifi_local_path", "")
+            if not path:
+                return
+            tip = tk.Toplevel(self.winfo_toplevel())
+            tip.wm_overrideredirect(True)
+            tip.attributes("-topmost", True)
+            lbl = tk.Label(tip, text=path, background="#ffffe0", relief="solid", borderwidth=1, padx=4, pady=2)
+            lbl.pack()
+            x = self._wifi_local_path_label.winfo_rootx()
+            y = self._wifi_local_path_label.winfo_rooty() + self._wifi_local_path_label.winfo_height() + 2
+            tip.geometry("+%d+%d" % (x, y))
+            self._wifi_local_path_tooltip = tip
+
+        self._wifi_local_path_tooltip_after = self.after(400, show)
+
+    def _wifi_local_path_hide_tooltip(self, event: Any) -> None:
+        if getattr(self, "_wifi_local_path_tooltip_after", None) is not None:
+            self.after_cancel(self._wifi_local_path_tooltip_after)
+            self._wifi_local_path_tooltip_after = None
+        if getattr(self, "_wifi_local_path_tooltip", None) is not None:
+            self._wifi_local_path_tooltip.destroy()
+            self._wifi_local_path_tooltip = None
+
+    def _wifi_local_change(self) -> None:
+        folder = filedialog.askdirectory(
+            title="Choose local folder for TTGO files",
+            initialdir=self._wifi_local_path if os.path.isdir(self._wifi_local_path) else self._initial_dir(),
+        )
+        if folder:
+            self._wifi_left_mode = "folder"
+            self._wifi_local_bin_path = None
+            self._wifi_local_path = os.path.abspath(folder)
+            self._wifi_local_path_var.set(self._wifi_local_path)
+            self._wifi_populate_local()
+            self._set_last_directory(folder)
+
+    def _wifi_local_open_bin(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Open .bin image – select backup or LittleFS image",
+            initialdir=self._backup_initial_dir(),
+            filetypes=[("Binary", "*.bin"), ("All", "*.*")],
+        )
+        if path:
+            self._wifi_local_path = os.path.dirname(os.path.abspath(path))
+            self._wifi_local_path_var.set(self._wifi_local_path)
+            self._wifi_left_mode = "bin"
+            self._wifi_local_bin_path = os.path.abspath(path)
+            self._wifi_populate_local()
+
+    def _wifi_local_on_double_click(self, event: Any) -> None:
+        tree = self.wifi_local_tree
+        sel = tree.identify_row(event.y)
+        if not sel:
+            return
+        if sel == "..":
+            if getattr(self, "_wifi_left_mode", "folder") == "bin":
+                self._wifi_left_mode = "folder"
+                self._wifi_local_bin_path = None
+                self._wifi_local_path_var.set(self._wifi_local_path)
+                self._wifi_populate_local()
+            else:
+                self._wifi_local_path = os.path.dirname(self._wifi_local_path)
+                self._wifi_local_path_var.set(self._wifi_local_path)
+                self._wifi_populate_local()
+            return
+        if isinstance(sel, str) and sel.startswith("d:"):
+            name = sel[2:]
+            self._wifi_local_path = os.path.join(self._wifi_local_path, name)
+            self._wifi_local_path_var.set(self._wifi_local_path)
+            self._wifi_populate_local()
+            return
+        if isinstance(sel, str) and sel.startswith("f:"):
+            name = sel[2:]
+            if name.lower().endswith(".bin"):
+                self._wifi_left_mode = "bin"
+                self._wifi_local_bin_path = os.path.join(self._wifi_local_path, name)
+                self._wifi_populate_local()
+
+    def _wifi_device_refresh(self) -> None:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
-        user = (self.auth_user_entry.get() or "").strip()
-        password = (self.auth_pass_entry.get() or "").strip()
-        session, base_url, err = wifi_ops_mod.session_for_host(host, user or None, password or None)
-        if err:
-            self._log("Error: %s\n" % err)
-            return
-        files_to_get = wifi_ops_mod.FILE_SETS["all"]
-        self._log("\n--- Download files from %s → %s ---\n" % (host, folder))
+        user = (self.auth_user_entry.get() or "").strip() or None
+        password = (self.auth_pass_entry.get() or "").strip() or None
+        self._wifi_set_status("Loading…")
+        self.wifi_device_tree.delete(*self.wifi_device_tree.get_children())
+        self._wifi_device_entries = []
 
         def work():
+            session, base_url, err = wifi_ops_mod.session_for_host(host, user, password)
+            if err:
+                return False, err
+            entries, err = wifi_ops_mod.list_files(session, base_url, "")
+            if err:
+                return False, err
+            return True, entries
+
+        def on_done(ok: bool, msg: Any) -> None:
+            if ok and isinstance(msg, list):
+                sorted_entries = sorted(
+                    msg,
+                    key=lambda it: (os.path.splitext(it.get("name", ""))[1].lower(), it.get("name", "")),
+                )
+                self._wifi_device_entries = sorted_entries
+                for i, it in enumerate(sorted_entries):
+                    name = it.get("name", "?")
+                    size = it.get("size", 0)
+                    size_str = (self._wifi_format_size_dots(size) + " B") if size else ""
+                    self.wifi_device_tree.insert("", "end", iid=str(i), text="📄 " + name, values=(size_str,))
+                self._wifi_set_status("%d file(s) on device." % len(msg))
+            else:
+                self._wifi_set_status("Error: %s" % (msg if not ok else "Unknown"))
+
+        _run_in_background(work, on_done)
+
+    def _wifi_download_selected(self) -> None:
+        if getattr(self, "_wifi_left_mode", "folder") == "bin":
+            self._wifi_set_status("Download is not available when viewing a .bin image.")
+            return
+        dest = (self._wifi_local_path_var.get() or "").strip() or self._wifi_local_path
+        if not dest or not os.path.isdir(dest):
+            self._wifi_set_status("Select a valid local folder.")
+            return
+        sel = self.wifi_device_tree.selection()
+        if not sel:
+            self._wifi_set_status("Select one or more device files to download.")
+            return
+        names = []
+        for iid in sel:
+            try:
+                idx = int(iid)
+                if 0 <= idx < len(self._wifi_device_entries):
+                    names.append(self._wifi_device_entries[idx].get("name", ""))
+            except ValueError:
+                pass
+        if not names:
+            return
+        host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
+        user = (self.auth_user_entry.get() or "").strip() or None
+        password = (self.auth_pass_entry.get() or "").strip() or None
+        total = len(names)
+        self._wifi_set_status("Downloading %d file(s)…" % total)
+
+        def work(progress_cb: Callable[[int, int], None]) -> Tuple[bool, str]:
+            session, base_url, err = wifi_ops_mod.session_for_host(host, user, password)
+            if err:
+                return False, err
             saved = 0
-            for name in files_to_get:
+            for name in names:
+                if not name:
+                    continue
                 content, ferr = wifi_ops_mod.get_file(session, base_url, name)
                 if ferr:
-                    if "404" in ferr:
-                        self.after(0, lambda n=name: self._log("  skip %s (not found)\n" % n))
-                        continue
-                    return False, ferr
-                path = os.path.join(folder, name)
+                    return False, "%s: %s" % (name, ferr)
+                path = os.path.join(dest, name)
                 with open(path, "wb") as f:
                     f.write(content)
                 saved += 1
-                self.after(0, lambda n=name: self._log("  saved %s\n" % n))
-            return True, "Done – %d file(s) downloaded to %s\n" % (saved, folder)
+                progress_cb(saved, total)
+            return True, "Downloaded %d file(s) to %s" % (saved, dest)
 
         def on_done(ok: bool, msg: str) -> None:
-            self._log(msg if msg.endswith("\n") else msg + "\n")
+            self._wifi_set_status(msg)
+            if ok:
+                self._set_last_directory(dest)
+                self._wifi_populate_local()  # refresh local folder so new files appear
 
-        _run_in_background(work, on_done)
+        def on_progress(n: int, total: int) -> None:
+            self._wifi_set_status("Downloading %d/%d…" % (n, total))
+
+        _run_in_background(work, on_done, on_progress)
+
+    def _wifi_upload_selected(self) -> None:
+        sel = self.wifi_local_tree.selection()
+        if not sel:
+            self._wifi_set_status("Select one or more local files to upload.")
+            return
+        files_to_upload: List[Tuple[str, str]] = []  # (path or name for bin, remote_name)
+        from_bin = getattr(self, "_wifi_left_mode", "folder") == "bin" and self._wifi_local_bin_path
+        if from_bin:
+            for iid in sel:
+                if iid == ".." or not isinstance(iid, str) or not iid.startswith("f:"):
+                    continue
+                name = iid[2:]
+                files_to_upload.append((name, name))  # (name for read from bin, remote_name)
+            bin_path = self._wifi_local_bin_path
+            off, size = self._wifi_bin_offset_size()
+        else:
+            for iid in sel:
+                if iid == ".." or not isinstance(iid, str):
+                    continue
+                if iid.startswith("f:"):
+                    name = iid[2:]
+                    path = os.path.join(self._wifi_local_path, name)
+                    if os.path.isfile(path):
+                        files_to_upload.append((path, name))
+        if not files_to_upload:
+            self._wifi_set_status("Select only files (not folders) to upload.")
+            return
+        host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
+        user = (self.auth_user_entry.get() or "").strip() or None
+        password = (self.auth_pass_entry.get() or "").strip() or None
+        total = len(files_to_upload)
+        self._wifi_set_status("Uploading %d file(s)…" % total)
+
+        def work(progress_cb: Callable[[int, int], None]) -> Tuple[bool, str]:
+            session, base_url, err = wifi_ops_mod.session_for_host(host, user, password)
+            if err:
+                return False, err
+            errs = []
+            done = 0
+            if from_bin:
+                import tempfile
+                for path_or_name, name in files_to_upload:
+                    try:
+                        content = lfs_read_file_from_bin(bin_path, path_or_name, file_offset=off, partition_size=size)
+                    except Exception as e:
+                        errs.append("%s: %s" % (name, e))
+                        done += 1
+                        progress_cb(done, total)
+                        continue
+                    try:
+                        tmp_fd, tmp_path = tempfile.mkstemp(prefix="wifi_upload_", suffix=".tmp")
+                        try:
+                            with os.fdopen(tmp_fd, "wb") as f:
+                                f.write(content)
+                            err = wifi_ops_mod.put_file(session, base_url, tmp_path, name)
+                            if err:
+                                errs.append("%s: %s" % (name, err))
+                        finally:
+                            try:
+                                os.unlink(tmp_path)
+                            except OSError:
+                                pass
+                    except Exception as e:
+                        errs.append("%s: %s" % (name, e))
+                    done += 1
+                    progress_cb(done, total)
+            else:
+                for path, name in files_to_upload:
+                    err = wifi_ops_mod.put_file(session, base_url, path, name)
+                    if err:
+                        errs.append("%s: %s" % (name, err))
+                    done += 1
+                    progress_cb(done, total)
+            if errs:
+                return False, "; ".join(errs[:3])
+            return True, "Uploaded %d file(s)." % len(files_to_upload)
+
+        def on_done(ok: bool, msg: str) -> None:
+            self._wifi_set_status(msg)
+
+        def on_progress(n: int, total: int) -> None:
+            self._wifi_set_status("Uploading %d/%d…" % (n, total))
+
+        _run_in_background(work, on_done, on_progress)
 
     def _sd_refresh(self) -> None:
         self.sd_refresh_btn.configure(state="disabled")
@@ -957,17 +1428,26 @@ class WiFiManageFrame(ContentFrame):
                 self._sd_populate_list()
                 self.sd_placeholder.grid_remove()
                 self.sd_scroll.grid()
-                self.sd_up_btn.configure(state="normal" if self._sd_current_dir else "disabled")
             else:
                 self.sd_placeholder.configure(text="Error: %s" % (msg if not ok else "Unknown"))
                 self.sd_placeholder.grid()
                 self.sd_scroll.grid_remove()
         _run_in_background(work, on_done)
 
+    def _sd_sort_by_column(self, column: str) -> None:
+        if column == getattr(self, "_sd_sort_column", "name"):
+            self._sd_sort_reverse = not getattr(self, "_sd_sort_reverse", False)
+        else:
+            self._sd_sort_column = column
+            self._sd_sort_reverse = False
+        self._sd_populate_list()
+
     def _sd_populate_list(self) -> None:
-        for child in self.sd_scroll.winfo_children():
-            child.destroy()
-        self._sd_row_vars.clear()
+        if not hasattr(self, "sd_tree"):
+            return
+        tree = self.sd_tree
+        tree.delete(*tree.get_children())
+        self._sd_iid_to_entry.clear()
 
         def _format_ts(ts: str) -> str:
             if not ts:
@@ -978,50 +1458,69 @@ class WiFiManageFrame(ContentFrame):
                 return ts
             return dt.strftime("%Y-%m-%d %H:%M")
 
-        entries = sorted(
-            self._sd_entries,
-            key=lambda it: (
-                0 if it.get("dir") else 1,
-                str(it.get("name", "")).lower(),
-            ),
+        def _format_size_dots(n: int) -> str:
+            s = str(max(0, n))
+            if not s:
+                return "0"
+            parts = []
+            for i in range(len(s), 0, -3):
+                parts.append(s[max(0, i - 3) : i])
+            return ".".join(reversed(parts))
+
+        def _sort_key_name(it: Any) -> tuple:
+            return (0 if it.get("dir") else 1, str(it.get("name", "")).lower())
+
+        def _sort_key_size(it: Any) -> tuple:
+            return (0 if it.get("dir") else 1, int(it.get("size", 0)))
+
+        def _sort_key_date(it: Any) -> tuple:
+            ts = it.get("ts", "") or ""
+            try:
+                dt = datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                t = dt.timestamp()
+            except Exception:
+                t = 0.0
+            return (0 if it.get("dir") else 1, t)
+
+        sort_column = getattr(self, "_sd_sort_column", "date")
+        sort_reverse = getattr(self, "_sd_sort_reverse", True)
+        key = {"name": _sort_key_name, "size": _sort_key_size, "date": _sort_key_date}.get(
+            sort_column, _sort_key_date
         )
+        entries = sorted(self._sd_entries, key=key, reverse=sort_reverse)
+
+        if self._sd_current_dir:
+            tree.insert("", "end", iid="up", text="📁 ..", values=("", ""))
+            self._sd_iid_to_entry["up"] = None
 
         for i, item in enumerate(entries):
             name = item.get("name", "?")
             is_dir = bool(item.get("dir"))
             size = int(item.get("size", 0)) if not is_dir else 0
             ts = item.get("ts", "")
-
-            row = ctk.CTkFrame(self.sd_scroll, fg_color="transparent")
-            row.grid(row=i, column=0, sticky="ew")
-            row.grid_columnconfigure(1, weight=1)
-
-            var = ctk.BooleanVar(value=False)
-            ctk.CTkCheckBox(row, text="", variable=var, width=18).grid(
-                row=0, column=0, padx=(0, 4), pady=0
-            )
-
-            prefix = "▸" if is_dir else "•"
-            display_name = name + ("/" if is_dir else "")
-            name_lbl = ctk.CTkLabel(row, text=f"{prefix} {display_name}", anchor="w")
-            name_lbl.grid(row=0, column=1, sticky="w", padx=0, pady=0)
-
-            size_text = "" if is_dir else f"{size} B"
-            size_lbl = ctk.CTkLabel(row, text=size_text, text_color="gray")
-            size_lbl.grid(row=0, column=2, padx=(8, 0), sticky="e")
-
+            icon = "📁" if is_dir else "📄"
+            display_name = icon + " " + (name + ("/" if is_dir else ""))
+            size_text = "" if is_dir else _format_size_dots(size) + " B"
             ts_text = _format_ts(ts)
-            ts_lbl = ctk.CTkLabel(row, text=ts_text, text_color="gray")
-            ts_lbl.grid(row=0, column=3, padx=(8, 0), sticky="e")
+            iid = str(i)
+            tree.insert("", "end", iid=iid, text=display_name, values=(size_text, ts_text))
+            self._sd_iid_to_entry[iid] = item
 
-            if is_dir:
-                def enter_dir(event=None, d=self._sd_current_dir, n=name):
-                    self._sd_current_dir = (d + "/" + n).strip("/") if d else n
-                    self._sd_refresh()
-                row.bind("<Double-Button-1>", enter_dir)
-                name_lbl.bind("<Double-Button-1>", enter_dir)
-
-            self._sd_row_vars.append((var, item))
+    def _sd_on_double_click(self, event: Any) -> None:
+        if not hasattr(self, "sd_tree"):
+            return
+        tree = self.sd_tree
+        sel = tree.identify_row(event.y)
+        if not sel:
+            return
+        if sel == "up":
+            self._sd_go_up()
+            return
+        entry = self._sd_iid_to_entry.get(sel)
+        if entry and entry.get("dir"):
+            name = entry.get("name", "")
+            self._sd_current_dir = (self._sd_current_dir + "/" + name).strip("/") if self._sd_current_dir else name
+            self._sd_refresh()
 
     def _sd_go_up(self) -> None:
         if not self._sd_current_dir:
@@ -1045,7 +1544,10 @@ class WiFiManageFrame(ContentFrame):
         return sd_ops_mod.collect_files_recursive(session, base_url, dir_path)
 
     def _sd_download_all(self) -> None:
-        dest = filedialog.askdirectory(title="Choose folder to save SD files")
+        dest = filedialog.askdirectory(
+            title="Save SD card files – choose destination folder",
+            initialdir=self._initial_dir(),
+        )
         if not dest:
             return
         try:
@@ -1071,6 +1573,7 @@ class WiFiManageFrame(ContentFrame):
             self.sd_progress.set(1)
             self.sd_progress_label.configure(text="Done." if ok else "Failed.")
             if ok:
+                self._set_last_directory(dest)
                 messagebox.showinfo("SD Download", msg)
             else:
                 messagebox.showerror("SD Download", msg)
@@ -1080,11 +1583,21 @@ class WiFiManageFrame(ContentFrame):
         _run_in_background(work, on_done, on_progress)
 
     def _sd_download_selected(self) -> None:
-        selected = [(var.get(), entry) for var, entry in self._sd_row_vars if var.get()]
+        if hasattr(self, "sd_tree"):
+            selected = [
+                self._sd_iid_to_entry[iid]
+                for iid in self.sd_tree.selection()
+                if iid in self._sd_iid_to_entry and self._sd_iid_to_entry[iid] is not None
+            ]
+        else:
+            selected = []
         if not selected:
             messagebox.showwarning("SD Download", "Select one or more items (files or folders) to download.")
             return
-        dest = filedialog.askdirectory(title="Choose folder to save SD files")
+        dest = filedialog.askdirectory(
+            title="Save SD card files – choose destination folder",
+            initialdir=self._initial_dir(),
+        )
         if not dest:
             return
         try:
@@ -1095,7 +1608,7 @@ class WiFiManageFrame(ContentFrame):
 
         def work(progress_cb=None):
             all_paths: list[str] = []
-            for _checked, entry in selected:
+            for entry in selected:
                 name = entry.get("name", "")
                 if not name:
                     continue
@@ -1119,6 +1632,7 @@ class WiFiManageFrame(ContentFrame):
             self.sd_progress.set(1)
             self.sd_progress_label.configure(text="Done." if ok else "Failed.")
             if ok:
+                self._set_last_directory(dest)
                 messagebox.showinfo("SD Download", msg)
             else:
                 messagebox.showerror("SD Download", msg)
@@ -1175,6 +1689,12 @@ class SDWiFiFrame(WiFiManageFrame):
             show="•",
         )
         self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
+        ctk.CTkCheckBox(
+            auth_frame,
+            text="Save password",
+            variable=self.app.wifi_save_pass_var,
+            width=0,
+        ).grid(row=0, column=6, padx=(12, 0), pady=0, sticky="w")
         row += 1
 
         # SD card download: browse folders (device /files.json style), then download all or selected folder(s)
@@ -1182,8 +1702,9 @@ class SDWiFiFrame(WiFiManageFrame):
             row=row, column=0, sticky="w", padx=20, pady=(18, 6))
         row += 1
         sd_desc = ctk.CTkLabel(
-            self, text="Browse folders (like device list directory). Select items with checkboxes, then download all or selected.",
-            text_color="gray"
+            self,
+            text="Browse folders (like device list directory). Select items (click or Shift+click), double-click folder to open.",
+            text_color="gray",
         )
         sd_desc.grid(row=row, column=0, sticky="w", padx=20, pady=(0, 4))
         row += 1
@@ -1192,73 +1713,51 @@ class SDWiFiFrame(WiFiManageFrame):
         sd_frame.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(row, weight=1)
         self._sd_entries = []
-        self._sd_row_vars = []
+        self._sd_iid_to_entry: Dict[str, Any] = {}  # iid -> entry dict or None for ".."
+        self._sd_sort_column = "date"
+        self._sd_sort_reverse = True  # newest first by default
         self.sd_placeholder = ctk.CTkLabel(
-            sd_frame, text="Click Refresh list to load SD root (requires device connected via Wi-Fi).",
-            text_color="gray"
+            sd_frame,
+            text="Click Refresh list to load SD root (requires device connected via Wi-Fi).",
+            text_color="gray",
         )
         self.sd_placeholder.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
-        self.sd_scroll = ctk.CTkScrollableFrame(sd_frame, height=120, fg_color=("gray90", "gray20"))
+        # Treeview + scrollbar in a tk.Frame for native scrolling (e.g. macOS trackpad)
+        self.sd_scroll = tk.Frame(sd_frame, height=120)
         self.sd_scroll.grid(row=0, column=0, columnspan=2, sticky="nsew", pady=(0, 6))
         self.sd_scroll.grid_remove()
+        self.sd_scroll.grid_propagate(False)
+        self.sd_tree = ttk.Treeview(
+            self.sd_scroll,
+            columns=("size", "date"),
+            show="tree headings",
+            selectmode="extended",
+            height=8,
+        )
+        self.sd_tree.heading("#0", text="Name", command=lambda: self._sd_sort_by_column("name"))
+        self.sd_tree.heading("size", text="Size", command=lambda: self._sd_sort_by_column("size"))
+        self.sd_tree.heading("date", text="Date", command=lambda: self._sd_sort_by_column("date"))
+        self.sd_tree.column("#0", width=220, minwidth=100)
+        self.sd_tree.column("size", width=80, minwidth=50, anchor="e")
+        self.sd_tree.column("date", width=120, minwidth=80)
+        sd_tree_yscroll = ttk.Scrollbar(self.sd_scroll, orient="vertical", command=self.sd_tree.yview)
+        self.sd_tree.configure(yscrollcommand=sd_tree_yscroll.set)
+        self.sd_tree.pack(side="left", fill="both", expand=True)
+        sd_tree_yscroll.pack(side="right", fill="y")
+        self.sd_tree.bind("<Double-1>", self._sd_on_double_click)
         sd_frame.grid_rowconfigure(0, weight=1)
-        self._setup_sd_scroll_binding()
         sd_btns = ctk.CTkFrame(sd_frame, fg_color="transparent")
         sd_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 4))
         self.sd_refresh_btn = ctk.CTkButton(sd_btns, text="Refresh list", width=100, command=self._sd_refresh)
         self.sd_refresh_btn.grid(row=0, column=0, padx=(0, 10), pady=0)
-        self.sd_up_btn = ctk.CTkButton(sd_btns, text="Up", width=50, command=self._sd_go_up, state="disabled")
-        self.sd_up_btn.grid(row=0, column=1, padx=0, pady=0)
-        ctk.CTkButton(sd_btns, text="Download all", width=120, command=self._sd_download_all).grid(row=0, column=2, padx=(10, 0), pady=0)
-        ctk.CTkButton(sd_btns, text="Download selected", width=140, command=self._sd_download_selected).grid(row=0, column=3, padx=(10, 0), pady=0)
+        ctk.CTkButton(sd_btns, text="Download all", width=120, command=self._sd_download_all).grid(row=0, column=1, padx=(10, 0), pady=0)
+        ctk.CTkButton(sd_btns, text="Download selected", width=140, command=self._sd_download_selected).grid(row=0, column=2, padx=(10, 0), pady=0)
         self._sd_current_dir = ""
         self.sd_progress = ctk.CTkProgressBar(sd_frame, height=8, progress_color=("gray70", "gray35"))
         self.sd_progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         self.sd_progress.set(0)
         self.sd_progress_label = ctk.CTkLabel(sd_frame, text="", text_color="gray", height=0)
         self.sd_progress_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 0))
-
-    def _setup_sd_scroll_binding(self) -> None:
-        """Register a single bind_all handler that scrolls sd_scroll whenever the mouse
-        pointer is physically over the scroll area, regardless of which widget received
-        the event (works on macOS where scroll events may go to the focused widget)."""
-        import sys
-
-        def _over_sd() -> bool:
-            pf = self.sd_scroll._parent_frame
-            try:
-                mx, my = pf.winfo_pointerx(), pf.winfo_pointery()
-                x1, y1 = pf.winfo_rootx(), pf.winfo_rooty()
-                x2, y2 = x1 + pf.winfo_width(), y1 + pf.winfo_height()
-                return x1 <= mx <= x2 and y1 <= my <= y2
-            except Exception:
-                return False
-
-        def _on_wheel(event):
-            if not _over_sd():
-                return
-            canvas = self.sd_scroll._parent_canvas
-            if sys.platform.startswith("win"):
-                canvas.yview_scroll(int(-event.delta / 6), "units")
-            else:
-                canvas.yview_scroll(-event.delta, "units")
-            return "break"
-
-        def _on_btn4(event):
-            if _over_sd():
-                self.sd_scroll._parent_canvas.yview_scroll(-1, "units")
-
-        def _on_btn5(event):
-            if _over_sd():
-                self.sd_scroll._parent_canvas.yview_scroll(1, "units")
-
-        # Use tkinter.Misc.bind_all directly — CTkBaseClass overrides bind_all and
-        # raises AttributeError to prevent accidental global bindings, so we bypass it.
-        import tkinter
-        tkinter.Misc.bind_all(self, "<MouseWheel>", _on_wheel, add="+")
-        tkinter.Misc.bind_all(self, "<Button-4>", _on_btn4, add="+")
-        tkinter.Misc.bind_all(self, "<Button-5>", _on_btn5, add="+")
-
     def _test_connection(self) -> None:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
         self.sd_placeholder.configure(
@@ -1322,14 +1821,19 @@ class SerialLogFrame(ContentFrame):
         bot = ctk.CTkFrame(self, fg_color="transparent")
         bot.grid(row=row, column=0, sticky="ew", padx=20, pady=(0, 20))
         bot.grid_columnconfigure(0, weight=1)
-        ctk.CTkButton(bot, text="Save to file", width=100, command=self._save_log).grid(row=0, column=0, padx=(0, 10), pady=0)
+        ctk.CTkButton(bot, text="Setup via IMPROV", width=120, command=self._setup_improv).grid(row=0, column=0, padx=(0, 10), pady=0)
+        ctk.CTkButton(bot, text="Save to file", width=100, command=self._save_log).grid(row=0, column=1, padx=(0, 10), pady=0)
         self.strip_ansi_var = ctk.BooleanVar(value=False)
         ctk.CTkCheckBox(bot, text="Strip ANSI when saving", variable=self.strip_ansi_var,
                         command=self._save_strip_ansi_setting).grid(
-            row=0, column=1, padx=10, pady=0
+            row=0, column=2, padx=10, pady=0
         )
-        ctk.CTkButton(bot, text="Clear", width=80, command=self._clear_log).grid(row=0, column=2, padx=10, pady=0)
-        ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=3, padx=0, pady=0)
+        ctk.CTkButton(bot, text="Clear", width=80, command=self._clear_log).grid(row=0, column=3, padx=10, pady=0)
+        ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=4, padx=0, pady=0)
+
+    def _setup_improv(self) -> None:
+        """Placeholder for IMPROV WiFi setup (e.g. open IMPROV flow)."""
+        messagebox.showinfo("Setup via IMPROV", "IMPROV WiFi setup is not yet implemented.")
 
     def _save_strip_ansi_setting(self) -> None:
         if self.app:
@@ -1342,13 +1846,16 @@ class SerialLogFrame(ContentFrame):
         tb = self._serial_log_tk or self.log_text
 
         def do():
+            tw = self._serial_log_tk or self.log_text
+            at_bottom = tw.yview()[1] >= 0.999
             self.log_text.configure(state="normal")
             for seg_text, tag in segments:
                 if tag:
                     tb.insert("end", seg_text, tag)
                 else:
                     tb.insert("end", seg_text)
-            self.log_text.see("end")
+            if at_bottom:
+                self.log_text.see("end")
             self.log_text.configure(state="disabled")
         self.after(0, do)
 
@@ -1358,7 +1865,10 @@ class SerialLogFrame(ContentFrame):
 
     def _save_log(self) -> None:
         path = filedialog.asksaveasfilename(
-            title="Save log", defaultextension=".txt", filetypes=[("Text", "*.txt"), ("All", "*.*")]
+            title="Save serial log – choose file",
+            initialdir=self._initial_dir(),
+            defaultextension=".txt",
+            filetypes=[("Text", "*.txt"), ("All", "*.*")],
         )
         if not path:
             return
@@ -1368,6 +1878,7 @@ class SerialLogFrame(ContentFrame):
                 content = self._strip_ansi(content)
             with open(path, "w", encoding="utf-8", errors="replace") as f:
                 f.write(content)
+            self._set_last_directory(path)
             messagebox.showinfo("Save", "Log saved.")
         except Exception as e:
             messagebox.showerror("Save", str(e))
@@ -1416,6 +1927,22 @@ class SerialLogFrame(ContentFrame):
         except Exception as e:
             messagebox.showerror("Serial", "Could not open port: %s" % e)
 
+    def _on_serial_disconnected(self) -> None:
+        """Called on main thread when the serial reader loop exits (error or port closed)."""
+        if not self.winfo_exists():
+            return
+        if self._serial is None:
+            return
+        self._serial_stop.set()
+        try:
+            if self._serial.is_open:
+                self._serial.close()
+        except Exception:
+            pass
+        self._serial = None
+        self._serial_thread = None
+        self.connect_btn.configure(text="Connect")
+
     def _serial_reader_loop(self) -> None:
         try:
             ser = self._serial
@@ -1430,9 +1957,13 @@ class SerialLogFrame(ContentFrame):
                         text = line.decode("latin-1", errors="replace")
                     self._serial_queue.put(text)
         except Exception as e:
-            self._serial_queue.put("\n[Error: %s]\n" % e)
+            errno = getattr(e, "errno", None)
+            msg = str(e).lower()
+            if errno != 9 and "bad file descriptor" not in msg:
+                self._serial_queue.put("\n[Error: %s]\n" % e)
         finally:
             self._serial_queue.put("\n[Disconnected]\n")
+            self.after(0, self._on_serial_disconnected)
 
     def _drain_serial_queue(self) -> None:
         """Drain serial queue and append to log on main thread; reschedule while connected."""
@@ -1448,13 +1979,16 @@ class SerialLogFrame(ContentFrame):
             tb = self._serial_log_tk or self.log_text
 
             def do():
+                tw = self._serial_log_tk or self.log_text
+                at_bottom = tw.yview()[1] >= 0.999
                 self.log_text.configure(state="normal")
                 for seg_text, tag in segments:
                     if tag:
                         tb.insert("end", seg_text, tag)
                     else:
                         tb.insert("end", seg_text)
-                self.log_text.see("end")
+                if at_bottom:
+                    self.log_text.see("end")
                 self.log_text.configure(state="disabled")
             self.after(0, do)
         # Only keep polling while the connection is active and the widget still exists.
@@ -1548,7 +2082,10 @@ class SettingsFrame(ContentFrame):
         self.grid_rowconfigure(row, weight=1)
 
     def _browse_backup(self) -> None:
-        d = filedialog.askdirectory(title="Select backup folder")
+        d = filedialog.askdirectory(
+            title="Settings – choose backup folder for device backups",
+            initialdir=self._initial_dir(),
+        )
         if d:
             self.backup_folder_var.set(d)
             self._save_from_ui()
@@ -1591,14 +2128,24 @@ class App(ctk.CTk):
         self.title("rdzTTGOsonde Flasher")
         self.geometry("720x520")
         self.minsize(500, 400)
+        _icon_path = os.path.join(os.path.dirname(__file__), "rdzttgosonde.png")
+        if os.path.isfile(_icon_path):
+            try:
+                self.iconphoto(True, tk.PhotoImage(file=os.path.abspath(_icon_path)))
+            except Exception:
+                pass
 
         self.settings = settings_mod.load()
         set_no_stub_read(bool(self.settings.get("no_stub_read", False)))
         set_no_stub_write(bool(self.settings.get("no_stub_write", False)))
 
-        self.wifi_host_var = tk.StringVar(value="rdzsonde.local")
-        self.wifi_user_var = tk.StringVar(value="")
-        self.wifi_pass_var = tk.StringVar(value="")
+        self.wifi_host_var = tk.StringVar(value=self.settings.get("wifi_host", "rdzsonde.local"))
+        self.wifi_user_var = tk.StringVar(value=self.settings.get("wifi_user", ""))
+        self.wifi_pass_var = tk.StringVar(value=self.settings.get("wifi_pass", ""))
+        # Default "Save password" to True if config already has a password (backward compat)
+        self.wifi_save_pass_var = ctk.BooleanVar(
+            value=self.settings.get("wifi_save_password", bool(self.settings.get("wifi_pass", "")))
+        )
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -1649,7 +2196,13 @@ class App(ctk.CTk):
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
     def _on_close(self) -> None:
-        self.settings["last_mode"] = self.mode_var.get()
+        self.settings["wifi_host"] = self.wifi_host_var.get()
+        self.settings["wifi_user"] = self.wifi_user_var.get()
+        self.settings["wifi_save_password"] = self.wifi_save_pass_var.get()
+        if self.wifi_save_pass_var.get():
+            self.settings["wifi_pass"] = self.wifi_pass_var.get()
+        else:
+            self.settings.pop("wifi_pass", None)
         for k in ("Flash", "USB", "Serial"):
             if k in self.frames and hasattr(self.frames[k], "port_combo"):
                 self.settings["last_port"] = self.frames[k].port_combo.get()
@@ -1669,7 +2222,6 @@ class App(ctk.CTk):
                 frame.show()
             else:
                 frame.hide()
-        self.settings["last_mode"] = value
         settings_mod.save(self.settings)
 
 

@@ -127,7 +127,7 @@ Flash output from esptool is displayed in a scrollable text area with ANSI color
 The user selects a port and baud rate. Clicking "Connect" opens the port and starts streaming output to a scrollable log area. Clicking "Disconnect" closes it.
 
 #### FR-S2: Baud rate
-A combo box offers baud rates: `115200`, `9600`, `57600`, `460800`, `921600`. Default is `115200`.
+A combo box offers baud rates: `115200`, `9600`, `19200`, `38400`, `57600`, `230400`, `460800`, `921600`. The initial value is restored from settings (`baud_rate`); if unset or invalid, it defaults to `115200`. The selected value is saved to settings when the app closes. There is no separate "Serial console baud" control in the Settings tab.
 
 #### FR-S3: ANSI color rendering
 Serial output is rendered with ANSI SGR color tags (foreground colors `30`–`37`, `90`–`97`; reset on `0`).
@@ -137,6 +137,9 @@ A "Save to file" button writes the current log buffer to a user-selected file. A
 
 #### FR-S5: Clear and copy
 "Clear" erases the log. "Copy" copies the full log text to the clipboard.
+
+#### FR-S5b: Setup via IMPROV
+A "Setup via IMPROV" button is placed in the bottom row (left of "Save to file"). It is intended for IMPROV-based WiFi setup; currently shows a placeholder message ("not yet implemented").
 
 #### FR-S6: Buffer limit
 The log is trimmed to a configurable maximum number of lines (default 10,000, configurable in Settings).
@@ -169,40 +172,44 @@ Therefore the filesystem partition (flash `0x320000`) is at **file offset `0x31F
 (= `0x320000 - 0x1000`). Reads `0xD0000` bytes from that file offset and unpacks as a
 LittleFS image. No esptool or device needed.
 
-#### FR-U6: Setup WiFi via IMPROV
-Button is present but not yet implemented.
-
 ---
 
 ### 3.4 Wi-Fi Tab
 
-#### FR-W1: Host entry
-A text entry for a device hostname (e.g. `rdzsonde.local`) or IP address. mDNS names are resolved via `socket.gethostbyname()`.
+The Wi-Fi tab provides a dual-pane file manager: left = local folder or .bin image contents, right = device files. Host and optional auth are shared with the SD (via Wi-Fi) tab and persisted.
 
-#### FR-W2: Resolve
-A "Resolve" button resolves the hostname and displays the resolved IP address inline (`IP: x.x.x.x`). If already an IP, no change. On failure, an error is displayed.
+#### FR-W1: Host and auth
+Row 1: Host entry (hostname or IP), resolved IP label, "Resolve", "Test connection". Row 2: "Auth (optional):" with User, Password, and "Save password" checkbox. Host, user, and (if checked) password are stored in settings and shared with the SD tab. Password is only written to config when "Save password" is checked; unchecking and closing removes it from the config file.
 
-#### FR-W3: Test connection
-"Test connection" GETs `http://{ip}/status.json` and displays the response body (up to 500 characters) or an error.
+#### FR-W2: Resolve and test
+"Resolve" resolves the hostname via `socket.gethostbyname()` and shows the IP. "Test connection" GETs `http://{ip}/status.json` and shows the result in the status line.
 
-#### FR-W4: Optional authentication
-"Auth (optional):" section with User and Password fields. If filled, a challenge-response login sequence is performed before any file operation (see §5.6).
+#### FR-W3: Left pane – local folder or .bin
+- **Folder mode:** Shows current directory path (abbreviated when long; full path on hover). Tree lists "..", then directories, then files. Double-click ".." or a directory navigates. Files and dirs are sorted by extension then name (dirs by name).
+- **Change:** Opens directory picker; selected folder becomes the current path.
+- **Open .bin:** Opens file picker for `.bin`; switches to bin mode and lists the root of the LittleFS image (full backup or raw partition). ".." returns to folder view.
+- In **bin mode**, "Download" is disabled; "Upload" uploads selected files from the .bin to the device (read from image, temp file, PUT, delete temp).
 
-#### FR-W5: Download files from TTGO
-"Download files from TTGO" opens a dialog to select a destination directory and prompts for file selection by kind (config, qrg, screens, all, etc.). Downloads the selected files via GET `http://{ip}/file/{name}`.
+#### FR-W4: Right pane – device files
+"Refresh" fetches the file list via `wifi_ops.list_files()` (currently a static list until device API exists). Tree shows files sorted by extension then name. Selection is used for "Download selected".
 
-#### FR-W6: Restore from backup .bin to TTGO
-Button present; not yet functionally implemented.
+#### FR-W5: Sync actions (button row below panes)
+- **Change** / **Open .bin** / **Upload to device →** / **← Download** / **Refresh** in one row (equal width).
+- **Upload:** Selected files from the left (folder or bin) are uploaded to the device via POST `file`. Status line shows "Uploading N…" then "Uploading n/N…" then result.
+- **Download:** Selected files from the right are downloaded to the current left-pane folder via GET `file/{name}`. Status line shows "Downloading N…", "Downloading n/N…", then result. Local tree is refreshed after success.
+
+#### FR-W6: Status line
+Full-width status line below the buttons shows connection status, errors, and progress (e.g. "Downloading 2/5…").
 
 ---
 
 ### 3.5 SD (via Wi-Fi) Tab
 
 #### FR-SD1: Refresh / list
-"Refresh list" connects to the device, resolves the host, and GETs `/files.json` (optionally `?dir=<path>`) to list SD card contents. Results are shown in a scrollable tree/list. While loading, the button is disabled.
+"Refresh" connects to the device, resolves the host, and GETs `/files.json` with pagination (optional `?dir=<path>`) to list SD card contents. Results are shown in a `ttk.Treeview` with Name and Size columns. While loading, the button is disabled and a placeholder shows status.
 
 #### FR-SD2: Directory navigation
-Clicking a directory in the list navigates into it (fetches `/files.json?dir=<path>`).
+A ".." row is shown when not at root; double-click ".." or a directory navigates (fetches `/files.json?dir=<path>`). Column headers (Name, Size, Date) are clickable to sort; ".." stays first. Default sort is by date (newest first).
 
 #### FR-SD3: Download selected
 "Download selected" downloads the selected file(s) via GET `http://{ip}/sd/{path}` into a user-selected local directory.
@@ -359,9 +366,9 @@ ttgoconfig sd [--ttgo HOST] [--user U] [--pass P] fetch PATH [--outdir DIR]
 |--------|-------------|
 | `esptool_helper` | `_esptool_cmd`, `flash_firmware`, `flash_app_partition`, `read_backup`, `write_backup`, `read_flash_region`, `write_flash_region`, `download_filesystem`, `upload_filesystem`, `set_no_stub`, `set_no_stub_read`, `set_no_stub_write`, `PARTITION_*` constants |
 | `firmware` | `fetch_manifest_firmware_url`, `fetch_download_html_versions`, `list_available_versions`, `resolve_firmware_url`, `download_firmware_to_temp` |
-| `wifi_ops` | `FILE_SETS`, `resolve_host`, `session_for_host`, `login`, `get_file`, `put_file`, `get_files_by_kind`, `test_connection` |
+| `wifi_ops` | `FILE_SETS`, `resolve_host`, `session_for_host`, `login`, `get_file`, `put_file`, `list_files`, `get_files_by_kind`, `test_connection` |
 | `sd_ops` | `list_dir`, `collect_files_recursive`, `resolve_sd_path_to_list`, `fetch_paths_to_dir` |
-| `littlefs_helper` | `pack_directory`, `unpack_bytes`, `unpack_image`, `extract_from_backup`, `BLOCK_SIZE` |
+| `littlefs_helper` | `pack_directory`, `unpack_bytes`, `unpack_image`, `extract_from_backup`, `list_fs_from_bin`, `read_file_from_bin`, `BLOCK_SIZE`, `BACKUP_FLASH_BASE` |
 | `settings` | `load`, `save`, `_defaults`, `get_backup_folder_expanded` |
 
 ### 5.2 Settings Persistence
@@ -384,9 +391,15 @@ ttgoconfig sd [--ttgo HOST] [--user U] [--pass P] fetch PATH [--outdir DIR]
 | `serial_log_buffer_lines` | int | `10000` | Serial log scroll-back limit |
 | `strip_ansi_when_saving` | bool | `false` | Strip ANSI when saving serial log |
 | `last_mode` | str | `"Flash"` | Last active tab (unused in UI; always starts on Flash) |
+| `baud_rate` | str | `115200` | Serial tab baud (saved on app close from Serial combo; no Settings UI) |
 | `no_stub` | bool | `false` | Legacy: pass `--no-stub` to all esptool calls (CLI `--no-stub` flag sets both) |
 | `no_stub_read` | bool | `false` | Pass `--no-stub` to esptool read operations |
 | `no_stub_write` | bool | `false` | Pass `--no-stub` to esptool write operations |
+| `last_directory` | str | `""` | Last-used directory for save/extract dialogs |
+| `wifi_host` | str | `rdzsonde.local` | Wi-Fi/SD tab host (shared) |
+| `wifi_user` | str | `""` | Wi-Fi/SD tab auth user (shared) |
+| `wifi_pass` | str | `""` | Wi-Fi/SD tab auth password; only saved when `wifi_save_password` is true |
+| `wifi_save_password` | bool | `false` | When true, password is persisted; when false, password is not written and any existing saved password is removed on next save |
 
 Load merges saved keys into defaults so new keys survive upgrades. On save, the full merged dict is written.
 
@@ -497,6 +510,10 @@ At GUI startup, `set_no_stub_read` and `set_no_stub_write` are called from saved
 **`unpack_image(image_path, dest_dir, block_count)`**: reads file, calls `unpack_bytes`.
 
 **`extract_from_backup(backup_path, dest_dir, offset, size)`**: seeks to `offset`, reads `size` bytes, calls `unpack_bytes` with `block_count = size // BLOCK_SIZE`. No temp file needed.
+
+**`list_fs_from_bin(bin_path, file_offset=0, partition_size=None)`**: mounts a slice of the .bin (full backup: slice at partition offset; raw image: whole file) and returns a list of `{"name", "size", "dir"}` for the root directory. Used by the Wi-Fi tab when viewing a .bin.
+
+**`read_file_from_bin(bin_path, name, file_offset=0, partition_size=None)`**: same slice; reads one file from root and returns its bytes. Used for "Upload from .bin" on the Wi-Fi tab.
 
 ### 5.6 Wi-Fi HTTP Protocol
 
@@ -622,13 +639,14 @@ Defined in `wifi_ops.FILE_SETS`:
 | Area | Limitation / TODO |
 |------|-------------------|
 | Partition table | SPIFFS/LittleFS offset and size are hardcoded for `partitions-rdz.csv`. Future: read partition table from device via `esptool read-flash 0x8000 0x1000` and parse. |
-| IMPROV | "Setup WiFi via IMPROV" button and `improv` CLI subcommand are not implemented. |
+| IMPROV | "Setup via IMPROV" button is on the **Serial** tab (left of "Save to file"); shows a placeholder. IMPROV flow and CLI are not implemented. |
 | `extractfs` CLI | No `--keep-image` flag (not needed since no temp file is created). |
 | Backup read baud | `read_backup` defaults to `115200` baud (via `DEFAULT_BAUD_READ`). Override with `--baud` on CLI or the esptool read baud rate setting in the GUI. |
-| Wi-Fi file operations | "Restore from backup .bin to TTGO" on the Wi-Fi tab is not yet implemented. |
+| Wi-Fi device list API | `wifi_ops.list_files()` currently returns a static list; device API for listing files is not yet implemented. |
 | `font` partition | `--part fonts` flash-type option is planned but not implemented. |
 | Filesystem type | Partition is named `spiffs` in the table but contains a LittleFS v2.0 image. The two are incompatible. |
 | `put --kind` CLI | Uploading a named file set via CLI is wired but individual file error reporting is basic. |
-| SD card UI | No in-app directory tree navigation; only flat list with refresh. |
+| SD card UI | Treeview with "..", column sort (Name/Size/Date), and paginated `/files.json`; directory navigation by double-click. |
 | LittleFS version | `unpack_bytes` does not enforce v2.0 disk version on read; `littlefs-python` will mount v2.0 or v2.1. |
 | Temp file cleanup | `downloadfs` always retains the raw image on failure for debugging. |
+| Serial default baud | Default baud for the Serial tab is taken from settings (`baud_rate`); there is no separate "Serial console baud" control in the Settings tab—only the Serial tab combo is used, and the value is saved on app close. |

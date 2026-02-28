@@ -8,7 +8,7 @@ Partition layout (partitions-rdz.csv):
 from __future__ import annotations
 
 import os
-from typing import Union
+from typing import List, Optional, Union
 
 from littlefs import LittleFS
 
@@ -92,3 +92,52 @@ def extract_from_backup(backup_path: str, dest_dir: str, flash_offset: int, size
         f.seek(file_offset)
         data = f.read(size)
     unpack_bytes(data, dest_dir, (size + BLOCK_SIZE - 1) // BLOCK_SIZE)
+
+
+def _mount_bin_slice(bin_path: str, file_offset: int = 0, partition_size: Optional[int] = None) -> LittleFS:
+    """Read a slice of a .bin file and mount as LittleFS. Returns mounted fs (root only used).
+    If partition_size is None, read from file_offset to end of file."""
+    with open(bin_path, "rb") as f:
+        f.seek(file_offset)
+        data = f.read(partition_size) if partition_size is not None else f.read()
+    block_count = len(data) // BLOCK_SIZE
+    if block_count == 0:
+        raise ValueError("Image too small for LittleFS")
+    fs = LittleFS(block_size=BLOCK_SIZE, block_count=block_count, mount=False)
+    fs.context.buffer = bytearray(data)
+    fs.mount()
+    return fs
+
+
+def list_fs_from_bin(
+    bin_path: str, file_offset: int = 0, partition_size: Optional[int] = None
+) -> List[dict]:
+    """List root directory of a LittleFS image in a .bin file.
+    Returns list of dicts: {"name": str, "size": int, "dir": bool}.
+    file_offset/partition_size: if partition_size is set, read that many bytes from file_offset
+    (for a full backup .bin). Otherwise read from file_offset to EOF (raw image)."""
+    fs = _mount_bin_slice(bin_path, file_offset, partition_size)
+    try:
+        entries = []
+        for entry in fs.scandir("/"):
+            entries.append({
+                "name": entry.name,
+                "size": getattr(entry, "size", 0) if getattr(entry, "type", 0) != 2 else 0,
+                "dir": getattr(entry, "type", 0) == 2,
+            })
+        return entries
+    finally:
+        fs.context.buffer = bytearray()  # release
+
+
+def read_file_from_bin(
+    bin_path: str, name: str, file_offset: int = 0, partition_size: Optional[int] = None
+) -> bytes:
+    """Read a single file from the root of a LittleFS image in a .bin file."""
+    fs = _mount_bin_slice(bin_path, file_offset, partition_size)
+    try:
+        path = "/" + name.lstrip("/")
+        with fs.open(path, "rb") as f:
+            return f.read()
+    finally:
+        fs.context.buffer = bytearray()

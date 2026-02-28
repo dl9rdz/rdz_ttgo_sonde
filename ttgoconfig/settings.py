@@ -61,12 +61,16 @@ def _defaults() -> dict[str, Any]:
         "last_port": "",
         "serial_log_buffer_lines": DEFAULT_SERIAL_LOG_LINES,
         "strip_ansi_when_saving": False,
-        "last_mode": "Flash",
         "no_stub": False,
         "baud_rate_read": DEFAULT_BAUD_READ,
         "baud_rate_write": DEFAULT_BAUD_WRITE,
         "no_stub_read": False,
         "no_stub_write": False,
+        "last_directory": "",
+        "wifi_host": "rdzsonde.local",
+        "wifi_user": "",
+        "wifi_pass": "",
+        "wifi_save_password": False,
     }
 
 

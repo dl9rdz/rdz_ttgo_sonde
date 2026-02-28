@@ -100,6 +100,50 @@ def session_for_host(
     return session, base_url, None
 
 
+# Static list for list_files() until device API exists. Based on RX_FSK/data, no subdirs, no status2.html.
+DEVICE_FILES_STATIC = [
+    "cfg.js",
+    "config.txt",
+    "GPSRESET",
+    "gpsinit.txt",
+    "index.html",
+    "login.html",
+    "livemap.html",
+    "livemap.js",
+    "localupd.txt",
+    "map.html",
+    "networks.txt",
+    "qrg.txt",
+    "rdz.js",
+    "screens1.txt",
+    "screens2.txt",
+    "screens3.txt",
+    "screens4.txt",
+    "screens5.txt",
+    "screens6.txt",
+    "screens.txt",
+    "sdfiles.html",
+    "sha256.min.js",
+    "style.css",
+    "upd.html",
+    "user.txt",
+]
+
+
+def list_files(
+    session: Any, base_url: str, dir_path: str = ""
+) -> Tuple[List[dict], Optional[str]]:
+    """
+    List files on device. Returns (entries, error_msg).
+    Each entry is {"name": str, "dir": 0, "size": int} or {"name": str, "dir": 1} for dirs.
+    API is not yet implemented on device; returns static list (flat, no subdirs).
+    """
+    if dir_path:
+        return [], None
+    entries = [{"name": n, "dir": 0, "size": 0} for n in DEVICE_FILES_STATIC]
+    return entries, None
+
+
 def get_file(
     session: Any, base_url: str, name: str
 ) -> Tuple[Optional[bytes], Optional[str]]:
