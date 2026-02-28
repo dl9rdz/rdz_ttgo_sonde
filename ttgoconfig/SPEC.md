@@ -52,14 +52,19 @@ Entry points:
 
 ```
 ttgoconfig/
-├── app.py            # CustomTkinter GUI (main window, all tab frames)
+├── app.py            # CustomTkinter GUI (main window, all tab frames, ImprovDialog)
 ├── cli.py            # argparse CLI, one cmd_* function per subcommand
 ├── __main__.py       # Delegates to cli.main() for `python -m ttgoconfig`
 ├── esptool_helper.py # subprocess wrappers around esptool
 ├── firmware.py       # Firmware manifest/download.html fetch and resolution
-├── wifi_ops.py       # HTTP session, login, get/put file, file sets
+├── wifi_ops.py       # HTTP session, login, get/put file, list_files (files.json?dir=.int), file sets
 ├── sd_ops.py         # SD card directory listing and file fetch over Wi-Fi
 ├── littlefs_helper.py# LittleFS image pack / unpack (littlefs-python API)
+├── bin_fs_helpers.py # Auto-detect LittleFS vs SPIFFS in .bin; list/read/extract
+├── bin_version_poc.py# Version string detection in app partition of .bin files
+├── partition_table.py# Parse ESP32 partition table from .bin
+├── spiffs_reader.py  # Pure-Python SPIFFS image list/read
+├── improv_serial.py  # IMPROV serial protocol (packets, RPC get_info/scan/send_wifi)
 ├── settings.py       # Load/save JSON settings, defaults
 └── requirements.txt  # customtkinter, pyserial, esptool, requests, littlefs-python
 ```
@@ -76,7 +81,7 @@ ttgoconfig/
 The Flash tab shall offer three firmware sources selectable via a segmented button:
 - **Download from website** – fetch from the configured download server.
 - **Local file** – browse and select a local `.bin` file.
-- **From backup** – select from `.bin` files found in the configured backup folder.
+- **From backup** – select from `.bin` files found in the configured backup folder. The combo shows each filename with a detected version string in parentheses (e.g. `backup.bin (main 1.0.5)`) when available.
 
 #### FR-F2: Flash type selection
 A combo box labelled "What to flash" shall offer:
@@ -114,7 +119,7 @@ On clicking "Flash":
 5. The temporary file (if downloaded) is deleted in a `finally` block.
 
 #### FR-F7: Port selection
-The port is selected via a combo box populated with available serial ports. A "Refresh" button repopulates the list. The last-used port is restored on startup.
+The port is selected via a combo box populated with available serial ports; the same selection is shared across Flash, USB, and Serial tabs. A "Refresh" button repopulates the list; if the saved port (from last app close) is in the new list, it is selected automatically. The last-used port is restored on startup and saved on app close.
 
 #### FR-F8: Log output
 Flash output from esptool is displayed in a scrollable text area with ANSI color support and progress-line overwriting (see §5.9).
@@ -133,13 +138,13 @@ A combo box offers baud rates: `115200`, `9600`, `19200`, `38400`, `57600`, `230
 Serial output is rendered with ANSI SGR color tags (foreground colors `30`–`37`, `90`–`97`; reset on `0`).
 
 #### FR-S4: Save to file
-A "Save to file" button writes the current log buffer to a user-selected file. An optional "Strip ANSI" checkbox removes escape sequences before saving.
+A "Save to file" button writes the current log buffer to a user-selected file (ANSI escape sequences are preserved). The bottom row order is: Setup via IMPROV | Save to file | Clear | Copy.
 
 #### FR-S5: Clear and copy
 "Clear" erases the log. "Copy" copies the full log text to the clipboard.
 
 #### FR-S5b: Setup via IMPROV
-A "Setup via IMPROV" button is placed in the bottom row (left of "Save to file"). It is intended for IMPROV-based WiFi setup; currently shows a placeholder message ("not yet implemented").
+A "Setup via IMPROV" button is placed in the bottom row (left of "Save to file"). It opens a modal dialog that requests device info (name/version), runs a WiFi scan, and lets the user select a network (or enter a custom SSID) and password to provision the device. The dialog uses the IMPROV serial protocol (`improv_serial` module); the serial port is used exclusively during the flow (Serial tab disconnects if connected).
 
 #### FR-S6: Buffer limit
 The log is trimmed to a configurable maximum number of lines (default 10,000, configurable in Settings).
@@ -154,23 +159,19 @@ Serial reading runs in a background thread. Data is passed to the main thread vi
 All USB operations require a serial port (shared port combo with Flash tab). A scrollable log area at the bottom shows esptool output.
 
 #### FR-U1: Make full backup
-Prompts for a save path (default: `backup-YYYYMMDD-HHMM.bin` in the configured backup folder). Reads flash region `0x1000` size `0x3FF000` via `esptool read-flash` using the configured **read baud rate** (default `115200`). Uses the **no-stub (read)** setting if enabled. Shows progress in the log.
+Prompts for a save path (default: `backup-YYYYMMDD-HHMM.bin` in the configured backup folder). Reads flash region `0x1000` size `0x3FF000` via `esptool read-flash` using the configured **read baud rate** (default `921600`). Uses the **no-stub (read)** setting (checked by default). Shows progress in the log.
 
 #### FR-U2: Restore full backup
 Prompts to select a `.bin` backup file and shows a confirmation dialog. Writes the image at `0x1000` via `esptool write-flash -z --flash-mode dio --flash-freq 80m --flash-size detect`.
 
 #### FR-U3: Extract filesystem (from device)
-Prompts for a destination directory. Reads the LittleFS partition (`0x320000`, `0xD0000`) via `esptool read-flash` at `115200` baud to a temporary file. Unpacks the LittleFS image into the destination directory. Deletes the temporary file.
+Prompts for a destination directory. Reads the LittleFS partition (`0x320000`, `0xD0000`) via `esptool read-flash` at the configured read baud rate (default `921600`) to a temporary file. Unpacks the LittleFS image into the destination directory. Deletes the temporary file.
 
 #### FR-U4: Upload filesystem (to device)
 Prompts for a source directory and shows a confirmation dialog. Packs the directory into a LittleFS v2.0 image (block size 4096, block count 208). Flashes the image at `0x320000` via `esptool write-flash --flash-mode keep --flash-size keep`. Deletes the temporary image file.
 
 #### FR-U5: Extract filesystem from backup image
-Prompts for a `.bin` backup file and a destination directory. The backup file was produced
-by `read_backup()` which reads from flash `0x1000` onward — backup file byte 0 = flash `0x1000`.
-Therefore the filesystem partition (flash `0x320000`) is at **file offset `0x31F000`**
-(= `0x320000 - 0x1000`). Reads `0xD0000` bytes from that file offset and unpacks as a
-LittleFS image. No esptool or device needed.
+Prompts for a `.bin` backup file and a destination directory. The implementation auto-detects LittleFS vs SPIFFS in the image (partition table or known offsets). For LittleFS, the filesystem partition is read and unpacked; for SPIFFS (older images), the SPIFFS image is read and files are extracted. No esptool or device needed.
 
 ---
 
@@ -191,7 +192,7 @@ Row 1: Host entry (hostname or IP), resolved IP label, "Resolve", "Test connecti
 - In **bin mode**, "Download" is disabled; "Upload" uploads selected files from the .bin to the device (read from image, temp file, PUT, delete temp).
 
 #### FR-W4: Right pane – device files
-"Refresh" fetches the file list via `wifi_ops.list_files()` (currently a static list until device API exists). Tree shows files sorted by extension then name. Selection is used for "Download selected".
+"Refresh" fetches the file list via GET `files.json?dir=.int`. If the device returns a non-empty list, that data is shown (names, sizes, dirs). If the response is empty or the request fails (e.g. old firmware), the static default list is shown and the status line displays: "Listing not supported by device firmware; showing default file names." Tree shows files (and directories when present) sorted by extension then name. Selection is used for "Download selected".
 
 #### FR-W5: Sync actions (button row below panes)
 - **Change** / **Open .bin** / **Upload to device →** / **← Download** / **Refresh** in one row (equal width).
@@ -235,16 +236,16 @@ Text entry for the backup directory path. "Browse…" opens a directory picker. 
 #### FR-SET2: Download server URL
 Text entry for the firmware download base URL. Default: `https://rdzsonde.org`.
 
-#### FR-SET3: Default baud rate (serial console)
-Combo box: `921600` (default), `115200`, `460800`. Used as the default baud rate in the Serial log tab.
+#### FR-SET3: Serial tab baud rate
+The Serial tab has a baud combo (no separate control in the Settings tab). Values: `115200`, `9600`, `19200`, `38400`, `57600`, `230400`, `460800`, `921600`. When no settings file exists, the default is `115200`. The selected value is saved to settings on app close.
 
 #### FR-SET4: Serial log scroll-back buffer
 Integer entry for maximum log lines. Default: 10,000.
 
 #### FR-SET5: esptool read settings
 Under the "esptool (advanced) → Read (backup, download FS)" sub-section:
-- **Baud rate:** Combo box `115200` (default), `460800`, `921600`. Used for `read-flash` operations (Make backup, Extract filesystem from device).
-- **Use --no-stub for read operations:** Checkbox. When enabled, `--no-stub` is appended to all read-flash esptool calls. Needed for some ESP32-C3/S3 variants.
+- **Baud rate:** Combo box `921600` (default), `115200`, `460800`. Used for `read-flash` operations (Make backup, Extract filesystem from device).
+- **Use --no-stub for read operations:** Checkbox (checked by default). When enabled, `--no-stub` is appended to all read-flash esptool calls. Needed for some ESP32-C3/S3 variants.
 
 #### FR-SET5b: esptool write settings
 Under the "esptool (advanced) → Write (flash, restore, upload FS)" sub-section:
@@ -303,7 +304,7 @@ Streams serial output to stdout. `--save FILE` continuously appends raw bytes to
 ttgoconfig backup [--port PORT] [--file PATH] [--dir DIR]
 ```
 
-Reads flash `0x1000`–`0x3FF000` (full 4 MB image) at 115200 baud. Output file defaults to `backup-YYYYMMDD-HHMM.bin` in the configured backup folder or `--dir`.
+Reads flash `0x1000`–`0x3FF000` (full 4 MB image) at the configured read baud rate (default `921600`; override with `--baud`). Output file defaults to `backup-YYYYMMDD-HHMM.bin` in the configured backup folder or `--dir`.
 
 ### 4.4 uploadfs
 
@@ -369,6 +370,11 @@ ttgoconfig sd [--ttgo HOST] [--user U] [--pass P] fetch PATH [--outdir DIR]
 | `wifi_ops` | `FILE_SETS`, `resolve_host`, `session_for_host`, `login`, `get_file`, `put_file`, `list_files`, `get_files_by_kind`, `test_connection` |
 | `sd_ops` | `list_dir`, `collect_files_recursive`, `resolve_sd_path_to_list`, `fetch_paths_to_dir` |
 | `littlefs_helper` | `pack_directory`, `unpack_bytes`, `unpack_image`, `extract_from_backup`, `list_fs_from_bin`, `read_file_from_bin`, `BLOCK_SIZE`, `BACKUP_FLASH_BASE` |
+| `bin_fs_helpers` | `list_fs_from_bin_auto`, `read_file_from_bin_auto`, `extract_from_bin_auto` (LittleFS/SPIFFS auto-detect) |
+| `bin_version_poc` | `get_version_from_bin` (version string in app partition) |
+| `partition_table` | `get_partition_table_from_bin`, `parse_partition_table` |
+| `spiffs_reader` | `open_spiffs`, `SpiffsImage` (list/read SPIFFS images) |
+| `improv_serial` | `build_packet`, `parse_packet`, `rpc_get_info`, `rpc_wifi_scan`, `rpc_send_wifi`, etc. |
 | `settings` | `load`, `save`, `_defaults`, `get_backup_folder_expanded` |
 
 ### 5.2 Settings Persistence
@@ -383,17 +389,15 @@ ttgoconfig sd [--ttgo HOST] [--user U] [--pass P] fetch PATH [--outdir DIR]
 |-----|------|---------|-------------|
 | `backup_folder` | str | `~/rdzTTGOsonde/backups` | Backup output directory |
 | `download_url` | str | `https://rdzsonde.org` | Firmware download server base URL |
-| `baud_rate` | str | `921600` | Default baud for serial console tab |
-| `baud_rate_read` | str | `115200` | esptool baud for read-flash operations (backup, download FS) |
+| `baud_rate` | str | `115200` | Serial tab baud (saved on app close from Serial combo; no control in Settings tab) |
+| `baud_rate_read` | str | `921600` | esptool baud for read-flash operations (backup, download FS) |
 | `baud_rate_write` | str | `921600` | esptool baud for write-flash operations (flash, restore, upload FS) |
 | `remember_port` | bool | `true` | Legacy key; always true |
-| `last_port` | str | `""` | Last-used serial port |
+| `last_port` | str | `""` | Last-used serial port (shared across Flash/USB/Serial; saved on close, restored on startup; Refresh selects it when it becomes available) |
 | `serial_log_buffer_lines` | int | `10000` | Serial log scroll-back limit |
 | `strip_ansi_when_saving` | bool | `false` | Strip ANSI when saving serial log |
-| `last_mode` | str | `"Flash"` | Last active tab (unused in UI; always starts on Flash) |
-| `baud_rate` | str | `115200` | Serial tab baud (saved on app close from Serial combo; no Settings UI) |
 | `no_stub` | bool | `false` | Legacy: pass `--no-stub` to all esptool calls (CLI `--no-stub` flag sets both) |
-| `no_stub_read` | bool | `false` | Pass `--no-stub` to esptool read operations |
+| `no_stub_read` | bool | `true` | Pass `--no-stub` to esptool read operations (default on for best compatibility) |
 | `no_stub_write` | bool | `false` | Pass `--no-stub` to esptool write operations |
 | `last_directory` | str | `""` | Last-used directory for save/extract dialogs |
 | `wifi_host` | str | `rdzsonde.local` | Wi-Fi/SD tab host (shared) |
@@ -431,7 +435,7 @@ All esptool calls go through `_esptool_cmd(port, baud, extra, on_line)`.
 
 **Return value:** `(bool, str)` — `(success, combined_output)`.
 
-**no-stub flags:** Two module-level booleans: `_no_stub_read` (for read operations) and `_no_stub_write` (for write operations), both default `False`. Each public function explicitly passes the appropriate flag to `_esptool_cmd` via its `no_stub` parameter:
+**no-stub flags:** Two module-level booleans: `_no_stub_read` (for read operations, default `True`) and `_no_stub_write` (for write operations, default `False`). Each public function explicitly passes the appropriate flag to `_esptool_cmd` via its `no_stub` parameter:
 - Read functions (`read_flash_region`, `read_backup`, `download_filesystem`, `read_partition_table`) pass `no_stub=_no_stub_read`.
 - Write functions (`write_flash_region`, `write_backup`, `upload_filesystem`, `flash_firmware`) pass `no_stub=_no_stub_write`.
 - `flash_app_partition` calls `write_flash_region` which uses `_no_stub_write`.
@@ -449,7 +453,7 @@ At GUI startup, `set_no_stub_read` and `set_no_stub_write` are called from saved
 |----------|----------------|-------|
 | `flash_firmware` | `write-flash -z --flash-mode dio --flash-freq 80m --flash-size detect 0x1000 <path>` | Full image |
 | `write_backup` | `write-flash -z --flash-mode dio --flash-freq 80m --flash-size detect 0x1000 <path>` | Same as flash_firmware |
-| `read_backup` | `read-flash 0x1000 0x3FF000 <path>` | Uses caller-supplied baud (CLI: `--baud`; GUI: read baud setting; default `115200`) |
+| `read_backup` | `read-flash 0x1000 0x3FF000 <path>` | Uses caller-supplied baud (CLI: `--baud`; GUI: read baud setting; default `921600`). Read operations use `--no-stub` by default in GUI. |
 | `flash_app_partition` | Slice from image at **file offset `0xF000`** (`= 0x10000 - 0x1000`) for `0x140000` bytes, then `write-flash` at flash `0x10000` | Temp file, cleaned up |
 | `write_flash_region` | `write-flash -z --flash-mode dio --flash-freq 80m --flash-size detect <offset> <path>` | Generic region write |
 | `read_flash_region` | `read-flash <offset> <size> <path>` | Generic region read |
@@ -511,9 +515,11 @@ At GUI startup, `set_no_stub_read` and `set_no_stub_write` are called from saved
 
 **`extract_from_backup(backup_path, dest_dir, offset, size)`**: seeks to `offset`, reads `size` bytes, calls `unpack_bytes` with `block_count = size // BLOCK_SIZE`. No temp file needed.
 
-**`list_fs_from_bin(bin_path, file_offset=0, partition_size=None)`**: mounts a slice of the .bin (full backup: slice at partition offset; raw image: whole file) and returns a list of `{"name", "size", "dir"}` for the root directory. Used by the Wi-Fi tab when viewing a .bin.
+**`list_fs_from_bin`** (littlefs_helper) and **`bin_fs_helpers.list_fs_from_bin_auto`**: The Wi-Fi tab uses the latter to auto-detect LittleFS vs SPIFFS in a .bin (full backup or raw partition); lists root entries `{"name", "size", "dir"}`. SPIFFS is supported via `spiffs_reader`; partition table can be read from the image via `partition_table.py`.
 
-**`read_file_from_bin(bin_path, name, file_offset=0, partition_size=None)`**: same slice; reads one file from root and returns its bytes. Used for "Upload from .bin" on the Wi-Fi tab.
+**`read_file_from_bin`** / **`read_file_from_bin_auto`**: Same slice; reads one file from root. Used for "Upload from .bin" on the Wi-Fi tab.
+
+**Extract from backup** (USB tab): Uses `bin_fs_helpers.extract_from_bin_auto` to detect LittleFS or SPIFFS and extract files to the chosen directory.
 
 ### 5.6 Wi-Fi HTTP Protocol
 
@@ -548,7 +554,7 @@ At GUI startup, `set_no_stub_read` and `set_no_stub_write` are called from saved
 
 ### 5.8 GUI Concurrency Model
 
-**Background tasks:** `_run_in_background(work, on_done)` starts `work()` in a daemon thread. The thread's return value (a tuple) is passed to `on_done()` via `self.after(0, ...)` on the main thread. If `work()` raises an exception, `on_done(False, str(exception))` is called.
+**Background tasks:** `_run_in_background(work, on_done, on_progress=None, widget=None)` starts `work()` in a daemon thread. The thread's return value (a tuple) is passed to `on_done()` on the main thread via `widget.after(0, ...)` when `widget` is provided (or `tk._default_root` otherwise); the callback is skipped if the target no longer exists. If `work()` raises an exception, `on_done(False, str(exception))` is called. Call sites should pass `widget=self` so callbacks run on the main thread and are skipped when the frame is destroyed.
 
 **Serial reader:** A dedicated daemon thread reads from `serial.Serial` in a loop. Data is put into a `queue.Queue`. `_drain_serial_queue()` is scheduled via `self.after(200, _drain_serial_queue)` and processes up to all available items in one call, appending to the `CTkTextbox`. This prevents GUI freezing from high-frequency serial data.
 
@@ -611,7 +617,7 @@ Based on `partitions-rdz.csv` (active firmware):
 | **spiffs** | data | spiffs | **0x320000** | **0xD0000** | **LittleFS filesystem** |
 | coredump | data | coredump | 0x3F0000 | 0x10000 | Crash dumps |
 
-> **Note:** An older partition table (`partitions-esp32v1.csv`) has spiffs at `0x290000` size `0x170000`. The current implementation uses the rdz table values. Dynamically reading the partition table from the device is not yet implemented.
+> **Note:** An older partition table (`partitions-esp32v1.csv`) has spiffs at `0x290000` size `0x170000`. The code can read the partition table from a `.bin` image (`partition_table.py`) to locate the filesystem partition; SPIFFS and LittleFS are both supported for list/read/extract from backup or when viewing a .bin on the Wi-Fi tab.
 
 The "code update" operation uses app0: offset `0x10000`, size `0x140000`.
 
@@ -638,15 +644,15 @@ Defined in `wifi_ops.FILE_SETS`:
 
 | Area | Limitation / TODO |
 |------|-------------------|
-| Partition table | SPIFFS/LittleFS offset and size are hardcoded for `partitions-rdz.csv`. Future: read partition table from device via `esptool read-flash 0x8000 0x1000` and parse. |
-| IMPROV | "Setup via IMPROV" button is on the **Serial** tab (left of "Save to file"); shows a placeholder. IMPROV flow and CLI are not implemented. |
+| Partition table | Partition table is read from `.bin` images (`partition_table.py`) to find filesystem offset/size. Reading from a live device is not implemented. |
+| IMPROV | "Setup via IMPROV" button is on the **Serial** tab (left of "Save to file"); opens IMPROV dialog (device info, WiFi scan, connect). CLI `improv` subcommand is not implemented. |
 | `extractfs` CLI | No `--keep-image` flag (not needed since no temp file is created). |
-| Backup read baud | `read_backup` defaults to `115200` baud (via `DEFAULT_BAUD_READ`). Override with `--baud` on CLI or the esptool read baud rate setting in the GUI. |
-| Wi-Fi device list API | `wifi_ops.list_files()` currently returns a static list; device API for listing files is not yet implemented. |
+| Backup read baud | `read_backup` defaults to `921600` baud (via `DEFAULT_BAUD_READ`). Override with `--baud` on CLI or the esptool read baud rate setting in the GUI. "Use --no-stub" for read is checked by default. |
+| Wi-Fi device list | `wifi_ops.list_files()` calls GET `files.json?dir=.int`; if empty or error, shows static list and status message "Listing not supported by device firmware; showing default file names." |
 | `font` partition | `--part fonts` flash-type option is planned but not implemented. |
 | Filesystem type | Partition is named `spiffs` in the table but contains a LittleFS v2.0 image. The two are incompatible. |
 | `put --kind` CLI | Uploading a named file set via CLI is wired but individual file error reporting is basic. |
 | SD card UI | Treeview with "..", column sort (Name/Size/Date), and paginated `/files.json`; directory navigation by double-click. |
 | LittleFS version | `unpack_bytes` does not enforce v2.0 disk version on read; `littlefs-python` will mount v2.0 or v2.1. |
 | Temp file cleanup | `downloadfs` always retains the raw image on failure for debugging. |
-| Serial default baud | Default baud for the Serial tab is taken from settings (`baud_rate`); there is no separate "Serial console baud" control in the Settings tab—only the Serial tab combo is used, and the value is saved on app close. |
+| Serial default baud | Default baud for the Serial tab is `115200` when no settings file exists; otherwise the saved `baud_rate` is used. Only the Serial tab combo controls it (no Settings-tab control); the value is saved on app close. |

@@ -190,9 +190,73 @@ def cmd_backup(args: argparse.Namespace) -> int:
     return 0
 
 
+def _improv_port_and_baud(args: argparse.Namespace) -> tuple:
+    port = _port_value(getattr(args, "port", None))
+    if not port:
+        saved = settings_mod.load()
+        port = (saved.get("last_port") or "").strip()
+    if not port:
+        print("Error: No serial port. Use --port or set last_port in settings.", file=sys.stderr)
+        return None, None
+    baud = int(getattr(args, "baud", None) or settings_mod.DEFAULT_BAUD_SERIAL)
+    return port, baud
+
+
 def cmd_improv(args: argparse.Namespace) -> int:
-    print("IMPROV not yet implemented. Use GUI or configure WiFi via web interface.", file=sys.stderr)
-    return 1
+    action = getattr(args, "improv_action", None)
+    if not action:
+        print("Error: Use improv info | improv wifiscan | improv connect <ssid> <password>", file=sys.stderr)
+        return 1
+    port, baud = _improv_port_and_baud(args)
+    if port is None:
+        return 1
+    try:
+        import serial
+    except ImportError:
+        print("Error: pyserial not installed. pip install pyserial", file=sys.stderr)
+        return 1
+    from . import improv_serial as improv_mod
+    try:
+        ser = serial.Serial(port, baud, timeout=0.5)
+    except Exception as e:
+        print("Error opening %s: %s" % (port, e), file=sys.stderr)
+        return 1
+    try:
+        if action == "info":
+            info = improv_mod.rpc_get_info(ser)
+            if info is None:
+                print("IMPROV info: no response (device may not support IMPROV or wrong port/baud).", file=sys.stderr)
+                return 1
+            for s in info:
+                print(s)
+            return 0
+        if action == "wifiscan":
+            networks = improv_mod.rpc_wifi_scan(ser)
+            if not networks:
+                print("No networks or no response.")
+            else:
+                for ssid, rssi, secured in networks:
+                    print("%s  rssi=%s  %s" % (ssid, rssi, secured))
+            return 0
+        if action == "connect":
+            ssid = getattr(args, "ssid", None) or ""
+            password = getattr(args, "password", None) or ""
+            if not ssid:
+                print("Error: improv connect requires SSID and password.", file=sys.stderr)
+                return 1
+            result = improv_mod.rpc_send_wifi(ser, ssid, password)
+            if result is None:
+                print("IMPROV connect: no success response.", file=sys.stderr)
+                return 1
+            print("Provisioned. URL: %s" % result)
+            return 0
+        print("Error: unknown improv action %s" % action, file=sys.stderr)
+        return 1
+    finally:
+        try:
+            ser.close()
+        except Exception:
+            pass
 
 
 def cmd_uploadfs(args: argparse.Namespace) -> int:
@@ -451,10 +515,18 @@ def main() -> int:
     p_backup.add_argument("--dir", metavar="DIR", help="Output directory (default: settings backup folder)")
     p_backup.set_defaults(func=cmd_backup)
 
-    p_improv = sub.add_parser("improv", help="Setup WiFi via IMPROV (serial)")
-    p_improv.add_argument("--port", default=None)
-    p_improv.add_argument("ssid", help="WiFi SSID")
-    p_improv.add_argument("password", help="WiFi password")
+    p_improv = sub.add_parser("improv", help="IMPROV over serial: info, wifiscan, connect")
+    p_improv.add_argument("--port", default=None, help="Serial port (or use last_port from settings)")
+    p_improv.add_argument("--baud", default=None, help="Baud rate (default 115200)")
+    p_improv_sub = p_improv.add_subparsers(dest="improv_action", metavar="info|wifiscan|connect")
+    p_improv_info = p_improv_sub.add_parser("info", help="Query device name and version")
+    p_improv_info.set_defaults(improv_action="info")
+    p_improv_wifiscan = p_improv_sub.add_parser("wifiscan", help="List available WiFi networks")
+    p_improv_wifiscan.set_defaults(improv_action="wifiscan")
+    p_improv_connect = p_improv_sub.add_parser("connect", help="Provision device: connect to SSID with password")
+    p_improv_connect.add_argument("ssid", help="WiFi SSID")
+    p_improv_connect.add_argument("password", nargs="?", default="", help="WiFi password")
+    p_improv_connect.set_defaults(improv_action="connect")
     p_improv.set_defaults(func=cmd_improv)
 
     p_uploadfs = sub.add_parser("uploadfs", help="Upload filesystem to device")

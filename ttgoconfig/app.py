@@ -366,26 +366,26 @@ def _run_in_background(
     work: Callable[..., tuple[bool, str]],
     on_done: Callable[[bool, str], None],
     on_progress: Optional[Callable[[int, int], None]] = None,
+    widget: Optional[tk.Misc] = None,
 ) -> None:
-    """Run work() in a thread; on_done(ok, msg) on main thread. If on_progress is set, work(progress_cb) receives a callback progress_cb(n, total)."""
+    """Run work() in a thread; on_done(ok, msg) on main thread. If on_progress is set, work(progress_cb) receives a callback progress_cb(n, total). Uses widget for after() when provided so callbacks run on main thread and are skipped if widget is destroyed."""
     def run():
+        target = widget if widget is not None else tk._default_root
         try:
             if on_progress is not None:
-                root = tk._default_root
                 def progress_cb(n: int, total: int) -> None:
-                    if root and on_progress:
-                        root.after(0, lambda: on_progress(n, total))
+                    if target:
+                        target.after(0, lambda n=n, total=total: _safe_callback(target, on_progress, (n, total)))
                 ok, msg = work(progress_cb)
             else:
                 ok, msg = work()
         except Exception as e:
             ok, msg = False, str(e)
-        if on_done:
-            root = tk._default_root
-            if root:
-                root.after(0, lambda: on_done(ok, msg))
-            else:
-                on_done(ok, msg)
+        if on_done and target:
+            target.after(0, lambda: _safe_callback(target, on_done, (ok, msg)))
+    def _safe_callback(target: tk.Misc, cb: Callable, args: tuple) -> None:
+        if target and target.winfo_exists() and cb:
+            cb(args[0], args[1])
     t = threading.Thread(target=run, daemon=True)
     t.start()
 
@@ -617,7 +617,7 @@ class FlashFrame(ContentFrame):
                     self._log("Error: %s\n" % msg)
                     messagebox.showerror("Flash", msg or "Flash failed. Check the log.")
 
-            _run_in_background(work, on_done)
+            _run_in_background(work, on_done, widget=self)
             return
 
         path = self._get_image_path()
@@ -642,7 +642,7 @@ class FlashFrame(ContentFrame):
             else:
                 messagebox.showerror("Flash", "Flash failed. Check the log.")
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
 
 class USBManageFrame(ContentFrame):
@@ -716,7 +716,7 @@ class USBManageFrame(ContentFrame):
             else:
                 messagebox.showerror("Backup", "Backup failed. Check the log.")
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _restore_full_backup(self) -> None:
         path = filedialog.askopenfilename(
@@ -742,7 +742,7 @@ class USBManageFrame(ContentFrame):
             else:
                 messagebox.showerror("Restore", "Restore failed. Check the log.")
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _restore_selected_files(self) -> None:
         messagebox.showinfo("Restore selected files", "Not yet implemented.")
@@ -786,7 +786,7 @@ class USBManageFrame(ContentFrame):
             else:
                 messagebox.showerror("Extract filesystem", "Failed. Check the log.")
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _uploadfs(self) -> None:
         src_dir = filedialog.askdirectory(
@@ -831,7 +831,7 @@ class USBManageFrame(ContentFrame):
             else:
                 messagebox.showerror("Upload filesystem", "Failed. Check the log.")
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _extractfs_from_backup(self) -> None:
         backup_path = filedialog.askopenfilename(
@@ -861,66 +861,80 @@ class USBManageFrame(ContentFrame):
                 self._log("Error: %s\n" % msg)
                 messagebox.showerror("Extract filesystem", "Failed: %s" % msg)
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
 
-class WiFiManageFrame(ContentFrame):
+def _make_host_auth_row(
+    parent: Any,
+    app: "App",
+    start_row: int,
+    on_resolve: Callable[[], None],
+    on_test: Callable[[], None],
+    columnspan: int = 2,
+) -> Tuple[int, Any, Any, Any, Any]:
+    """Build shared Host + Auth (user/password/save) row. Returns (next_row, host_entry, ip_label, auth_user_entry, auth_pass_entry)."""
+    row = start_row
+    host_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    host_frame.grid(row=row, column=0, columnspan=columnspan, sticky="ew", padx=20, pady=(10, 4))
+    host_frame.grid_columnconfigure(1, weight=1)
+    ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
+    host_entry = ctk.CTkEntry(
+        host_frame,
+        textvariable=app.wifi_host_var,
+        placeholder_text="rdzsonde.local or IP",
+    )
+    host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
+    ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
+    ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
+    ctk.CTkButton(host_frame, text="Resolve", width=80, command=on_resolve).grid(row=0, column=3, padx=0, pady=0)
+    ctk.CTkButton(host_frame, text="Test connection", width=120, command=on_test).grid(row=0, column=4, padx=(10, 0), pady=0)
+    row += 1
+    auth_frame = ctk.CTkFrame(parent, fg_color="transparent")
+    auth_frame.grid(row=row, column=0, columnspan=columnspan, sticky="ew", padx=20, pady=(4, 4))
+    auth_frame.grid_columnconfigure(1, weight=1)
+    ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
+    ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
+    auth_user_entry = ctk.CTkEntry(
+        auth_frame,
+        width=120,
+        textvariable=app.wifi_user_var,
+        placeholder_text="username",
+    )
+    auth_user_entry.grid(row=0, column=3, padx=(0, 12), pady=0, sticky="w")
+    ctk.CTkLabel(auth_frame, text="Password").grid(row=0, column=4, padx=(0, 4), pady=0)
+    auth_pass_entry = ctk.CTkEntry(
+        auth_frame,
+        width=120,
+        textvariable=app.wifi_pass_var,
+        placeholder_text="password",
+        show="•",
+    )
+    auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
+    ctk.CTkCheckBox(
+        auth_frame,
+        text="Save password",
+        variable=app.wifi_save_pass_var,
+        width=0,
+    ).grid(row=0, column=6, padx=(12, 0), pady=0, sticky="w")
+    row += 1
+    return row, host_entry, ip_label, auth_user_entry, auth_pass_entry
+
+
+class FilesWiFiFrame(ContentFrame):
+    """Wi-Fi tab: dual-pane file manager (local folder/bin | device files)."""
+
     def __init__(self, master, app: Optional["App"] = None, **kwargs):
         super().__init__(master, "Wi-Fi", app=app, **kwargs)
         self.grid_columnconfigure(0, weight=1)
 
-        row = 0
-        host_frame = ctk.CTkFrame(self, fg_color="transparent")
-        host_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=20, pady=(10, 4))
-        host_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        self.host_entry = ctk.CTkEntry(
-            host_frame,
-            textvariable=self.app.wifi_host_var,
-            placeholder_text="rdzsonde.local or IP",
+        row, self.host_entry, self.ip_label, self.auth_user_entry, self.auth_pass_entry = _make_host_auth_row(
+            self, self.app, 0, self._resolve_host, self._test_connection, columnspan=2
         )
-        self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
-        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
-        self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
-        ctk.CTkButton(host_frame, text="Resolve", width=80, command=self._resolve_host).grid(row=0, column=3, padx=0, pady=0)
-        ctk.CTkButton(host_frame, text="Test connection", width=120, command=self._test_connection).grid(
-            row=0, column=4, padx=(10, 0), pady=0
-        )
-        row += 1
-
-        auth_frame = ctk.CTkFrame(self, fg_color="transparent")
-        auth_frame.grid(row=row, column=0, columnspan=2, sticky="ew", padx=20, pady=(4, 4))
-        auth_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
-        self.auth_user_entry = ctk.CTkEntry(
-            auth_frame,
-            width=120,
-            textvariable=self.app.wifi_user_var,
-            placeholder_text="username",
-        )
-        self.auth_user_entry.grid(row=0, column=3, padx=(0, 12), pady=0, sticky="w")
-        ctk.CTkLabel(auth_frame, text="Password").grid(row=0, column=4, padx=(0, 4), pady=0)
-        self.auth_pass_entry = ctk.CTkEntry(
-            auth_frame,
-            width=120,
-            textvariable=self.app.wifi_pass_var,
-            placeholder_text="password",
-            show="•",
-        )
-        self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
-        ctk.CTkCheckBox(
-            auth_frame,
-            text="Save password",
-            variable=self.app.wifi_save_pass_var,
-            width=0,
-        ).grid(row=0, column=6, padx=(12, 0), pady=0, sticky="w")
-        row += 1
 
         # Dual-pane: local folder (left) | device files (right)
         self.grid_columnconfigure(0, weight=1)
         self.grid_columnconfigure(1, weight=1)
-        panes_row = row
+        panes_row = row  # from _make_host_auth_row return
         self.grid_rowconfigure(panes_row, weight=1)
 
         # Left: local folder (header row + path line + tree aligned with right)
@@ -1041,7 +1055,7 @@ class WiFiManageFrame(ContentFrame):
             else:
                 self._wifi_set_status("Failed: %s" % msg)
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _wifi_set_status(self, text: str) -> None:
         if hasattr(self, "wifi_status_label"):
@@ -1072,19 +1086,22 @@ class WiFiManageFrame(ContentFrame):
             tree.insert("", "end", iid="..", text="📁 ..", values=("",))
             off, size = self._wifi_bin_offset_size()
             try:
-                entries, fs_type = list_fs_from_bin_auto(
+                entries, fs_type, recognized = list_fs_from_bin_auto(
                     self._wifi_local_bin_path, file_offset=off, partition_size=size
                 )
                 self._wifi_bin_fs_type = fs_type
                 self._wifi_bin_off = off
                 self._wifi_bin_size = size
+                if not recognized:
+                    self._wifi_set_status("No valid partition table or recognizable filesystem")
+                    self._wifi_update_local_path_display()
+                    self._wifi_update_sync_buttons_state()
+                    return
             except Exception as e:
                 self._wifi_set_status("Failed to read .bin: %s" % e)
                 self._wifi_update_local_path_display()
                 self._wifi_update_sync_buttons_state()
                 return
-            if not entries:
-                self._wifi_bin_fs_type = getattr(self, "_wifi_bin_fs_type", "littlefs")
             def _bin_sort_key(x: dict) -> tuple:
                 name = x.get("name", "")
                 ext = os.path.splitext(name)[1].lower()
@@ -1294,7 +1311,7 @@ class WiFiManageFrame(ContentFrame):
             else:
                 self._wifi_set_status("Error: %s" % (msg if not ok else "Unknown"))
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _wifi_download_selected(self) -> None:
         if getattr(self, "_wifi_left_mode", "folder") == "bin":
@@ -1351,7 +1368,7 @@ class WiFiManageFrame(ContentFrame):
         def on_progress(n: int, total: int) -> None:
             self._wifi_set_status("Downloading %d/%d…" % (n, total))
 
-        _run_in_background(work, on_done, on_progress)
+        _run_in_background(work, on_done, on_progress, widget=self)
 
     def _wifi_upload_selected(self) -> None:
         sel = self.wifi_local_tree.selection()
@@ -1442,7 +1459,7 @@ class WiFiManageFrame(ContentFrame):
         def on_progress(n: int, total: int) -> None:
             self._wifi_set_status("Uploading %d/%d…" % (n, total))
 
-        _run_in_background(work, on_done, on_progress)
+        _run_in_background(work, on_done, on_progress, widget=self)
 
     def _sd_refresh(self) -> None:
         self.sd_refresh_btn.configure(state="disabled")
@@ -1475,7 +1492,7 @@ class WiFiManageFrame(ContentFrame):
                 self.sd_placeholder.configure(text="Error: %s" % (msg if not ok else "Unknown"))
                 self.sd_placeholder.grid()
                 self.sd_scroll.grid_remove()
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
     def _sd_sort_by_column(self, column: str) -> None:
         if column == getattr(self, "_sd_sort_column", "name"):
@@ -1587,9 +1604,10 @@ class WiFiManageFrame(ContentFrame):
         return sd_ops_mod.collect_files_recursive(session, base_url, dir_path)
 
     def _sd_download_all(self) -> None:
+        initial = getattr(self, "_sd_download_initialdir", self._initial_dir)()
         dest = filedialog.askdirectory(
             title="Save SD card files – choose destination folder",
-            initialdir=self._initial_dir(),
+            initialdir=initial,
         )
         if not dest:
             return
@@ -1617,13 +1635,14 @@ class WiFiManageFrame(ContentFrame):
             self.sd_progress_label.configure(text="Done." if ok else "Failed.")
             if ok:
                 self._set_last_directory(dest)
+                getattr(self, "_sd_set_download_dir", lambda _: None)(dest)
                 messagebox.showinfo("SD Download", msg)
             else:
                 messagebox.showerror("SD Download", msg)
 
         self.sd_progress.set(0)
         self.sd_progress_label.configure(text="Starting…")
-        _run_in_background(work, on_done, on_progress)
+        _run_in_background(work, on_done, on_progress, widget=self)
 
     def _sd_download_selected(self) -> None:
         if hasattr(self, "sd_tree"):
@@ -1637,9 +1656,10 @@ class WiFiManageFrame(ContentFrame):
         if not selected:
             messagebox.showwarning("SD Download", "Select one or more items (files or folders) to download.")
             return
+        initial = getattr(self, "_sd_download_initialdir", self._initial_dir)()
         dest = filedialog.askdirectory(
             title="Save SD card files – choose destination folder",
-            initialdir=self._initial_dir(),
+            initialdir=initial,
         )
         if not dest:
             return
@@ -1676,69 +1696,26 @@ class WiFiManageFrame(ContentFrame):
             self.sd_progress_label.configure(text="Done." if ok else "Failed.")
             if ok:
                 self._set_last_directory(dest)
+                getattr(self, "_sd_set_download_dir", lambda _: None)(dest)
                 messagebox.showinfo("SD Download", msg)
             else:
                 messagebox.showerror("SD Download", msg)
 
         self.sd_progress.set(0)
         self.sd_progress_label.configure(text="Starting…")
-        _run_in_background(work, on_done, on_progress)
+        _run_in_background(work, on_done, on_progress, widget=self)
 
 
-class SDWiFiFrame(WiFiManageFrame):
+class SDWiFiFrame(FilesWiFiFrame):
     """SD card download via Wi-Fi in its own tab."""
 
     def __init__(self, master, app: Optional["App"] = None, **kwargs):
         ContentFrame.__init__(self, master, "SD (via WiFi)", app=app, **kwargs)
         self.grid_columnconfigure(0, weight=1)
 
-        row = 0
-        host_frame = ctk.CTkFrame(self, fg_color="transparent")
-        host_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(10, 4))
-        host_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(host_frame, text="Host:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        self.host_entry = ctk.CTkEntry(
-            host_frame,
-            textvariable=self.app.wifi_host_var,
-            placeholder_text="rdzsonde.local or IP",
+        row, self.host_entry, self.ip_label, self.auth_user_entry, self.auth_pass_entry = _make_host_auth_row(
+            self, self.app, 0, self._resolve_host, self._test_connection, columnspan=1
         )
-        self.host_entry.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
-        self.ip_label = ctk.CTkLabel(host_frame, text="", text_color="gray", width=160, anchor="w")
-        self.ip_label.grid(row=0, column=2, sticky="w", padx=(0, 10), pady=0)
-        ctk.CTkButton(host_frame, text="Resolve", width=80, command=self._resolve_host).grid(row=0, column=3, padx=0, pady=0)
-        ctk.CTkButton(host_frame, text="Test connection", width=120, command=self._test_connection).grid(
-            row=0, column=4, padx=(10, 0), pady=0
-        )
-        row += 1
-
-        auth_frame = ctk.CTkFrame(self, fg_color="transparent")
-        auth_frame.grid(row=row, column=0, sticky="ew", padx=20, pady=(4, 4))
-        auth_frame.grid_columnconfigure(1, weight=1)
-        ctk.CTkLabel(auth_frame, text="Auth (optional):").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
-        ctk.CTkLabel(auth_frame, text="User").grid(row=0, column=2, padx=(0, 4), pady=0)
-        self.auth_user_entry = ctk.CTkEntry(
-            auth_frame,
-            width=120,
-            textvariable=self.app.wifi_user_var,
-            placeholder_text="username",
-        )
-        self.auth_user_entry.grid(row=0, column=3, padx=(0, 12), pady=0, sticky="w")
-        ctk.CTkLabel(auth_frame, text="Password").grid(row=0, column=4, padx=(0, 4), pady=0)
-        self.auth_pass_entry = ctk.CTkEntry(
-            auth_frame,
-            width=120,
-            textvariable=self.app.wifi_pass_var,
-            placeholder_text="password",
-            show="•",
-        )
-        self.auth_pass_entry.grid(row=0, column=5, padx=0, pady=0, sticky="w")
-        ctk.CTkCheckBox(
-            auth_frame,
-            text="Save password",
-            variable=self.app.wifi_save_pass_var,
-            width=0,
-        ).grid(row=0, column=6, padx=(12, 0), pady=0, sticky="w")
-        row += 1
 
         # SD card download: browse folders (device /files.json style), then download all or selected folder(s)
         ctk.CTkLabel(self, text="SD card download", font=ctk.CTkFont(weight="bold")).grid(
@@ -1789,18 +1766,54 @@ class SDWiFiFrame(WiFiManageFrame):
         sd_tree_yscroll.pack(side="right", fill="y")
         self.sd_tree.bind("<Double-1>", self._sd_on_double_click)
         sd_frame.grid_rowconfigure(0, weight=1)
+        sd_dest_row = ctk.CTkFrame(sd_frame, fg_color="transparent")
+        sd_dest_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(0, 4))
+        sd_dest_row.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(sd_dest_row, text="Download to:").grid(row=0, column=0, sticky="w", padx=(0, 8), pady=0)
+        self.sd_download_to_var = tk.StringVar(value="(not set)")
+        self.sd_download_to_label = ctk.CTkLabel(sd_dest_row, textvariable=self.sd_download_to_var, text_color="gray", anchor="w")
+        self.sd_download_to_label.grid(row=0, column=1, sticky="ew", padx=(0, 10), pady=0)
+        ctk.CTkButton(sd_dest_row, text="Change", width=80, command=self._sd_change_download_dir).grid(row=0, column=2, padx=0, pady=0)
         sd_btns = ctk.CTkFrame(sd_frame, fg_color="transparent")
-        sd_btns.grid(row=1, column=0, columnspan=2, sticky="w", pady=(0, 4))
+        sd_btns.grid(row=2, column=0, columnspan=2, sticky="w", pady=(0, 4))
         self.sd_refresh_btn = ctk.CTkButton(sd_btns, text="Refresh list", width=100, command=self._sd_refresh)
         self.sd_refresh_btn.grid(row=0, column=0, padx=(0, 10), pady=0)
         ctk.CTkButton(sd_btns, text="Download all", width=120, command=self._sd_download_all).grid(row=0, column=1, padx=(10, 0), pady=0)
         ctk.CTkButton(sd_btns, text="Download selected", width=140, command=self._sd_download_selected).grid(row=0, column=2, padx=(10, 0), pady=0)
         self._sd_current_dir = ""
         self.sd_progress = ctk.CTkProgressBar(sd_frame, height=8, progress_color=("gray70", "gray35"))
-        self.sd_progress.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(4, 0))
+        self.sd_progress.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(4, 0))
         self.sd_progress.set(0)
         self.sd_progress_label = ctk.CTkLabel(sd_frame, text="", text_color="gray", height=0)
-        self.sd_progress_label.grid(row=3, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        self.sd_progress_label.grid(row=4, column=0, columnspan=2, sticky="w", pady=(2, 0))
+        self._sd_update_download_to_display()
+
+    def _sd_update_download_to_display(self) -> None:
+        path = (self.app.settings if self.app else {}).get("last_sd_download_dir", "").strip()
+        self.sd_download_to_var.set(path if path else "(not set)")
+
+    def _sd_change_download_dir(self) -> None:
+        initial = (self.app.settings if self.app else {}).get("last_sd_download_dir", "").strip() or os.path.expanduser("~")
+        d = filedialog.askdirectory(
+            title="SD download – choose default destination folder",
+            initialdir=initial if os.path.isdir(initial) else os.path.expanduser("~"),
+        )
+        if d:
+            if self.app:
+                self.app.settings["last_sd_download_dir"] = d
+                settings_mod.save(self.app.settings)
+            self._sd_update_download_to_display()
+
+    def _sd_download_initialdir(self) -> str:
+        path = (self.app.settings if self.app else {}).get("last_sd_download_dir", "").strip()
+        return path if path and os.path.isdir(path) else os.path.expanduser("~")
+
+    def _sd_set_download_dir(self, dest: str) -> None:
+        if self.app:
+            self.app.settings["last_sd_download_dir"] = dest
+            settings_mod.save(self.app.settings)
+        self._sd_update_download_to_display()
+
     def _test_connection(self) -> None:
         host = (self.host_entry.get() or "").strip() or "rdzsonde.local"
         self.sd_placeholder.configure(
@@ -1824,7 +1837,7 @@ class SDWiFiFrame(WiFiManageFrame):
             self.sd_placeholder.grid()
             self.sd_scroll.grid_remove()
 
-        _run_in_background(work, on_done)
+        _run_in_background(work, on_done, widget=self)
 
 
 class ImprovDialog(ctk.CTkToplevel):
@@ -2078,13 +2091,8 @@ class SerialLogFrame(ContentFrame):
         bot.grid_columnconfigure(0, weight=1)
         ctk.CTkButton(bot, text="Setup via IMPROV", width=120, command=self._setup_improv).grid(row=0, column=0, padx=(0, 10), pady=0)
         ctk.CTkButton(bot, text="Save to file", width=100, command=self._save_log).grid(row=0, column=1, padx=(0, 10), pady=0)
-        self.strip_ansi_var = ctk.BooleanVar(value=False)
-        ctk.CTkCheckBox(bot, text="Strip ANSI when saving", variable=self.strip_ansi_var,
-                        command=self._save_strip_ansi_setting).grid(
-            row=0, column=2, padx=10, pady=0
-        )
-        ctk.CTkButton(bot, text="Clear", width=80, command=self._clear_log).grid(row=0, column=3, padx=10, pady=0)
-        ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=4, padx=0, pady=0)
+        ctk.CTkButton(bot, text="Clear", width=80, command=self._clear_log).grid(row=0, column=2, padx=10, pady=0)
+        ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=3, padx=0, pady=0)
 
     def _setup_improv(self) -> None:
         """Open IMPROV dialog: get device info, scan WiFi, connect to selected network."""
@@ -2111,11 +2119,6 @@ class SerialLogFrame(ContentFrame):
         dialog.transient(self.winfo_toplevel())
         dialog.grab_set()
         dialog.focus_force()
-
-    def _save_strip_ansi_setting(self) -> None:
-        if self.app:
-            self.app.settings["strip_ansi_when_saving"] = bool(self.strip_ansi_var.get())
-            settings_mod.save(self.app.settings)
 
     def _append_log(self, text: str) -> None:
         """Append text to serial log with ANSI color parsing."""
@@ -2151,8 +2154,6 @@ class SerialLogFrame(ContentFrame):
             return
         try:
             content = self.log_text.get("1.0", "end")
-            if self.strip_ansi_var.get():
-                content = self._strip_ansi(content)
             with open(path, "w", encoding="utf-8", errors="replace") as f:
                 f.write(content)
             self._set_last_directory(path)
@@ -2263,6 +2264,19 @@ class SerialLogFrame(ContentFrame):
                         tb.insert("end", seg_text, tag)
                     else:
                         tb.insert("end", seg_text)
+                # Enforce scroll-back buffer line limit (min 100 lines)
+                try:
+                    raw = self.app.settings.get("serial_log_buffer_lines", settings_mod.DEFAULT_SERIAL_LOG_LINES)
+                    limit = max(100, int(raw) if isinstance(raw, int) else int(raw) if raw else 100)
+                except (TypeError, ValueError):
+                    limit = max(100, getattr(settings_mod, "DEFAULT_SERIAL_LOG_LINES", 10000))
+                tk_tb = self._serial_log_tk or getattr(self.log_text, "_textbox", None)
+                if tk_tb is not None:
+                    line_count = int(tk_tb.index("end").split(".")[0])
+                    if line_count > limit:
+                        self.log_text.configure(state="normal")
+                        tk_tb.delete("1.0", "%d.0" % (line_count - limit + 1))
+                        self.log_text.configure(state="disabled")
                 if at_bottom:
                     self.log_text.see("end")
                 self.log_text.configure(state="disabled")
@@ -2278,8 +2292,6 @@ class SerialLogFrame(ContentFrame):
 
     def show(self) -> None:
         super().show()
-        if self.app and self.app.settings.get("strip_ansi_when_saving") is not None:
-            self.strip_ansi_var.set(bool(self.app.settings["strip_ansi_when_saving"]))
 
     def hide(self) -> None:
         if self._serial and self._serial.is_open:
@@ -2336,11 +2348,11 @@ class SettingsFrame(ContentFrame):
             row=row, column=0, columnspan=3, sticky="w", padx=20, pady=(16, 8))
         row += 1
 
-        self.baud_read_var = ctk.StringVar(value="115200")
-        self.no_stub_read_var = ctk.BooleanVar(value=False)
+        self.baud_read_var = ctk.StringVar(value="921600")
+        self.no_stub_read_var = ctk.BooleanVar(value=True)
         ctk.CTkLabel(self, text="read-flash baud rate:", width=LABEL_W, anchor="w").grid(
             row=row, column=0, sticky="w", padx=(20, 10), pady=4)
-        ctk.CTkComboBox(self, values=["115200", "460800", "921600"], variable=self.baud_read_var, width=120).grid(
+        ctk.CTkComboBox(self, values=["921600", "115200", "460800"], variable=self.baud_read_var, width=120).grid(
             row=row, column=1, sticky="w", padx=0, pady=4)
         ctk.CTkCheckBox(self, text="Use --no-stub", variable=self.no_stub_read_var).grid(
             row=row, column=2, sticky="w", padx=(10, 20), pady=4)
@@ -2372,16 +2384,16 @@ class SettingsFrame(ContentFrame):
         self.serial_log_lines_var.set(str(s.get("serial_log_buffer_lines", settings_mod.DEFAULT_SERIAL_LOG_LINES)))
         self.baud_read_var.set(s.get("baud_rate_read", settings_mod.DEFAULT_BAUD_READ))
         self.baud_write_var.set(s.get("baud_rate_write", settings_mod.DEFAULT_BAUD_WRITE))
-        self.no_stub_read_var.set(bool(s.get("no_stub_read", False)))
+        self.no_stub_read_var.set(bool(s.get("no_stub_read", True)))
         self.no_stub_write_var.set(bool(s.get("no_stub_write", False)))
 
     def _save_from_ui(self) -> None:
         if not self.app:
             return
         try:
-            n = int(self.serial_log_lines_var.get().strip() or "10000")
+            n = max(100, int(self.serial_log_lines_var.get().strip() or "10000"))
         except ValueError:
-            n = settings_mod.DEFAULT_SERIAL_LOG_LINES
+            n = max(100, getattr(settings_mod, "DEFAULT_SERIAL_LOG_LINES", 10000))
         no_stub_read = bool(self.no_stub_read_var.get())
         no_stub_write = bool(self.no_stub_write_var.get())
         self.app.settings.update({
@@ -2412,7 +2424,7 @@ class App(ctk.CTk):
                 pass
 
         self.settings = settings_mod.load()
-        set_no_stub_read(bool(self.settings.get("no_stub_read", False)))
+        set_no_stub_read(bool(self.settings.get("no_stub_read", True)))
         set_no_stub_write(bool(self.settings.get("no_stub_write", False)))
 
         self.wifi_host_var = tk.StringVar(value=self.settings.get("wifi_host", "rdzsonde.local"))
@@ -2450,7 +2462,7 @@ class App(ctk.CTk):
             (FlashFrame, "Flash"),
             (SerialLogFrame, "Serial"),
             (USBManageFrame, "USB"),
-            (WiFiManageFrame, "Wi-Fi"),
+            (FilesWiFiFrame, "Wi-Fi"),
             (SDWiFiFrame, "SD (via WiFi)"),
             (SettingsFrame, "Settings"),
         ]:

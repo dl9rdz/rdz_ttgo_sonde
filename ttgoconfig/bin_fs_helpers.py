@@ -19,12 +19,13 @@ def list_fs_from_bin_auto(
     bin_path: str,
     file_offset: Optional[int] = None,
     partition_size: Optional[int] = None,
-) -> Tuple[List[dict], str]:
+) -> Tuple[List[dict], str, bool]:
     """
     List root files from a .bin that may be LittleFS or SPIFFS.
     Tries LittleFS first (with given or default partition offset/size), then SPIFFS.
-    Returns (entries, fs_type) where fs_type is "littlefs" or "spiffs".
-    entries: list of {"name", "size", "dir"}.
+    Returns (entries, fs_type, recognized).
+    entries: list of {"name", "size", "dir"}. fs_type is "littlefs" or "spiffs".
+    recognized is True when a filesystem was detected (even if entries is empty), False when neither was found.
     """
     if file_offset is None and partition_size is None:
         try:
@@ -41,8 +42,7 @@ def list_fs_from_bin_auto(
     # Try LittleFS first
     try:
         entries = lfs.list_fs_from_bin(bin_path, file_offset=file_offset or 0, partition_size=partition_size)
-        if entries:
-            return entries, "littlefs"
+        return entries, "littlefs", True
     except Exception:
         pass
 
@@ -51,12 +51,11 @@ def list_fs_from_bin_auto(
         from .spiffs_reader import open_spiffs
         img = open_spiffs(bin_path)
         entries = img.list_files()
-        if entries:
-            return entries, "spiffs"
+        return entries, "spiffs", True
     except Exception:
         pass
 
-    return [], "littlefs"  # default so callers can still try LittleFS read
+    return [], "littlefs", False
 
 
 def read_file_from_bin_auto(

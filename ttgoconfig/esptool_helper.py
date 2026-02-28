@@ -15,7 +15,7 @@ from typing import Callable, Optional
 # Read operations (read-flash): _no_stub_read
 # Write operations (write-flash, flash): _no_stub_write
 # set_no_stub() sets both (used by CLI --no-stub).
-_no_stub_read: bool = False
+_no_stub_read: bool = True
 _no_stub_write: bool = False
 
 
