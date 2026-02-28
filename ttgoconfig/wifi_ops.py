@@ -134,14 +134,30 @@ def list_files(
     session: Any, base_url: str, dir_path: str = ""
 ) -> Tuple[List[dict], Optional[str]]:
     """
-    List files on device. Returns (entries, error_msg).
-    Each entry is {"name": str, "dir": 0, "size": int} or {"name": str, "dir": 1} for dirs.
-    API is not yet implemented on device; returns static list (flat, no subdirs).
+    List files on device (internal storage). Returns (entries, error_msg).
+    Each entry is {"name": str, "dir": 0|1, "size": int?, "ts": str?}.
+    Tries GET files.json?dir=.int; if empty or error, returns static list with a fallback message.
     """
     if dir_path:
         return [], None
-    entries = [{"name": n, "dir": 0, "size": 0} for n in DEVICE_FILES_STATIC]
-    return entries, None
+    url = base_url.rstrip("/") + "/files.json?dir=.int"
+    try:
+        r = session.get(url, timeout=10)
+        if r.status_code != 200:
+            return _static_entries(), "Listing not supported by device firmware; showing default file names."
+        data = r.json()
+        if not isinstance(data, list):
+            return _static_entries(), "Listing not supported by device firmware; showing default file names."
+        if not data:
+            return _static_entries(), "Listing not supported by device firmware; showing default file names."
+        return data, None
+    except Exception:
+        return _static_entries(), "Listing not supported by device firmware; showing default file names."
+
+
+def _static_entries() -> List[dict]:
+    """Default file list when device does not support listing."""
+    return [{"name": n, "dir": 0, "size": 0} for n in DEVICE_FILES_STATIC]
 
 
 def get_file(

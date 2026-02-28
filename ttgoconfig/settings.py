@@ -56,7 +56,7 @@ def _defaults() -> dict[str, Any]:
     return {
         "backup_folder": DEFAULT_BACKUP_FOLDER,
         "download_url": DEFAULT_DOWNLOAD_URL,
-        "baud_rate": DEFAULT_BAUD,
+        "baud_rate": DEFAULT_BAUD_READ,
         "remember_port": True,
         "last_port": "",
         "serial_log_buffer_lines": DEFAULT_SERIAL_LOG_LINES,

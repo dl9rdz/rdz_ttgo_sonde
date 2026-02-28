@@ -30,9 +30,13 @@ from .littlefs_helper import (
     unpack_image as lfs_unpack_image,
     extract_from_backup as lfs_extract_from_backup,
     list_fs_from_bin as lfs_list_fs_from_bin,
-    read_file_from_bin as lfs_read_file_from_bin,
     BACKUP_FLASH_BASE as LFS_BACKUP_FLASH_BASE,
     BLOCK_SIZE as LFS_BLOCK_SIZE,
+)
+from .bin_fs_helpers import (
+    list_fs_from_bin_auto,
+    read_file_from_bin_auto,
+    extract_from_bin_auto,
 )
 from .firmware import (
     fetch_manifest_firmware_url as _fetch_firmware_url_for_source,
@@ -41,6 +45,8 @@ from .firmware import (
 )
 from . import wifi_ops as wifi_ops_mod
 from . import sd_ops as sd_ops_mod
+from .bin_version_poc import get_version_from_bin
+from . import improv_serial as improv_serial_mod
 
 # Compact labels for the top bar
 MODE_VALUES = ["Flash", "Serial", "USB", "Wi-Fi", "SD (via WiFi)", "Settings"]
@@ -301,7 +307,15 @@ class ContentFrame(ctk.CTkFrame):
         current = self.port_combo.get()
         ports = get_serial_ports()
         self.port_combo.configure(values=ports)
-        if current in ports:
+        if self.app and hasattr(self.app, "port_var"):
+            saved = (self.app.settings.get("last_port") or "").strip()
+            if saved and saved in ports:
+                self.app.port_var.set(saved)
+            elif current in ports:
+                self.app.port_var.set(current)
+            elif ports:
+                self.app.port_var.set(ports[0])
+        elif current in ports:
             self.port_combo.set(current)
 
     def _on_line_cb(self) -> Callable[[str], None]:
@@ -312,7 +326,10 @@ class ContentFrame(ctk.CTkFrame):
         """Add Port label, port_combo, and Refresh button to parent at row 0. Returns next available column index."""
         parent.grid_columnconfigure(1, weight=1)
         ctk.CTkLabel(parent, text="Port:").grid(row=0, column=0, padx=(0, 10), pady=5)
-        self.port_combo = ctk.CTkComboBox(parent, values=get_serial_ports(), width=220)
+        self.port_combo = ctk.CTkComboBox(
+            parent, values=get_serial_ports(), width=220,
+            variable=self.app.port_var if self.app else None
+        )
         self.port_combo.grid(row=0, column=1, padx=0, pady=5, sticky="w")
         ctk.CTkButton(parent, text="Refresh", width=80, command=self._refresh_ports).grid(
             row=0, column=2, padx=(10, 0), pady=5
@@ -471,7 +488,12 @@ class FlashFrame(ContentFrame):
             )
             self.backup_combo = None
         else:
-            self.backup_combo = ctk.CTkComboBox(self.fw_opts_frame, values=backups, width=280)
+            display_values = []
+            for f in backups:
+                full_path = os.path.join(folder, f)
+                version = get_version_from_bin(full_path)
+                display_values.append("%s (%s)" % (f, version) if version else f)
+            self.backup_combo = ctk.CTkComboBox(self.fw_opts_frame, values=display_values, width=280)
             self.backup_combo.grid(row=0, column=0, sticky="w")
         self.fw_opts_frame.grid_columnconfigure(0, weight=1)
 
@@ -535,6 +557,8 @@ class FlashFrame(ContentFrame):
                 messagebox.showwarning("Flash", "No backups found. Use Manage (USB) → Make backup first.")
                 return None
             name = self.backup_combo.get()
+            if " (" in name:
+                name = name.split(" (")[0].strip()
             folder = settings_mod.get_backup_folder_expanded(self.app.settings if self.app else {})
             return os.path.join(folder, name)
         return None
@@ -826,11 +850,8 @@ class USBManageFrame(ContentFrame):
         self._log("\n--- Extract filesystem from backup %s to %s ---\n" % (backup_path, dest_dir))
 
         def work():
-            try:
-                lfs_extract_from_backup(backup_path, dest_dir, PARTITION_SPIFFS_OFFSET, PARTITION_SPIFFS_SIZE)
-                return True, ""
-            except Exception as e:
-                return False, str(e)
+            ok, err = extract_from_bin_auto(backup_path, dest_dir)
+            return ok, err or ""
 
         def on_done(ok: bool, msg: str) -> None:
             if ok:
@@ -1046,17 +1067,24 @@ class WiFiManageFrame(ContentFrame):
         tree.delete(*tree.get_children())
 
         if getattr(self, "_wifi_left_mode", "folder") == "bin" and self._wifi_local_bin_path:
-            # Show contents of .bin image (root only)
+            # Show contents of .bin image (LittleFS or SPIFFS, auto-detected)
             self._wifi_local_path_var.set(self._wifi_local_bin_path)
             tree.insert("", "end", iid="..", text="📁 ..", values=("",))
             off, size = self._wifi_bin_offset_size()
             try:
-                entries = lfs_list_fs_from_bin(self._wifi_local_bin_path, file_offset=off, partition_size=size)
+                entries, fs_type = list_fs_from_bin_auto(
+                    self._wifi_local_bin_path, file_offset=off, partition_size=size
+                )
+                self._wifi_bin_fs_type = fs_type
+                self._wifi_bin_off = off
+                self._wifi_bin_size = size
             except Exception as e:
                 self._wifi_set_status("Failed to read .bin: %s" % e)
                 self._wifi_update_local_path_display()
                 self._wifi_update_sync_buttons_state()
                 return
+            if not entries:
+                self._wifi_bin_fs_type = getattr(self, "_wifi_bin_fs_type", "littlefs")
             def _bin_sort_key(x: dict) -> tuple:
                 name = x.get("name", "")
                 ext = os.path.splitext(name)[1].lower()
@@ -1068,11 +1096,14 @@ class WiFiManageFrame(ContentFrame):
                 iid = ("d:" if is_dir else "f:") + name
                 size_str = (self._wifi_format_size_dots(sz) + " B") if sz else ""
                 tree.insert("", "end", iid=iid, text=("📁 " if is_dir else "📄 ") + name, values=(size_str,))
-            self._wifi_set_status("Showing %d entries from .bin image." % len(entries))
+            self._wifi_set_status("Showing %d entries from .bin image (%s)." % (len(entries), self._wifi_bin_fs_type))
         else:
             # Folder mode
             self._wifi_left_mode = "folder"
             self._wifi_local_bin_path = None
+            self._wifi_bin_fs_type = getattr(self, "_wifi_bin_fs_type", "littlefs")
+            self._wifi_bin_off = 0
+            self._wifi_bin_size = None
             path = (self._wifi_local_path_var.get() or "").strip() or os.path.expanduser("~")
             if not os.path.isdir(path):
                 path = os.path.expanduser("~")
@@ -1237,23 +1268,29 @@ class WiFiManageFrame(ContentFrame):
             if err:
                 return False, err
             entries, err = wifi_ops_mod.list_files(session, base_url, "")
-            if err:
+            if err and not entries:
                 return False, err
-            return True, entries
+            return True, (entries, err)
 
         def on_done(ok: bool, msg: Any) -> None:
-            if ok and isinstance(msg, list):
+            if ok and isinstance(msg, tuple) and len(msg) == 2:
+                entries, fallback_msg = msg
+                if not isinstance(entries, list):
+                    self._wifi_set_status("Error: invalid response")
+                    return
                 sorted_entries = sorted(
-                    msg,
+                    entries,
                     key=lambda it: (os.path.splitext(it.get("name", ""))[1].lower(), it.get("name", "")),
                 )
                 self._wifi_device_entries = sorted_entries
                 for i, it in enumerate(sorted_entries):
                     name = it.get("name", "?")
+                    is_dir = it.get("dir", 0)
                     size = it.get("size", 0)
                     size_str = (self._wifi_format_size_dots(size) + " B") if size else ""
-                    self.wifi_device_tree.insert("", "end", iid=str(i), text="📄 " + name, values=(size_str,))
-                self._wifi_set_status("%d file(s) on device." % len(msg))
+                    prefix = "📁 " if is_dir else "📄 "
+                    self.wifi_device_tree.insert("", "end", iid=str(i), text=prefix + name, values=(size_str,))
+                self._wifi_set_status(fallback_msg if fallback_msg else "%d file(s) on device." % len(entries))
             else:
                 self._wifi_set_status("Error: %s" % (msg if not ok else "Unknown"))
 
@@ -1357,9 +1394,15 @@ class WiFiManageFrame(ContentFrame):
             done = 0
             if from_bin:
                 import tempfile
+                fs_type = getattr(self, "_wifi_bin_fs_type", "littlefs")
+                bin_off = getattr(self, "_wifi_bin_off", off)
+                bin_size = getattr(self, "_wifi_bin_size", size)
                 for path_or_name, name in files_to_upload:
                     try:
-                        content = lfs_read_file_from_bin(bin_path, path_or_name, file_offset=off, partition_size=size)
+                        content = read_file_from_bin_auto(
+                            bin_path, path_or_name, fs_type,
+                            file_offset=bin_off, partition_size=bin_size,
+                        )
                     except Exception as e:
                         errs.append("%s: %s" % (name, e))
                         done += 1
@@ -1784,6 +1827,218 @@ class SDWiFiFrame(WiFiManageFrame):
         _run_in_background(work, on_done)
 
 
+class ImprovDialog(ctk.CTkToplevel):
+    """IMPROV WiFi setup: get device info, scan networks, connect to selected network."""
+
+    def __init__(
+        self,
+        parent: Any,
+        port: str,
+        baud: int,
+        serial_frame: "SerialLogFrame",
+        was_connected: bool,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(parent, **kwargs)
+        self.title("Setup via IMPROV")
+        self.port = port
+        self.baud = baud
+        self.serial_frame = serial_frame
+        self.was_connected = was_connected
+        self._ser: Any = None
+        self._improv_thread: Optional[threading.Thread] = None
+        self._device_info: Optional[List[str]] = None
+        self._networks: List[Tuple[str, str, str]] = []
+        self._connect_in_progress = False
+        self.geometry("480x420")
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+
+        # Status
+        self.status_var = tk.StringVar(value="Opening port…")
+        ctk.CTkLabel(self, textvariable=self.status_var, anchor="w").grid(
+            row=0, column=0, sticky="ew", padx=15, pady=(15, 5)
+        )
+        # Device info (name / version)
+        self.info_var = tk.StringVar(value="")
+        ctk.CTkLabel(self, textvariable=self.info_var, anchor="w").grid(
+            row=1, column=0, sticky="ew", padx=15, pady=(0, 5)
+        )
+        # Networks list
+        list_frame = ctk.CTkFrame(self, fg_color="transparent")
+        list_frame.grid(row=2, column=0, sticky="nsew", padx=15, pady=5)
+        list_frame.grid_columnconfigure(0, weight=1)
+        list_frame.grid_rowconfigure(1, weight=1)
+        ctk.CTkLabel(list_frame, text="Networks").grid(row=0, column=0, sticky="w")
+        self.network_listbox = tk.Listbox(
+            list_frame, height=8, selectmode=tk.SINGLE, font=("TkDefaultFont", 10)
+        )
+        self.network_listbox.grid(row=1, column=0, sticky="nsew", pady=(2, 5))
+        scroll = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.network_listbox.yview)
+        scroll.grid(row=1, column=1, sticky="ns")
+        self.network_listbox.configure(yscrollcommand=scroll.set)
+        # Custom SSID
+        ssid_frame = ctk.CTkFrame(self, fg_color="transparent")
+        ssid_frame.grid(row=3, column=0, sticky="ew", padx=15, pady=2)
+        ssid_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(ssid_frame, text="Custom SSID:").grid(row=0, column=0, padx=(0, 8), pady=2)
+        self.custom_ssid_entry = ctk.CTkEntry(ssid_frame, placeholder_text="or type SSID")
+        self.custom_ssid_entry.grid(row=0, column=1, sticky="ew", pady=2)
+        # Password
+        pw_frame = ctk.CTkFrame(self, fg_color="transparent")
+        pw_frame.grid(row=4, column=0, sticky="ew", padx=15, pady=2)
+        pw_frame.grid_columnconfigure(1, weight=1)
+        ctk.CTkLabel(pw_frame, text="Password:").grid(row=0, column=0, padx=(0, 8), pady=2)
+        self.password_entry = ctk.CTkEntry(pw_frame, placeholder_text="WiFi password", show="*")
+        self.password_entry.grid(row=0, column=1, sticky="ew", pady=2)
+        # Buttons
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.grid(row=5, column=0, sticky="ew", padx=15, pady=(10, 15))
+        btn_frame.grid_columnconfigure(0, weight=1)
+        self.connect_btn = ctk.CTkButton(
+            btn_frame, text="Connect", width=100, command=self._on_connect
+        )
+        self.connect_btn.grid(row=0, column=0, padx=(0, 10))
+        ctk.CTkButton(btn_frame, text="Close", width=80, command=self._on_close).grid(
+            row=0, column=1
+        )
+        self.connect_btn.configure(state="disabled")
+
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.after(50, self._start_improv_flow)
+
+    def _set_status(self, text: str) -> None:
+        self.status_var.set(text)
+
+    def _set_info(self, text: str) -> None:
+        self.info_var.set(text)
+
+    def _start_improv_flow(self) -> None:
+        def work() -> None:
+            try:
+                import serial
+                ser = serial.Serial(self.port, self.baud, timeout=1.0)
+            except Exception as e:
+                err_msg = str(e)
+                self.after(0, lambda msg=err_msg: self._on_open_failed(msg))
+                return
+            self._ser = ser
+            self.after(0, lambda: self._set_status("Requesting device info…"))
+            info = improv_serial_mod.rpc_get_info(ser, timeout_sec=3.0)
+            if info is None:
+                self.after(0, lambda: self._on_get_info_failed())
+                return
+            self._device_info = info
+            self.after(0, lambda: self._set_status("Scanning WiFi…"))
+            self.after(0, lambda: self._set_info("%s  %s" % (info[0] if len(info) > 0 else "", info[1] if len(info) > 1 else "")))
+            networks = improv_serial_mod.rpc_wifi_scan(ser, timeout_sec=10.0)
+            self._networks = networks
+            self.after(0, lambda: self._on_scan_done(networks))
+
+        self._improv_thread = threading.Thread(target=work, daemon=True)
+        self._improv_thread.start()
+
+    def _on_open_failed(self, msg: str) -> None:
+        if not self.winfo_exists():
+            return
+        self._set_status("Could not open port: %s" % msg)
+        self.connect_btn.configure(state="disabled")
+
+    def _on_get_info_failed(self) -> None:
+        if not self.winfo_exists():
+            return
+        self._set_status("Could not get device info (timeout or invalid response).")
+        if self._ser:
+            try:
+                self._ser.close()
+            except Exception:
+                pass
+            self._ser = None
+        self.connect_btn.configure(state="disabled")
+
+    def _on_scan_done(self, networks: List[Tuple[str, str, str]]) -> None:
+        if not self.winfo_exists():
+            return
+        self._set_status("Select a network or enter custom SSID and password, then Connect.")
+        self.network_listbox.delete(0, tk.END)
+        for ssid, rssi, secured in networks:
+            self.network_listbox.insert(tk.END, "%s  (%s, %s)" % (ssid, rssi, secured))
+        if not networks:
+            self._set_status("No networks found. Enter custom SSID and password, then Connect.")
+        self.connect_btn.configure(state="normal")
+
+    def _get_selected_ssid(self) -> Optional[str]:
+        custom = (self.custom_ssid_entry.get() or "").strip()
+        if custom:
+            return custom
+        sel = self.network_listbox.curselection()
+        if not sel:
+            return None
+        idx = int(sel[0])
+        if 0 <= idx < len(self._networks):
+            return self._networks[idx][0]
+        text = self.network_listbox.get(sel[0])
+        if "  (" in text:
+            return text.split("  (")[0].strip()
+        return text.strip()
+
+    def _on_connect(self) -> None:
+        ssid = self._get_selected_ssid()
+        if not ssid:
+            messagebox.showwarning("IMPROV", "Select a network from the list or enter a custom SSID.")
+            return
+        password = (self.password_entry.get() or "").strip()
+        if self._connect_in_progress or self._ser is None:
+            return
+        self._connect_in_progress = True
+        self.connect_btn.configure(state="disabled")
+        self._set_status("Connecting…")
+
+        def work() -> None:
+            try:
+                url = improv_serial_mod.rpc_send_wifi(self._ser, ssid, password, timeout_sec=15.0)
+                self.after(0, lambda u=url: self._on_connect_done(u))
+            except Exception as e:
+                err_msg = str(e)
+                self.after(0, lambda msg=err_msg: self._on_connect_done(None, msg))
+            finally:
+                self.after(0, lambda: self._set_connect_done())
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _set_connect_done(self) -> None:
+        if not self.winfo_exists():
+            return
+        self._connect_in_progress = False
+        self.connect_btn.configure(state="normal")
+
+    def _on_connect_done(self, url: Optional[str], error: Optional[str] = None) -> None:
+        if not self.winfo_exists():
+            return
+        if error:
+            self._set_status("Connection failed: %s" % error)
+            return
+        if url:
+            self._set_status("Connected. URL: %s" % url)
+            messagebox.showinfo("IMPROV", "Connected. Device URL: %s" % url)
+        else:
+            self._set_status("Connection failed (wrong password or no response).")
+            messagebox.showerror("IMPROV", "Connection failed. Check password and try again.")
+
+    def _on_close(self) -> None:
+        if self._ser and getattr(self._ser, "is_open", False):
+            try:
+                self._ser.close()
+            except Exception:
+                pass
+            self._ser = None
+        if self.was_connected:
+            messagebox.showinfo(
+                "Setup via IMPROV",
+                "Serial was disconnected for IMPROV. Reconnect from the Serial tab if needed.",
+            )
+        self.destroy()
+
 
 class SerialLogFrame(ContentFrame):
     def __init__(self, master, app: Optional["App"] = None, **kwargs):
@@ -1832,8 +2087,30 @@ class SerialLogFrame(ContentFrame):
         ctk.CTkButton(bot, text="Copy", width=80, command=self._copy_log).grid(row=0, column=4, padx=0, pady=0)
 
     def _setup_improv(self) -> None:
-        """Placeholder for IMPROV WiFi setup (e.g. open IMPROV flow)."""
-        messagebox.showinfo("Setup via IMPROV", "IMPROV WiFi setup is not yet implemented.")
+        """Open IMPROV dialog: get device info, scan WiFi, connect to selected network."""
+        port = self.port_combo.get()
+        if not port or port == "Auto" or port.startswith("("):
+            messagebox.showwarning("Setup via IMPROV", "Select a specific serial port (not Auto).")
+            return
+        try:
+            baud = int(self.baud_combo.get())
+        except (TypeError, ValueError):
+            baud = 115200
+        was_connected = bool(self._serial and self._serial.is_open)
+        if was_connected:
+            self._serial_stop.set()
+            try:
+                if self._serial.is_open:
+                    self._serial.close()
+            except Exception:
+                pass
+            self._serial = None
+            self._serial_thread = None
+            self.connect_btn.configure(text="Connect")
+        dialog = ImprovDialog(self.winfo_toplevel(), port=port, baud=baud, serial_frame=self, was_connected=was_connected)
+        dialog.transient(self.winfo_toplevel())
+        dialog.grab_set()
+        dialog.focus_force()
 
     def _save_strip_ansi_setting(self) -> None:
         if self.app:
@@ -1931,16 +2208,15 @@ class SerialLogFrame(ContentFrame):
         """Called on main thread when the serial reader loop exits (error or port closed)."""
         if not self.winfo_exists():
             return
-        if self._serial is None:
-            return
-        self._serial_stop.set()
-        try:
-            if self._serial.is_open:
-                self._serial.close()
-        except Exception:
-            pass
-        self._serial = None
-        self._serial_thread = None
+        if self._serial is not None:
+            self._serial_stop.set()
+            try:
+                if self._serial.is_open:
+                    self._serial.close()
+            except Exception:
+                pass
+            self._serial = None
+            self._serial_thread = None
         self.connect_btn.configure(text="Connect")
 
     def _serial_reader_loop(self) -> None:
@@ -2146,6 +2422,7 @@ class App(ctk.CTk):
         self.wifi_save_pass_var = ctk.BooleanVar(
             value=self.settings.get("wifi_save_password", bool(self.settings.get("wifi_pass", "")))
         )
+        self.port_var = tk.StringVar(value="Auto")
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -2183,14 +2460,12 @@ class App(ctk.CTk):
             self.frames[key] = f
 
         self.frames["Settings"].load_from_settings(self.settings)
-        if self.settings.get("last_port"):
-            lp = self.settings["last_port"]
-            for k in ("Flash", "USB", "Serial"):
-                if k in self.frames and hasattr(self.frames[k], "port_combo"):
-                    combo = self.frames[k].port_combo
-                    vals = list(combo.cget("values"))
-                    if lp in vals:
-                        combo.set(lp)
+        ports = get_serial_ports()
+        lp = (self.settings.get("last_port") or "").strip()
+        if lp and lp in ports:
+            self.port_var.set(lp)
+        else:
+            self.port_var.set(ports[0] if ports else "Auto")
 
         self._on_mode_change(last_mode)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -2203,10 +2478,7 @@ class App(ctk.CTk):
             self.settings["wifi_pass"] = self.wifi_pass_var.get()
         else:
             self.settings.pop("wifi_pass", None)
-        for k in ("Flash", "USB", "Serial"):
-            if k in self.frames and hasattr(self.frames[k], "port_combo"):
-                self.settings["last_port"] = self.frames[k].port_combo.get()
-                break
+        self.settings["last_port"] = self.port_var.get()
         if "Serial" in self.frames and hasattr(self.frames["Serial"], "baud_combo"):
             self.settings["baud_rate"] = self.frames["Serial"].baud_combo.get()
         settings_mod.save(self.settings)
