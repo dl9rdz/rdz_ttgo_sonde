@@ -115,8 +115,6 @@ void ShFreqImport::cleanup() {
     }
 }
 
-#define BUFLEN 128
-#define VALLEN 20
 int ShFreqImport::handleChar(char c) {
 	Serial.print(c);
         switch(importState) {
@@ -128,18 +126,19 @@ int ShFreqImport::handleChar(char c) {
                 }       
                 break;
         case BEFOREID:
-                // what for first '"' in { "A1234567" : { ... } }; or detect end
+                // wait for first '"' in { "A1234567" : { ... } }; or detect end
                 if(c=='"') { idpos = 0; lat = NAN; lon = NAN; freq = NAN; *type = 0; importState++; }
                 if(c=='}') {
 			importState = ENDREACHED; 
+			Serial.println("end reached\n");
 			cleanup();
 			return 1;
 		}
                 break;
         case COPYID:
-                // copy ID "A1234567" until second '"' is earched
+                // copy ID "A1234567" until second '"' is reached
                 if(c=='"') { id[idpos] = 0; importState++; }
-                else id[idpos++] = c;
+                else { id[idpos] = c; if (idpos<sizeof(id)-1) idpos++; }
                 break;
         case AFTERID:
                 // wait for '{' in '"A1234567": { ...'
@@ -150,7 +149,7 @@ int ShFreqImport::handleChar(char c) {
                 break;
         case COPYKEY:
                 if(c=='"') { importState++; keyword[keywordpos] = 0; /* printf("Key: >%s<\n", keyword);*/ }
-                else keyword[keywordpos++] = c;
+                else { keyword[keywordpos] = c; if(keywordpos<sizeof(keyword)-1) keywordpos++; }
                 break;
         case AFTERKEY:
                 if(c==':') {
@@ -174,7 +173,11 @@ int ShFreqImport::handleChar(char c) {
                         value[valuepos]=0; importState=SKIPVAL; usekeyvalue();
                         if(c!=',' && c!='}') break;
                 }       
-                else { value[valuepos++] = c; break; }
+                else {
+                   value[valuepos] = c;
+                   if(valuepos<sizeof(value)-1) valuepos++;
+		   break;
+                }
                 // intenionall fall-through
         case SKIPVAL:
                 // This is rather fragile, we *should* handle more escaping and so on but do not do so so far, only simple quotes
@@ -184,10 +187,10 @@ int ShFreqImport::handleChar(char c) {
                 if(c=='}') {
                         // we have an ID and all key/value pairs, check if its good....
                         if( !isnan(lat) && !isnan(lon) && !isnan(freq) && type[0] ) {
-                                printf("SondeHub import: populate %s %f %f %f %s\n", id, lat, lon, freq, type);
+                                Serial.printf("SondeHub import: populate %s %f %f %f %s\n", id, lat, lon, freq, type);
                                 populate(id, lat, lon, freq, type);
                         } else {
-                                printf("Skipping incomplete %s\n", id);
+                                Serial.printf("Skipping incomplete %s\n", id);
                         }       
                         importState = ENDORNEXT;
                 }       
@@ -197,7 +200,7 @@ int ShFreqImport::handleChar(char c) {
                 break;
         case COPYSTRINGVAL:
                 if(c=='"') { importState=SKIPVAL; value[valuepos]=0; usekeyvalue(); }
-                else value[valuepos++] = c;
+                else { value[valuepos] = c; if(valuepos < sizeof(value)-1) valuepos++; }
                 break;
         case ENDORNEXT:
                 // next we have to see either a final "}', or a comma before the next id
@@ -230,7 +233,8 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
 		"Accept: application/json\r\n"
 		"Cache-Control: no-cache\r\n\r\n",
 		lat, lon, dist*1000, time*60, sonde.config.sondehub.host);
-	dprintf(client, req);
+	int res = dprintf(client, req);
+	Serial.printf("dprintf res: %d (%d)\n", res, errno);
 	Serial.print(req);
 	importState = START;
 	homelat = lat;
@@ -246,5 +250,6 @@ int ShFreqImport::shImportHandleReply(const char *buf, int len) {
 	    int ret = handleChar(buf[i]);
 	    if(ret) return ret;
         }
+        Serial.printf("shImportHandleReply returning after fully processing buffer '%s'\n", buf);
 	return 0;
 }

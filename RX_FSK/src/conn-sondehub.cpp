@@ -29,11 +29,12 @@ extern const char *version_id;
 
 #define ERROR_RETRY_DELAY 10  // seconds
 
-int shclient = -1;    // Sondehub v2
-ip_addr_t shclient_ipaddr;
+static int shclient = -1;    // Sondehub v2
+static ip_addr_t shclient_ipaddr;
 
-unsigned long time_next_import = 0;
-unsigned long time_last_update = 0;
+static unsigned long time_next_import = 0;
+static unsigned long time_last_update = 0;
+static unsigned long time_wait_start = 0;
 
 enum SHState { SH_DISCONNECTED, SH_DNSLOOKUP, SH_DNSRESOLVED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, SH_CONN_WAITACK, SH_CONN_WAITIMPORTRES, SH_ERROR_RETRY };
 
@@ -71,7 +72,7 @@ void ConnSondehub::netsetup() {
         sondehub_client_fsm();
         time_last_update = 0; /* force sending update */ 
 
-	// SH import: initial refresh on connect, even if configured interval is longer
+        // SH import: initial refresh on connect, even if configured interval is longer
         time_next_import = millis() + 5000;
     } 
 }
@@ -99,7 +100,7 @@ void ConnSondehub::updateSonde( SondeInfo *si ) {
     if(si==NULL) {
         sondehub_finish_data();
     } else {
-	sondehub_send_data(si);
+        sondehub_send_data(si);
     }
 }
 
@@ -117,20 +118,30 @@ static void _sh_dns_found(const char * name, const ip_addr_t *ipaddr, void * /*a
         shStart = 0;
         // TODO: set "reply messge" to "DNS lookup failed"
         //LOG_I(TAG, "dns_failed for %s\n", name);
-	snprintf(rs_msg, MSG_SIZE, "DNS lookup failed for %s", name);
+        snprintf(rs_msg, MSG_SIZE, "DNS lookup failed for %s", name);
+    }
+}
+
+#define TO_WAITACK 15000
+#define TO_WAITIMPORT 30000
+
+static void _sh_wait_cktimeout() {
+    unsigned long now = millis();
+    // This is also called when IDLE state checks for data, in this case data is arriving
+    // and we stopped the timeout... (TODO: double-check...)
+    if(time_wait_start == 0) return; 
+    if(now - time_wait_start > shclient_state==SH_CONN_WAITACK?TO_WAITACK:TO_WAITIMPORT) {
+        LOG_W(TAG, "timeout waiting for %s", shclient_state==SH_CONN_WAITACK?"ACK":"IMPORTRES");
+        close(shclient);
+        shclient_state = SH_ERROR_RETRY;
+        time_wait_start = 0;
+        shStart = 0;
     }
 }
 
 // Sondehub client asynchronous FSM...
 void ConnSondehub::sondehub_client_fsm() {
-    fd_set fdset, fdeset;
-    FD_ZERO(&fdset);
-    FD_SET(shclient, &fdset);
-    FD_ZERO(&fdeset);
-    FD_SET(shclient, &fdeset);
-    struct timeval selto = {0};
- 
-    LOG_I(TAG, "SH_FSM in state %d (%s), next import in %d s\n", shclient_state, state2str(shclient_state), (time_next_import-millis())/1000);
+    LOG_I(TAG, "SH_FSM in state %d (%s), next import in %d s\n", shclient_state, state2str(shclient_state), (int)(time_next_import-millis())/1000);
 
     switch(shclient_state) {
     case SH_ERROR_RETRY:
@@ -203,7 +214,13 @@ void ConnSondehub::sondehub_client_fsm() {
     case SH_CONNECTING:
     {
         // Poll to see if we are now connected
-// Poll to see if we are now connected 
+        fd_set fdset, fdeset;
+        FD_ZERO(&fdset);
+        FD_SET(shclient, &fdset);
+        FD_ZERO(&fdeset);
+        FD_SET(shclient, &fdeset);
+        struct timeval selto = {0};
+ 
         int res = select(shclient+1, NULL, &fdset, &fdeset, &selto);
         if(res<0) {
             LOG_E(TAG, "SH_CONNECTING: select error\n");
@@ -229,7 +246,7 @@ void ConnSondehub::sondehub_client_fsm() {
     break;
 
     case SH_CONN_IDLE:
-	// if idle, check if we might want to send freq import request
+        // if idle, check if we might want to send freq import request
         if (sonde.config.sondehub.fiactive)  {
             unsigned long now = millis();
             if(now > time_next_import) {
@@ -237,23 +254,30 @@ void ConnSondehub::sondehub_client_fsm() {
             }
         }
 
-	// Intentional fall-through: in idle state, read any data out of connection
-	// in CONN_WAITACK we switch to IDLE as soon as we see the HTTP header
+        // Intentional fall-through: in idle state, read any data out of connection
+        // in CONN_WAITACK we switch to IDLE as soon as we see the HTTP header
 
     case SH_CONN_WAITACK:
     case SH_CONN_WAITIMPORTRES:
     {
-        // In CONN_WAITACK:
-        // If data starts with HTTP/1 this is the expected response, move to state CONN_IDLE
-        //   noise tolerant - should not be needed:
-        //   if the data contains HTTP/1 copy that to the start of the buffer, ignore anything up to that point
-        //   if not find the last \0 and append next response after the part afterwards
+      // In CONN_WAITACK:
+      // If data starts with HTTP/1 this is the expected response, move to state CONN_IDLE
+      //   noise tolerant - should not be needed:
+      //   if the data contains HTTP/1 copy that to the start of the buffer, ignore anything up to that point
+      //   if not find the last \0 and append next response after the part afterwards
+      fd_set fdset, fdeset;
+      FD_ZERO(&fdset);
+      FD_SET(shclient, &fdset);
+      FD_ZERO(&fdeset);
+      FD_SET(shclient, &fdeset);
+      struct timeval selto = {0};
       for(int k=0; k<10; k++) { // read more data...
         int res = select(shclient+1, &fdset, NULL, NULL, &selto);
         if(res<0) {
             LOG_E(TAG, "SH_CONN_IDLE: select error\n");
             goto error;
         } else if (res==0) { //  no data
+            _sh_wait_cktimeout();
             break;
         }
         // Read data
@@ -261,43 +285,49 @@ void ConnSondehub::sondehub_client_fsm() {
         res = read(shclient, buf, 512);
         if(res<=0) {
             close(shclient);
+            printf("Read failed (%d, %d)\n", res, errno);
             shclient = -1;
             shclient_state = SH_ERROR_RETRY;
+            time_wait_start = 0;
             shStart = 0;
+            break;
         } else {
-            // Copy to reponse
+            // Copy to response
             for(int i=0; i<res; i++) {
                if(rs_msg_len<MSG_SIZE-1) {
                    rs_msg[rs_msg_len] = buf[i];
                    rs_msg_len++;
                }
-	       if(shclient_state == SH_CONN_WAITACK) { 
-      		  if(buf[i]=='\n') { 
-        	    // We still wait for the beginning of the ACK
-        	    // so check if we got that. if yes, all good, continue reading :)
-        	    // If not, ignore everything we have read so far...
-        	    if(strncmp(rs_msg, "HTTP/1", 6)==0) { shclient_state = SH_CONN_IDLE; }
-        	    else rs_msg_len = 0;
+               if(shclient_state == SH_CONN_WAITACK) { 
+                        if(buf[i]=='\n') { 
+                    // We still wait for the beginning of the ACK
+                    // so check if we got that. if yes, all good, continue reading :)
+                    // If not, ignore everything we have read so far...
+                    if(strncmp(rs_msg, "HTTP/1", 6)==0) {
+                        shclient_state = SH_CONN_IDLE;
+                        time_wait_start = 0;
+                    }
+                    else rs_msg_len = 0;
                  }
                }
             }
             if( shclient_state == SH_CONN_WAITIMPORTRES ) {   // we are waiting for a reply to a sondehub frequency import request
                 int import_res = ShFreqImport::shImportHandleReply(buf, res);
-    		LOG_D(TAG, "shImportHandleReply: ret=%d\n", import_res);
-    		// import_ress==0 means more data is expected, import_res==1 means complete reply received (or error)
-    		if (import_res == 1) {
-      			shclient_state = SH_CONN_IDLE;
-			time_next_import = millis() + sonde.config.sondehub.fiinterval * 60000;
-    		}
+                    LOG_D(TAG, "shImportHandleReply: ret=%d\n", import_res);
+                    // import_ress==0 means more data is expected, import_res==1 means complete reply received (or error)
+                    if (import_res == 1) {
+                              shclient_state = SH_CONN_IDLE;
+                        time_wait_start = 0;
+                        time_next_import = millis() + sonde.config.sondehub.fiinterval * 60000;
+                    }
             }
-	}
+        }
         rs_msg[rs_msg_len] = 0;
-	buf[res] = 0;
+        buf[res] = 0;
 
         LOG_D(TAG, "client_fsm: got data (len=%d): %s\n", res, (char *)buf);
-	// TODO: Maybe timestamp last received data?
+        // TODO: Maybe timestamp last received data?
         // TODO: Maybe repeat
-        // TODO: Add timeout to WAITACK...
       }//for k=0..10
     }
     break;
@@ -430,6 +460,7 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
   LOG_D(TAG, "Waiting for response");
   // Now we do this asychronously
   shclient_state = SH_CONN_WAITACK;
+  time_wait_start = millis();
   rs_msg_len = 0;   // wait for new msg: 
 
   sondehub_client_fsm();
@@ -459,6 +490,7 @@ void ConnSondehub::sondehub_send_fimport() {
     int res = ShFreqImport::shImportSendRequest(shclient, lat, lon, maxdist, maxage);
     if (res == 0) { 
         shclient_state = SH_CONN_WAITIMPORTRES;
+        time_wait_start = millis();
     }
   }
 }
@@ -657,6 +689,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
   if (now - shStart > SONDEHUB_MAXAGE) { // after MAXAGE seconds
     sondehub_send_last();
     shclient_state = SH_CONN_WAITACK;
+    time_wait_start = millis();
     rs_msg_len = 0;   // wait for new msg: 
     shStart = 0;
   }
@@ -670,14 +703,15 @@ void ConnSondehub::sondehub_finish_data() {
     if (now - shStart > SONDEHUB_MAXAGE + 3) { // after MAXAGE seconds
       sondehub_send_last();
       shclient_state = SH_CONN_WAITACK;
-    rs_msg_len = 0;   // wait for new msg: 
+      time_wait_start = millis();
+      rs_msg_len = 0;   // wait for new msg: 
       shStart = 0;
     }
   }
 }
 
 static const char *DAYS[] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Noc", "Dec"};
+static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 void ConnSondehub::sondehub_send_header(SondeInfo * s, struct tm * now) {
   struct st_sondehub *conf = &sonde.config.sondehub;
