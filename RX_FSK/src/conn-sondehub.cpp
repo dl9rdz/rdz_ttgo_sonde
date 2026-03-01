@@ -478,9 +478,6 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     return;
   }
 
-  // max age of data in JSON request (in seconds)
-#define SONDEHUB_MAXAGE 15
-
   char rs_msg[MSG_SIZE];
   char *w;
   struct tm ts;
@@ -654,7 +651,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
   } else {
     sondehub_send_next(s, rs_msg, strlen(rs_msg), 0);
   }
-  if (now - shStart > SONDEHUB_MAXAGE) { // after MAXAGE seconds
+  if (now - shStart > sonde.config.sondehub.maxage) { // after MAXAGE seconds
     sondehub_send_last();
     shclient_state = SH_CONN_WAITACK;
     rs_msg_len = 0;   // wait for new msg: 
@@ -667,7 +664,7 @@ void ConnSondehub::sondehub_finish_data() {
   if (shclient_state == SH_CONN_APPENDING) {
     time_t now;
     time(&now);
-    if (now - shStart > SONDEHUB_MAXAGE + 3) { // after MAXAGE seconds
+    if (now - shStart > sonde.config.sondehub.maxage + 3) { // after MAXAGE seconds
       sondehub_send_last();
       shclient_state = SH_CONN_WAITACK;
     rs_msg_len = 0;   // wait for new msg: 

@@ -849,6 +849,7 @@ struct st_configitems config_list[] = {
   {"sondehub.callsign", 63, &sonde.config.sondehub.callsign},
   {"sondehub.antenna", 63, &sonde.config.sondehub.antenna},
   {"sondehub.email", 63, &sonde.config.sondehub.email},
+  {"sondehub.maxage", 0, &sonde.config.sondehub.maxage},
   {"sondehub.fiactive", 0, &sonde.config.sondehub.fiactive},
   {"sondehub.fiinterval", 0, &sonde.config.sondehub.fiinterval},
   {"sondehub.fimaxdist", 0, &sonde.config.sondehub.fimaxdist},

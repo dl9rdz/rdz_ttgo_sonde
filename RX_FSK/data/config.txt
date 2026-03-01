@@ -139,6 +139,7 @@ sondehub.host=api.v2.sondehub.org
 sondehub.callsign=CHANGEME_RDZTTGO
 sondehub.antenna=
 sondehub.email=
+sondehub.maxage=15
 #-------------------------------#
 # Sondehub freq import settings
 #-------------------------------#

@@ -74,6 +74,7 @@ var cfgs = [
 [ "sondehub.callsign", "Callsign"],
 [ "sondehub.antenna", "Antenna (optional, visisble on SondeHub tracker)"],
 [ "sondehub.email", "SondeHub email (optional, only used to contact in case of upload errors)"],
+[ "sondehub.maxage", "SondeHub max age of packets before submitting (seconds, &geq; 15)"],
 [ "", "SondeHub frequency import", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-import" ],
 [ "sondehub.fiactive", "SondeHub frequency import active (0=disabled, 1=active)" ],
 [ "sondehub.fiinterval", "Import frequency (minutes, &geq; 5)" ],

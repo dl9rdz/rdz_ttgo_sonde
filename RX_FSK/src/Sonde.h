@@ -248,6 +248,7 @@ struct st_sondehub {
 	char callsign[64];
 	char antenna[64];
 	char email[64];
+	int maxage;
         int fiactive;
 	int fiinterval;
 	int fimaxdist;
