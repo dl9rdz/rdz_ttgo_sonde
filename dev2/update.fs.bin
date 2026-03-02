@@ -217,7 +217,7 @@ login.html 2068
  <div id="Login" class="tabcontent" style="display: flex;">
   <div class="system-info">
   <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-  <p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
+  <p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
   <br>
     <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
         <label for="user">Username:</label>
@@ -766,7 +766,7 @@ function bearing(latlng1, latlng2) {
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
 }
-upd.html 2141
+upd.html 2131
 <html><head>
 <link rel="stylesheet" type="text/css" href="style.css">
 </head>
@@ -816,13 +816,13 @@ const masterInfo = document.getElementById('masterDiv');
 const develInfo = document.getElementById('develDiv');
 
 let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.mooo.com/main/update-info.html');
+request.open('GET', 'http://rdzsonde.org/main/update-info.html');
 request.onload = function() {
   masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
 }
 request.send();
 let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.mooo.com/dev2/update-info.html');
+drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
 drequest.onload = function() {
   develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
 }
@@ -998,7 +998,7 @@ index.html 6239
 <div id="Home" class="tabcontent">
 <div class="system-info">
 <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
+<p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
 <p>
     This program is free software; you can redistribute it and/or
     modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
