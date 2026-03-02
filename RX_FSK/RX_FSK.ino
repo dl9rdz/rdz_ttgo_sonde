@@ -1,4 +1,4 @@
-#include "features.h"
+dinclude "features.h"
 #include "version.h"
 #include "core.h"
 
@@ -1222,8 +1222,8 @@ const char *createUpdateForm(boolean run) {
     strcat(ptr, "<p>Doing update, wait until reboot</p>");
   } else {
     sprintf(ptr + strlen(ptr), "<p>Currently installed: %s-%c%d</p>\n", version_id, FS_MAJOR + 'A' - 1, FS_MINOR);
-    strcat(ptr, "<p>Available main: <iframe src=\"http://rdzsonde.mooo.com/main/update-info.html\" style=\"height:40px;width:400px\"></iframe><br>"
-           "Available devel: <iframe src=\"http://rdzsonde.mooo.com/dev2/update-info.html\" style=\"height:40px;width:400px\"></iframe></p>");
+    strcat(ptr, "<p>Available main: <iframe src=\"http://rdzsonde.org/main/update-info.html\" style=\"height:40px;width:400px\"></iframe><br>"
+           "Available devel: <iframe src=\"http://rdzsonde.org/dev2/update-info.html\" style=\"height:40px;width:400px\"></iframe></p>");
     strcat(ptr, "<input type=\"submit\" name=\"main\" value=\"Main-Update\"></input><br><input type=\"submit\" name=\"dev\" value=\"Devel-Update\">");
     strcat(ptr, "<br><p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p>");
   }
