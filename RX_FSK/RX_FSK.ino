@@ -1,4 +1,4 @@
-dinclude "features.h"
+#include "features.h"
 #include "version.h"
 #include "core.h"
 
