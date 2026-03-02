@@ -100,7 +100,7 @@ PMU *pmu = NULL;
 SemaphoreHandle_t axpSemaphore;
 extern uint8_t pmu_irq;
 
-const char *updateHost = "rdzsonde.mooo.com";
+const char *updateHost = "rdzsonde.org";
 int updatePort = 80;
 
 const char *updatePrefixM = "/main/";
@@ -1512,7 +1512,11 @@ void SetupAsyncServer() {
     if(request->hasParam("dir")) {
       String dirParam = request->getParam("dir")->value();
       if(dirParam.indexOf("..") >= 0 || dirParam.length() > 32) { request->send(400, "application/json", "[]"); return; }
-      subdir = "/sd/" + dirParam + "/";
+      if(dirParam == ".int") {
+        subdir = "/littlefs/";  /* magic: list LittleFS root */
+      } else {
+        subdir = "/sd/" + dirParam + "/";
+      }
     } else {
       subdir = "/sd/";
     }

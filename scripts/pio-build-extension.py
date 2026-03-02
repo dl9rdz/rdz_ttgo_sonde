@@ -40,14 +40,6 @@ env.AddCustomTarget(
   generate_image
 )
 
-# Ensure littlefs.bin is the "good" one before merging
-mk = env.get("MAKE_GOOD_LITTLEFS")
-if mk:
-  env.AddPreAction("firmware", mk)
-else:
-  print("WARNING: MAKE_GOOD_LITTLEFS not found; firmware will use existing littlefs.bin")
-
-
 # After generating the elf file, generate fonts.bin as well
 env.AddPostAction("$PROGPATH", 
   env.VerboseAction(" ".join([
