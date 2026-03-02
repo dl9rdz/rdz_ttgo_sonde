@@ -41,9 +41,19 @@ enum SHState { SH_DISCONNECTED, SH_DNSLOOKUP, SH_DNSRESOLVED, SH_CONNECTING, SH_
 SHState shclient_state = SH_DISCONNECTED;
 time_t shStart = 0;
 
-#define MSG_SIZE 1000
-static char rs_status[MSG_SIZE];
-int rs_msg_len = 0;
+#define RS_STATUS_SIZE 512
+typedef struct { char buf[RS_STATUS_SIZE]; int len; } rs_buf_t;
+static rs_buf_t _rs_ack;
+static rs_buf_t _rs_import;
+
+/* NONE = NULL; otherwise pointer to _rs_ack or _rs_import */
+static rs_buf_t *_rs_next_target = NULL;
+static rs_buf_t *_rs_current_target = &_rs_ack;
+
+static void _sh_set_next_target(rs_buf_t *target) {
+    _rs_next_target = target;
+    if (target) target->len = 0;
+}
 
 static String response;
 
@@ -60,6 +70,95 @@ static const char *state2str(SHState state) {
         case SH_ERROR_RETRY: return "Failure, retrying in a few seconds";
         default: return "??";
     }
+}
+
+/* Response parser: status line (until \n) + skip headers until blank line + first 2 body lines. */
+enum { _RS_STATUS_LINE, _RS_SKIP_HEADERS, _RS_BODY, _RS_DONE };
+#define NLINES 3
+static int _rs_state = _RS_STATUS_LINE;
+static int _rs_body_lines = NLINES;
+static int _rs_status_line_end = 0;
+static int _content_length = -1;
+static int _body_bytes_seen = 0;
+
+
+/* Process one chunk. Returns 1 if status line started with "HTTP/1" (caller sets IDLE), 0 otherwise. */
+static int _sh_process_response_chunk(const char *buf, int len) {
+    int ret = 0;
+
+    for (int i = 0; i < len; i++) {
+        // switch to target if new request has been made (next target)
+        if (_rs_current_target == NULL ) {
+            _rs_current_target = _rs_next_target;
+            if(_rs_current_target == NULL) return 0;  // do nothing if we do not have any target
+            _rs_current_target->len = 0;
+
+            _rs_state = _RS_STATUS_LINE;
+            _content_length = -1;
+            _rs_status_line_end = 0;
+            _body_bytes_seen = 0;
+            _rs_current_target->buf[0] = '\0';
+        }
+        char *cur_buf = _rs_current_target->buf;
+        int *cur_len = &_rs_current_target->len;
+
+        char c = buf[i];
+        if (_rs_state == _RS_STATUS_LINE) {
+            if (c == '\n') {
+                if (strncmp(cur_buf, "HTTP/1", 6) == 0) {
+                    ret = 1;
+                    _rs_state = _RS_SKIP_HEADERS;
+                    _rs_status_line_end = *cur_len;
+                } else
+                    *cur_len = 0;
+            } else if (c != '\r' && *cur_len < RS_STATUS_SIZE - 1)
+                cur_buf[(*cur_len)++] = c;
+        } else if (_rs_state == _RS_SKIP_HEADERS) {
+            if (c == '\n') {
+                if (*cur_len == _rs_status_line_end) {
+                    /* Empty line => start of body (if any) */
+                    _rs_state = _RS_BODY;
+                    _rs_body_lines = NLINES;
+                    _body_bytes_seen = 0;
+                    if (_content_length == 0) {
+                        cur_buf[*cur_len] = '\0';
+                        _rs_current_target = NULL;
+                        continue;   // continue, there might be data for the next in the same buf
+                    }
+                } else {
+                    /* Check if its content length line */
+                    cur_buf[*cur_len] = '\0';
+                    const char *line = cur_buf + _rs_status_line_end;
+                    if (strncasecmp(line, "Content-Length:", 15) == 0)
+                        _content_length = atol(line + 15);
+                    *cur_len = _rs_status_line_end;
+                }
+            } else if (c != '\r' && *cur_len < RS_STATUS_SIZE - 1) {
+                cur_buf[(*cur_len)++] = c;
+            }
+        } else if (_rs_state == _RS_BODY) {
+            _body_bytes_seen++;
+            /* Append this byte first so the last body byte is not dropped */
+            if (_rs_body_lines > 0 && c != '\r' && *cur_len < RS_STATUS_SIZE - 1) {
+                cur_buf[(*cur_len)++] = c;
+                if (c == '\n')
+                    _rs_body_lines--;
+            }
+            if (_content_length >= 0 && _body_bytes_seen >= _content_length) {
+                cur_buf[*cur_len] = '\0';
+                _rs_current_target = NULL;
+                continue;
+            }
+            if (_rs_body_lines == 0 && _content_length < 0) {
+                cur_buf[*cur_len] = '\0';
+                _rs_current_target = NULL;
+                continue;
+            }
+        }
+        /* _RS_DONE: consume byte, do nothing */
+        cur_buf[*cur_len] = '\0';
+    }
+    return ret;
 }
 
 
@@ -118,7 +217,8 @@ static void _sh_dns_found(const char * name, const ip_addr_t *ipaddr, void * /*a
         shStart = 0;
         // TODO: set "reply messge" to "DNS lookup failed"
         //LOG_I(TAG, "dns_failed for %s\n", name);
-        snprintf(rs_status, MSG_SIZE, "DNS lookup failed for %s", name);
+        snprintf(_rs_ack.buf, RS_STATUS_SIZE, "DNS lookup failed for %s", name);
+        _rs_ack.len = strlen(_rs_ack.buf);
     }
 }
 
@@ -249,6 +349,9 @@ void ConnSondehub::sondehub_client_fsm() {
             }
             break;
 
+        case SH_CONN_APPENDING:
+            break; /* do nothing.. */
+
         case SH_CONN_IDLE:
             // if idle, check if we might want to send freq import request
             if (sonde.config.sondehub.fiactive)  {
@@ -260,7 +363,6 @@ void ConnSondehub::sondehub_client_fsm() {
 
             // Intentional fall-through: in idle state, read any data out of connection
             // in CONN_WAITACK we switch to IDLE as soon as we see the HTTP header
-            printf("idle fall thourgh, wait is %d\n", time_wait_start);
 
         case SH_CONN_WAITACK:
         case SH_CONN_WAITIMPORTRES:
@@ -297,24 +399,11 @@ void ConnSondehub::sondehub_client_fsm() {
                         shStart = 0;
                         break;
                     } else {
-                        // Copy to response
-                        for(int i=0; i<res; i++) {
-               if(rs_msg_len<MSG_SIZE-1) {
-                   rs_status[rs_msg_len] = buf[i];
-                   rs_msg_len++;
-               }
-               if(shclient_state == SH_CONN_WAITACK) { 
-                        if(buf[i]=='\n') { 
-                    // We still wait for the beginning of the ACK
-                    // so check if we got that. if yes, all good, continue reading :)
-                    // If not, ignore everything we have read so far...
-                    if(strncmp(rs_status, "HTTP/1", 6)==0) {
-                                        shclient_state = SH_CONN_IDLE;
-                                        time_wait_start = 0;
-                                    }
-                                    else rs_msg_len = 0;
-                                }
-                            }
+                        // Copy to status
+                        int http1_ok = _sh_process_response_chunk(buf, res);
+                        if (shclient_state == SH_CONN_WAITACK && http1_ok) {
+                            shclient_state = SH_CONN_IDLE;
+                            time_wait_start = 0;
                         }
                         if( shclient_state == SH_CONN_WAITIMPORTRES ) {   // we are waiting for a reply to a sondehub frequency import request
                             int import_res = ShFreqImport::shImportHandleReply(buf, res);
@@ -327,8 +416,7 @@ void ConnSondehub::sondehub_client_fsm() {
                             }
                         }
                     }
-        rs_status[rs_msg_len] = 0;
-	buf[res] = 0;
+                    buf[res] = 0;
 
                     LOG_D(TAG, "client_fsm: got data (len=%d): %s\n", res, (char *)buf);
                     // TODO: Maybe timestamp last received data?
@@ -463,10 +551,9 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
             conf->host, strlen(data), data);
 
     LOG_D(TAG, "Waiting for response");
-    // Now we do this asychronously
+    _sh_set_next_target(&_rs_ack);
     shclient_state = SH_CONN_WAITACK;
     time_wait_start = millis();
-    rs_msg_len = 0;   // wait for new msg: 
 
     sondehub_client_fsm();
 }
@@ -493,7 +580,8 @@ void ConnSondehub::sondehub_send_fimport() {
     LOG_D(TAG, "shimp : %f %f %d %d %d\n", lat, lon, maxdist, maxage, time_to_next_import/1000);
     if ( !isnan(lat) && !isnan(lon) && maxdist > 0 && maxage > 0 && time_to_next_import < 0 ) {
         int res = ShFreqImport::shImportSendRequest(shclient, lat, lon, maxdist, maxage);
-        if (res == 0) { 
+        if (res == 0) {
+            _sh_set_next_target(&_rs_import);
             shclient_state = SH_CONN_WAITIMPORTRES;
             time_wait_start = millis();
         }
@@ -518,6 +606,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     // max age of data in JSON request (in seconds)
 #define SONDEHUB_MAXAGE 15
 
+#define MSG_SIZE 1024
     char rs_msg[MSG_SIZE];
     char *w;
     struct tm ts;
@@ -693,9 +782,9 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     }
     if (now - shStart > SONDEHUB_MAXAGE) { // after MAXAGE seconds
         sondehub_send_last();
+        _sh_set_next_target(&_rs_ack);
         shclient_state = SH_CONN_WAITACK;
         time_wait_start = millis();
-        rs_msg_len = 0;   // wait for new msg: 
         shStart = 0;
     }
 }
@@ -707,9 +796,9 @@ void ConnSondehub::sondehub_finish_data() {
         time(&now);
         if (now - shStart > SONDEHUB_MAXAGE + 3) { // after MAXAGE seconds
             sondehub_send_last();
+            _sh_set_next_target(&_rs_ack);
             shclient_state = SH_CONN_WAITACK;
             time_wait_start = millis();
-            rs_msg_len = 0;   // wait for new msg: 
             shStart = 0;
         }
     }
@@ -769,7 +858,14 @@ String ConnSondehub::getStatus() {
         snprintf(info, 1200, "State: %s. Last upload start: %ld s ago<br>Last reply: ",
                 state2str(shclient_state), (uint32_t)(now-shStart));
         int n = strlen(info);
-        escapeJson(info+n, rs_status, 1200-n);
+        escapeJson(info+n, _rs_ack.buf, 1200-n);
+        n = strlen(info);
+        int k = snprintf(info+n, 1200-n, "<br>Import reply: ");
+        if(strncmp(_rs_import.buf, "HTTP/1.1 200", 12)==0) {
+            /* if ok only show beginning. if error show more */
+            strcpy(_rs_import.buf+27, "...");
+        }
+        escapeJson(info+n+k, _rs_import.buf, 1200-n-k);
     }
     return String(info);
 }
