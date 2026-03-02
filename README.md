@@ -45,7 +45,7 @@ course be considered for inclusion :-).
 
 ## Installation
 
-You can download the latest binary automated build for the development and testing branches [here](http://rdzsonde.mooo.com/download.html), the binary includes everything including configuration files so any existing settings will be reset. 
+You can download the latest binary automated build for the development and testing branches [here](http://rdzsonde.org/download.html), the binary includes everything including configuration files so any existing settings will be reset. 
 
 To update an existing installation to the latest development or master version you can use the [OTA](https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Other-features#over-the-air-updates) update feature.
 
