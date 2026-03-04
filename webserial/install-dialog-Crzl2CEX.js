@@ -17951,7 +17951,7 @@ class EwtInstallDialog extends s$1 {
   }
   // Fetch firmware versions from a JSON file
   async fetchFirmwareVersions() {
-    const url = 'https://rdzsonde.mooo.com/manifest.json';
+    const url = 'https://rdzsonde.org/manifest.json';
     try {
       const response = await fetch(url);
       if (!response.ok) {

@@ -504,7 +504,7 @@ import{e,_ as t,o as i,s as r,x as o,i as s,n as a,t as n,r as l,a as d,T as c,b
       <div slot="actions">
         <ew-text-button @click=${this._closeDialog}>Close</ew-text-button>
       </div>
-    `]}async fetchFirmwareVersions(){try{const e=await fetch("https://rdzsonde.mooo.com/manifest.json");if(!e.ok)throw new Error("Failed to fetch firmware versions");const t=await e.json();this.builds=t.builds||[]}catch(e){console.error(e),this.builds=[]}}generateFirmwareRadioButtons(){return o`
+    `]}async fetchFirmwareVersions(){try{const e=await fetch("https://rdzsonde.org/manifest.json");if(!e.ok)throw new Error("Failed to fetch firmware versions");const t=await e.json();this.builds=t.builds||[]}catch(e){console.error(e),this.builds=[]}}generateFirmwareRadioButtons(){return o`
       <ew-list-item>
       <div slot="headline">Select firmware version:</div>
       <div slot="headline">
