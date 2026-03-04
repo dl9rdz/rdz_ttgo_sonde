@@ -4,7 +4,7 @@ See <https://dl9rdz.github.io/rdz_ttgo_sonde/download.html> for automated builds
 
 ## ESP32 web flash tool
 
-<esp-web-install-button id="install-button" manifest="https://rdzsonde.mooo.com/manifest.json"></esp-web-install-button>
+<esp-web-install-button id="install-button" manifest="https://rdzsonde.org/manifest.json"></esp-web-install-button>
 
 <script type="module" src="webserial/install-button.js?module"></script>
 <br>
