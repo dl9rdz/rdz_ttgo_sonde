@@ -383,10 +383,10 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_LDO_ONOFF_CTRL1                  (0x91)
 
 // Not the right name....
-#define AXP2101_LDO_VOL0_CTRL                    (0x82)
-
-#define AXP2101_LDO_VOL1_CTRL                    (0x93)
-#define AXP2101_LDO_VOL2_CTRL                    (0x94)
+#define AXP2101_LDO_VOL0_CTRL                    (0x82) // ALDO1
+#define AXP2101_LDO_VOL1_CTRL                    (0x93) // ADLO2
+#define AXP2101_LDO_VOL2_CTRL                    (0x94) // ALDO3
+#define AXP2101_LDO_VOL3_CTRL   0x95   // ALDO4
 
 #define AXP2101_ADC_CHANNEL_CTRL		 (0x30)
 #define AXP2101_PMU_ADC0			 (0x34)
