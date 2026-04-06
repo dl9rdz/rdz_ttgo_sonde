@@ -1,0 +1,1 @@
+adding missing def. Core2 v1.1 support (PMU)
