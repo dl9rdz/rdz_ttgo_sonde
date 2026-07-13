@@ -1,0 +1,22 @@
+Notes on SX1278 Receiver Sensitivity Improvements
+
+1. LNA Boost for HF Band (SX1278 only)
+- Bug: setLNAGain() in SX1278FSK.cpp wrote only bits[7:5] (LNA gain select) to REG_LNA (0x0C),
+  zeroing bits[1:0] (LnaBoostHf). This disabled the LNA boost circuit for the 400-525MHz band.
+- Impact: ~3dB sensitivity loss on all SX1278-based boards (TTGO LoRa32, T-Beam) across the
+  entire 400-406MHz radiosonde band.
+- Fix: Changed writeRegister(REG_LNA, g<<5) to writeRegister(REG_LNA, (g<<5) | 0x03),
+  enabling LnaBoostHf. Trade-off: ~2mA extra current consumption.
+- Reference: SX1276/77/78 Datasheet, Section 5.5.3, Register 0x0C (RegLna).
+
+2. RSSI Smoothing (SX1278 only)
+- Issue: REG_RSSI_CONFIG (0x0E) was left at default (2-sample averaging). With weak signals,
+  RSSI measurements fluctuate significantly, causing unstable preamble detection.
+- Fix: Set RSSI smoothing to 8 samples (REG_RSSI_CONFIG bits[2:0] = 0x03) during ON() init.
+  This provides more stable RSSI readings for weak signal conditions.
+- Reference: SX1276/77/78 Datasheet, Section 4.2.13.2, Register 0x0E (RegRssiConfig).
+
+3. SX1262 Notes
+- RxBoosted mode is already enabled (0x96 at register 0x08AC) — no change needed.
+- SX1262 GFSK mode does not expose a frequency error indicator register, so hardware-style
+  AFC is not possible. Software AFC would require architectural changes to the receive loop.
