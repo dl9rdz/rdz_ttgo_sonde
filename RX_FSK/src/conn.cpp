@@ -1,9 +1,12 @@
 
 #include "conn.h"
 
+Conn::~Conn() = default;
+
 void Conn::netsetup() {}
 
 void Conn::netshutdown() {}
+
 
 void Conn::appendUptime(char *str, int maxlen, uint32_t uptime) {
   int l = strlen(str);
@@ -21,21 +24,16 @@ void Conn::appendUptime(char *str, int maxlen, uint32_t uptime) {
 }
 
 void Conn::escapeJson(char *dst, const char *src, int maxlen) {
-// take first line (until \r), skip until \r\r,
-    int state = 0;
     while (*src && maxlen>1) {
-        if(state==0) { if(*src=='\r') { state=1; src++; *dst++=' '; maxlen--; continue; } }  // take first line
-        if(state==1) { if(*src=='\r') { state=2; } src++; continue; }
-        if(state==2) { if(*src!='\r' && *src!='\n') { state=1; } if(*src=='\r') { state=3; } src++; continue; }
-
         if (*src == '"' || *src == '\\' || ('\x00' <= *src && *src <= '\x1f')) {
-            snprintf(dst, maxlen, "\\u%04x", (int)*src);
+            snprintf(dst, maxlen, "\\u%04x", (unsigned char)*src);
             int n = strlen(dst);
             maxlen -= n;
             dst += n;
             src++;
         } else {
-            *dst++ = *src++; maxlen--;
+            *dst++ = *src++;
+            maxlen--;
         }
     }
     *dst = 0;

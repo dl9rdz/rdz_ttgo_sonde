@@ -6,6 +6,7 @@
 #include "aprs.h"
 #include "posinfo.h"
 #include <ESPmDNS.h>
+#include <WiFi.h>
 #include <WiFiUdp.h>
 
 #include <sys/socket.h>
@@ -53,6 +54,7 @@ void ConnAPRS::init() {
         udpport = 9002;
     }
     Serial.printf("AXUDP: host=%s, port=%d\n", udphost, udpport);
+    aprs[0].tcpclient = aprs[1].tcpclient = -1;
 }
 
 void ConnAPRS::netsetup() {
@@ -132,7 +134,10 @@ static void check_timeout(st_aprs *a) {
     Serial.printf("Checking APRS timeout: last_in - new: %ld\n", millis() - a->last_in);
     if ( a->last_in && ( (millis() - a->last_in) > sonde.config.tcpfeed.timeout*1000 ) ) {
         Serial.println("APRS timeout - closing connection");
-        close(a->tcpclient);
+        if(a->tcpclient>0) {
+            close(a->tcpclient);
+            a->tcpclient = -1;
+        }
         a->tcpclient_state = TCS_DISCONNECTED;
     }
 }
@@ -160,7 +165,7 @@ void ConnAPRS::updateStation( PosInfo *pi ) {
         }
     }
     if (tncclient.available()) {
-        Serial.print("TCP KISS socket: recevied ");
+        Serial.print("TCP KISS socket: received ");
         while (tncclient.available()) {
            Serial.print(tncclient.read());  // Check if we receive anything from from APRSdroid
         }
@@ -188,7 +193,7 @@ void ConnAPRS::aprs_station_update() {
   unsigned long time_delta = time_now - time_last_aprs_update;
   unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
   long tts = update_time - time_delta;
-  Serial.printf("aprs_statio_update due in %d s", (int)(tts/1000));
+  Serial.printf("aprs_station_update due in %d s", (int)(tts/1000));
   if (tts>0) return;
 
   float lat, lon;
@@ -231,7 +236,8 @@ void tcpclient_sendlogin(st_aprs *a) {
     Serial.printf("APRS login: %s, res=%d\n", buf, res);
     a->last_in = millis();
     if(res<=0) {
-        close(a->tcpclient);
+        if( a->tcpclient>0 ) close(a->tcpclient);
+        a->tcpclient = -1;
         a->tcpclient_state = TCS_DISCONNECTED;
     }
 }
@@ -310,6 +316,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
                 a->tcpclient_state = TCS_CONNECTING;
             } else {
                 close(a->tcpclient);
+                a->tcpclient = -1;
                 a->tcpclient_state = TCS_DISCONNECTED;
             }
         } else {
@@ -323,7 +330,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         // Poll to see if we are now connected 
         res = select(a->tcpclient+1, NULL, &fdset, &fdeset, &selto);
         if(res<0) {
-            Serial.println("TNS_CONNECTING: select error");
+            Serial.println("TCS_CONNECTING: select error");
             goto error;
         } else if (res==0) { // still pending
             break;
@@ -335,7 +342,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         if (getsockopt(a->tcpclient, SOL_SOCKET, SO_ERROR, (void*)(&sockerr), &len) < 0) {
             goto error;
         }
-        Serial.printf("select returing %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
+        Serial.printf("select returning %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
         if(sockerr) {
             Serial.printf("APRS connect error: %s\n", strerror(sockerr));
             goto error;
@@ -349,7 +356,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
       {
         res = select(a->tcpclient+1, &fdset, NULL, NULL, &selto);
         if(res<0) {
-            Serial.println("TCS_CONNECTING: select error");
+            Serial.println("TCS_CONNECTED: select error");
             goto error;
         } else if (res==0) { // still pending
             break;
@@ -359,6 +366,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         res = read(a->tcpclient, buf, 512);
         if(res<=0) {
             close(a->tcpclient);
+            a->tcpclient = -1;
             a->tcpclient_state = TCS_DISCONNECTED;
         } else {
             buf[res] = 0;
@@ -376,7 +384,8 @@ static void tcpclient_fsm_single(st_aprs *a) {
     return;
 
 error:
-    close(a->tcpclient);
+    if(a->tcpclient > 0) close(a->tcpclient);
+    a->tcpclient = -1;
     a->tcpclient_state = TCS_DISCONNECTED;
     return;
 }

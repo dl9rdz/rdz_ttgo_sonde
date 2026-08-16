@@ -47,13 +47,13 @@ const masterInfo = document.getElementById('masterDiv');
 const develInfo = document.getElementById('develDiv');
 
 let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.mooo.com/main/update-info.html');
+request.open('GET', 'http://rdzsonde.org/main/update-info.html');
 request.onload = function() {
   masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
 }
 request.send();
 let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.mooo.com/dev2/update-info.html');
+drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
 drequest.onload = function() {
   develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
 }

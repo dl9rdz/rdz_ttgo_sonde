@@ -1,5 +1,5 @@
 #include "Scanner.h"
-
+#include <inttypes.h>
 #include <U8x8lib.h>
 
 #include "SX1278FSK.h"
@@ -26,9 +26,12 @@ struct scancfg {
 
 //struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/20.0, 20, 120*20, 1 };
 struct scancfg scanLCD={ 121, 7,  120/6, 120/6/4, 6000.0/120.0/10.0, 10, 120*10, 2, 40, 1 };
+// 220x176
 struct scancfg scanTFT={ 210, 16, 210/6, 210/6/5, 6000.0/210.0/10.0, 10, 210*10, 1, 0, 1 };
+// 320x240
 struct scancfg scan934x={ 300, 22, 300/6, 300/6/5, 6000.0/300.0/7.0, 7, 300*5, 1, 10, 2 };
-
+// 480x320
+struct scancfg scan7796={ 481, 35, 480/6, 480/6/5, 6000.0/480.0/5.0, 5, 480*5, 1, 10, 3 };
 struct scancfg &scanconfig = scanTFT;
 
 #define CHANBW 12500
@@ -38,11 +41,13 @@ struct scancfg &scanconfig = scanTFT;
 // max of 120*5 and 210*3
 //#define MAXN 210*10
 //#define MAXN 120*20
-#define MAXN 300*10
+//#define MAXN 300*10
+#define MAXN 481*5
 
 // max of 120 and 210 (ceil(210/8)*8)) -- now ceil(300/8)*8
 //#define MAXDISP 216
-#define MAXDISP 304
+//#define MAXDISP 304
+#define MAXDISP 488
 
 int scanresult[MAXN];
 int scandisp[MAXDISP];
@@ -71,7 +76,7 @@ void Scanner::fillTiles(uint8_t *row, int value) {
  */
 ///// unused????  uint8_t tiles[16] = { 0x0f,0x0f,0x0f,0x0f,0xf0,0xf0,0xf0,0xf0, 1, 3, 7, 15, 31, 63, 127, 255};
 
-// type 0: lcd, 1: tft(ILI9225), 2: lcd(sh1106) 3:TFT(ili9341), 4: TFT(ili9342)
+// type 0: lcd, 1: tft(ILI9225), 2: lcd(sh1106) 3:TFT(ili9341), 4: TFT(ili9342), 5: TFT(ST7789), 6:ST7796
 #define ISTFT (sonde.config.disptype!=0 && sonde.config.disptype!=2)
 void Scanner::plotResult()
 {
@@ -82,9 +87,9 @@ void Scanner::plotResult()
   		if (sonde.config.marker != 0) {
     			itoa((sonde.config.startfreq), buf, 10);
     			disp.rdis->drawString(0, 1, buf);
-    			disp.rdis->drawString(scanconfig.PLOT_W/2-10, 1, "MHz");
+    			disp.rdis->drawString(scanconfig.PLOT_W/2-9, 1, "MHz");
     			itoa((sonde.config.startfreq + 6), buf, 10);
-    			disp.rdis->drawString(scanconfig.PLOT_W-15, 1, buf);
+    			disp.rdis->drawString(scanconfig.PLOT_W-18, 1, buf);
 		}	
 	}
 	else {
@@ -97,7 +102,25 @@ void Scanner::plotResult()
 		}	
   	}
 	uint8_t row[scanconfig.PLOT_H8*8];
-	for(int i=0; i<scanconfig.PLOT_W; i+=8) {
+	if(ISTFT) {
+		Arduino_GFX *gfx = static_cast<ILI9225Display *>(disp.rdis)->tft;
+        	for(int i=0; i<scanconfig.PLOT_W; i++) {
+			// Draw spectrum using optimized TFT function from Arduino_GFX
+			uint16_t value = scanconfig.VSCALE * PLOT_SCALE(scandisp[i]);
+			uint16_t barpos = scanconfig.PLOT_H8 * 8 - value;
+			// blue line from top to value
+			gfx->drawFastVLine(i, 8*yofs, barpos, BLUE);
+			gfx->drawFastVLine(i, 8*yofs+barpos, value, GREEN);
+
+			// draw tick marks if needed
+			if( (i%scanconfig.TICK1)==0 ) { 
+				gfx->drawFastVLine(i, 8*yofs, 3, GREEN);
+			} else if( (i%scanconfig.TICK2)==0 ) {
+				gfx->drawFastVLine(i, 8*yofs, 1, GREEN);
+			}
+		}
+        } else {
+	    for(int i=0; i<scanconfig.PLOT_W; i+=8) {
 		for(int j=0; j<8; j++) {
 			fillTiles(row+j, PLOT_SCALE(scandisp[i+j]));
 			if( (i+j)>=scanconfig.PLOT_W ) { for(int y=0; y<scanconfig.PLOT_H8; y++) row[j+8*y]=0; }
@@ -111,7 +134,8 @@ void Scanner::plotResult()
 			}
 			disp.rdis->drawTile(i/8, y+yofs, 1, row+8*y);
 		}
-	}
+	    }
+        }
 	if(ISTFT) { // large TFT
 		sprintf(buf, "Peak: %03.3f MHz", peakf*0.000001);	
 		disp.rdis->drawString(0, (yofs+scanconfig.PLOT_H8+1)*8, buf);
@@ -127,6 +151,8 @@ void Scanner::scan()
 		scanconfig = scanLCD;
 	} else if (sonde.config.disptype==1) {
 		scanconfig = scanTFT;
+	} else if (sonde.config.disptype==6) {
+		scanconfig = scan7796;
 	} else {
 		scanconfig = scan934x;
 	}

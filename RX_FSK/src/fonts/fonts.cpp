@@ -18,6 +18,7 @@ extern const GFXfont JetBrainsMonoNL_Regular12pt8b;
 extern const GFXfont JetBrainsMonoNL_Regular9pt8b;
 extern const GFXfont Picopixel;
 extern const GFXfont Terminal11x16Font;
+extern const GFXfont Logo;
 
 // This needs to be first in the object file / .rodata section
 __attribute__((used)) const GFXfont * const allfonts[]={
@@ -32,6 +33,7 @@ __attribute__((used)) const GFXfont * const allfonts[]={
         &FreeSans18pt7b,
 	&FreeMono9pt8b,
 	&FreeMono12pt8b,
+        &Logo,
 	0,
 };
 
@@ -42,4 +44,5 @@ __attribute__((used)) const GFXfont * const allfonts[]={
 #include "FreeSans9pt7b.h"
 #include "Picopixel.h"
 #include "Terminal11x16.h"
+#include "ttgologo.h"
 

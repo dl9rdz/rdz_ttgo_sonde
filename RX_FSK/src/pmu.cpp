@@ -81,6 +81,10 @@ uint8_t pmu_irq = 0;
 extern SemaphoreHandle_t axpSemaphore;
 
 /////////////////////////////////////////////////////////////////////////////////////
+///
+
+PMU::~PMU() = default;
+
 /// High-level functions 
 PMU *PMU::getInstance(TwoWire &wire) {
     PMU *pmu = NULL;
@@ -379,10 +383,10 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_LDO_ONOFF_CTRL1                  (0x91)
 
 // Not the right name....
-#define AXP2101_LDO_VOL0_CTRL                    (0x82)
-
-#define AXP2101_LDO_VOL1_CTRL                    (0x93)
-#define AXP2101_LDO_VOL2_CTRL                    (0x94)
+#define AXP2101_LDO_VOL0_CTRL                    (0x82) // ALDO1
+#define AXP2101_LDO_VOL1_CTRL                    (0x93) // ADLO2
+#define AXP2101_LDO_VOL2_CTRL                    (0x94) // ALDO3
+#define AXP2101_LDO_VOL3_CTRL   0x95   // ALDO4
 
 #define AXP2101_ADC_CHANNEL_CTRL		 (0x30)
 #define AXP2101_PMU_ADC0			 (0x34)
@@ -418,49 +422,87 @@ float AXP192PMU::getTemperature() {
 
 // return 0: ok, -1: error
 int AXP2101PMU::init() {
-    // Initialize AXP2101, for T-BEAM v1.2
+    // Initialize AXP2101, for T-BEAM v1.2 or M5Stack Core2 v1.1
+    const bool is_core2 = (sonde.config.type == TYPE_M5_CORE2);
 
     // Hard-coded for now, disable DC2/3/4/5 ALDO1,4 BLDO1/2 DLDO1/2
     int val = readRegister(AXP2101_DC_ONOFF_DVM_CTRL);
-    writeRegister(AXP2101_DC_ONOFF_DVM_CTRL, val & (~0x1E));  // clear Bit 1,2,3,4 (DC2/3/4/5)   
+    if (val == -1) return -1;
+    writeRegister(AXP2101_DC_ONOFF_DVM_CTRL, val & (~0x1E));  // clear bit 1,2,3,4 (DC2/3/4/5)
 
-    // clear bit 0 (aldo1), 3 (aldo4), 4,5(bldo1/2), 7 (dldo1)
     val = readRegister(AXP2101_LDO_ONOFF_CTRL0);
-    writeRegister(AXP2101_LDO_ONOFF_CTRL0, val & (~0xB9));
+    if (val == -1) return -1;
+    if (is_core2) {
+        // Core2 v1.1:
+        // keep ALDO4 available, since it powers TF/TP/LCD
+        // clear bit 0 (ALDO1), 4,5 (BLDO1/2), 7 (DLDO1)
+        writeRegister(AXP2101_LDO_ONOFF_CTRL0, val & (~0xB1));
+    } else {
+        // T-Beam v1.2 original behavior:
+        // clear bit 0 (ALDO1), 3 (ALDO4), 4,5 (BLDO1/2), 7 (DLDO1)
+        writeRegister(AXP2101_LDO_ONOFF_CTRL0, val & (~0xB9));
+    }
 
     // clear bit 0 (dldo2)
     val = readRegister(AXP2101_LDO_ONOFF_CTRL1);
+    if (val == -1) return -1;
     writeRegister(AXP2101_LDO_ONOFF_CTRL1, val & (~0x01));
 
     // Set PowerVDD to 3100mV (GNSS RTC) -- reg 6A [MS412FE data sheet: charge volt 2.8-3.3; standard value 3.1]
-    val =  readRegister(AXP2101_BTN_BAT_CHG_VOL_SET);
+    val = readRegister(AXP2101_BTN_BAT_CHG_VOL_SET);
     if (val == -1) return -1;
-    val  &= 0xF8;
+    val &= 0xF8;
     val |= (3100 - AXP2101_BTN_VOL_MIN) / AXP2101_BTN_VOL_STEPS;
     writeRegister(AXP2101_BTN_BAT_CHG_VOL_SET, val);
 
     setRegisterBit(AXP2101_CHARGE_GAUGE_WDT_CTRL, 2);
 
     // ESP32 VDD 3300mV
-    // No need to set, automatically open , Don't close it
+    // No need to set, automatically open, don't close it
     val = readRegister(AXP2101_LDO_VOL0_CTRL);
     Serial.printf("VDD: %x\n", val);
 
-    // LoRa VDD 3300mV on ALDO2
-    val =  readRegister(AXP2101_LDO_VOL1_CTRL);
-    if (val == -1) return -1;
-    val &= 0xE0;
-    val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
-    writeRegister(AXP2101_LDO_VOL1_CTRL, val);
-    setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 1);
+    if (is_core2) {
+        // Core2 v1.1:
+        // ALDO4 = TF / TP / LCD power, set to 3.3V and enable
+        val = readRegister(AXP2101_LDO_VOL3_CTRL);
+        if (val == -1) return -1;
+        val &= 0xE0;
+        val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+        writeRegister(AXP2101_LDO_VOL3_CTRL, val);
+        setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 3);
 
-    // GNSS VDD 3300mV on ALDO3
-    val =  readRegister(AXP2101_LDO_VOL2_CTRL);
-    if (val == -1) return -1;
-    val &= 0xE0;
-    val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
-    writeRegister(AXP2101_LDO_VOL2_CTRL, val);
-    setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 2);
+        // ALDO2 = LCD + TOUCH reset, also 3.3V
+        val = readRegister(AXP2101_LDO_VOL1_CTRL);
+        if (val == -1) return -1;
+        val &= 0xE0;
+        val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+        writeRegister(AXP2101_LDO_VOL1_CTRL, val);
+
+        // enable ALDO2
+        setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 1);
+
+        // IRQ pin not connected on Core2, same idea as your AXP192 code
+        pmu_irq = 2;
+    } else {
+        // T-Beam v1.2 original behavior
+
+        // LoRa VDD 3300mV on ALDO2
+        val = readRegister(AXP2101_LDO_VOL1_CTRL);
+        if (val == -1) return -1;
+        val &= 0xE0;
+        val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+        writeRegister(AXP2101_LDO_VOL1_CTRL, val);
+        setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 1);
+
+        // GNSS VDD 3300mV on ALDO3
+        val = readRegister(AXP2101_LDO_VOL2_CTRL);
+        if (val == -1) return -1;
+        val &= 0xE0;
+        val |= (3300 - AXP2101_ALDO_VOL_MIN) / AXP2101_ALDO_VOL_STEPS;
+        writeRegister(AXP2101_LDO_VOL2_CTRL, val);
+        setRegisterBit(AXP2101_LDO_ONOFF_CTRL0, 2);
+    }
 
     if (pmu_irq != 2) {
         pinMode(PMU_IRQ, INPUT_PULLUP);
@@ -480,33 +522,12 @@ int AXP2101PMU::init() {
     val &= 0xE0;
     writeRegister(AXP2101_ICC_CFG, val | AXP2101_CHG_CUR_500MA);
 
-#if 0
-    // Set cut-off voltage to 4.2V (register 0x63)
-    // This is the default value, so setting it should not be needed.
-    val = readRegister(AXP2101_CHG_V_CFG);
-    if (val == -1) return -1;
-    val &= 0xFC;
-    writeRegister(AXP2101_CHG_V_CFG, val | AXP2101_CHG_VOL_4V2);
-#endif
-
-    // Disable TS measurement, enable vsys, vbus, vbat measurement
     // Disable TS is important for T-Beam 1.2 (no TS thermistor), otherwise it will not charge.
+    // Enable vsys, vbus, vbat measurement
     writeRegister(AXP2101_ADC_CHANNEL_CTRL, 0x0d);
 
     // Clear all IRQ
     getIrqKeyStatus();
-
-    // precharge current (reg 0x61): default value (0101b) should be fine
-    // Termination current (125mA default value) should be fine as well
-#if 0
-    // Just some debug code
-    Serial.println("All good \n");
-
-    for(int i=0; i<0x80; i++) {
-        val = readRegister(i);
-        Serial.printf("Reg %x: %x (%d)\n", i, val, val);
-    }
-#endif
 
     return 0;
 }
@@ -576,4 +597,9 @@ float AXP2101PMU::getVbusVoltage() {
 float AXP2101PMU::getVbusCurrent() { return -1; }
 float AXP2101PMU::getTemperature() { return -1; }
 
-
+/* Simple function to get battery voltage on systems that do not have a PMU */
+float getBattNoPMU() {
+    if(sonde.config.batt_adc<0) return -999;
+    float batt = (float)(analogRead(sonde.config.batt_adc)) / 4095 * 2 * 3.3 * 1.1;
+    return batt;
+}

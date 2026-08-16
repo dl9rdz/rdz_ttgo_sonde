@@ -1,0 +1,10 @@
+
+sha256.min.js
+
+source: https://github.com/geraintluff/sha256
+
+License
+
+This library is released as "public domain". You can copy, modify, re-release and re-license, or incorporate into any other project without restriction of any kind.
+
+

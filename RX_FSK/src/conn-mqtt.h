@@ -17,6 +17,11 @@
 #define MQTT_SEND_DEBUG 0x80
 #define MQTT_SEND_ANY (MQTT_SEND_UPTIME|MQTT_SEND_SONDE|MQTT_SEND_PMU|MQTT_SEND_GPS|MQTT_SEND_RFINFO|MQTT_SEND_DEBUG)
 
+#define MQTT_QOS_NONE 0
+#define MQTT_QOS 1
+#define MQTT_RETAIN_TRUE true
+#define MQTT_RETAIN_FALSE false
+
 class MQTT : public Conn
 {
 public:
@@ -35,6 +40,9 @@ public:
         /* Called approx 1x / second* */
         void updateStation( PosInfo *pi );
 
+        /* Called when frequency changes */
+        void updateQRG( int nextIndex );
+
         /* Say whether MQTT is connected, disconnected, or even enabled */
 	String getStatus();
 
@@ -42,7 +50,6 @@ public:
 
         /* Radio debug - spectrum and scanner*/
         void publishPeak(double pf, int rssi);
-        void publishQRG(int num, const char* type, char* launchsite, float mhz);
         void publishDebug(char* debugmsg);
 
        private:
@@ -62,6 +69,7 @@ public:
         void publishUptime();
         void publishPmuInfo();
         void publishGps();
+        void publishLwt(const char *message);
         void timeFormat();
         int mqttGate(uint flag);
         int connectToMqtt();

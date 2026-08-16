@@ -4,6 +4,16 @@
 #define FONT_LARGE 1
 #define FONT_SMALL 0
 
+#ifndef BLUE
+#define BLUE RGB565_BLUE
+#endif
+#ifndef GREEN
+#define GREEN RGB565_GREEN
+#endif
+#ifndef BLACK
+#define BLACK RGB565_BLACK
+#endif
+
 #include <SPI.h>
 #include <Arduino_GFX_Library.h>
 #include <U8x8lib.h>
@@ -176,6 +186,7 @@ public:
 	static void drawText(DispEntry *de);
 	static void drawBatt(DispEntry *de);
 	static void drawString(DispEntry *de, const char *str);
+	static void drawInfo(DispEntry *de);
 	void clearIP();
 	void setIP(const char *ip, bool AP);
 	void updateDisplayPos();
