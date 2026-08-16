@@ -77,6 +77,11 @@ uint8_t SX1278FSK::ON()
 	}
 	// set FSK mode
 	state = setFSK();
+
+	// Set RSSI smoothing to 8 samples (REG_RSSI_CONFIG bits[2:0] = 0x03)
+	// More samples = more stable RSSI for weak signals, improves preamble detection
+	writeRegister(REG_RSSI_CONFIG, 0x03);
+
 	return state;
 }
 
@@ -381,7 +386,9 @@ int SX1278FSK::getLNAGain() {
 uint8_t SX1278FSK::setLNAGain(int gain) {
 	uint8_t g=1;
 	while(gain<gaintab[g] && g<6) {g++; }
-	writeRegister(REG_LNA, g<<5);
+	// Enable LNA boost for HF band (bits[1:0] = 0x03)
+	// Improves sensitivity by ~3dB at 400-525MHz radiosonde band
+	writeRegister(REG_LNA, (g<<5) | 0x03);
 	return 0;
 }
 
