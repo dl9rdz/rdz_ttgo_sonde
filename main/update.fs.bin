@@ -1,4 +1,4 @@
-sdfiles.html 2549
+sdfiles.html 7576
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,34 +6,29 @@ sdfiles.html 2549
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>rdzTTGOsonde SD card file browser</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f4f4;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 10px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #4CAF50;
-            color: white;
-        }
-        tr:hover {
-            background-color: #f1f1f1;
-        }
-        h1 {
-            color: #333;
-        }
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #4CAF50; color: #fff; }
+        tr:hover { background: #f1f1f1; }
+        #viewModal { display: none; position: fixed; z-index: 10; inset: 0; background: rgba(0,0,0,0.5); overflow: auto; }
+        #viewModal.show { display: flex; align-items: center; justify-content: center; }
+        .modalContent { background: #fff; padding: 16px; max-width: 95%; max-height: 90vh; overflow: auto; border-radius: 8px; }
+        .modalContent h2 { margin-top: 0; }
+        .modalContent table { font-size: 0.9em; }
+        .modalContent th, .modalContent td { padding: 4px 8px; border: 1px solid #ddd; }
+        .modalContent th { background: #4CAF50; color: #fff; }
     </style>
 </head>
 <body>
+    <div id="viewModal">
+        <div class="modalContent">
+            <h2 id="viewModalTitle">CSV</h2>
+            <div id="viewModalTable"></div>
+            <p><button type="button" id="viewModalClose">Close</button></p>
+        </div>
+    </div>
     <h1>SD Card Directory Listing</h1>
     <table id="fileTable">
         <thead>
@@ -41,6 +36,7 @@ sdfiles.html 2549
                 <th>Filename</th>
                 <th>Size (bytes)</th>
                 <th>Timestamp</th>
+                <th colspan="2">Action</th>
             </tr>
         </thead>
         <tbody>
@@ -49,35 +45,137 @@ sdfiles.html 2549
     </table>
 
     <script>
-        // Fetch JSON data from the server
-        fetch('/sd/files.json')
-            .then(response => response.json())
+        const params = new URLSearchParams(window.location.search);
+        const dir = params.get('dir') || '';
+        const pdir = dir ? dir+"/" : '';
+
+        async function fetchAllEntries() {
+            const all = [];
+            let start = 0;
+            for (;;) {
+                const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '') + (dir ? '&' : '?') + 'start=' + start;
+                const response = await fetch(url);
+                const data = await response.json();
+                if (!Array.isArray(data) || data.length === 0) break;
+                all.push(...data);
+                start += data.length;
+            }
+            return all;
+        }
+
+        function renderRow(tableBody, file) {
+            const row = document.createElement('tr');
+            const nameCell = document.createElement('td');
+            const sizeCell = document.createElement('td');
+            const tsCell = document.createElement('td');
+            const viewCell = document.createElement('td');
+            const deleteCell = document.createElement('td');
+
+            const link = document.createElement('a');
+            if (file.dir === 1) {
+                link.href = `sdfiles.html?dir=${encodeURIComponent(pdir + file.name)}`;
+                link.textContent = `📁 ${file.name}`;
+            } else {
+                link.href = `/sd/${pdir}${file.name}`;
+                link.textContent = file.name;
+            }
+            nameCell.appendChild(link);
+            sizeCell.textContent = file.size !== undefined ? file.size : '';
+            tsCell.textContent = file.ts;
+
+            if (file.dir !== 1) {
+                const viewBtn = document.createElement('button');
+                viewBtn.textContent = '🔍';
+                viewBtn.title = 'View file';
+                viewBtn.style.cursor = 'pointer';
+                viewBtn.onclick = () => viewCsv(pdir + file.name, file.name);
+                viewCell.appendChild(viewBtn);
+            }
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.title = 'Delete';
+            deleteBtn.style.cursor = 'pointer';
+            deleteBtn.onclick = () => {
+                if (confirm(`Confirm to delete "${file.name}"?`)) {
+                    fetch(`sdrm.html?file=${pdir}${encodeURIComponent(file.name)}`)
+                        .then(resp => resp.ok ? (alert('Deleted.'), row.remove()) : alert('Delete failed.'))
+                        .catch(() => alert('Error sending request.'));
+                }
+            };
+            deleteCell.appendChild(deleteBtn);
+
+            row.append(nameCell, sizeCell, tsCell, viewCell, deleteCell);
+            tableBody.appendChild(row);
+        }
+
+        function parseCsv(text) {
+            const lines = text.split(/\r?\n/).filter(l => l.length > 0);
+            return lines.map(line => {
+                const row = [];
+                let cell = '', inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    const c = line[i];
+                    if (c === '"') { inQuotes = !inQuotes; continue; }
+                    if (!inQuotes && c === ',') { row.push(cell.trim()); cell = ''; continue; }
+                    cell += c;
+                }
+                row.push(cell.trim());
+                return row;
+            });
+        }
+
+        function viewCsv(path, title) {
+            const modal = document.getElementById('viewModal');
+            const titleEl = document.getElementById('viewModalTitle');
+            const tableEl = document.getElementById('viewModalTable');
+            titleEl.textContent = title;
+            tableEl.innerHTML = 'Loading…';
+            modal.classList.add('show');
+            fetch('/sd/' + path)
+                .then(r => r.text())
+                .then(text => {
+                    const rows = parseCsv(text);
+                    if (rows.length === 0) { tableEl.innerHTML = '<p>Empty file.</p>'; return; }
+                    let html = '<table><tbody>';
+                    rows.forEach(row => {
+                        html += '<tr>';
+                        row.forEach(cell => html += '<td>' + escapeHtml(cell) + '</td>');
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    tableEl.innerHTML = html;
+                })
+                .catch(err => {
+                    tableEl.innerHTML = '<p>Error loading file: ' + escapeHtml(err.message) + '</p>';
+                });
+        }
+
+        function escapeHtml(s) {
+            const div = document.createElement('div');
+            div.textContent = s;
+            return div.innerHTML;
+        }
+
+        document.getElementById('viewModalClose').onclick = () => {
+            document.getElementById('viewModal').classList.remove('show');
+        };
+        document.getElementById('viewModal').onclick = (e) => {
+            if (e.target.id === 'viewModal') e.target.classList.remove('show');
+        };
+
+        function sortEntries(entries) {
+            return entries.slice().sort((a, b) => {
+                const tA = new Date(a.ts || 0).getTime();
+                const tB = new Date(b.ts || 0).getTime();
+                return tB - tA;
+            });
+        }
+
+        fetchAllEntries()
             .then(data => {
                 const tableBody = document.getElementById('fileTable').getElementsByTagName('tbody')[0];
-
-                // Iterate over the files and create table rows
-                data.forEach(file => {
-                    const row = document.createElement('tr');
-
-                    const nameCell = document.createElement('td');
-                    const sizeCell = document.createElement('td');
-                    const tsCell = document.createElement('td');
-
-                    // Create an anchor element for the filename
-                    const link = document.createElement('a');
-                    link.href = `/sd/${file.name}`;
-                    link.textContent = file.name;
-                    nameCell.appendChild(link);
-
-                    sizeCell.textContent = file.size;
-                    tsCell.textContent = file.ts;
-
-                    row.appendChild(nameCell);
-                    row.appendChild(sizeCell);
-                    row.appendChild(tsCell);
-
-                    tableBody.appendChild(row);
-                });
+                sortEntries(data).forEach(file => renderRow(tableBody, file));
             })
             .catch(error => {
                 console.error('Error fetching file list:', error);
@@ -119,7 +217,7 @@ login.html 2068
  <div id="Login" class="tabcontent" style="display: flex;">
   <div class="system-info">
   <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-  <p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
+  <p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
   <br>
     <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
         <label for="user">Username:</label>
@@ -668,7 +766,7 @@ function bearing(latlng1, latlng2) {
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
 }
-upd.html 2141
+upd.html 2131
 <html><head>
 <link rel="stylesheet" type="text/css" href="style.css">
 </head>
@@ -718,13 +816,13 @@ const masterInfo = document.getElementById('masterDiv');
 const develInfo = document.getElementById('develDiv');
 
 let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.mooo.com/main/update-info.html');
+request.open('GET', 'http://rdzsonde.org/main/update-info.html');
 request.onload = function() {
   masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
 }
 request.send();
 let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.mooo.com/dev2/update-info.html');
+drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
 drequest.onload = function() {
   develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
 }
@@ -900,7 +998,7 @@ index.html 6239
 <div id="Home" class="tabcontent">
 <div class="system-info">
 <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2025 by Hansi Reiser, DL9RDZ and contributors</p>
+<p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
 <p>
     This program is free software; you can redistribute it and/or
     modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
@@ -1515,7 +1613,7 @@ h1{
     background: grey !important;
   }
 }
-cfg.js 11292
+cfg.js 11621
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP, 4=client-noscan)" ],
@@ -1581,6 +1679,10 @@ var cfgs = [
 [ "cm.active", "Chasemapper active (0=disabled, 1=active)"],
 [ "cm.host", "Chasemapper UDP host"],
 [ "cm.port", "Chasemapper UDP port"],
+[ "", "Sondeseeker settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Sondeseeker-configuration"],
+[ "ss.active", "Sondeseeker active (0=disabled, 1=active)"],
+[ "ss.host", "Sondeseeker UDP host"],
+[ "ss.port", "Sondeseeker UDP port"],
 [ "", "SondeHub settings", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/SondeHub-settings"],
 [ "sondehub.active", "SondeHub reporting (0=disabled, 1=active)"],
 [ "sondehub.chase", "SondeHub location reporting (0=off, 1=fixed, 2=chase/GPS, 3=auto)"],
@@ -1599,7 +1701,8 @@ var cfgs = [
 [ "sd.mosi", "SD card MOSI/DO" ],
 [ "sd.clk", "SD card CLK" ],
 [ "sd.sync", "SD card sync interval [s]" ],
-[ "sd.name", "SD card naming (0=by sondeid, 1=by day)" ],
+[ "sd.name", "SD card naming (0=flat, 1=YYMM folders)" ],
+[ "sd.speed", "SD card SPI speed (Hz, 0=default, e.g. 4000000, 8000000, 16000000)" ],
 [ "", "Hardware configuration (requires reboot)", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Hardware-configuration"],
 [ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342, 5=ST7789, 6=ST7796)"],
 [ "oled_sda", "OLED SDA/TFT SDA"],
