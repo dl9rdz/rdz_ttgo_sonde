@@ -512,7 +512,7 @@ int updateWiFi(String ssid, String pw) {
         if(!file) return -1;
         for(int i=0; i<nNetworks; i++) {
                 if(networks[i].id && networks[i].pw) {
-                        file.printf("%s\n%s\n", networks[i].id, networks[i].pw);
+                        file.printf("%s\n%s\n", networks[i].id.c_str(), networks[i].pw.c_str());
                 }
         }
         file.close(); 
@@ -543,7 +543,7 @@ void setupWifiList() {
   nNetworks = i;
   LOG_I(TAG, "%d networks in networks.txt\n", i);
   for (int j = 0; j < i; j++) {
-    LOG_I(TAG, "%s: %s\n", networks[j].id, networks[j].pw);
+    LOG_I(TAG, "%s: %s\n", networks[j].id.c_str(), networks[j].pw.c_str());
   }
 }
 
