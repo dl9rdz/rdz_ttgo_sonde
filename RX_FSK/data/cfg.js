@@ -5,6 +5,7 @@ var cfgs = [
 [ "ephftp", "FTP server for ephemeris data (RS92 decoder)"],
 [ "debug", "Debug level (0=err/1=warn/2=info/3=all;+10=color)" ],
 [ "maxsonde", "Maximum number of QRG entries (must be &leq; 50)" ],
+[ "periodic_reboot", "reboot device periodically (5-1440 minutes, 0 to disable)" ],
 [ "rxlat", "Receiver fixed latitude"],
 [ "rxlon", "Receiver fixed longitude"],
 [ "rxalt", "Receiver fixed altitude"],

@@ -368,6 +368,7 @@ void Sonde::defaultConfig() {
 	config.passcode = -1;
 	strcpy(config.mdnsname, "rdzsonde");
 	config.maxsonde=15;
+	config.periodic_reboot = 0;
 	config.debug=0;
 	config.wifi=1;
 	config.display[0]=0;
@@ -417,6 +418,8 @@ extern const int N_CONFIG;
 
 void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	if(config.periodic_reboot<0) config.periodic_reboot = 0;
+	if(config.periodic_reboot>1440) config.periodic_reboot = 1440;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
 	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;

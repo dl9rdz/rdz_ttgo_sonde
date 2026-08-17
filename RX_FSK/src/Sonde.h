@@ -308,6 +308,7 @@ typedef struct st_rdzconfig {
 	int spectrum;			// show freq spectrum for n seconds -1=disable; 0=forever
 	int marker;				// show freq marker in spectrum  0=disable
 	int maxsonde;			// number of max sonde in scan (range=1-99)
+	int periodic_reboot;	// reboot device after x minutes, 0=0ff
 	int norx_timeout;		// Time after which rx mode switches to scan mode (without rx signal)
 	int noisefloor;			// for spectrum display
 	char mdnsname[15];		// mDNS-Name, defaults to rdzsonde

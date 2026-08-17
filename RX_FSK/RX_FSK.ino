@@ -733,6 +733,7 @@ struct st_configitems config_list[] = {
   {"wifi", 0, &sonde.config.wifi},
   {"debug", 0, &sonde.config.debug},
   {"maxsonde", 0, &sonde.config.maxsonde},
+  {"periodic_reboot", 0, &sonde.config.periodic_reboot},
   {"rxlat", -7, &sonde.config.rxlat},
   {"rxlon", -7, &sonde.config.rxlon},
   {"rxalt", -7, &sonde.config.rxalt},
@@ -1824,6 +1825,7 @@ static void touchISR2();
 
 Ticker ticker;
 Ticker ledFlasher;
+Ticker rebootTimer;
 
 #define IS_TOUCH(x) (((x)!=255)&&((x)!=-1)&&((x)&128))
 void initTouch() {
@@ -1955,6 +1957,23 @@ void flashLed(int ms) {
     digitalWrite(sonde.config.led_pout, HIGH);
     ledFlasher.once_ms(ms, ledOffCallback);
   }
+}
+
+
+// this is like putting a cuckoo clock in front of the reset button and waiting for it to chime.
+void rebootCallback() {
+  LOG_E(TAG, "*** Doing periodic reboot ***\n");
+  delay(100);
+  ESP.restart();
+}
+void startRebootTimer(int minutes) {
+  if (sonde.config.periodic_reboot <= 0)
+    return;
+  if (minutes > 1440)
+    minutes = 1440;
+  LOG_I(TAG, "Configuring periodic reboot after %d minutes\n", minutes);
+  uint64_t reboot_ms = minutes * 60 * 1000;
+  rebootTimer.once_ms(reboot_ms, rebootCallback);
 }
 
 int doTouch = 0;
@@ -2238,6 +2257,11 @@ void setup()
     pinMode(sonde.config.led_pout, OUTPUT);
     flashLed(1000); // testing
   }
+
+  if (sonde.config.periodic_reboot >= 5)
+    startRebootTimer(sonde.config.periodic_reboot);
+  else
+    LOG_I(TAG, "periodic reboot not active\n");
 
   button1.pin = sonde.config.button_pin;
   button2.pin = sonde.config.button2_pin;

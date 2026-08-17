@@ -38,6 +38,7 @@ tft_orient=1
 # General config settings
 #-------------------------------#
 maxsonde=20
+periodic_reboot=0
 # debug: 0=err, 1=warn, 2=info, 3=debug; +10:use color
 debug=12
 # wifi mode: 1=client in background; 2=AP in background; 3=client on startup, ap if failure
