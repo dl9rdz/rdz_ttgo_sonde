@@ -124,6 +124,8 @@ L.control.zoom({ position:'topleft' }).addTo(map);
 
 map.addControl(new L.Control.Button([ { position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' } ]));
 
+map.addControl(new L.Control.Button([ { position: 'topleft', text: '📍', href: 'javascript:request_phone_gps();' } ]));
+
 map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '', href: 'javascript:get_data();' } ]));
 
 map.addControl(new L.Control.Button([
@@ -232,6 +234,30 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
   marker_gps = false;
   icon_gps = L.divIcon({className: 'leaflet-gps'});
   circ_gps = false;
+  phone_gps_active = false;
+  phone_gps_win = null;
+
+  request_phone_gps = function() {
+    var url = (typeof phoneGpsUrl === 'string') ? phoneGpsUrl : '';
+    if (!url)
+      alert('Missing phoneGpsUrl in livemap.html.');
+      return;
+    }
+    if (phone_gps_win && !phone_gps_win.closed) {
+      phone_gps_win.focus();
+      return;
+    }
+    phone_gps_win = window.open(url, 'rdz-phone-gps', 'width=380,height=320');
+  };
+
+  window.addEventListener('message', function(ev) {
+    var d = ev.data;
+    if (!d || d.type !== 'rdz-phone-gps') { return; }
+    if (phone_gps_win && ev.source !== phone_gps_win) { return; }
+    if (typeof d.lat !== 'number' || typeof d.lon !== 'number') { return; }
+    phone_gps_active = true;
+    gps(d);
+  });
 
   gps = function(e) {
     gps_location = [e.lat,e.lon];
@@ -273,7 +299,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
         } else {
           setTimeout(function() {$('#status').html(yellowdot);},100);
         }
-        if (data.gps) {
+        if (data.gps && !phone_gps_active) {
           gps(data.gps);
         }
         }),
