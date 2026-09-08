@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Share location</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 16px; color: #1c1b16; }
+    h1 { font-size: 1.1rem; margin: 0 0 8px; }
+    p { margin: 0 0 10px; font-size: 0.95rem; }
+    #status { margin-top: 14px; }
+    .err { color: #9f1239; }
+  </style>
+</head>
+<body>
+  <h1>Share location</h1>
+  <p>Keep this window open to send your phone GPS to the livemap.</p>
+  <p id="status">Requesting location…</p>
+  <script>
+    (function () {
+      var status = document.getElementById("status");
+
+      function show(msg, err) {
+        status.textContent = msg;
+        status.className = err ? "err" : "";
+      }
+
+      function send(coords) {
+        if (!window.opener || window.opener.closed) {
+          show("Map window is gone. You can close this page.", true);
+          return;
+        }
+        var acc = coords.accuracy || 0;
+        window.opener.postMessage({
+          type: "rdz-phone-gps",
+          lat: coords.latitude,
+          lon: coords.longitude,
+          alt: coords.altitude || 0,
+          speed: coords.speed > 0 ? coords.speed : 0,
+          dir: coords.heading >= 0 ? coords.heading : 0,
+          sat: 0,
+          hdop: acc ? acc / 2 : 5
+        }, "*");
+        show("Sending " + coords.latitude.toFixed(5) + ", " + coords.longitude.toFixed(5));
+      }
+
+      if (!navigator.geolocation) {
+        show("Geolocation is not available. Serve this page over HTTPS.", true);
+        return;
+      }
+      if (!window.opener) {
+        show("Open this page from the livemap 📍 button, not directly.", true);
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        function (pos) { send(pos.coords); },
+        function (err) { show(err.message || "Location failed", true); },
+        { enableHighAccuracy: true, maximumAge: 1000 }
+      );
+    })();
+  </script>
+</body>
+</html>
