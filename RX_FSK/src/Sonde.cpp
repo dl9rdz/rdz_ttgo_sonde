@@ -16,6 +16,7 @@
 #include "MP3H.h"
 #include "SX1278FSK.h"
 #include "Display.h"
+#include "Keyboard.h"
 #include <Wire.h>
 #include "conn-mqtt.h"
 #include "conn-sondeseeker.h"
@@ -53,8 +54,6 @@ const char *fingerprintText[]={
 };
 
 /* global variables from RX_FSK.ino */
-int getKeyPressEvent(); 
-int handlePMUirq();
 extern uint8_t pmu_irq;
 extern SX1278FSK sx1278;
 
