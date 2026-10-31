@@ -81,7 +81,7 @@ header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
 header += '<label for="burst">Burst at:</label><input type="text" id="burst" maxlength="5" value="..."  /> m<br />';
 header += '<label for="overwrite_descend">Descending:</label><input type="text" id="overwrite_descend" maxlength="2" value="..."  /> m/s<br />';
 header += '<label for="overwrite_descend_till">Use this descending until:</label><input type="text" id="overwrite_descend_till" maxlength="5" value="..."  /> m<br />';
-header += '<small>after the transmitted descend will be used</small>';
+header += '<small>below that, observed fall speed is converted to sea-level</small>';
 header += '<div id="submit"><input type="button" value="save" onclick="settings_save();"/>&nbsp;&nbsp;&nbsp;<input type="button" id="submit" value="reset" onclick="settings_reset();"/></div>';
 header += '</div>';
 $('.leaflet-header').append(header);
@@ -123,6 +123,8 @@ map.addControl(new L.Control.Button([ { position: 'topleft', text: '🔙', href:
 L.control.zoom({ position:'topleft' }).addTo(map);
 
 map.addControl(new L.Control.Button([ { position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' } ]));
+
+map.addControl(new L.Control.Button([ { position: 'topleft', text: '📍', href: 'javascript:request_phone_gps();' } ]));
 
 map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '', href: 'javascript:get_data();' } ]));
 
@@ -232,6 +234,30 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
   marker_gps = false;
   icon_gps = L.divIcon({className: 'leaflet-gps'});
   circ_gps = false;
+  phone_gps_active = false;
+  phone_gps_win = null;
+
+  request_phone_gps = function() {
+    var url = (typeof phoneGpsUrl === 'string') ? phoneGpsUrl : '';
+    if (!url) {
+      alert('Missing phoneGpsUrl in livemap.html.');
+      return;
+    }
+    if (phone_gps_win && !phone_gps_win.closed) {
+      phone_gps_win.focus();
+      return;
+    }
+    phone_gps_win = window.open(url, 'rdz-phone-gps', 'width=380,height=320');
+  };
+
+  window.addEventListener('message', function(ev) {
+    var d = ev.data;
+    if (!d || d.type !== 'rdz-phone-gps') { return; }
+    if (phone_gps_win && ev.source !== phone_gps_win) { return; }
+    if (typeof d.lat !== 'number' || typeof d.lon !== 'number') { return; }
+    phone_gps_active = true;
+    gps(d);
+  });
 
   gps = function(e) {
     gps_location = [e.lat,e.lon];
@@ -273,7 +299,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
         } else {
           setTimeout(function() {$('#status').html(yellowdot);},100);
         }
-        if (data.gps) {
+        if (data.gps && !phone_gps_active) {
           gps(data.gps);
         }
         }),
@@ -340,17 +366,41 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
   };
 
   predictor = false;
+
+  // Same NASA density Tawhiri uses. descent_rate is sea-level: v(h) = 1.1045 * v_sea / sqrt(rho).
+  air_density = function(alt) {
+    var temp, pressure;
+    if (alt > 25000) {
+      temp = -131.21 + 0.00299 * alt;
+      pressure = 2.488 * Math.pow((temp + 273.1) / 216.6, -11.388);
+    } else if (alt > 11000) {
+      temp = -56.46;
+      pressure = 22.65 * Math.exp(1.73 - 0.000157 * alt);
+    } else {
+      temp = 15.04 - 0.00649 * alt;
+      pressure = 101.29 * Math.pow((temp + 273.1) / 288.08, 5.256);
+    }
+    return pressure / (0.2869 * (temp + 273.1));
+  };
+
+  sea_level_descent = function(rate, alt) {
+    var v = Math.abs(rate);
+    if (!(v > 0)) { return settings.overwrite_descend; }
+    return v * Math.sqrt(air_density(alt)) / 1.1045;
+  };
+
   get_predict = function(data) {
     if (!data) { return; }
-    var ascent = (data.climb > 0)? data.climb : 15;
-    var descent = (data.climb > 0)? settings.overwrite_descend : data.climb * -1;
-
-    var burst;
+    var ascent = (data.climb > 0) ? data.climb : 15;
+    var descent, burst;
     if (data.climb > 0) {
-      burst = (data.alt > settings.burst )?data.alt + 100 : settings.burst;
+      descent = settings.overwrite_descend;
+      burst = (data.alt > settings.burst) ? data.alt + 100 : settings.burst;
     } else {
       burst = parseInt(data.alt) + 7;
-      if (data.alt > settings.overwrite_descend_till ) { descent = settings.overwrite_descend; }
+      descent = (data.alt > settings.overwrite_descend_till)
+        ? settings.overwrite_descend
+        : sea_level_descent(data.climb, data.alt);
     }
 
     var m = new Date(data.time * 1000);

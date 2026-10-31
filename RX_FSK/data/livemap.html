@@ -6,7 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <link rel="stylesheet" type="text/css" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
-  <script>var mapcenter=[%MAPCENTER%];</script>
+  <script>
+    var mapcenter=[%MAPCENTER%];
+    // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
+    var phoneGpsUrl='https://rdzsonde.org/locate';
+  </script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
