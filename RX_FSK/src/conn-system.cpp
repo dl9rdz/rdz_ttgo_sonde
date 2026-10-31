@@ -6,6 +6,7 @@
 
 #include "geteph.h"
 #include "pmu.h"
+#include "Startup.h"
 
 extern uint32_t netup_time;
 extern char eph_nowstr[];

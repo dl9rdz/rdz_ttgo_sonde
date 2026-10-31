@@ -352,15 +352,8 @@ extern const int N_CONFIG;
 
 #define MAXSONDE 50
 
-extern int fingerprintValue[];
-extern const char *fingerprintText[];
-
-enum BoardTypes;
-
 class Sonde
 {
-private:
-	void setDefaultConfig(BoardTypes bt);
 public:
 	RDZConfig config;
 	int fingerprint = 0;

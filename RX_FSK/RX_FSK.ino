@@ -40,6 +40,7 @@
 #include "src/pmu.h"
 #include "src/user.h"
 #include "src/Keyboard.h"
+#include "src/Startup.h"
 
 
 /* Data exchange connectors */
@@ -1843,47 +1844,6 @@ void flashLed(int ms) {
   }
 }
 
-#define SSD1306_ADDRESS 0x3c
-bool ssd1306_found = false;
-bool axp_found = false;
-
-int scanI2Cdevice(void)
-{
-  byte err, addr;
-  int nDevices = 0;
-  for (addr = 1; addr < 127; addr++) {
-    Wire.beginTransmission(addr);
-    err = Wire.endTransmission();
-    if (err == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (addr < 16)
-        Serial.print("0");
-      Serial.print(addr, HEX);
-      Serial.println(" !");
-      nDevices++;
-
-      if (addr == SSD1306_ADDRESS) {
-        ssd1306_found = true;
-        Serial.println("ssd1306 display found");
-      }
-      if (addr == AXP192_SLAVE_ADDRESS) {  // Same for AXP2101
-        axp_found = true;
-        Serial.println("axp2101 PMU found");
-      }
-    } else if (err == 4) {
-      Serial.print("Unknow error at address 0x");
-      if (addr < 16)
-        Serial.print("0");
-      Serial.println(addr, HEX);
-    }
-  }
-  if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
-  else
-    Serial.println("done\n");
-  return nDevices;
-}
-
 extern int initlevels[40];
 
 #ifdef ESP_MEM_DEBUG
@@ -1947,50 +1907,7 @@ void setup()
   WiFi.setHostname(sonde.config.mdnsname);
   //WiFi.enableIPv6();
 
-  // NOT TTGO v1 (fingerprint 64) or Heltec v1/v2 board (fingerprint 4)
-  // and NOT TTGO Lora32 v2.1_1.6 (fingerprint 31/63)
-  if ( ( (sonde.fingerprint & (64 + 31)) != 31) && ((sonde.fingerprint & 16) == 16) ) {
-    // FOr T-Beam 1.0
-    for (int i = 0; i < 2; i++) { // try multiple times
-      Wire.begin(21, 22);
-      // Make sure the whole thing powers up!?!?!?!?!?
-      U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
-      u8x8->initDisplay();
-      delay(100);
-
-      scanI2Cdevice();
-
-      if (!pmu) {
-        pmu = PMU::getInstance(Wire);
-        if (pmu) {
-          Serial.println("PMU found");
-          pmu->init();
-          if (sonde.config.button2_axp ) {
-            //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-            //axp.enableIRQ( AXP202_PEK_LONGPRESS_IRQ | AXP202_PEK_SHORTPRESS_IRQ, 1 );
-            //axp.clearIRQ();
-            pmu->disableAllIRQ();
-            pmu->enableIRQ();
-          }
-          int ndevices = scanI2Cdevice();
-          if (sonde.fingerprint != 17 || ndevices > 0) break; // only retry for fingerprint 17 (startup problems of new t-beam with oled)
-          delay(100);
-        }
-      }
-    }
-  }
-  if (sonde.config.batt_adc >= 0) {
-    pinMode(sonde.config.batt_adc, INPUT);
-  }
-  if (sonde.config.power_pout >= 0) { // for a heltec v2, pull GPIO21 low for display power
-    pinMode(sonde.config.power_pout & 127, OUTPUT);
-    digitalWrite(sonde.config.power_pout & 127, sonde.config.power_pout & 128 ? 1 : 0);
-  }
-
-  if (sonde.config.led_pout >= 0) {
-    pinMode(sonde.config.led_pout, OUTPUT);
-    flashLed(1000); // testing
-  }
+  startupPower();
 
   keyboardInit();
 

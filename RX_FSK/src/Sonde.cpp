@@ -7,6 +7,7 @@
 #include "src/logger.h"
 
 #include "Sonde.h"
+#include "Startup.h"
 #include "RS41.h"
 #if FEATURE_RS92
 #include "RS92.h"
@@ -17,7 +18,6 @@
 #include "SX1278FSK.h"
 #include "Display.h"
 #include "Keyboard.h"
-#include <Wire.h>
 #include "conn-mqtt.h"
 #include "conn-sondeseeker.h"
 
@@ -35,23 +35,6 @@ const char sondeTypeChar[NSondeTypes] = { 'D', '4', 'R', 'M', 'M', '2', '3' };
 const char *manufacturer_string[]={"Graw", "Vaisala", "Vaisala", "Meteomodem", "Meteomodem", "Meteomodem", "Meteo-Radiy"};
 // ephftp path template: $Y=4-digit year, $D=3-digit day of year, $y=2-digit year (see geteph.cpp eph_fmt_path)
 const char *DEFEPH="gssc.esa.int/cddis/gnss/data/daily/$Y/$D/brdc$D0.$yn.gz";
-
-int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, 95, 79, 91, -1 };
-const char *fingerprintText[]={
-  "TTGO T-Beam (new version 1.0),  I2C not working after powerup, assuming 0.9\" OLED@21,22",
-  "TTGO LORA32 v2.1_1.6 (0.9\" OLED@21,22)",
-  "TTGO LORA v1.0 (0.9\" OLED@4,15)",
-  "Heltec v1/v2 (0.9\"OLED@4,15)",
-  "TTGO T-Beam (V0.7), 0.9\" OLED@21,22",
-  "TTGO T-Beam (V0.7), SPI TFT@4,21,22",
-  "TTGO T-Beam (V1.0), 0.9\" OLED@21,22",
-  "TTGO T-Beam (V1.0), SPI TFT@4,13,14",
-  "TTGO T-Beam (V1.1), 0.9\" OLED@21,22",
-  "TTGO T-Beam (V1.1), SPI TFT@4,13,14",
-  "M5 Core Gray",
-  "M5 Core Gray?",
-  "CYB (USB-C) w/ SPI display + Ra02",
-};
 
 /* global variables from RX_FSK.ino */
 extern uint8_t pmu_irq;
@@ -79,113 +62,7 @@ Sonde::Sonde() {
   	}
 }
 
-void Sonde::setDefaultConfig(BoardTypes board) {
-	switch(board) {
-	case BOARD_M5_CORE_GRAY:
-		LOG_I(TAG, "Autoconfig: M5stack Core Gray board detected\n");
-		config.type = TYPE_M5_CORE;
-		config.button_pin = 39;
-		config.button2_pin = 38;
-		config.button2_axp = 0;
-		config.disptype = 4;  // ILI9342
-		config.oled_sda = 23;
-		config.oled_scl = 18;
-		config.oled_rst = 33;
-		config.tft_rs = 27;
-		config.tft_cs = 14;
-		config.power_pout = 32+128;
-		// gpio32 is backlight of tft
-		config.screenfile = 4;
-		config.gps_rxd = 16;
-		config.gps_txd = -1;  // 17
-		config.sx1278_ss = 5;
-		config.sx1278_miso = 19;
-		config.sx1278_mosi = 23; //MOSI;
-		config.sx1278_sck = 18; // SCK;
-		break;
-	case BOARD_TTGOv1_HELTEC:
-		LOG_I(TAG, "Autoconfig: looks like TTGO v1 / Heltec v1/V2 board\n");
-		config.oled_sda = 4;
-		config.oled_scl = 15;
-		config.oled_rst = 16;
-		config.button_pin = 0;
-		config.button2_pin = T4 + 128;	 // T4 == GPIO13
-		config.power_pout = 21;		   // for Heltec v2
-		config.led_pout = 2;	
-		LOG_W(TAG, "WARNING: v1 boards with 26 MHz crystal are NOT supported any more!\n");
-		// Note: binary image compiled for other boards (40 MHz crystal) will no longer work for v1 board (26 MHz crystal)
-		// -- serial speed is wrong (staring arduino-idf 3.0.4), and WiFi also is partially broken.
-		// So if using that old board, you need to recompile specifically for the 26 MHz.
-		break;
-	case BOARD_CYD_E32R28T:
-	       {
-		SPIClass *hspi = new SPIClass(HSPI);
-		LOG_I(TAG, "Autoconfig: looks like a CYD (new) E32R28T");
-		// SPI.begin(SCK, MISO, MOSI, SS);
-		hspi->begin(14, 12, 13, -1);
-	 	pinMode(2, OUTPUT);
-		digitalWrite(15, 1);  // CS
-		pinMode(15, OUTPUT);
-		char buf[4];
-
-		digitalWrite(2, 0); // cmd/data -> cmd
-                hspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-                digitalWrite(15, 0);  // CS
-                hspi->transfer(0xD3); // cmd query identification (ID4)
-                digitalWrite(2, 1);
-		buf[0]=buf[1]=buf[2]=buf[3]=0;
-                hspi->transfer(buf, 4);
-                digitalWrite(15, 1);
-                hspi->endTransaction();
-		Serial.printf("Device ID4:  %x %x %x\n",  buf[1], buf[2], buf[3]);
-		// ST7789 identifes as 00 00 00
-		// ILI9341 should identify as 00 93 41 but also returns 00 00 00
-		//
-		digitalWrite(2, 0); // cmd/data -> cmd
-  		hspi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
-		digitalWrite(15, 0);  // CS
-		hspi->transfer(0x04); // cmd query identification (ID1-3)
-		digitalWrite(2, 1);
-		buf[0] = buf[1] = buf[2] = buf[3] = {0};
-		hspi->transfer(buf, 4);
-		digitalWrite(15, 1);
-                hspi->endTransaction();
-                hspi->end();
-		Serial.printf("Device ID: %x %x %x\n", buf[1], buf[2], buf[3]);
-		// my ST7789 identifies as c0 d9 ff
-		// my ILI9341 identifies as 00 00 00
-		
-		config.disptype = buf[2]==0xd9? 5 : 3; // could be 3 or 5, both versions exist...
-		config.oled_sda = 13;
-		config.oled_scl = 14;
-		config.oled_rst = -1;
-		config.tft_rs = 2;
-		config.tft_cs = 15;
-		config.power_pout = 21 + 128;
-		config.gps_rxd = 35;
-		config.gps_txd = -1;
-		config.sx1278_ss = 27;
-		config.sx1278_miso = 19;
-		config.sx1278_mosi= 23;
-		config.sx1278_sck = 18;
-		config.button_pin = 0;
-		config.button2_pin = -1;
-	       }
-	       break;
-	}
-}
-
-
 void Sonde::defaultConfig() {
-	fingerprint = initlevels[4];
-	fingerprint = (fingerprint<<1) | initlevels[12];
-	fingerprint = (fingerprint<<1) | initlevels[16];
-	fingerprint = (fingerprint<<1) | initlevels[17];
-	fingerprint = (fingerprint<<1) | initlevels[21];
-	fingerprint = (fingerprint<<1) | initlevels[22];
-	fingerprint = (fingerprint<<1) | initlevels[23];
-	LOG_I(TAG, "Board fingerprint is %d\n", fingerprint);
-
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	// addSonde should initialize everything anyway, so this should not strictly be necessary, but does no harm either
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
@@ -227,140 +104,7 @@ void Sonde::defaultConfig() {
 	// TFT RS and CS not used for LCD, if TFT detected this will be changed below
 	config.tft_rs = -1;
 	config.tft_cs = -1;
-	if(initlevels[16]==0) {
-		// Plain M5 Core Gray sometimes ends up here (without Lora/GPS board attached, or after reboot)
-		// 71 w/o GPS, 79 after reboot via flash utility
-		if(fingerprint == 79 || fingerprint==71)      
-			setDefaultConfig(BOARD_M5_CORE_GRAY);
-		else
-			setDefaultConfig(BOARD_TTGOv1_HELTEC);
-
-	} else {
-		config.oled_sda = 21;
-		config.oled_scl = 22;
-		if(initlevels[17]==0) { // T-Beam or M5Stack Core2?
-			int tbeam=7;
-			if(initlevels[12]==0) {
-				tbeam = 10;
-				LOG_I(TAG, "Autoconfig: looks like T-Beam 1.0 or M5Stack Core2 board\n");
-			} else if ( initlevels[4]==1 && initlevels[12]==1 ) {
-				tbeam = 11;
-				LOG_I(TAG, "Autoconfig: looks like T-Beam 1.1 board\n");
-			}
-			if(tbeam == 10  || tbeam == 11) {  // T-Beam v1.0  or T-Beam v1.1
-				Wire.begin(21, 22);
-#define BM8563_ADDRESS 0x51
-				Wire.beginTransmission(BM8563_ADDRESS);
-				byte err = Wire.endTransmission();
-				if(err) { // try again
-				  delay(400);
-				  Wire.beginTransmission(BM8563_ADDRESS);
-				  err = Wire.endTransmission();
-				}
-				if(err==0) {
-					LOG_I(TAG, "M5stack Core2 board detected\n");
-					config.type = TYPE_M5_CORE2;
-					config.button_pin = 255;
-					config.button2_pin = 255;
-					config.button2_axp = 1;
-					config.disptype = 4;  // ILI9342
-					config.oled_sda = 23;
-					config.oled_scl = 18;
-					config.oled_rst = -1;
-					config.tft_rs = 15;
-					config.tft_cs = 5;
-					config.screenfile = 4;
-					config.gps_rxd = 13;
-					config.gps_txd = -1;  // 14
-					config.sx1278_ss = 33;
-					config.sx1278_miso = 38;
-					config.sx1278_mosi = 23; //MOSI;
-					config.sx1278_sck = 18; // SCK;
-				} else { // some t-beam...
-					config.button_pin = 38;
-					config.button2_pin = 15 + 128; //T4 + 128;  // T4 = GPIO13
-					// Maybe in future use as default only PWR as button2?
-					//config.button2_pin = 255;
-					config.button2_axp = 1;
-					config.gps_rxd = 34;
-					config.gps_txd = 12;
-					// Check for I2C-Display@21,22
-#define SSD1306_ADDRESS 0x3c
-						Wire.beginTransmission(SSD1306_ADDRESS);
-						err = Wire.endTransmission();
-					delay(100);  // otherwise its too fast?!
-						Wire.beginTransmission(SSD1306_ADDRESS);
-						err = Wire.endTransmission();
-					if(err!=0 && fingerprint!=17) {  // hmm. 17 after powerup with oled commected and no i2c answer!?!?
-					fingerprint |= 128;
-					LOG_I(TAG, "T-Beam, no I2C display found, assuming large TFT display\n");
-					// CS=0, RST=14, RS=2, SDA=4, CLK=13
-					config.disptype = 1;
-					config.oled_sda = 4;
-					config.oled_scl = 13;
-					config.oled_rst = 14;
-					config.tft_rs = 2;
-					config.tft_cs = 0;
-					config.spectrum = -1; // no spectrum for now on large display
-					config.screenfile = 2;
-					} else {
-					// OLED display, pins 21,22 ok...
-					config.disptype = 0;
-					LOG_I(TAG, "T_BEAM with I2C OLED display\n");
-					}
-				}
-			} else {
-				LOG_I(TAG, "Autoconfig: looks like T-Beam v0.7 board");
-				config.button_pin = 39;
-				config.button2_pin = T4 + 128;  // T4 == GPIO13
-				config.gps_rxd = 12;
-				// Check if we possibly have a large display
-				if(initlevels[21]==0) {
-					LOG_I(TAG, "Autoconfig: looks like T-Beam v0.7 board with large TFT display");
-					config.disptype = 1;
-					config.oled_sda = 4;
-					config.oled_scl = 21;
-					config.oled_rst = 22;
-					config.tft_rs = 2;
-					config.tft_cs = 0;
-					config.spectrum = -1; // no spectrum for now on large display
-					config.screenfile = 2;
-				}
-			}
-		} else {
-			Serial.println("Looks like a TTGO V2.1_1.6, could also be a M5 Core, or CYD");
-			// M5 core has I2C devices 0x16 0x68 0x75
-			Wire.begin(21, 22);
-#define BMM150 0x10
-			Wire.beginTransmission(BMM150);
-			byte err = Wire.endTransmission();
-			if(err) { // try again
-				 delay(400);
-				 Wire.beginTransmission(BMM150);
-				 err = Wire.endTransmission();
-			}
-			if(err==0) {
-				setDefaultConfig(BOARD_M5_CORE_GRAY);
-			} else {
-				// On CYD (new boards with USB-C, E32R28T&E32N28T)
-				// GPIO4 is pulled high (pull up on audio enable) and GPIO21 is pulled low (polldown on TFT backlight control)
-				if(initlevels[4]==1 && initlevels[21]==0) {
-					setDefaultConfig(BOARD_CYD_E32R28T);
-				} else { 
-					// Likely a TTGO V2.1_1.6
-					// TODO: Maybe find some other default values for touch buttons?
-					config.button_pin = -1;  // not good with SD-Card: 2 + 128;	 // GPIO2 / T2
-					config.button2_pin = -1;  // not good with SD-Card: 14 + 128;   // GPIO14 / T6
-					config.led_pout = 25;
-					config.batt_adc = 35; 
-					config.sd.cs = 13;
-					config.sd.miso = 2;
-					config.sd.mosi = 15;
-			config.sd.clk = 14;
-				}
-			}
-		}
-	}
+	startupBoardDetect();
 	//
 	config.noisefloor = -125;
 	strcpy(config.call,"NOCALL");
