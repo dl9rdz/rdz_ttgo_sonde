@@ -103,20 +103,19 @@ void Scanner::plotResult()
   	}
 	uint8_t row[scanconfig.PLOT_H8*8];
 	if(ISTFT) {
-		Arduino_GFX *gfx = static_cast<ILI9225Display *>(disp.rdis)->tft;
         	for(int i=0; i<scanconfig.PLOT_W; i++) {
 			// Draw spectrum using optimized TFT function from Arduino_GFX
 			uint16_t value = scanconfig.VSCALE * PLOT_SCALE(scandisp[i]);
 			uint16_t barpos = scanconfig.PLOT_H8 * 8 - value;
 			// blue line from top to value
-			gfx->drawFastVLine(i, 8*yofs, barpos, BLUE);
-			gfx->drawFastVLine(i, 8*yofs+barpos, value, GREEN);
+			disp.rdis->drawFastVLine(i, 8*yofs, barpos, BLUE);
+			disp.rdis->drawFastVLine(i, 8*yofs+barpos, value, GREEN);
 
 			// draw tick marks if needed
 			if( (i%scanconfig.TICK1)==0 ) { 
-				gfx->drawFastVLine(i, 8*yofs, 3, GREEN);
+				disp.rdis->drawFastVLine(i, 8*yofs, 3, GREEN);
 			} else if( (i%scanconfig.TICK2)==0 ) {
-				gfx->drawFastVLine(i, 8*yofs, 1, GREEN);
+				disp.rdis->drawFastVLine(i, 8*yofs, 1, GREEN);
 			}
 		}
         } else {
