@@ -9,10 +9,13 @@
 #include "Startup.h"
 #include "Sonde.h"
 #include "pmu.h"
+#include "SX1278FSK.h"
+#include "Radio.h"
 
 extern int initlevels[40];
 extern PMU *pmu;
 extern void flashLed(int ms);
+extern SemaphoreHandle_t globalLock;
 
 int fingerprintValue[]={ 17, 31, 64, 4, 55, 48, 23, 128+23, 119, 128+119, 95, 79, 91, -1 };
 const char *fingerprintText[]={
@@ -362,4 +365,36 @@ void startupPower() {
     pinMode(sonde.config.led_pout, OUTPUT);
     flashLed(1000); // testing
   }
+}
+
+void startupRadio() {
+#if 1
+  sx1278.setup(globalLock);
+
+  int i = 0;
+  while (++i < 10) {
+    // == check the radio chip by setting default frequency =========== //
+    radio.ON();
+    if (radio.setFrequency(402700000) == 0) {
+      Serial.println(F("Setting freq: SUCCESS "));
+    } else {
+      Serial.println(F("Setting freq: ERROR "));
+    }
+    float f = radio.getFrequency();
+    LOG_D(TAG, "Frequency set to %d", f);
+    // == check the radio chip by setting default frequency =========== //
+    if( f>402700000-1000 && f<402700000+1000 ) break;
+    delay(500);
+  }
+#endif
+
+  //radio.setLNAGain(-48);
+  radio.setLNAGain(0);
+
+  int gain = radio.getLNAGain();
+  Serial.print("RX LNA Gain is ");
+  Serial.println(gain);
+
+  // Print a success message
+  Serial.println(F("SX1278 configuration finished"));
 }

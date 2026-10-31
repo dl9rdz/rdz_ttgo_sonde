@@ -1,7 +1,7 @@
 
 /* DFM decoder functions */
 #include "DFM.h"
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "Sonde.h"
 
 #define DFM_DEBUG 0
@@ -76,7 +76,7 @@ int DFM::setup(float frequency, int type)
 #if DFM_DEBUG
 	Serial.printf("Setup sx1278 for DFM sonde (type=%d)\n", stype);
 #endif
-	if(sx1278.ON()!=0) {
+	if(radio.ON()!=0) {
 		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
@@ -86,53 +86,53 @@ int DFM::setup(float frequency, int type)
 	}
 #if 0
 	// This is now all done by the generic setup method in base class
-	if(sx1278.setFSK()!=0) {
+	if(radio.setFSK()!=0) {
 		DFM_DBG(Serial.println("Setting FSM mode FAILED"));
 		return 1;
 	}
-	if(sx1278.setBitrate(2500)!=0) {
+	if(radio.setBitrate(2500)!=0) {
 		DFM_DBG(Serial.println("Setting bitrate 2500bit/s FAILED"));
 		return 1;
 	}
-        if(sx1278.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
+        if(radio.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
                 DFM_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.dfm.agcbw));
                 return 1;
         }
-        if(sx1278.setRxBandwidth(sonde.config.dfm.rxbw)!=0) {
+        if(radio.setRxBandwidth(sonde.config.dfm.rxbw)!=0) {
                 DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
                 return 1;
         }
 	{
-                if(sx1278.setRxConf(0x1E)!=0) {
+                if(radio.setRxConf(0x1E)!=0) {
                         DFM_DBG(Serial.println("Setting RX Config FAILED"));
                         return 1;
                 }
                 // working with continuous RX
                 const char *SYNC="\xAA\xAA";
-                if(sx1278.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
+                if(radio.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
                         DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
                         return 1;
                 }
-                if(sx1278.setPreambleDetect(0xA8)!=0) {
-                //if(sx1278.setPreambleDetect(0x9F)!=0) {
+                if(radio.setPreambleDetect(0xA8)!=0) {
+                //if(radio.setPreambleDetect(0x9F)!=0) {
                         DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
                         return 1;
                 }
 	}
 #endif
-        if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+        if(radio.setPacketConfig(0x08, 0x40)!=0) {
                 DFM_DBG(Serial.println("Setting Packet config FAILED"));
                 return 1;
         }
-        sx1278.setPayloadLength(0);  // infinite for now...
+        radio.setPayloadLength(0);  // infinite for now...
         Serial.print("DFM: setting RX frequency to ");
         Serial.println(frequency);
 
-	int retval = sx1278.setFrequency(frequency);
-        sx1278.clearIRQFlags();
+	int retval = radio.setFrequency(frequency);
+        radio.clearIRQFlags();
 
 	// Do this only once in setup in continous mode
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+        radio.startRX();
 
 	memset((void *)&dfmstate, 0, sizeof(dfmstate));
 	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
@@ -675,9 +675,9 @@ int DFM::processDFMdata(uint8_t dt) {
                                 rxbitc = 0;
                                 rxp = 0;
 				rxbyte = 0;
-                                rssi=sx1278.getRSSI();
-                                fei=sx1278.getFEI();
-                                afc=sx1278.getAFC();
+                                rssi=radio.getRSSI();
+                                fei=radio.getFEI();
+                                afc=radio.getAFC();
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 				invers = (rxdata == 0x6566A5AA)?1:0;
@@ -712,24 +712,24 @@ int DFM::receive() {
 	unsigned long t0 = millis();
 	dfmstate.cycledone = 0;
 	while( ( millis() - t0 ) < 1300 ) {
-		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);	
-                if ( bitRead(value, 7) ) {
+		uint8_t status = radio.fifoStatus();
+                if ( status & FIFO_FULL ) {
                         Serial.println("FIFO full");
                 }
-                if ( bitRead(value, 4) ) {
+                if ( status & FIFO_OVERRUN ) {
                         Serial.println("FIFO overflow");
 			// new: (maybe clear only overflow??) TODO
-                        sx1278.clearIRQFlags();
+                        radio.clearIRQFlags();
                 }
-                if ( bitRead(value, 2) == 1 ) {
+                if ( status & FIFO_PAYLOAD_READY ) {
                         Serial.println("FIFO: payload ready()");
 			// does not make much sence? (from m10): TODO
-                        // ???????  sx1278.clearIRQFlags();
+                        // ???????  radio.clearIRQFlags();
                 }
-		if(bitRead(value, 6) == 0) { // while FIFO not empty
-                        byte data = sx1278.readRegister(REG_FIFO);
+		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
+                        byte data = radio.readFifoByte();
                         processDFMdata(data);
-                        value = sx1278.readRegister(REG_IRQ_FLAGS2);
+                        status = radio.fifoStatus();
                 } else {
                         if(haveNewFrame) {
                                 //Serial.printf("DFM::receive(): new frame complete after %ldms\n", millis()-t0);

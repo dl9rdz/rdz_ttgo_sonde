@@ -15,7 +15,7 @@
 #include "DFM.h"
 #include "M10M20.h"
 #include "MP3H.h"
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "Display.h"
 #include "Keyboard.h"
 #include "conn-mqtt.h"
@@ -38,7 +38,6 @@ const char *DEFEPH="gssc.esa.int/cddis/gnss/data/daily/$Y/$D/brdc$D0.$yn.gz";
 
 /* global variables from RX_FSK.ino */
 extern uint8_t pmu_irq;
-extern SX1278FSK sx1278;
 
 /* Task model:
  * There is a background task for all SX1278 interaction.
@@ -342,9 +341,9 @@ void Sonde::setup() {
 		break;
 	}
 	// debug
-	int freq = (int)sx1278.getFrequency();
-	int afcbw = (int)sx1278.getAFCBandwidth();
-	int rxbw = (int)sx1278.getRxBandwidth();
+	int freq = (int)radio.getFrequency();
+	int afcbw = (int)radio.getAFCBandwidth();
+	int rxbw = (int)radio.getRxBandwidth();
 	LOG_I(TAG, "Sonde::setup() done: Type %s Freq %f, AFC BW: %d, RX BW: %d\n", sondeTypeStr[sondeList[rxtask.currentSonde].type], 0.000001*freq, afcbw, rxbw);
 
 	// reset rxtimer / norxtimer state

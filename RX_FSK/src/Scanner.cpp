@@ -2,7 +2,7 @@
 #include <inttypes.h>
 #include <U8x8lib.h>
 
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "Sonde.h"
 #include "Display.h"
 #include "src/conn-mqtt.h"
@@ -157,17 +157,13 @@ void Scanner::scan()
 	}
 	// Configure 
  	STARTF = (sonde.config.startfreq * 1000000);
-	sx1278.writeRegister(REG_PLL_HOP, 0x80);   // FastHopOn
-	sx1278.setRxBandwidth((int)(scanconfig.CHANSTEP*1000));
-	double bw = sx1278.getRxBandwidth();
-	Serial.print("RX Bandwith for scan: "); Serial.println(bw);
-	sx1278.writeRegister(REG_RSSI_CONFIG, scanconfig.SMOOTH&0x07);
-	sx1278.setFrequency(STARTF);
+	radio.setFrequency(STARTF);
 	Serial.print("Start freq = "); Serial.println(STARTF);
-	sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+	radio.scanBegin((float)(scanconfig.CHANSTEP*1000), scanconfig.SMOOTH&0x07);
+	double bw = radio.getRxBandwidth();
+	Serial.print("RX Bandwith for scan: "); Serial.println(bw);
 
 	unsigned long start = millis();
-	uint32_t lastfrf= STARTF * (1<<19) / SX127X_CRYSTAL_FREQ;
 	float freq = STARTF;
 	int wait = scanconfig.ADDWAIT + 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
 	Serial.print("wait time (us) is: "); Serial.println(wait);
@@ -176,23 +172,16 @@ void Scanner::scan()
 	    for(int i=0; i<scanconfig.PLOT_W*scanconfig.SMPL_PIX; i++) {
 		freq = STARTF + 1000.0*i*scanconfig.CHANSTEP;
 		//freq = 404000000 + 100*i*scanconfig.CHANSTEP;
-		uint32_t frf = freq * 1.0 * (1<<19) / SX127X_CRYSTAL_FREQ;
-		if( (lastfrf>>16)!=(frf>>16) ) {
-        		sx1278.writeRegister(REG_FRF_MSB, (frf&0xff0000)>>16);
-		}
-		if( ((lastfrf&0x00ff00)>>8) != ((frf&0x00ff00)>>8) ) {
-        		sx1278.writeRegister(REG_FRF_MID, (frf&0x00ff00)>>8);
-		}
-        	sx1278.writeRegister(REG_FRF_LSB, (frf&0x0000ff));
-		lastfrf = frf;
+		radio.scanSetFrequency(freq);
 		// Wait TS_HOP (20us) + TS_RSSI ( 2^(scacconfig.SMOOTH+1) / 4 / CHANBW us)
 		delayMicroseconds(wait);
-		int rssi = -(int)sx1278.readRegister(REG_RSSI_VALUE_FSK);
+		int rssi = radio.scanRSSI();
 		if(iter==0) { scanresult[i] = rssi; } else {
 			if(rssi>scanresult[i]) scanresult[i]=rssi;
 		}
 	    }
 	}
+	radio.scanEnd();
 	yield();
 	unsigned long duration = millis()-start;
 	Serial.print("wait: ");

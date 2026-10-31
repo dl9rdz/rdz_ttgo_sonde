@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <Arduino.h>
 #include <SPI.h>
+#include "Radio.h"
 
 #ifndef inttypes_h
 	#include <inttypes.h>
@@ -165,7 +166,7 @@ const uint8_t FSK_RX_MODE = 0x05;
  * Functions and variables for managing SX127x transceiver chips in FSK mode,
  * mainly for receiving radiosonde transmissions
  ******************************************************************************/
-class SX1278FSK
+class SX1278FSK : public Radio
 {
 public:
 	// class constructor
@@ -174,52 +175,52 @@ public:
 	void setup(SemaphoreHandle_t lock);
    	
 	// Turn on SX1278 module (return 0 on sucess, 1 otherwise)
-	uint8_t ON();
+	uint8_t ON() override;
 
 	// Turn off SX1278 module
-	void OFF();
+	void OFF() override;
 
-	// Read internal register
+	// Read internal register (concrete class only)
 	byte readRegister(byte address);
 
-	// Write internal register
+	// Write internal register (concrete class only)
 	void writeRegister(byte address, byte data);
 
 	// Clear IRQ flags
-	void clearIRQFlags();
+	void clearIRQFlags() override;
 
 	// Activate FSK mode (return 0 on success, 1 otherwise)
-	uint8_t setFSK();
+	uint8_t setFSK() override;
 
 	// Configures bitrate register (closest approximation to requested bitrate)
- 	uint8_t setBitrate(float bps);
- 	float getBitrate();
+ 	uint8_t setBitrate(float bps) override;
+ 	float getBitrate() override;
 
 	// Configures RX bandwidth (next largest supported bandwith if exact value not possible)
- 	uint8_t setRxBandwidth(float bps);
- 	float getRxBandwidth();
+ 	uint8_t setRxBandwidth(float bps) override;
+ 	float getRxBandwidth() override;
 
 	// Configures AFC bandwidth (next largest supported bandwith if exact value not possible)
- 	uint8_t setAFCBandwidth(float bps);
- 	float getAFCBandwidth();
+ 	uint8_t setAFCBandwidth(float bps) override;
+ 	float getAFCBandwidth() override;
 
 	// Configures RX frequency (closest approximation to requested frequency)
- 	uint8_t setFrequency(float freq);
- 	float getFrequency();
+ 	uint8_t setFrequency(float freq) override;
+ 	float getFrequency() override;
 	
-	int getLNAGain();
-	uint8_t setLNAGain(int gain);
+	int getLNAGain() override;
+	uint8_t setLNAGain(int gain) override;
 
 	uint8_t getRxConf();
-	uint8_t setRxConf(uint8_t conf);
+	uint8_t setRxConf(uint8_t conf) override;
 
-	uint8_t setSyncConf(uint8_t conf, int len, const uint8_t *syncpattern);
+	uint8_t setSyncConf(uint8_t conf, int len, const uint8_t *syncpattern) override;
 	uint8_t getSyncConf();
 
-	uint8_t setPreambleDetect(uint8_t conf);
+	uint8_t setPreambleDetect(uint8_t conf) override;
 	uint8_t getPreambleDetect();
 
-	uint8_t setPacketConfig(uint8_t conf1, uint8_t conf2);
+	uint8_t setPacketConfig(uint8_t conf1, uint8_t conf2) override;
 	uint16_t getPacketConfig();
 
 	// Get configured preamble length (used for TX only?)
@@ -230,18 +231,18 @@ public:
 
 	// Gets the payload length (expected length for receive)
 	int getPayloadLength();
-	uint8_t setPayloadLength(int len);
+	uint8_t setPayloadLength(int len) override;
 
 	// Get current RSSI value
-	int16_t getRSSI();
+	int16_t getRSSI() override;
 
 	// Get current FEI (frequency error indication) value
-	int32_t getFEI();
+	int32_t getFEI() override;
 
 	// Get current AFC value
-	int32_t getAFC();
-	uint16_t getRawAFC();
-	void setRawAFC(uint16_t afc);
+	int32_t getAFC() override;
+	uint16_t getRawAFC() override;
+	void setRawAFC(uint16_t afc) override;
 
 	// Get the maximum current supply by the module.
 	int getMaxCurrent();
@@ -254,9 +255,22 @@ public:
 	uint8_t receive();
 
 	// Receive a packet
-        uint8_t receivePacketTimeout(uint32_t wait, byte *data);
+        uint8_t receivePacketTimeout(uint32_t wait, uint8_t *data) override;
+
+	void startRX() override;
+	uint8_t fifoStatus() override;
+	uint8_t readFifoByte() override;
+	bool preambleDetected() override;
+
+	void scanBegin(float chanbw, uint8_t smooth) override;
+	void scanSetFrequency(float f) override;
+	int scanRSSI() override;
+	void scanEnd() override;
 
 	SemaphoreHandle_t _lock = NULL;
+
+private:
+	uint32_t _scan_lastfrf = 0xFFFFFFFF;
 
 #if 0
 	//! It gets the internal temperature of the module.

@@ -6,6 +6,7 @@ extern const char *fingerprintText[];
 
 void startupBoardDetect();
 void startupPower();
+void startupRadio();
 
 #endif
 

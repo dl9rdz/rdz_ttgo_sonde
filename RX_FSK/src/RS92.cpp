@@ -3,7 +3,7 @@
 
 /* RS92 decoder functions */
 #include "RS92.h"
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "rsc.h"
 #include "Sonde.h"
 #include <LittleFS.h>
@@ -91,7 +91,7 @@ int RS92::setup(float frequency, int /*type*/)
 		initialized = true;
 	}
 
-	if(sx1278.ON()!=0) {
+	if(radio.ON()!=0) {
 		RS92_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
@@ -99,30 +99,30 @@ int RS92::setup(float frequency, int /*type*/)
 		return 1;
 	}
 #if 0
-	if(sx1278.setFSK()!=0) {
+	if(radio.setFSK()!=0) {
 		RS92_DBG(Serial.println("Setting FSJ mode FAILED"));
 		return 1;
 	}
-	if(sx1278.setBitrate(4800)!=0) {
+	if(radio.setBitrate(4800)!=0) {
 		RS92_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
 		return 1;
 	}
 #if RS92_DEBUG
-	float br = sx1278.getBitrate();
+	float br = radio.getBitrate();
 	Serial.print("Exact bitrate is ");
 	Serial.println(br);
 #endif
-        if(sx1278.setAFCBandwidth(sonde.config.rs92.rxbw)!=0) {
+        if(radio.setAFCBandwidth(sonde.config.rs92.rxbw)!=0) {
                 RS92_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs92.rxbw));
                 return 1;
         }
-        if(sx1278.setRxBandwidth(sonde.config.rs92.rxbw)!=0) {
+        if(radio.setRxBandwidth(sonde.config.rs92.rxbw)!=0) {
                 RS92_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs92.rxbw));
                 return 1;
         }
 
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	if(sx1278.setRxConf(0x1E)!=0) {
+	if(radio.setRxConf(0x1E)!=0) {
 		RS92_DBG(Serial.println("Setting RX Config FAILED"));
 		return 1;
 	}
@@ -135,11 +135,11 @@ int RS92::setup(float frequency, int /*type*/)
 	//const char *SYNC="\x99\x9A";
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x65";
-	if(sx1278.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
+	if(radio.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
 		RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
 		return 1;
 	}
-	if(sx1278.setPreambleDetect(0xA8)!=0) {
+	if(radio.setPreambleDetect(0xA8)!=0) {
 		RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
@@ -153,13 +153,13 @@ int RS92::setup(float frequency, int /*type*/)
 	//                             preamble 0x6A 0x66 0x6A
 	// i.e. preamble detector on (0x80), preamble detector size 1 (0x00), preample chip errors??? (0x0A)
 	// after 2a2a2a2a2a1065
-        if(sx1278.setPreambleDetect(0xA8)!=0) {
+        if(radio.setPreambleDetect(0xA8)!=0) {
                 RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
                 return 1;
         }
 	// sync config: ato restart (01), preamble polarity AA (0), sync on (1), resevered (0), syncsize 2+1 (010) => 0x52
 	const char *SYNC="\x6A\x66\x69";
-        if(sx1278.setSyncConf(0x52, 3, (const uint8_t *)SYNC)!=0) {
+        if(radio.setSyncConf(0x52, 3, (const uint8_t *)SYNC)!=0) {
                 RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
                 return 1;
         }
@@ -168,20 +168,20 @@ int RS92::setup(float frequency, int /*type*/)
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-	if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+	if(radio.setPacketConfig(0x08, 0x40)!=0) {
 		RS92_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
 
 	Serial.print("RS92: setting RX frequency to ");
         Serial.println(frequency);
-        int res = sx1278.setFrequency(frequency);
-        sx1278.clearIRQFlags();
+        int res = radio.setFrequency(frequency);
+        radio.clearIRQFlags();
 
         // enable RX
-        sx1278.setPayloadLength(0);  // infinite for now...
-	//sx1278.setPayloadLength(292);
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+        radio.setPayloadLength(0);  // infinite for now...
+	//radio.setPayloadLength(292);
+        radio.startRX();
 
 #if RS92_DEBUG
 	RS92_DBG(Serial.println("Setting SX1278 config for RS92 finished\n"); Serial.println());
@@ -464,9 +464,9 @@ void RS92::process8N1data(uint8_t dt)
 				rxsearching = false;
 				rxbitc = 0;
 				rxp = 6;
-                                int rssi=sx1278.getRSSI();
-                                int fei=sx1278.getFEI();
-                                int afc=sx1278.getAFC();
+                                int rssi=radio.getRSSI();
+                                int fei=radio.getFEI();
+                                int afc=radio.getAFC();
                                 Serial.print("Test: RSSI="); Serial.print(rssi);
                                 Serial.print(" FEI="); Serial.print(fei);
                                 Serial.print(" AFC="); Serial.println(afc);
@@ -528,22 +528,22 @@ int RS92::receive() {
 	unsigned long t0 = millis();
 	Serial.printf("RS92::receive() start at %ld\n",t0);
    	while( millis() - t0 < 1000 ) {
-		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);
-		if ( bitRead(value, 7) ) {
+		uint8_t status = radio.fifoStatus();
+		if ( status & FIFO_FULL ) {
 			Serial.println("FIFO full");
       		}
-      		if ( bitRead(value, 4) ) {
+      		if ( status & FIFO_OVERRUN ) {
         		Serial.println("FIFO overflow");
       		}
-      		if ( bitRead(value, 2) == 1 ) {
+      		if ( status & FIFO_PAYLOAD_READY ) {
         		Serial.println("FIFO: ready()");
-        		sx1278.clearIRQFlags();
+        		radio.clearIRQFlags();
       		}
-		if(bitRead(value, 6) == 0) { // while FIFO not empty
-      			byte data = sx1278.readRegister(REG_FIFO);
+		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
+      			byte data = radio.readFifoByte();
 			//Serial.printf("%02x",data);
       			process8N1data(data);
-      			value = sx1278.readRegister(REG_IRQ_FLAGS2);
+      			status = radio.fifoStatus();
     		} else {
 			if(headerDetected) {
 				t0 = millis(); // restart timer... don't time out if header detected...

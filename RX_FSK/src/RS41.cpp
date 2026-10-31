@@ -1,7 +1,7 @@
 
 /* RS41 decoder functions */
 #include "RS41.h"
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "rsc.h"
 #include "Sonde.h"
 
@@ -211,7 +211,7 @@ int RS41::setup(float frequency, int /*type*/)
 		initialized = true;
 	}
 
-	if(sx1278.ON()!=0) {
+	if(radio.ON()!=0) {
 		RS41_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
@@ -220,25 +220,25 @@ int RS41::setup(float frequency, int /*type*/)
 	}
 #if 0
 	// all moved to DecoderBase now
-	if(sx1278.setFSK()!=0) {
+	if(radio.setFSK()!=0) {
 		RS41_DBG(Serial.println("Setting FSK mode FAILED"));
 		return 1;
 	}
-	if(sx1278.setBitrate(4800)!=0) {
+	if(radio.setBitrate(4800)!=0) {
 		RS41_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
 		return 1;
 	}
 
-	if(sx1278.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
+	if(radio.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
 		RS41_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs41.agcbw));
 		return 1;
 	}
-	if(sx1278.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
+	if(radio.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
 		RS41_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs41.rxbw));
 		return 1;
 	}
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	if(sx1278.setRxConf(0x1E)!=0) {
+	if(radio.setRxConf(0x1E)!=0) {
 		RS41_DBG(Serial.println("Setting RX Config FAILED"));
 		return 1;
 	}
@@ -247,11 +247,11 @@ int RS41::setup(float frequency, int /*type*/)
 
 	//const char *SYNC="\x10\xB6\xCA\x11\x22\x96\x12\xF8";
 	const char *SYNC="\x08\x6D\x53\x88\x44\x69\x48\x1F";
-	if(sx1278.setSyncConf(0x57, 8, (const uint8_t *)SYNC)!=0) {
+	if(radio.setSyncConf(0x57, 8, (const uint8_t *)SYNC)!=0) {
 		RS41_DBG(Serial.println("Setting SYNC Config FAILED"));
 		return 1;
 	}
-	if(sx1278.setPreambleDetect(0xA8)!=0) {
+	if(radio.setPreambleDetect(0xA8)!=0) {
 		RS41_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
@@ -259,14 +259,14 @@ int RS41::setup(float frequency, int /*type*/)
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-	if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+	if(radio.setPacketConfig(0x08, 0x40)!=0) {
 		RS41_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
-	int retval = sx1278.setFrequency(frequency);
+	int retval = radio.setFrequency(frequency);
 	dpos = 0;
 
-        sx1278.clearIRQFlags();
+        radio.clearIRQFlags();
 
 	return retval;
 }
@@ -950,8 +950,8 @@ static uint8_t scramble[64] = {150U,131U,62U,81U,177U,73U,8U,152U,50U,5U,89U,
 
 
 int RS41::receive() {
-	sx1278.setPayloadLength(RS41MAXLEN-8); 
-	int e = sx1278.receivePacketTimeout(1000, data+8);
+	radio.setPayloadLength(RS41MAXLEN-8); 
+	int e = radio.receivePacketTimeout(1000, data+8);
 #if 1
 	if(e) { /*Serial.println("TIMEOUT");*/ return RX_TIMEOUT; } 
 

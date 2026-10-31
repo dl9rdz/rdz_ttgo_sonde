@@ -22,7 +22,7 @@
 //#include "soc/timer_group_struct.h"
 //#include "soc/timer_group_reg.h"
 
-#include "src/SX1278FSK.h"
+#include "src/Radio.h"
 #include "src/Sonde.h"
 #include "src/Display.h"
 #include "src/Scanner.h"
@@ -1953,36 +1953,8 @@ void setup()
   //Set data mode
   SPI.setDataMode(SPI_MODE0);
 #endif
-#if 1
 
-  sx1278.setup(globalLock);
-
-  int i = 0;
-  while (++i < 10) {
-    // == check the radio chip by setting default frequency =========== //
-    sx1278.ON();
-    if (sx1278.setFrequency(402700000) == 0) {
-      Serial.println(F("Setting freq: SUCCESS "));
-    } else {
-      Serial.println(F("Setting freq: ERROR "));
-    }
-    float f = sx1278.getFrequency();
-    LOG_D(TAG, "Frequency set to %d", f);
-    // == check the radio chip by setting default frequency =========== //
-    if( f>402700000-1000 && f<402700000+1000 ) break;
-    delay(500);
-  }
-#endif
-
-  //sx1278.setLNAGain(-48);
-  sx1278.setLNAGain(0);
-
-  int gain = sx1278.getLNAGain();
-  Serial.print("RX LNA Gain is ");
-  Serial.println(gain);
-
-  // Print a success message
-  Serial.println(F("SX1278 configuration finished"));
+  startupRadio();
 
   Serial.println("Setup finished");
   Serial.println();
@@ -3113,11 +3085,11 @@ void loop() {
 #endif
   }
 #if 0
-  int rssi = sx1278.getRSSI();
+  int rssi = radio.getRSSI();
   Serial.print("  RSSI: ");
   Serial.print(rssi);
 
-  int gain = sx1278.getLNAGain();
+  int gain = radio.getLNAGain();
   Serial.print(" LNA Gain: "),
                Serial.println(gain);
 #endif

@@ -717,7 +717,7 @@ Parameters:
 	wait: timeout in ms
 	data: memory where to place received data
 */
-uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, byte *data)
+uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, uint8_t *data)
 {
 	int di=0;
 	uint8_t state = 2;
@@ -886,5 +886,68 @@ void SX1278FSK::showRxRegisters()
 }
 #endif
 
+void SX1278FSK::startRX()
+{
+	writeRegister(REG_PLL_HOP, 0);
+	writeRegister(REG_OP_MODE, FSK_RX_MODE);
+}
+
+uint8_t SX1278FSK::fifoStatus()
+{
+	uint8_t flags = readRegister(REG_IRQ_FLAGS2);
+	uint8_t status = 0;
+	if (bitRead(flags, 6)) status |= FIFO_EMPTY;
+	if (bitRead(flags, 7)) status |= FIFO_FULL;
+	if (bitRead(flags, 4)) status |= FIFO_OVERRUN;
+	if (bitRead(flags, 2)) status |= FIFO_PAYLOAD_READY;
+	return status;
+}
+
+uint8_t SX1278FSK::readFifoByte()
+{
+	return readRegister(REG_FIFO);
+}
+
+bool SX1278FSK::preambleDetected()
+{
+	return (readRegister(REG_IRQ_FLAGS1) & 2) != 0;
+}
+
+void SX1278FSK::scanBegin(float chanbw, uint8_t smooth)
+{
+	writeRegister(REG_PLL_HOP, 0x80);   // FastHopOn
+	setRxBandwidth(chanbw);
+	writeRegister(REG_RSSI_CONFIG, smooth & 0x07);
+	uint8_t fmsb = readRegister(REG_FRF_MSB);
+	uint8_t fmid = readRegister(REG_FRF_MID);
+	uint8_t flsb = readRegister(REG_FRF_LSB);
+	_scan_lastfrf = ((uint32_t)fmsb << 16) | ((uint32_t)fmid << 8) | flsb;
+	writeRegister(REG_OP_MODE, FSK_RX_MODE);
+}
+
+void SX1278FSK::scanSetFrequency(float f)
+{
+	uint32_t frf = f * 1.0 * (1<<19) / SX127X_CRYSTAL_FREQ;
+	if( (_scan_lastfrf>>16)!=(frf>>16) ) {
+		writeRegister(REG_FRF_MSB, (frf&0xff0000)>>16);
+	}
+	if( ((_scan_lastfrf&0x00ff00)>>8) != ((frf&0x00ff00)>>8) ) {
+		writeRegister(REG_FRF_MID, (frf&0x00ff00)>>8);
+	}
+	writeRegister(REG_FRF_LSB, (frf&0x0000ff));
+	_scan_lastfrf = frf;
+}
+
+int SX1278FSK::scanRSSI()
+{
+	return -(int)readRegister(REG_RSSI_VALUE_FSK);
+}
+
+void SX1278FSK::scanEnd()
+{
+	writeRegister(REG_PLL_HOP, 0);
+}
+
 SemaphoreHandle_t globalLock =xSemaphoreCreateMutex();
 SX1278FSK sx1278 = SX1278FSK();
+Radio &radio = sx1278;

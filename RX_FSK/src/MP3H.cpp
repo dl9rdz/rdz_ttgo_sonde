@@ -2,7 +2,7 @@
 /* MP3H decoder functions */
 
 #include "MP3H.h"
-#include "SX1278FSK.h"
+#include "Radio.h"
 #include "rsc.h"
 #include "Sonde.h"
 
@@ -46,26 +46,24 @@ decoderSetupCfg mp3hSetupCfg = {
 int MP3H::setup(float frequency, int /*type*/) 
 {
 	MP3H_DBG(Serial.println("Setup sx1278 for MP3H sonde"));;
-	if(sx1278.ON()!=0) {
+	if(radio.ON()!=0) {
 		MP3H_DBG(Serial.println("Setting SX1278 power on FAILED"));
 		return 1;
 	}
 	// setFSK: switches to FSK standby mode
-	if(sx1278.setFSK()!=0) {
+	if(radio.setFSK()!=0) {
 		MP3H_DBG(Serial.println("Setting FSK mode FAILED"));
 		return 1;
 	}
         Serial.print("MP3H: setting RX frequency to ");
         Serial.println(frequency);
-        int res = sx1278.setFrequency(frequency);
-	// Test: maybe fix issue after spectrum display?
-	sx1278.writeRegister(REG_PLL_HOP, 0);
+        int res = radio.setFrequency(frequency);
 
-        if(sx1278.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
+        if(radio.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
                 MP3H_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.mp3h.agcbw));
                 return 1;
         }
-        if(sx1278.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
+        if(radio.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
                 MP3H_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.mp3h.rxbw));
                 return 1;
         }
@@ -77,37 +75,37 @@ int MP3H::setup(float frequency, int /*type*/)
 #if 0
 	// Now all done in Decoderbase
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
-	sx1278.setFSK();
-	if(sx1278.setBitrate(2400)!=0) {
+	radio.setFSK();
+	if(radio.setBitrate(2400)!=0) {
 		MP3H_DBG(Serial.println("Setting bitrate 2400bit/s FAILED"));
 		return 1;
 	}
-	MP3H_DBG(Serial.printf("Exact bitrate is %f\n", sx1278.getBitrate()));
+	MP3H_DBG(Serial.printf("Exact bitrate is %f\n", radio.getBitrate()));
 	// Probably not necessary, as this was set before
-        if(sx1278.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
+        if(radio.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
                 MP3H_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.mp3h.agcbw));
                 return 1;
         }
-        if(sx1278.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
+        if(radio.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
                 MP3H_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.mp3h.rxbw));
                 return 1;
         }
 
 	///// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	//if(sx1278.setRxConf(0x1E)!=0) {
+	//if(radio.setRxConf(0x1E)!=0) {
 	// Disable auto-AFC, auto-AGC, RX Trigger by preamble
-	if(sx1278.setRxConf(0x00)!=0) {
+	if(radio.setRxConf(0x00)!=0) {
 		MP3H_DBG(Serial.println("Setting RX Config FAILED"));
 		return 1;
 	}
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x66";
-	if(sx1278.setSyncConf(0x70, 1, (const uint8_t *)SYNC)!=0) {
+	if(radio.setSyncConf(0x70, 1, (const uint8_t *)SYNC)!=0) {
 		MP3H_DBG(Serial.println("Setting SYNC Config FAILED"));
 		return 1;
 	}
         // Preamble detection off (+ size 1 byte, maximum tolerance; should not matter for "off"?)
-        if(sx1278.setPreambleDetect(0x00 | 0x00 | 0x1F)!=0) {
+        if(radio.setPreambleDetect(0x00 | 0x00 | 0x1F)!=0) {
 		MP3H_DBG(Serial.println("Setting PreambleDetect FAILED"));
 		return 1;
 	}
@@ -115,20 +113,20 @@ int MP3H::setup(float frequency, int /*type*/)
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
-	if(sx1278.setPacketConfig(0x08, 0x40)!=0) {
+	if(radio.setPacketConfig(0x08, 0x40)!=0) {
 		MP3H_DBG(Serial.println("Setting Packet config FAILED"));
 		return 1;
 	}
 
         // enable RX
-        sx1278.setPayloadLength(0);  // infinite for now...
-        //sx1278.setRxConf(0x20);
-	uint16_t afc = sx1278.getRawAFC();
-        sx1278.writeRegister(REG_OP_MODE, FSK_RX_MODE);
+        radio.setPayloadLength(0);  // infinite for now...
+        //radio.setRxConf(0x20);
+	uint16_t afc = radio.getRawAFC();
+        radio.startRX();
 	delay(50);
-	sx1278.setRawAFC(afc);
+	radio.setRawAFC(afc);
 	delay(50);
-        Serial.printf("after RX_MODE: AFC is %d\n", sx1278.getAFC());
+        Serial.printf("after RX_MODE: AFC is %d\n", radio.getAFC());
 
 	memset((void *)&mp3hstate, 0, sizeof(mp3hstate));
 #if MP3H_DEBUG
@@ -459,9 +457,9 @@ void MP3H::processMP3Hdata(uint8_t dt)
 				rxp = 0;
 				headerDetected = 1;
 				Serial.print("SYNC\n");
-                                int rssi=sx1278.getRSSI();
-                                int fei=sx1278.getFEI();
-                                int afc=sx1278.getAFC();
+                                int rssi=radio.getRSSI();
+                                int fei=radio.getFEI();
+                                int afc=radio.getAFC();
                                 Serial.print("SYNC!!! Test: RSSI="); Serial.print(rssi);
                                 Serial.print(" FEI="); Serial.print(fei);
                                 Serial.print(" AFC="); Serial.println(afc);
@@ -492,22 +490,22 @@ int MP3H::receive() {
 	unsigned long t0 = millis();
 	Serial.printf("MP3H::receive() start at %ld\n",t0);
    	while( millis() - t0 < 1100 + (retval!=RX_TIMEOUT)?1000:0 ) {
-		uint8_t value = sx1278.readRegister(REG_IRQ_FLAGS2);
-		if ( bitRead(value, 7) ) {
+		uint8_t status = radio.fifoStatus();
+		if ( status & FIFO_FULL ) {
 			Serial.println("FIFO full");
       		}
-      		if ( bitRead(value, 4) ) {
+      		if ( status & FIFO_OVERRUN ) {
         		Serial.println("FIFO overflow");
       		}
-      		if ( bitRead(value, 2) == 1 ) {
+      		if ( status & FIFO_PAYLOAD_READY ) {
         		Serial.println("FIFO: ready()");
-        		sx1278.clearIRQFlags();
+        		radio.clearIRQFlags();
       		}
-		if(bitRead(value, 6) == 0) { // while FIFO not empty
-      			byte data = sx1278.readRegister(REG_FIFO);
+		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
+      			byte data = radio.readFifoByte();
 			Serial.printf("%02x:",data);
       			processMP3Hdata(data);
-      			value = sx1278.readRegister(REG_IRQ_FLAGS2);
+      			status = radio.fifoStatus();
     		} else {
 			if(headerDetected) {
 				t0 = millis(); // restart timer... don't time out if header detected...
@@ -542,8 +540,8 @@ int MP3H::receive() {
 			delay(2);
     		}
     	}
-        int32_t afc = sx1278.getAFC();
-        int16_t rssi = sx1278.getRSSI();
+        int32_t afc = radio.getAFC();
+        int16_t rssi = radio.getRSSI();
         Serial.printf("receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
 	Serial.printf("MP3H::receive() timed out\n");
     	return retval;
