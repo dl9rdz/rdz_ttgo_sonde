@@ -12,8 +12,6 @@
 #include <sys/socket.h>
 #include <lwip/dns.h>
 
-#include <ESPAsyncWebServer.h>
-
 // KISS over TCP for communicating with APRSdroid
 static WiFiServer tncserver(14580);
 static WiFiClient tncclient;

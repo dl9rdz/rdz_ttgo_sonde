@@ -181,7 +181,10 @@ def get_file(
 def put_file(
     session: Any, base_url: str, filepath: str, remote_name: Optional[str] = None
 ) -> Optional[str]:
-    """POST file to device. remote_name defaults to basename(filepath). Returns error_msg or None."""
+    """POST file to device. remote_name defaults to basename(filepath). Returns error_msg or None.
+
+    200 is the legacy empty reply. 204 is the current server's "written, no body" reply.
+    """
     import os
 
     name = remote_name or os.path.basename(filepath)
@@ -192,7 +195,7 @@ def put_file(
             r = session.post(url, files=files, timeout=30)
         if r.status_code == 401:
             return "Permission denied (401). Use --user and --pass."
-        if r.status_code != 200:
+        if r.status_code not in (200, 204):
             return "HTTP %s for %s" % (r.status_code, name)
         return None
     except FileNotFoundError:

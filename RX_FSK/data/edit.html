@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<!-- IDF httpd editor: fetch GET /file/<name>, save PUT /file/<name>  -->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+    textarea {
+      width: 100%; min-height: 24rem;
+      font-family: ui-monospace, monospace; font-size: .85rem;
+      background: #222; color: #eee; border: 1px solid #555;
+    }
+    button { background: #246; color: #fff; border: 0; padding: .4rem .8rem; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    .muted { color: #aaa; font-size: .9rem; }
+    .ok { color: #8f8; }
+    .err { color: #f88; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Edit</h1>
+  <p id="status" class="muted">Loading…</p>
+  <textarea id="editor" cols="80" rows="40" spellcheck="false" disabled></textarea>
+  <p>
+    <button type="button" id="save" disabled>Save</button>
+  </p>
+
+  <script>
+  function basenameOk(name) {
+    return name.length > 0 && name.length <= 64 && /^[A-Za-z0-9._-]+$/.test(name);
+  }
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = cls || 'muted';
+  }
+
+  function fileFromQuery() {
+    const q = new URLSearchParams(location.search);
+    return q.get('file') || '';
+  }
+
+  async function loadFile(name) {
+    const res = await fetch('/file/' + encodeURIComponent(name), { credentials: 'same-origin' });
+    if (res.status === 401) {
+      location = '/login.html';
+      return;
+    }
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
+    }
+    return await res.text();
+  }
+
+  async function putFile(name, body) {
+    const res = await fetch('/file/' + encodeURIComponent(name), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      body: body
+    });
+    if (res.status === 401) {
+      location = '/login.html';
+      return false;
+    }
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
+    }
+    return true;
+  }
+
+  async function init() {
+    const name = fileFromQuery();
+    const title = document.getElementById('title');
+    const editor = document.getElementById('editor');
+    const saveBtn = document.getElementById('save');
+
+    if (!basenameOk(name)) {
+      title.textContent = 'Edit';
+      setStatus('Missing or invalid ?file= (basename only: A–Z a–z 0–9 . _ -)', 'err');
+      return;
+    }
+
+    title.textContent = 'Edit: ' + name;
+    document.title = 'Edit ' + name;
+
+    try {
+      const text = await loadFile(name);
+      if (text === undefined) return;
+      editor.value = text;
+      editor.disabled = false;
+      saveBtn.disabled = false;
+      setStatus('Loaded ' + name + ' (' + text.length + ' bytes)', 'ok');
+    } catch (e) {
+      setStatus('Load failed: ' + e.message, 'err');
+      return;
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      setStatus('Saving…', 'muted');
+      try {
+        const ok = await putFile(name, editor.value);
+        if (ok) setStatus('Saved ' + name, 'ok');
+      } catch (e) {
+        setStatus('Save failed: ' + e.message, 'err');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  init();
+  </script>
+</body>
+</html>

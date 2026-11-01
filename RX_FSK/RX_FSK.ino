@@ -9,7 +9,7 @@
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
-#include <ESPAsyncWebServer.h>
+#include "src/httpd.h"
 
 #include <LittleFS.h>
 
@@ -96,7 +96,6 @@ enum MainState { ST_DECODER, ST_SPECTRUM, ST_WIFISCAN, ST_UPDATE, ST_TOUCHCALIB,
 static MainState mainState = ST_WIFISCAN;
 const char *mainStateStr[] = {"DECODER", "SPECTRUM", "WIFISCAN", "UPDATE", "TOUCHCALIB", "RINEXUPDATE", "FORMATSD" };
 
-AsyncWebServer server(80);
 
 PMU *pmu = NULL;
 SemaphoreHandle_t axpSemaphore;
@@ -118,9 +117,7 @@ const long  gmtOffset_sec = 0; //UTC
 const int   daylightOffset_sec = 0; //UTC
 
 // Authentication management
-// BootID is embedded in index.html so client can invalidate auth cookie after ttgo reboot
 // defaultUserLevel is read from user.txt
-char bootid[8];
 uint8_t defaultUserLevel = 2;
 
 boolean connected = false;
@@ -194,77 +191,6 @@ int readLine(Stream &stream, char *buffer, int maxlen) {
   return n;
 }
 
-
-// Replaces placeholder with LED state value
-String processor(const String& var) {
-  LOG_D(TAG, "%s\n", var.c_str());
-  if (var == "MAPCENTER") {
-#if 0
-    double lat, lon;
-    if (gpsPos.valid) {
-      lat = gpsPos.lat;
-      lon = gpsPos.lon;
-    }
-    else {
-      lat = sonde.config.rxlat;
-      lon = sonde.config.rxlon;
-    }
-    //if ( !isnan(lat) && !isnan(lon) ) {
-#endif
-    if ( posInfo.valid ) {
-      char p[40];
-      snprintf(p, 40, "%.8g,%.8g", posInfo.lat, posInfo.lon);
-      return String(p);
-    } else {
-      return String("48,13");
-    }
-  }
-  if (var == "BOOTID") {
-    return String(bootid);
-  }
-  if (var == "VERSION_NAME") {
-    return String(version_name);
-  }
-  if (var == "VERSION_ID") {
-    return String(version_id);
-  }
-  if (var == "FULLNAMEID") {
-    char tmp[128];
-    snprintf(tmp, 128, "%s-%c%d", version_id, FS_MAJOR + 'A' - 1, FS_MINOR);
-    return String(tmp);
-  }
-  if (var == "AUTODETECT_INFO") {
-    char tmpstr[128];
-    const char *fpstr;
-    int i = 0;
-    while (fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i] != -1) i++;
-    if (fingerprintValue[i] == -1) {
-      fpstr = "Unknown board";
-    } else {
-      fpstr = fingerprintText[i];
-    }
-    snprintf(tmpstr, 128, "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
-    return String(tmpstr);
-  }
-  if (var == "EPHSTATE") {
-#if FEATURE_RS92
-    return String(ephtxt[ephstate]);
-#else
-    return String("Not supported");
-#endif
-  }
-  if (var == "LOCAL_UPDATES") {
-    if(localUpdates) return String(localUpdates);
-    else return String();
-  }
-  if (var == "PREAUTH") {
-    char preauth[COOKIE_SIZE];
-    generateRandomCookie("preauth",preauth);
-    storeCookie(preauth, -1);  // preauth value
-    return String(preauth);
-  }
-  return String();
-}
 
 const String sondeTypeSelect(int activeType) {
   String sts = "";
@@ -363,39 +289,6 @@ void HTMLSAVEBUTTON(char *ptr) {
   strcat(ptr, "</span>");
 }
 
-const char *handleLoginPost(AsyncWebServerRequest * request) {
-  LOG_D(TAG, "Handling login POST request");
-
-  const AsyncWebParameter *userp = request->getParam("user", true, false);
-  const AsyncWebParameter *authp = request->getParam("auth", true, false);
-  const AsyncWebParameter *preauthp= request->getParam("preauth", true, false);
-  if (!userp || !authp || !preauthp) {
-    request->send(400, "text/plain", "Invalid Request");
-    return nullptr;
-  }
-
-  String username = userp->value();
-  String preauth = preauthp->value();
-  String auth = authp->value();
-
-  int ulvl = getUserPermissions(username.c_str(), preauth.c_str(), auth.c_str());
-  if(ulvl> 0) {
-    // Generate a new session cookie
-    char cookie[COOKIE_SIZE];
-    generateRandomCookie(username.c_str(), cookie);
-    if(upgradeCookie(preauth.c_str(), cookie, ulvl)==0) {
-      // Set cookie and redirect
-      AsyncWebServerResponse *response = request->beginResponse(302);
-      response->addHeader("Location","/index.html");
-      response->addHeader("Set-Cookie", "SESSION=" + String(cookie) + "; Path=/; SameSite=Strict");
-      request->send(response);
-      return nullptr;
-    }
-  }
-  request->send(401, "text/plain", "Invalid credentials or session expired");
-  return nullptr;
-}
-
 const char *getQRGAsJson() {
   char *ptr = message;
   strcpy(ptr, "{\"channels\":[");
@@ -433,7 +326,7 @@ const char *createQRGForm() {
   return message;
 }
 
-const char *handleQRGPost(AsyncWebServerRequest * request) {
+const char *handleQRGPost(void) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
   File file = LittleFS.open("/qrg.txt", "w");
@@ -442,31 +335,18 @@ const char *handleQRGPost(AsyncWebServerRequest * request) {
     return "Error while opening '/qrg.txt' for writing";
   }
   LOG_D(TAG, "Handling post request");
-#if 0
-  int params = request->params();
-  for (int i = 0; i < params; i++) {
-    String pname = request->getParam(i)->name();
-    Serial.println(pname.c_str());
-  }
-#endif
   for (int i = 1; i <= sonde.config.maxsonde; i++) {
     snprintf(label, 10, "A%d", i);
-    const AsyncWebParameter *active = request->getParam(label, true);
+    const char *active = formGet(label);
     snprintf(label, 10, "F%d", i);
-    const AsyncWebParameter *freq = request->getParam(label, true);
+    const char *fstr = formGet(label);
     snprintf(label, 10, "S%d", i);
-    const AsyncWebParameter *launchsite = request->getParam(label, true);
-
-    if (!freq) continue;
+    const char *sstr = formGet(label);
+    if (!fstr) continue;
     snprintf(label, 10, "T%d", i);
-    const AsyncWebParameter *type = request->getParam(label, true);
-    if (!type) continue;
-    String fstring = freq->value();
-    String tstring = type->value();
-    String sstring = launchsite->value();
-    const char *fstr = fstring.c_str();
-    const char *tstr = tstring.c_str();
-    const char *sstr = sstring.c_str();
+    const char *tstr = formGet(label);
+    if (!tstr) continue;
+    if (!sstr) sstr = "";
     if (*tstr == '6' || *tstr == '9') tstr = "D";
     LOG_D(TAG, "Processing a=%s, f=%s, t=%s, site=%s\n", active ? "YES" : "NO", fstr, tstr, sstr);
     char typech = tstr[0];
@@ -574,7 +454,7 @@ const char *createWIFIForm() {
   return message;
 }
 
-const char *handleWIFIPost(AsyncWebServerRequest * request) {
+const char *handleWIFIPost(void) {
   char label[10];
   // parameters: a_i, f_1, t_i  (active/frequency/type)
 #if 1
@@ -585,24 +465,13 @@ const char *handleWIFIPost(AsyncWebServerRequest * request) {
   }
 #endif
   LOG_D(TAG, "Handling post request");
-#if 0
-  int params = request->params();
-  for (int i = 0; i < params; i++) {
-    String param = request->getParam(i)->name();
-    Serial.println(param.c_str());
-  }
-#endif
   for (int i = 1; i <= MAX_WIFI; i++) {
     snprintf(label, 10, "S%d", i);
-    const AsyncWebParameter *ssid = request->getParam(label, true);
-    if (!ssid) continue;
+    const char *sstr = formGet(label);
+    if (!sstr) continue;
     snprintf(label, 10, "P%d", i);
-    const AsyncWebParameter *pw = request->getParam(label, true);
-    if (!pw) continue;
-    String sstring = ssid->value();
-    String pstring = pw->value();
-    const char *sstr = sstring.c_str();
-    const char *pstr = pstring.c_str();
+    const char *pstr = formGet(label);
+    if (!pstr) continue;
     if (strlen(sstr) == 0) continue;
     LOG_D(TAG, "Processing S=%s, P=%s\n", sstr, pstr);
     f.printf("%s\n%s\n", sstr, pstr);
@@ -698,6 +567,7 @@ const char *createLiveJson() {
   strcat(ptr, "}");
   return message;
 }
+
 ///////////////////// Config form
 
 
@@ -901,7 +771,7 @@ const char *createConfigForm() {
 }
 
 
-const char *handleConfigPost(AsyncWebServerRequest * request) {
+const char *handleConfigPost(void) {
   // parameters: a_i, f_1, t_i  (active/frequency/type)
   LOG_D(TAG, "Handling config post request");
 #if 1
@@ -912,32 +782,29 @@ const char *handleConfigPost(AsyncWebServerRequest * request) {
   }
 #endif
   LOG_D(TAG, "File open for writing.");
-  int params = request->params();
-#if 0
+  int params = formCount();
   for (int i = 0; i < params; i++) {
-    String param = request->getParam(i)->name();
-    Serial.println(param.c_str());
-  }
-#endif
-  for (int i = 0; i < params; i++) {
-    String strlabel = request->getParam(i)->name();
-    const char *label = strlabel.c_str();
+    const char *label = formNameAt(i);
+    if (!label || label[0] == '\0') continue;
     if (label[strlen(label) - 1] == '#') continue;
-    const AsyncWebParameter *value = request->getParam(label, true);
+    const char *value = formValueAt(i);
     if (!value) continue;
-    String strvalue = value->value();
+    char valuebuf[128];
+    strncpy(valuebuf, value, sizeof(valuebuf) - 1);
+    valuebuf[sizeof(valuebuf) - 1] = '\0';
     if ( strcmp(label, "button_pin") == 0 ||
          strcmp(label, "button2_pin") == 0) {
-      const AsyncWebParameter *touch = request->getParam(strlabel + "#", true);
+      char touchkey[48];
+      snprintf(touchkey, sizeof(touchkey), "%s#", label);
+      const char *touch = formGet(touchkey);
       if (touch) {
-        int i = atoi(strvalue.c_str());
-        if (i != -1 && i != 255) i += 128;
-        strvalue = String(i);
+        int iv = atoi(valuebuf);
+        if (iv != -1 && iv != 255) iv += 128;
+        snprintf(valuebuf, sizeof(valuebuf), "%d", iv);
       }
     }
-    LOG_D(TAG, "Processing %s=%s\n", label, strvalue.c_str());
-    //int wlen = f.printf("%s=%s\n", config_list[idx].name, strvalue.c_str());
-    int wlen = f.printf("%s=%s\n", label, strvalue.c_str());
+    LOG_D(TAG, "Processing %s=%s\n", label, valuebuf);
+    int wlen = f.printf("%s=%s\n", label, valuebuf);
     LOG_D(TAG, "Written bytes: %d\n", wlen);
   }
   LOG_D(TAG, "Flushing file\n");
@@ -998,208 +865,55 @@ const char *createControlForm() {
 }
 
 
-const char *handleControlPost(AsyncWebServerRequest * request) {
+const char *handleControlPost(void) {
   LOG_D(TAG, "Handling control post request");
-  int params = request->params();
+  int params = formCount();
   for (int i = 0; i < params; i++) {
-    String param = request->getParam(i)->name();
-    LOG_D(TAG, "Contral post: %s\n", param.c_str());
-    if (param.equals("rx")) {
+    const char *param = formNameAt(i);
+    if (!param) continue;
+    LOG_D(TAG, "Contral post: %s\n", param);
+    if (strcmp(param, "rx") == 0) {
       keyboardInject(EVT_KEY1SHORT);
     }
-    else if (param.equals("scan")) {
+    else if (strcmp(param, "scan") == 0) {
       keyboardInject(EVT_KEY1DOUBLE);
     }
-    else if (param.equals("spec")) {
+    else if (strcmp(param, "spec") == 0) {
       keyboardInject(EVT_KEY1MID);
     }
-    else if (param.equals("wifi")) {
+    else if (strcmp(param, "wifi") == 0) {
       keyboardInject(EVT_KEY1LONG);
     }
-    else if (param.equals("rx2")) {
+    else if (strcmp(param, "rx2") == 0) {
       keyboardInject(EVT_KEY2SHORT);
     }
-    else if (param.equals("scan2")) {
+    else if (strcmp(param, "scan2") == 0) {
       keyboardInject(EVT_KEY2DOUBLE);
     }
-    else if (param.equals("spec2")) {
+    else if (strcmp(param, "spec2") == 0) {
       keyboardInject(EVT_KEY2MID);
     }
-    else if (param.equals("wifi2")) {
+    else if (strcmp(param, "wifi2") == 0) {
       keyboardInject(EVT_KEY2LONG);
     }
-    else if (param.equals("rinex")) {
+    else if (strcmp(param, "rinex") == 0) {
       keyboardInject(EVT_RINEX);
     }
-    else if (param.equals("format")) {
+    else if (strcmp(param, "format") == 0) {
       keyboardInject(EVT_FORMAT);
     }
-    else if (param.equals("reboot")) {
+    else if (strcmp(param, "reboot") == 0) {
       ESP.restart();
     }
   }
   return "";
 }
 
-void handleUpload(AsyncWebServerRequest * request, String filename, size_t index, uint8_t *data, size_t len, bool final) {
-  static File file;
-  if (!index) {
-    const char *fn = filename.c_str();
-    if(!checkAllowed(fn)) {
-      LOG_E(TAG, "UploadStart: writing %s prohibited\n", fn);
-      return;
-    }
-    LOG_D(TAG, "UploadStart: %s\n", filename.c_str());
-    file = LittleFS.open("/" + filename, "w");
-    if (!file) {
-      LOG_E(TAG, "Error opening the file '/%s' for writing", fn);
-    }
-  }
-  if (!file) return;
-  for (size_t i = 0; i < len; i++) {
-    file.write(data[i]);
-  }
-  if (final) {
-    LOG_D(TAG, "UploadEnd: %s, %u B\n", filename.c_str(), index + len);
-    file.close();
-  }
-}
-
-
-int streamEditForm(int &state, File & file, String filename, char *buffer, size_t maxlen, size_t index) {
-  LOG_D(TAG, "streamEdit: state=%d  max:%d idx:%d\n", state, maxlen, index);
-  int i = 0;
-  switch (state) {
-    case 0: // header
-      {
-        // we optimistically assume that on first invocation, maxlen is large enough to handle the header.....
-        strncpy(buffer, "<html><head><title>Editor</title></head><body><p>Edit: ", maxlen);
-        i = strlen(buffer);
-        strncpy(buffer + i, filename.c_str(), maxlen - i);
-        i += strlen(buffer + i);
-        strncpy(buffer + i, "</p><form action=\"edit.html?file=", maxlen - i);
-        i += strlen(buffer + i);
-        strncpy(buffer + i, filename.c_str(), maxlen - i);
-        i += strlen(buffer + i);
-        strncpy(buffer + i, "\" method=\"post\" enctype=\"multipart/form-data\"><textarea name=\"text\" cols=\"80\" rows=\"40\">", maxlen - i);
-        i += strlen(buffer + i);
-        if (i >= maxlen) {
-          strncpy(buffer, "Out of memory", maxlen);
-          state = 3;
-          return strlen(buffer);
-        }
-        state++;
-        LOG_D(TAG, "Wrote %d bytes. Header finished", i);
-        return i;
-        break;
-      }
-    case 1: // file content
-      while (file.available()) {
-        int cnt = readLine(file, buffer + i, maxlen - i - 1);
-        i += cnt;
-        buffer[i++] = '\n';
-        buffer[i] = 0;
-        if (i + 256 > maxlen) break; // max line length in file 256 chars
-      }
-      if (i > 0) return i;
-      file.close();
-      state++;  // intentional fall-through
-    case 2:  // footer
-      Serial.println("Appending footer\n");
-      strncpy(buffer, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>", maxlen);
-      state++;
-      return strlen(buffer);
-    case 3:  // end
-      return 0;
-  }
-  return 0;
-}
-
-// bad idea. prone to buffer overflow. use at your own risk...
-const char *createEditForm(String filename) {
-  Serial.println("Creating edit form");
-  char *ptr = message;
-  File file = LittleFS.open("/" + filename, "r");
-  if (!file) {
-    Serial.println("There was an error opening the file '/config.txt' for reading");
-    return "<html><head><title>File not found</title></head><body>File not found</body></html>";
-  }
-
-  strcpy(ptr, "<html><head><title>Editor ");
-  strcat(ptr, filename.c_str());
-  strcat(ptr, "</title></head><body><form action=\"edit.html?file=");
-  strcat(ptr, filename.c_str());
-  strcat(ptr, "\" method=\"post\" enctype=\"multipart/form-data\">");
-  strcat(ptr, "<textarea name=\"text\" cols=\"80\" rows=\"40\">");
-  while (file.available()) {
-    String line = readLine(file);  //file.readStringUntil('\n');
-    strcat(ptr, line.c_str()); strcat(ptr, "\n");
-  }
-  strcat(ptr, "</textarea><input type=\"submit\" value=\"Save\"></input></form></body></html>");
-  LOG_D(TAG, "Edit form: size=%d bytes\n", strlen(message));
-  return message;
-}
-
-
-const char *handleEditPost(AsyncWebServerRequest * request) {
-  Serial.println("Handling post request");
-  int params = request->params();
-  LOG_D(TAG, "Post:, %d params\n", params);
-  for (int i = 0; i < params; i++) {
-    const AsyncWebParameter* p = request->getParam(i);
-    String name = p->name();
-    String value = p->value();
-    if (name.c_str() == NULL) {
-      name = String("NULL");
-    }
-    if (value.c_str() == NULL) {
-      value = String("NULL");
-    }
-    if (p->isFile()) {
-      LOG_D(TAG, "_FILE[%s]: %s, size: %u\n", name.c_str(), value.c_str(), p->size());
-    } else if (p->isPost()) {
-      LOG_D(TAG, "_POST[%s]: %s\n", name.c_str(), value.c_str());
-    } else {
-      LOG_D(TAG, "_GET[%s]: %s\n", name.c_str(), value.c_str());
-    }
-  }
-
-  const AsyncWebParameter *filep = request->getParam("file");
-  if (!filep) return NULL;
-
-  String filename = filep->value();
-  const char *fn = filename.c_str();
-  if(!checkAllowed(fn)) {
-    LOG_E(TAG, "handleEditPost: writing %s prohibited\n", fn);
-    return NULL;
-  }
-
-  LOG_D(TAG, "Writing file <%s>\n", fn);
-  const AsyncWebParameter *textp = request->getParam("text", true);
-  if (!textp) return NULL;
-  LOG_D(TAG, "Parameter size is %d\n", textp->size());
-  LOG_D(TAG, "Multipart: %d  contentlen=%d  \n",
-                request->multipart(), request->contentLength());
-  String content = textp->value();
-  if (content.length() == 0) {
-    Serial.println("File is empty. Not written.");
-    return NULL;
-  }
-  File file = LittleFS.open("/" + filename, "w");
-  if (!file) {
-    Serial.println("There was an error opening the file '/" + filename + "'for writing");
-    return "";
-  }
-  LOG_D(TAG, "File is open for writing, content is %d bytes\n", content.length());
-  int len = file.print(content);
-  file.close();
-  LOG_D(TAG, "Written: %d bytes\n", len);
-  if (strncmp(filename.c_str(), "screens", 7) == 0) {
-    // screens update => reload
-    forceReloadScreenConfig = true;
-  }
-  return "";
-}
+/* IDF httpd entry points  */
+const char *httpdHandleQRGPost(void) { return handleQRGPost(); }
+const char *httpdHandleWIFIPost(void) { return handleWIFIPost(); }
+const char *httpdHandleConfigPost(void) { return handleConfigPost(); }
+const char *httpdHandleControlPost(void) { return handleControlPost(); }
 
 // will be removed. its now in data/upd.html (for GET; POST to update.html still handled here)
 const char *createUpdateForm(boolean run) {
@@ -1219,51 +933,56 @@ const char *createUpdateForm(boolean run) {
   return message;
 }
 
-const char *handleUpdatePost(AsyncWebServerRequest * request) {
+const char *handleUpdatePost(void) {
   Serial.println("Handling post request");
-  int params = request->params();
   bool updateFromURL = false;
+  int params = formCount();
   for (int i = 0; i < params; i++) {
-    String param = request->getParam(i)->name();
-    Serial.println(param.c_str());
-    if (param.equals("dev2")) {
+    const char *param = formNameAt(i);
+    if (!param) continue;
+    Serial.println(param);
+    if (strcmp(param, "dev2") == 0) {
       Serial.println("equals devel");
       updatePrefix = updatePrefixD;
     }
-    else if (param.equals("main")) {
+    else if (strcmp(param, "main") == 0) {
       Serial.println("equals main");
       updatePrefix = updatePrefixM;
     }
-    else if (localUpdates && param.equals("local")) {
+    else if (localUpdates && strcmp(param, "local") == 0) {
       // Local updates permitted. Expect URL as url parameter...
       updateFromURL = true;
     }
-    else if (updateFromURL && param.equals("url")) {
+    else if (updateFromURL && strcmp(param, "url") == 0) {
       // Note: strdup allocates memory that is never free'd.
       // Let's not care about this as we are going to reboot after the update anyway...
-      String localsrc = request->getParam(i)->value();
-      int pos;
+      const char *raw = formValueAt(i);
+      if (!raw) continue;
+      char localsrc[160];
+      strncpy(localsrc, raw, sizeof(localsrc) - 1);
+      localsrc[sizeof(localsrc) - 1] = '\0';
+      char *pos;
 
-      if (-1 != (pos = localsrc.indexOf("://")) ){
+      if ((pos = strstr(localsrc, "://")) != nullptr) {
         // strip off http://
-        localsrc = localsrc.substring(pos+3);
+        memmove(localsrc, pos + 3, strlen(pos + 3) + 1);
       }
 
-      if (-1 != (pos = localsrc.indexOf("/")) ){
+      if ((pos = strchr(localsrc, '/')) != nullptr) {
         // see if there's a directory or updates are in the root
-        String tmp = localsrc.substring(pos);
-        updatePrefix = strdup(tmp.c_str());
-        localsrc = localsrc.substring(0, pos);
+        updatePrefix = strdup(pos);
+        *pos = '\0';
       } else {
          updatePrefix = strdup("/");
       }
 
-      if (-1 != (pos = localsrc.indexOf(":"))) {
+      if ((pos = strchr(localsrc, ':')) != nullptr) {
         // extract port
-        updatePort = atoi(localsrc.substring(pos+1).c_str());
-        updateHost = strdup(localsrc.substring(0, pos).c_str());
+        *pos = '\0';
+        updatePort = atoi(pos + 1);
+        updateHost = strdup(localsrc);
       } else {
-        updateHost = strdup(localsrc.c_str());
+        updateHost = strdup(localsrc);
       }
     }
   }
@@ -1271,6 +990,9 @@ const char *handleUpdatePost(AsyncWebServerRequest * request) {
   enterMode(ST_UPDATE);
   return "";
 }
+
+const char *httpdHandleUpdatePost(void) { return handleUpdatePost(); }
+const char *httpdCreateUpdateForm(int run) { return createUpdateForm(run ? true : false); }
 
 const char *createKMLLive(const char *myIP) {
   char *ptr = message;
@@ -1315,10 +1037,8 @@ const char *createKMLDynamic() {
 }
 
 
-const char *sendGPX(AsyncWebServerRequest * request) {
+const char *createGPX(int index) {
   Serial.println("\n\n\n********GPX request\n\n");
-  String url = request->url();
-  int index = atoi(url.c_str() + 1);
   char *ptr = message;
   if (index < 0 || index >= MAXSONDE) {
     return "ERROR";
@@ -1340,401 +1060,16 @@ const char *sendGPX(AsyncWebServerRequest * request) {
   return message;
 }
 
-bool isAuthenticated(AsyncWebServerRequest *request, int level) {
-  if(defaultUserLevel >= level)
-    return 1;
-  if(request->hasHeader("Cookie")) {
-    String cookieHdr = request->getHeader("Cookie")->value();
-    int start = cookieHdr.indexOf("SESSION=") + strlen("SESSION=");
-    if(start!=-1) {
-      int end = cookieHdr.indexOf(';', start);
-      String session = (end==-1) ? cookieHdr.substring(start) : cookieHdr.substring(start, end);
-      session.trim();
-      int ulvl = getCookieAuthLevel(session.c_str());
-      if(ulvl >= level) {
-        return 1;
-      }
-    }
-  }
-  request->send(401, "text/plain", "Permission denied");
-  return false;
+const char *httpdCreateKMLLive(void) {
+  return createKMLLive(sonde.ipaddr.c_str());
 }
 
-const char* PARAM_MESSAGE = "message";
-
-#if FEATURE_SDCARD
-static bool deleteSdDirRecursive(const char *sdPath, const char *vfsPath) {
-  char entryPath[360];
-  char vfsFull[360];
-  DIR *d = opendir(vfsPath);
-  if(!d) return false;
-  struct dirent *e;
-  struct stat st;
-  while((e = readdir(d)) != NULL) {
-    if(strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
-    snprintf(entryPath, sizeof(entryPath), "%s/%s", sdPath, e->d_name);
-    snprintf(vfsFull, sizeof(vfsFull), "%s/%s", vfsPath, e->d_name);
-    if(stat(vfsFull, &st) == 0 && (st.st_mode & S_IFDIR)) {
-      if(!deleteSdDirRecursive(entryPath, vfsFull)) { closedir(d); return false; }
-    } else {
-      SD.remove(entryPath);
-    }
-  }
-  closedir(d);
-  return SD.rmdir(sdPath);
+const char *httpdCreateKMLDynamic(void) {
+  return createKMLDynamic();
 }
-#endif
 
-void SetupAsyncServer() {
-  Serial.println("SetupAsyncServer()\n");
-  for(int i=0; i<7; i++) { bootid[i]=random(26)+'A'; }
-  bootid[7] = 0;
-  defaultUserLevel = getDefaultAuthLevel();
-  server.reset();
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/index.html", String(), false, processor);
-  });
-
-  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/index.html", String(), false, processor);
-  });
-
-  server.on("/qrg.json", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/json", getQRGAsJson());
-  });
-
-  server.on("/qrg.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", createQRGForm());
-  });
- 
-  server.on("/qrg.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    handleQRGPost(request);
-    request->send(200, "text/html", createQRGForm());
-  });
-
-  server.on("/wifi.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    request->send(200, "text/html", createWIFIForm());
-  });
-  
-  server.on("/wifi.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    handleWIFIPost(request);
-    request->send(200, "text/html", createWIFIForm());
-  });
-
-  server.on("/config.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    request->send(200, "text/html", createConfigForm());
-  });
-  
-  server.on("/config.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    handleConfigPost(request);
-    request->send(200, "text/html", createConfigForm());
-  });
-
-  server.on("/status.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", createStatusForm());
-  });
-  server.on("/live.json", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/json", createLiveJson());
-  });
-  server.on("/livemap.html", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/livemap.html", String(), false, processor);
-  });
-  server.on("/livemap.js", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/livemap.js", String(), false, processor);
-  });
-  server.on("/update.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    request->send(200, "text/html", createUpdateForm(0));
-  });
-  server.on("/update.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    handleUpdatePost(request);
-    request->send(200, "text/html", createUpdateForm(1));
-  });
-
-  server.on("/control.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    request->send(200, "text/html", createControlForm());
-  });
-  server.on("/control.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    handleControlPost(request);
-    request->send(200, "text/html", createControlForm());
-  });
-
-  server.on("/login.html", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/login.html", String(), false, processor);
-  });
-  server.on("/login.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    handleLoginPost(request);
-  });
-
-  server.on("/file", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    String url = request->url();
-    const char *filename = url.c_str() + 5;
-    if (*filename == 0) {
-      request->send(400, "error");
-      return;
-    }
-    request->send(LittleFS, filename, "text/plain");
-  });
-  
-  server.on("/file", HTTP_POST,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    request->send(200);
-  }, handleUpload);
-#if FEATURE_SDCARD
-  server.serveStatic("/sd/", SD, "/");
-  //server.on("/sd/files.json", HTTP_GET, [](AsyncWebServerRequest *request) {  } ); /// TODO: fix later, temporarily keep for bkward compat
-
-  server.on("/files.json", HTTP_GET, [](AsyncWebServerRequest *request) {
-#define FILES_JSON_MAX_SIZE 4096
-#define FILES_JSON_MAX_ENTRY 128
-    String subdir;
-    if(request->hasParam("dir")) {
-      String dirParam = request->getParam("dir")->value();
-      if(dirParam.indexOf("..") >= 0 || dirParam.length() > 32) { request->send(400, "application/json", "[]"); return; }
-      if(dirParam == ".int") {
-        subdir = "/littlefs/";  /* magic: list LittleFS root */
-      } else {
-        subdir = "/sd/" + dirParam + "/";
-      }
-    } else {
-      subdir = "/sd/";
-    }
-    int start = 0;
-    if(request->hasParam("start")) {
-      start = request->getParam("start")->value().toInt();
-      if(start < 0) start = 0;
-    }
-    int len = 0;
-    DIR *dir = NULL;
-    const size_t bodyCap = FILES_JSON_MAX_SIZE - 2;
-    xSemaphoreTake(globalLock, portMAX_DELAY);
-    dir = opendir(subdir.c_str());
-    xSemaphoreGive(globalLock);
-    if(!dir) {
-      request->send(500, "application/json", "[]");
-      return;
-    }
-    len = snprintf(message, FILES_JSON_MAX_SIZE, "[");
-    if(len < 0 || (size_t)len >= bodyCap) { xSemaphoreTake(globalLock, portMAX_DELAY); closedir(dir); xSemaphoreGive(globalLock); request->send(500, "application/json", "[]"); return; }
-    int index = 0;
-    for(;;) {
-      char d_name_copy[64];
-      int is_dir = 0;
-      time_t mtime = 0;
-      long fsize = 0;
-      int got = 0;
-      xSemaphoreTake(globalLock, portMAX_DELAY);
-      struct dirent *dent = readdir(dir);
-      if(!dent) {
-        closedir(dir);
-        xSemaphoreGive(globalLock);
-        break;
-      }
-      if(strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0) {
-        xSemaphoreGive(globalLock);
-        continue;
-      }
-      strncpy(d_name_copy, dent->d_name, sizeof(d_name_copy) - 1);
-      d_name_copy[sizeof(d_name_copy) - 1] = '\0';
-      if(index < start) {
-        index++;
-        xSemaphoreGive(globalLock);
-        continue;
-      }
-      char fname[128];
-      struct stat attr;
-      snprintf(fname, sizeof(fname), "%s%s", subdir.c_str(), dent->d_name);
-      if(stat(fname, &attr) == 0) {
-        is_dir = S_ISDIR(attr.st_mode) ? 1 : 0;
-        mtime = attr.st_mtime;
-        fsize = (long)attr.st_size;
-        got = 1;
-      }
-      xSemaphoreGive(globalLock);
-      if(!got) continue;
-      if((size_t)(len + FILES_JSON_MAX_ENTRY) >= bodyCap) {
-        xSemaphoreTake(globalLock, portMAX_DELAY);
-        closedir(dir);
-        xSemaphoreGive(globalLock);
-        break;
-      }
-      char ftim[50];
-      strftime(ftim, sizeof(ftim), "%Y-%m-%dT%H:%M:%SZ", gmtime(&mtime));
-      int n;
-      if(is_dir)
-        n = snprintf(message + len, (size_t)(FILES_JSON_MAX_SIZE - len), "%s{\"name\":\"%s\",\"dir\":1,\"ts\":\"%s\"}", len > 1 ? "," : "", d_name_copy, ftim);
-      else
-        n = snprintf(message + len, (size_t)(FILES_JSON_MAX_SIZE - len), "%s{\"name\":\"%s\",\"size\":%ld,\"ts\":\"%s\"}", len > 1 ? "," : "", d_name_copy, fsize, ftim);
-      if(n < 0 || (size_t)(len + n) >= bodyCap) {
-        xSemaphoreTake(globalLock, portMAX_DELAY);
-        closedir(dir);
-        xSemaphoreGive(globalLock);
-        break;
-      }
-      len += n;
-      index++;
-    }
-    len += snprintf(message + len, (size_t)(FILES_JSON_MAX_SIZE - len), "]");
-    if(len < 0 || (size_t)len >= FILES_JSON_MAX_SIZE) { request->send(500, "application/json", "[]"); return; }
-    message[len] = '\0';
-    request->send(200, "application/json", message);
-#undef FILES_JSON_MAX_ENTRY
-#undef FILES_JSON_MAX_SIZE
-  });
-  server.on("/sdrm.html", HTTP_GET, [](AsyncWebServerRequest *request) {
-    if(!isAuthenticated(request, 2)) return;
-    const AsyncWebParameter *param = request->getParam(0);
-    if(!param) { request->send(404); return; }
-    String path = param->value();
-    if(path.indexOf("..") >= 0 || path.length() > 80) { request->send(400, "text/html", "<html><body>invalid path</body></html>"); return; }
-    char filename[96];
-    snprintf(filename, sizeof(filename), "/%s", path.c_str());
-    File f = SD.open(filename);
-    if(!f) {
-      request->send(404, "text/html", "<html><body>not found</body></html>");
-      return;
-    }
-    bool isDir = f.isDirectory();
-    f.close();
-    if(isDir) {
-      char vfsPath[96];
-      snprintf(vfsPath, sizeof(vfsPath), "/sd/%s", path.c_str());
-      if(deleteSdDirRecursive(filename, vfsPath)) {
-        request->send(200, "text/html", "<html><body>ok</body></html>");
-      } else {
-        request->send(500, "text/html", "<html><body>failed to delete folder</body></html>");
-      }
-    } else {
-      if(SD.remove(filename)) {
-        request->send(200, "text/html", "<html><body>ok</body></html>");
-      } else {
-        char info[256];
-        snprintf(info, sizeof(info), "<html><body>failed to delete '%s'\n</body></html>", filename);
-        request->send(404, "text/html", info);
-      }
-    }
-  });
-#endif
-
-  server.on("/edit.html", HTTP_GET,  [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    // new version:
-    // Open file
-    // store file object in request->_tempObject
-    //request->send(200, "text/html", createEditForm(request->getParam(0)->value()));
-    const AsyncWebParameter *param = request->getParam(0);
-    if(!param) {
-      request->send(404);
-      return;
-    }
-    const String filename = param->value();
-    File file = LittleFS.open("/" + filename, "r");
-    int state = 0;
-    request->send("text/html", 0, [state, file, filename](uint8_t *buffer, size_t maxLen, size_t index) mutable -> size_t  {
-      LOG_D(TAG, "******* send callback: %d %d %d\n", state, maxLen, index);
-      return streamEditForm(state, file, filename, (char *)buffer, maxLen, index);
-    });
-  });
-  server.on("/edit.html", HTTP_POST, [](AsyncWebServerRequest * request) {
-    if(!isAuthenticated(request, 2)) return;
-    const char *ret = handleEditPost(request);
-    if (ret == NULL)
-      request->send(200, "text/html", "<html><head>ERROR</head><body><p>Something went wrong (probably ESP32 out of memory). Uploaded file is empty.</p></body></hhtml>");
-    else {
-      const AsyncWebParameter *param = request->getParam(0);
-      if(!param) {
-         request->send(404);
-         return;
-      }
-      String f = param->value();
-      request->redirect("/edit.html?file=" + f);
-    }
-  },
-  NULL,
-  [](AsyncWebServerRequest * request, uint8_t *data, size_t len, size_t index, size_t total) {
-    LOG_D(TAG, "post data: index=%d len=%d total=%d\n", index, len, total);
-  });
-
-  // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest * request) {
-    AsyncWebServerResponse *response = request->beginResponse(LittleFS, "/style.css", "text/css");
-    if(response) {
-      response->addHeader("Cache-Control", "max-age=86400");
-      request->send(response);
-    } else {
-      request->send(404);
-    }
-  });
-
-  server.on("/live.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(200, "application/vnd.google-earth.kml+xml", createKMLLive(sonde.ipaddr.c_str()));
-  });
-
-  server.on("/dynamic.kml", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(200, "application/vnd.google-earth.kml+xml", createKMLDynamic());
-  });
-
-  server.on("/upd.html", HTTP_GET, [](AsyncWebServerRequest * request) {
-    request->send(LittleFS, "/upd.html", String(), false, processor);
-  });
-
-  server.on("/status.json", HTTP_GET, [](AsyncWebServerRequest * request) {
-   int nr = 0;
-   AsyncWebServerResponse *response = request->beginChunkedResponse("application/json", [nr](uint8_t *buf, size_t maxLen, size_t index) mutable-> size_t {
-       if(connectors[nr]==NULL) return 0;
-       if(index==0) { strcpy((char *)buf, "{"); buf++; maxLen--; } else *buf=0;
-       snprintf( (char *)buf, maxLen-2, "\"%s\": \"%s\"\n", connectors[nr]->getName().c_str(), connectors[nr]->getStatus().c_str() );
-       nr++;
-       strcat((char *)buf, connectors[nr]==NULL ? "}\n":",\n");
-       return strlen((char *)buf);
-     }); 
-     request->send(response);
-  });
-
-  server.onNotFound([](AsyncWebServerRequest * request) {
-    if (request->method() == HTTP_OPTIONS) {
-      request->send(200);
-    } else {
-      String url = request->url();
-      if (url.endsWith(".gpx"))
-        request->send(200, "application/gpx+xml", sendGPX(request));
-      else {
-        if (!(url.endsWith(".html") || url.endsWith(".css") || url.endsWith(".js"))) {
-          request->send(404);
-          return;
-        }
-        // TODO: set correct type for .js
-
-        // Caching is an important work-around for a bug somewhere in the network stack that causes corrupt replies
-        // with platform-espressif32 (some TCP segments simply get lost before being sent, so reply header and parts of data is missing)
-        // This happens with concurrent requests, notably if a browser fetches rdz.js and cfg.js concurrently for config.html
-        // With the cache, rdz.js is likely already in the cache...0
-        LOG_D(TAG, "URL is %s\n", url.c_str());
-	const char *type = "text/html";
-        if(url.endsWith(".js")) type="text/javascript";
-        else if(url.endsWith(".css")) type="text/css";
-        LOG_D(TAG, "Responding with type %s (url %s)\n", type, url.c_str());
-        AsyncWebServerResponse *response = request->beginResponse(LittleFS, url, type);
-        if(response) {
-          response->addHeader("Cache-Control", "max-age=900"); 
-          request->send(response);
-        } else {
-          request->send(404);
-        }
-      }
-    }
-  });
-
-  // Start server
-  server.begin();
+const char *httpdCreateGPX(int index) {
+  return createGPX(index);
 }
 
 int fetchWifiIndex(const char *id) {
@@ -1998,7 +1333,14 @@ void setup()
   WiFi.begin("Dinosauro", "03071975");
   while(WiFi.status() != WL_CONNECTED) { delay(500); Serial.print(":"); }
   Serial.println("... WiFi is connected!\n");
-  SetupAsyncServer();
+  defaultUserLevel = getDefaultAuthLevel();
+  httpd_set_allowed_cb(checkAllowed);
+  httpd_set_after_write_cb([](const char *name) {
+    if (name && strncmp(name, "screens", 7) == 0) {
+      forceReloadScreenConfig = true;
+    }
+  });
+  httpd_start_server();
   sonde.config.sd.cs = 13;
   sonde.config.sd.clk = 14;
   sonde.config.sd.miso = 2;
@@ -2332,7 +1674,14 @@ void enableNetwork(bool enable) {
   if (enable) {
     netup_time = esp_timer_get_time() / 1000000;
     MDNS.begin(sonde.config.mdnsname);
-    SetupAsyncServer();
+    defaultUserLevel = getDefaultAuthLevel();
+    httpd_set_allowed_cb(checkAllowed);
+    httpd_set_after_write_cb([](const char *name) {
+      if (name && strncmp(name, "screens", 7) == 0) {
+        forceReloadScreenConfig = true;
+      }
+    });
+    httpd_start_server();
     udp.begin(WiFi.localIP(), LOCALUDPPORT);
     MDNS.addService("http", "tcp", 80);
     // => moved to conn-aprs  MDNS.addService("kiss-tnc", "tcp", 14580);
@@ -2353,6 +1702,7 @@ void enableNetwork(bool enable) {
     connAPRS.netsetup();
 #endif
   } else {
+    httpd_stop_server();
     MDNS.end();
 #if FEATURE_MQTT
     connMQTT.netshutdown();

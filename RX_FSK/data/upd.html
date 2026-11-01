@@ -46,17 +46,27 @@ document.addEventListener("DOMContentLoaded", () => {
 const masterInfo = document.getElementById('masterDiv');
 const develInfo = document.getElementById('develDiv');
 
+function fillUpdateInfo(el, xhr) {
+  if (xhr.status >= 200 && xhr.status < 300) {
+    el.innerHTML = xhr.response.replace(/<[^>]*>/g, '');
+  } else {
+    el.textContent = '(unavailable)';
+  }
+}
+function failUpdateInfo(el) {
+  el.textContent = '(unavailable)';
+}
+
 let request = new XMLHttpRequest();
 request.open('GET', 'http://rdzsonde.org/main/update-info.html');
-request.onload = function() {
-  masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
-}
+request.onload = function() { fillUpdateInfo(masterInfo, request); };
+request.onerror = function() { failUpdateInfo(masterInfo); };
 request.send();
+
 let drequest = new XMLHttpRequest();
 drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
-drequest.onload = function() {
-  develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
-}
+drequest.onload = function() { fillUpdateInfo(develInfo, drequest); };
+drequest.onerror = function() { failUpdateInfo(develInfo); };
 drequest.send();
 </script>
 </body></html>

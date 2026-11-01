@@ -148,23 +148,10 @@ function myFunction() {
 }
 document.getElementById("defaultTab").click();
 
-const bootID = "%BOOTID%";
-const prevID = localStorage.getItem("bootID");
-if(prevID && prevID !== bootID) {
-  document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-}
-localStorage.setItem("bootID", bootID);
-
 const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
 if(sessionC) {
   const [user] = sessionC.split(':');
-  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="#" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
-  const logoutLink = document.getElementById("logoutLink");
-  logoutLink.addEventListener("click", function(event) {
-     event.preventDefault(); // Prevent default link behavior
-     document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-     location.reload(); // Reload the page
-  });
+  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="/logout" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
 } else {
   document.getElementById("userinfo").innerHTML = `<a style="color: white;" href="login.html">Login</a>`;
 }

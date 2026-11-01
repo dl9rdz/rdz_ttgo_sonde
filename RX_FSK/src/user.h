@@ -5,6 +5,7 @@ enum { PERM_NONE, PERM_RO, PERM_ADMIN } permissions;
 
 void cleanupExpiredCookies();
 void storeCookie(const char *cookie, char userclass);
+void revokeCookie(const char *cookie);
 int upgradeCookie(const char *preauth, const char *cookie, char userclass);
 void generateRandomCookie(const char *user, char *cookie);
 int getCookieAuthLevel(const char *cookie);

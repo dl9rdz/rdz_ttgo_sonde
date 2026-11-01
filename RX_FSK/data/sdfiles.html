@@ -49,17 +49,10 @@
         const pdir = dir ? dir+"/" : '';
 
         async function fetchAllEntries() {
-            const all = [];
-            let start = 0;
-            for (;;) {
-                const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '') + (dir ? '&' : '?') + 'start=' + start;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (!Array.isArray(data) || data.length === 0) break;
-                all.push(...data);
-                start += data.length;
-            }
-            return all;
+            const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '');
+            const response = await fetch(url);
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
         }
 
         function renderRow(tableBody, file) {

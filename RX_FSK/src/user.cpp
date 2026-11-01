@@ -52,6 +52,21 @@ void cleanupExpiredCookies() {
   }
 }
 
+void revokeCookie(const char *cookie) {
+  if (!cookie || !cookie[0]) {
+    return;
+  }
+  for (int i = 0; i < cookieCount; i++) {
+    if (strcmp(authCookies[i].value, cookie) == 0) {
+      for (int j = i; j < cookieCount - 1; j++) {
+        authCookies[j] = authCookies[j + 1];
+      }
+      cookieCount--;
+      return;
+    }
+  }
+}
+
 void storeCookie(const char *cookie, char userclass) {
   cleanupExpiredCookies();
   if (cookieCount >= MAX_SESSIONS) {
