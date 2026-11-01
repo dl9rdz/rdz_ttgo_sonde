@@ -22,7 +22,7 @@ def tst(source, target, env):
 
 # We generate all parts, using post actions or dependencies. Now merge all to a firmware bin file....
 def generate_image(source, target, env):
-  env.Execute("esptool.py --chip esp32 merge_bin -o $BUILD_DIR/firmware-image.bin --flash_mode dio --flash_size 4MB 0x1000 $BUILD_DIR/bootloader.bin 0x8000 $BUILD_DIR/partitions.bin 0x10000 $BUILD_DIR/firmware.bin 0x310000 $BUILD_DIR/fonts.bin 0x320000 $BUILD_DIR/littlefs.bin --target-offset 0x1000")
+  env.Execute("esptool --chip esp32 merge-bin -o $BUILD_DIR/firmware-image.bin --flash-mode dio --flash-size 4MB 0x1000 $BUILD_DIR/bootloader.bin 0x8000 $BUILD_DIR/partitions.bin 0x10000 $BUILD_DIR/firmware.bin 0x310000 $BUILD_DIR/fonts.bin 0x320000 $BUILD_DIR/littlefs.bin --target-offset 0x1000")
 
 
 # default target is elf file (if not target buildfs or uploadfs on command line)
@@ -34,9 +34,14 @@ def generate_image(source, target, env):
 #  ["$BUILD_DIR/${PROGNAME}.bin", target_fsbin],
 #  generate_image)
 
+target_fsbin = env.DataToBin(
+    join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}"),
+    "$PROJECT_DATA_DIR",
+)
+
 env.AddCustomTarget(
   "firmware",
-  ["$BUILD_DIR/${PROGNAME}.bin"],
+  ["$BUILD_DIR/${PROGNAME}.bin", target_fsbin],
   generate_image
 )
 
