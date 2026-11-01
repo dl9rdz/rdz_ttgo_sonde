@@ -9,6 +9,17 @@
 #ifndef inttypes_h
         #include <inttypes.h>
 #endif
+
+/* Last completed scan, for decoder.json (display bins, not every hop sample). */
+#define SPECTRUM_MAX_BINS 488
+extern int scandisp[SPECTRUM_MAX_BINS];
+extern int spectrumLen;
+extern float spectrumStartMHz;
+extern float spectrumStepMHz;
+extern float spectrumPeakMHz;
+extern int spectrumPeakRssi;
+extern int spectrumPlotMax;	/* full-scale PLOT_SCALE units (= display height / VSCALE) */
+
 class Scanner
 {
 private:

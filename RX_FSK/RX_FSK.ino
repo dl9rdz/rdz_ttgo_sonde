@@ -266,6 +266,7 @@ void setupChannelList() {
     i++;
   }
   file.close();
+  sonde.listReloadMs = millis();
 }
 
 const char *HTMLHEAD = "<!DOCTYPE html><html><head> <meta charset=\"UTF-8\"> <link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\">";
@@ -481,55 +482,168 @@ const char *handleWIFIPost(void) {
   return "";
 }
 
-// Show current status
-void addSondeStatus(char *ptr, int i)
-{
-  struct tm ts;
-  SondeInfo *s = &sonde.sondeList[i];
-  strcat(ptr, "<table class=\"stat\">");
-  sprintf(ptr + strlen(ptr), "<tr><td id=\"sfreq\">%3.3f MHz, Type: %s</td><tr><td>ID: %s", s->freq, sondeTypeLongStr[sonde.realType(s)],
-          s->d.validID ? s->d.id : "<?""?>");
-  if (s->d.validID && (TYPE_IS_DFM(s->type) || TYPE_IS_METEO(s->type) || s->type == STYPE_MP3H) ) {
-    sprintf(ptr + strlen(ptr), " (ser: %s)", s->d.ser);
-  }
-  sprintf(ptr + strlen(ptr), "</td></tr><tr><td>QTH: %.6f,%.6f h=%.0fm</td></tr>\n", s->d.lat, s->d.lon, s->d.alt);
-  const time_t t = s->d.time;
-  ts = *gmtime(&t);
-  sprintf(ptr + strlen(ptr), "<tr><td>Frame# %u, Sats=%d, %04d-%02d-%02d %02d:%02d:%02d</td></tr>",
-          s->d.frame, s->d.sats, ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec);
-  if (s->type == STYPE_RS41) {
-    sprintf(ptr + strlen(ptr), "<tr><td>Burst-KT=%d Launch-KT=%d Countdown=%d (vor %ds)</td></tr>\n",
-            s->d.burstKT, s->d.launchKT, s->d.countKT, ((uint16_t)s->d.frame - s->d.crefKT));
-  }
-  sprintf(ptr + strlen(ptr), "<tr><td><a target=\"_empty\" href=\"geo:%.6f,%.6f\">GEO-App</a> - ", s->d.lat, s->d.lon);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://radiosondy.info/sonde_archive.php?sondenumber=%s\">radiosondy.info</a> - ", s->d.id);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://tracker.sondehub.org/%s\">SondeHub Tracker</a> - ", s->d.ser);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.openstreetmap.org/?mlat=%.6f&mlon=%.6f&zoom=14\">OSM</a> - ", s->d.lat, s->d.lon);
-  sprintf(ptr + strlen(ptr), "<a target=\"_empty\" href=\"https://www.google.com/maps/search/?api=1&query=%.6f,%.6f\">Google</a></td></tr>", s->d.lat, s->d.lon);
-
-  strcat(ptr, "</table>\n");
+/* decoder.json helpers: unsigned millis compare safe across wrap for gaps < ~24d */
+static bool ms_after(uint32_t t, uint32_t since) {
+  return (int32_t)(t - since) > 0;
 }
 
-const char *createStatusForm() {
-  char *ptr = message;
-  strcpy(ptr, HTMLHEAD);
-  strcat(ptr, "<meta http-equiv=\"refresh\" content=\"5\"></head>");
-  HTMLBODY(ptr, "status.html");
-  strcat(ptr, "<div class=\"content\">");
-
-  for (int i = 0; i < sonde.config.maxsonde; i++) {
-    int snum = (i + sonde.currentSonde) % sonde.config.maxsonde;
-    if (sonde.sondeList[snum].active) {
-      addSondeStatus(ptr, snum);
+static void json_append_escaped(char *dst, const char *src) {
+  char *p = dst + strlen(dst);
+  for (; *src; src++) {
+    unsigned char c = (unsigned char)*src;
+    if (c == '"' || c == '\\') {
+      *p++ = '\\';
+      *p++ = (char)c;
+    } else if (c >= 0x20) {
+      *p++ = (char)c;
     }
   }
-  strcat(ptr, "</div><div class=\"footer\"><span></span>"
-         "<span class=\"ttgoinfo\">rdzTTGOserver ");
-  strcat(ptr, version_id);
-  strcat(ptr, "</span>");
+  *p = 0;
+}
 
-  HTMLBODYEND(ptr);
-  LOG_D(TAG, "Status form: size=%d bytes\n", strlen(message));
+static void appendDecoderEntry(char *ptr, int i, bool empty) {
+  SondeInfo *s = &sonde.sondeList[i];
+  const char *typestr = getType(s);
+  uint32_t now = millis();
+  uint32_t age = (s->lastRx == 0) ? 0 : (now - s->lastRx) / 1000;
+
+  strcat(ptr, "{");
+  sprintf(ptr + strlen(ptr), "\"ch\":%d,\"freq\":%.3f,\"type\":\"", i + 1, s->freq);
+  json_append_escaped(ptr, typestr);
+  sprintf(ptr + strlen(ptr), "\",\"age\":%u,\"res\":%d,\"rssi\":%d,\"validPos\":%d,\"validId\":%d",
+          (unsigned)age, (int)s->rxStat[0], s->rssi, (int)s->d.validPos, s->d.validID ? 1 : 0);
+  if (empty) {
+    strcat(ptr, ",\"empty\":true");
+  }
+  if (s->d.id[0]) {
+    strcat(ptr, ",\"id\":\"");
+    json_append_escaped(ptr, s->d.id);
+    strcat(ptr, "\"");
+  }
+  if (s->d.ser[0]) {
+    strcat(ptr, ",\"ser\":\"");
+    json_append_escaped(ptr, s->d.ser);
+    strcat(ptr, "\"");
+  }
+  {
+    char site[18];
+    strncpy(site, s->launchsite, 17);
+    site[17] = 0;
+    // trim trailing spaces
+    for (int k = (int)strlen(site) - 1; k >= 0 && site[k] == ' '; k--) site[k] = 0;
+    if (site[0]) {
+      strcat(ptr, ",\"launchsite\":\"");
+      json_append_escaped(ptr, site);
+      strcat(ptr, "\"");
+    }
+  }
+  if (!isnan(s->d.lat)) sprintf(ptr + strlen(ptr), ",\"lat\":%.6f", s->d.lat);
+  if (!isnan(s->d.lon)) sprintf(ptr + strlen(ptr), ",\"lon\":%.6f", s->d.lon);
+  if (!isnan(s->d.alt)) sprintf(ptr + strlen(ptr), ",\"alt\":%.0f", s->d.alt);
+  if (!isnan(s->d.vs)) sprintf(ptr + strlen(ptr), ",\"vs\":%.1f", s->d.vs);
+  if (!isnan(s->d.hs)) sprintf(ptr + strlen(ptr), ",\"hs\":%.1f", s->d.hs);
+  if (!isnan(s->d.dir)) sprintf(ptr + strlen(ptr), ",\"dir\":%.0f", s->d.dir);
+  if (!isnan(s->d.temperature)) sprintf(ptr + strlen(ptr), ",\"temp\":%.1f", s->d.temperature);
+  if (!isnan(s->d.relativeHumidity)) sprintf(ptr + strlen(ptr), ",\"humidity\":%.1f", s->d.relativeHumidity);
+  if (!isnan(s->d.pressure)) sprintf(ptr + strlen(ptr), ",\"pressure\":%.1f", s->d.pressure);
+  if (s->d.batteryVoltage > 0) sprintf(ptr + strlen(ptr), ",\"batt\":%.1f", s->d.batteryVoltage);
+  sprintf(ptr + strlen(ptr), ",\"sats\":%d,\"frame\":%u,\"time\":%u",
+          (int)s->d.sats, (unsigned)s->d.frame, (unsigned)s->d.time);
+  if (s->type == STYPE_RS41 && (s->d.burstKT || s->d.launchKT || s->d.countKT)) {
+    sprintf(ptr + strlen(ptr), ",\"burstKT\":%d,\"launchKT\":%d,\"countKT\":%d",
+            (int)s->d.burstKT, (int)s->d.launchKT, (int)s->d.countKT);
+  }
+  strcat(ptr, "}");
+}
+
+const char *createDecoderJson(bool use_since, uint32_t since) {
+  char *ptr = message;
+  uint32_t now = millis();
+  /* Full snapshot if no since, QRG reloaded, or since is ahead of now (device reboot). */
+  bool full = !use_since || ms_after(sonde.listReloadMs, since) || (int32_t)(now - since) < 0;
+
+  SondeInfo *cur = &sonde.sondeList[sonde.currentSonde];
+  const char *typestr = sondeTypeLongStr[sonde.realType(cur)];
+  const char *state;
+  char detail[160];
+  detail[0] = 0;
+
+  if (mainState == ST_SPECTRUM) {
+    state = "spectrum";
+    snprintf(detail, sizeof(detail), "Spectrum scan");
+  } else if (mainState != ST_DECODER) {
+    state = "disabled";
+    const char *label = "Idle";
+    switch (mainState) {
+      case ST_WIFISCAN: label = "WiFi scan"; break;
+      case ST_UPDATE: label = "Update"; break;
+      case ST_TOUCHCALIB: label = "Touch calib"; break;
+      case ST_RINEX_UPDATE: label = "RINEX update"; break;
+      case ST_FORMAT_SD: label = "Format SD"; break;
+      default: break;
+    }
+    snprintf(detail, sizeof(detail), "%s", label);
+  } else if (disp.layoutIdx == sonde.config.display[0]) {
+    state = "scan";
+    snprintf(detail, sizeof(detail), "Scan Ch %d: %.3f MHz %s",
+             sonde.currentSonde + 1, cur->freq, typestr);
+  } else {
+    state = "decode";
+    if (cur->d.validID && cur->d.id[0]) {
+      snprintf(detail, sizeof(detail), "Decoding Ch %d: %.3f MHz %s %s",
+               sonde.currentSonde + 1, cur->freq, typestr, cur->d.id);
+    } else if (cur->d.ser[0]) {
+      snprintf(detail, sizeof(detail), "Decoding Ch %d: %.3f MHz %s %s",
+               sonde.currentSonde + 1, cur->freq, typestr, cur->d.ser);
+    } else {
+      snprintf(detail, sizeof(detail), "Decoding Ch %d: %.3f MHz %s",
+               sonde.currentSonde + 1, cur->freq, typestr);
+    }
+  }
+
+  strcpy(ptr, "{");
+  sprintf(ptr + strlen(ptr),
+          "\"now\":%u,\"full\":%s,\"state\":\"%s\",\"detail\":\"",
+          (unsigned)now, full ? "true" : "false", state);
+  json_append_escaped(ptr, detail);
+  sprintf(ptr + strlen(ptr),
+          "\",\"ch\":%d,\"freq\":%.3f,\"type\":\"",
+          sonde.currentSonde + 1, cur->freq);
+  json_append_escaped(ptr, typestr);
+  strcat(ptr, "\"");
+
+  strcat(ptr, ",\"entries\":[");
+  bool first = true;
+  int decoded = 0;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *s = &sonde.sondeList[i];
+    if (!s->active || s->lastRx == 0) continue;
+    decoded++;
+    if (!full && !ms_after(s->lastRx, since)) continue;
+    if (!first) strcat(ptr, ",");
+    first = false;
+    appendDecoderEntry(ptr, i, false);
+  }
+  if (full && decoded == 0) {
+    appendDecoderEntry(ptr, sonde.currentSonde, true);
+  }
+  strcat(ptr, "]");
+
+  if (mainState == ST_SPECTRUM && spectrumLen > 0) {
+    int n = spectrumLen;
+    if (n > SPECTRUM_MAX_BINS) n = SPECTRUM_MAX_BINS;
+    sprintf(ptr + strlen(ptr),
+            ",\"spectrum\":{\"start\":%.3f,\"step\":%.5f,\"peak\":%.3f,\"peakRssi\":%d,\"noisefloor\":%d,\"plotMax\":%d,\"rssi\":[",
+            spectrumStartMHz, spectrumStepMHz, spectrumPeakMHz, spectrumPeakRssi,
+            sonde.config.noisefloor, spectrumPlotMax);
+    for (int i = 0; i < n; i++) {
+      sprintf(ptr + strlen(ptr), "%s%d", i ? "," : "", scandisp[i]);
+    }
+    strcat(ptr, "]}");
+  }
+
+  strcat(ptr, "}");
+  LOG_D(TAG, "decoder.json: size=%d bytes full=%d\n", (int)strlen(message), (int)full);
   return message;
 }
 

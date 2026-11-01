@@ -5,140 +5,95 @@ body, html {
 }
 
 .system-info {
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    flex-grow: 1;
-    overflow-y: auto;
+	padding: 20px;
+	font-family: Arial, sans-serif;
+	flex-grow: 1;
+	overflow-y: auto;
 }
-.system-info p {
-    margin: 8px 0;
-}
-.system-info h1 {
-    font-size: 24px;
-    margin-bottom: 10px;
-}
+.system-info p { margin: 8px 0; }
+.system-info h1 { font-size: 24px; margin-bottom: 10px; }
+
 .status-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 20px;
 }
 .status-table th, .status-table td {
-    padding: 10px;
-    border: 1px solid #ccc;
-    text-align: left;
-    vertical-align: top;
+	padding: 10px;
+	border: 1px solid #ccc;
+	text-align: left;
+	vertical-align: top;
 }
-.status-table th {
-    background-color: #f4f4f4;
-    font-weight: bold;
-}
-#refresh-button {
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-#refresh-button:hover {
-    color: #007BFF;
-}
+.status-table th { background-color: #f4f4f4; font-weight: bold; }
+#refresh-button { background: none; border: none; cursor: pointer; }
+#refresh-button:hover { color: #007BFF; }
 
 h2.external-links {
-    margin-top: 40px;
-    text-align: center;
-    font-size: 20px;
-    margin-bottom: 15px;
+	margin-top: 40px;
+	text-align: center;
+	font-size: 20px;
+	margin-bottom: 15px;
 }
-
 .link-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
+	display: flex;
+	justify-content: center;
+	gap: 20px;
 }
-
 .link-buttons .button {
-    background-color: #04AA6D;
-    color: white;
-    padding: 15px 20px;
-    text-decoration: none;
-    border-radius: 5px;
-    font-size: 18px;
-    transition: background-color 0.3s ease;
+	background-color: #04AA6D;
+	color: white;
+	padding: 15px 20px;
+	text-decoration: none;
+	border-radius: 5px;
+	font-size: 18px;
+	transition: background-color 0.3s ease;
 }
 
-
-.active, .cfgheader:hover {
-  background-color: #ccc;
+.active, .cfgheader:hover { background-color: #ccc; }
+.cfgpanel:hover td, .cfgpanel:active td {
+	background-color: #808080 !important;
+	color: white;
 }
-.cfgpanel {
-}
-.cfgpanel:hover td, .cfgpanel:active td{
-    background-color: #808080 !important;
-    color: white;
-}
-
-th.cfg {
-  padding:5pt
-}
-table.stat {
-  margin:0px 0px 5px 0px;
-}
+th.cfg { padding: 5pt; }
 
 .hamburger {
-  position: relative;
-  display: inline-block;
-  width: 1.25em;
-  height: 0.8em;
-  margin-right: 0.3em;
-  border-top: 0.2em solid #fff;
-  border-bottom: 0.2em solid #fff;
+	position: relative;
+	display: inline-block;
+	width: 1.25em;
+	height: 0.8em;
+	margin-right: 0.3em;
+	border-top: 0.2em solid #fff;
+	border-bottom: 0.2em solid #fff;
 }
-
 .hamburger:before {
-  content: "";
-  position: absolute;
-  top: 0.3em;
-  left: 0px;
-  width: 100%;
-  border-top: 0.2em solid #fff;
+	content: "";
+	position: absolute;
+	top: 0.3em;
+	left: 0;
+	width: 100%;
+	border-top: 0.2em solid #fff;
 }
 
 .wrapper {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	margin: 0;
 }
-.tci {
-  flex-grow: 1; border: none; margin: 0; padding: 0; overflow-y: auto;
-}
+.tci { flex-grow: 1; border: none; margin: 0; padding: 0; overflow-y: auto; }
 .footer {
- background-color: #333;
- display: flex;
- justify-content: space-between;
+	background-color: #333;
+	display: flex;
+	justify-content: space-between;
 }
 
-td.ch {
-  text-align: right;
-  padding: 0px 8px;
-}
-td.act {
-  text-align: center;
-}
+td.ch { text-align: right; padding: 0 8px; }
+td.act { text-align: center; }
 table, th, td {
 	border: 1px solid black;
 	border-collapse: collapse;
-	background-color: #ddd
+	background-color: #ddd;
 }
-
-td#caption {
-	text-align: center;
-	background-color: #aaa;
-	font-weight: bold;
-}
-
-td#sfreq {
-	background-color: #ccc;
-}
-
 .content {
 	display: flex;
 	flex: 1;
@@ -155,312 +110,224 @@ td#sfreq {
 }
 
 html {
-  font-family: Helvetica;
-  display: inline-block;
-  margin: 0px auto;
-  text-align: left;
+	font-family: Helvetica;
+	display: inline-block;
+	margin: 0 auto;
+	text-align: left;
 }
-h1{
-  color: #0F3376;
-  font-size: 24px
-}
+h1 { color: #0F3376; font-size: 24px; }
 
-.button2 {
-  background-color: #f44336;
-}
-:disabled.save {
-  opacity: 0.5;
-}
+:disabled.save { opacity: 0.5; }
 .save {
-  background-color: #CC1111; /* 0F33C6; */
-  border: white;
-  border-width: 1;
-  color: white;
-  padding: 8px 30px;
-  text-align: center;
-  text-decoration: none;
-  display: block;
-  font-size: 14px;
-  margin: 0
+	background-color: #CC1111;
+	border: white;
+	border-width: 1;
+	color: white;
+	padding: 8px 30px;
+	text-align: center;
+	text-decoration: none;
+	display: block;
+	font-size: 14px;
+	margin: 0;
 }
-
 .ttgoinfo {
-  color: white;
-  padding: 8px 10px;
-  display: block;
-  font-size: 14px;
-  margin: 0
+	color: white;
+	padding: 8px 10px;
+	display: block;
+	font-size: 14px;
+	margin: 0;
 }
 .ctlbtn {
-  background-color: #ccc;
-  border: black;
-  border-width: 1;
-  color: black;
-  padding: 4px 30px;
-  text-align: center;
-  text-decoration: none;
-  display: block;
-  font-size: 4vh;
-  margin-top: 0.3em;
-  margin-left: 0.3em;
-  margin-right: 0.3em;
-}
-.update {
-  margin: 0;
-  display: block;
+	background-color: #ccc;
+	border: black;
+	border-width: 1;
+	color: black;
+	padding: 4px 30px;
+	text-align: center;
+	text-decoration: none;
+	display: block;
+	font-size: 4vh;
+	margin: 0.3em 0.3em 0;
 }
 
-#map {
-	height: 100%;
-}
+#map { height: 100%; }
 
 .leaflet-popup-content table, .leaflet-popup-content table td {
-	border:0;
+	border: 0;
 	background-color: white;
 }
-
-.leaflet-popup-content table td:nth-child(2),.leaflet-popup-content table td:nth-child(5) {
+.leaflet-popup-content table td:nth-child(2),
+.leaflet-popup-content table td:nth-child(5) {
 	text-align: right;
 	padding-left: 3px;
 }
-
-.leaflet-popup-content table td:nth-child(3),.leaflet-popup-content table td:nth-child(6) {
+.leaflet-popup-content table td:nth-child(3),
+.leaflet-popup-content table td:nth-child(6) {
 	text-align: left;
 	padding-right: 10px;
 }
 
-.leaflet-gps{animation:fading 1s infinite}@keyframes fading{0%{opacity:0.7}50%{opacity:1}100%{opacity:0.7}}
+.leaflet-gps { animation: fading 1s infinite; margin-left: -7px !important; margin-top: -9px !important; }
+.leaflet-gps::after { content: '🔵'; }
+@keyframes fading { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
 
-.leaflet-gps::after {
-	content: '🔵';
-}
-.leaflet-gps {
-	margin-left: -7px !important;
-	margin-top: -9px !important;
-}
-
-.leaflet-burst::after {
-	content: '💥';
-}
-.leaflet-burst {
-	margin-left: -20px !important;
-	margin-top: -22px !important;
-	font-weight: bold;
-	font-size: 30px;
-}
-
-.leaflet-landing::after {
-	content: '×';
-}
-
-.leaflet-landing {
-	margin-left: -13px !important;
-	margin-top: -30px !important;
-	font-weight: bold;
-	font-size: 40px;
-}
-
+.leaflet-burst { margin-left: -20px !important; margin-top: -22px !important; font-weight: bold; font-size: 30px; }
+.leaflet-burst::after { content: '💥'; }
+.leaflet-landing { margin-left: -13px !important; margin-top: -30px !important; font-weight: bold; font-size: 40px; }
+.leaflet-landing::after { content: '×'; }
 
 .leaflet-header {
-    text-align: center;
-    width: 250px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-    border-bottom-left-radius: 4px;
-    border-bottom-right-radius: 4px;
-    pointer-events: auto !important;
+	text-align: center;
+	width: 250px;
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	pointer-events: auto !important;
 }
-
-.leaflet-header #settings {
-	display: none;
-}
-
-.leaflet-header label {
-	display: block;
-	margin-top: 5px;
-}
-.leaflet-header input {
-	width: 80px;
-	margin: 0 auto;
-}
-
-.leaflet-header #submit {
-	margin: 3px auto;
-}
+.leaflet-header #settings, .leaflet-header #sonde_detail { display: none; }
+.leaflet-header label { display: block; margin-top: 5px; }
+.leaflet-header input { width: 80px; margin: 0 auto; }
+.leaflet-header #submit { margin: 3px auto; }
 
 .leaflet-footer {
-		display:none;
-    text-align: center;
-    width: 180px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
+	display: none;
+	text-align: center;
+	width: 180px;
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
 }
-
 .leaflet-center {
-    left:0;
-    right:0;
-    margin: 0 auto;
-    padding: 5px;
-    background: #fff;
-    background: rgba(255, 255, 255, 0.8);
-}
-
-.leaflet-header #sonde_detail {
-	display:none;
+	left: 0;
+	right: 0;
+	margin: 0 auto;
+	padding: 5px;
+	background: rgba(255,255,255,0.8);
 }
 
 @media screen and (max-width: 600px) {
-    .leaflet-control-attribution {
-        -moz-transform: rotate(-90deg) translateX(100%);
-        -ms-transform: rotate(-90deg) translateX(100%);
-        -o-transform: rotate(-90deg) translateX(100%);;
-        -webkit-transform: rotate(-90deg) translateX(100%);
-        transform: rotate(-90deg) translateX(100%);
-        -webkit-transform-origin: 100% 100%;
-        -moz-transform-origin: 100% 100%;
-        -ms-transform-origin: 100% 100%;
-        -o-transform-origin: 100% 100%;
-        transform-origin: 100% 100%;
-    }
+	.leaflet-control-attribution {
+		transform: rotate(-90deg) translateX(100%);
+		transform-origin: 100% 100%;
+		-webkit-transform: rotate(-90deg) translateX(100%);
+		-webkit-transform-origin: 100% 100%;
+	}
+	.topnav a:not(.active) { display: none; }
+	.topnav a.icon { float: right; display: block; }
+	.topnav.responsive { position: relative; }
+	.topnav.responsive a.icon { position: absolute; right: 0; top: 0; }
+	.topnav.responsive a { float: none; display: block; text-align: left; }
 }
 
 .ldot {
-  height: 15px;
-  width: 15px;
+	height: 15px;
+	width: 15px;
 	margin-top: 8px;
 	margin-left: -1px;
-  border-radius: 50%;
-  display: inline-block;
+	border-radius: 50%;
+	display: inline-block;
 }
-
 .ybg {
 	background-color: orange;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(yellow), to(orange));
 	background-image: linear-gradient(top, yellow, orange);
 }
 .gbg {
 	background-color: green;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(lime), to(green));
-	background-image: linear-gradient(top, lime, green); 
+	background-image: linear-gradient(top, lime, green);
 }
-.rbg { 
+.rbg {
 	background-color: red;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(orange), to(red));
-	background-image: linear-gradient(top, orange, red); 
+	background-image: linear-gradient(top, orange, red);
 }
+#sonde_statbar .ldot { margin-right: 3px; }
 
-#sonde_statbar .ldot {
-	margin-right: 3px;
-}
-
-/* Add a black background color to the top navigation */
-.topnav {
-  background-color: #333;
-  overflow: hidden;
-}
-
-/* Style the links inside the navigation bar */
+/* topnav */
+.topnav { background-color: #333; overflow: hidden; }
 .topnav a {
-  float: left;
-  display: block;
-  color: #f2f2f2;
-  text-align: center;
-  padding: 14px 16px;
-  text-decoration: none;
-  font-size: 17px;
+	float: left;
+	display: block;
+	color: #f2f2f2;
+	text-align: center;
+	padding: 14px 16px;
+	text-decoration: none;
+	font-size: 17px;
 }
-
-/* Change the color of links on hover */
-.topnav a:hover {
-  background-color: #ddd;
-  color: black;
-}
-
-/* Add an active class to highlight the current page */
-.topnav a.active {
-  background-color: #04AA6D;
-  color: white;
-}
-
-/* Hide the link that should open and close the topnav on small screens */
-.topnav .icon {
-  display: none;
-  padding-bottom: 12px;
-  padding-top: 11px;
-}
-
-/* When the screen is less than 600 pixels wide, hide all links, except for the first one ("Home"). Show the link that contains should open and close the topnav (.icon) */
-@media screen and (max-width: 600px) {
-  .topnav a:not(.active) {display: none;}
-  .topnav a.icon {
-    float: right;
-    display: block;
-  }
-}
-
-/* The "responsive" class is added to the topnav with JavaScript when the user clicks on the icon. This class makes the topnav look good on small screens (display the links vertically instead of horizontally) */
-@media screen and (max-width: 600px) {
-  .topnav.responsive {position: relative;}
-  .topnav.responsive a.icon {
-    position: absolute;
-    right: 0;
-    top: 0;
-  }
-  .topnav.responsive a {
-    float: none;
-    display: block;
-    text-align: left;
-  }
-}
+.topnav a:hover { background-color: #ddd; color: black; }
+.topnav a.active { background-color: #04AA6D; color: white; }
+.topnav .icon { display: none; padding: 11px 16px 12px; }
 
 @media (prefers-color-scheme: dark) {
-  body {
-    background-color: #333;
-  }
-  h1{
-    color: #3378f6;
-  } 
-  h2{
-    color: white;
-  }
-  .system-info p {
-	  color: #bdbdbd;
-  }
-  .status-table th {
-	  color: black;
-  }
-  table, th, td, .save, a.active {
-    color: white;
-    border: 1px solid grey;
-    border-collapse: collapse;
-    background-color: #333;
-  }
-  input, select, .tci, .warning {
-    color: white;
-    background-color: #333;
-  }
-  a:link, a:visited {
-    color: #D3D3D3;
-  }
-  .topnav, td#sfreq {
-    background-color: grey;
-  }
-  .topnav a:visited {
-    color: white;
-  }
-  .ctlbtn {
-    color: white;
-    background-color: grey;
-  }
-  .leaflet-center {
-    color: white;
-    background-color: grey;
-  }
-  .leaflet-bar a {
-    background-color: grey !important;
-  }
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-    color: white !important;
-    background: grey !important;
-  }
+	body { background-color: #333; }
+	h1 { color: #3378f6; }
+	h2 { color: white; }
+	.system-info p { color: #bdbdbd; }
+	.status-table th { color: black; }
+	table, th, td, .save, a.active {
+		color: white;
+		border: 1px solid grey;
+		border-collapse: collapse;
+		background-color: #333;
+	}
+	input, select, .tci { color: white; background-color: #333; }
+	a:link, a:visited { color: #D3D3D3; }
+	.topnav { background-color: grey; }
+	.topnav a:visited { color: white; }
+	.ctlbtn, .leaflet-center { color: white; background-color: grey; }
+	.leaflet-bar a { background-color: grey !important; }
+	.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+		color: white !important;
+		background: grey !important;
+	}
 }
+
+/* decoder */
+.decoder-page { padding: 8px; gap: 8px; }
+.spectrum {
+	background: #222;
+	border: 1px solid #999;
+	border-radius: 4px;
+	padding: 4px;
+}
+.spectrum canvas { width: 100%; height: 240px; display: block; }
+.spectrum-label { color: #ccc; font-size: 0.85em; padding: 4px 2px 0; }
+.decoder-status, .decoder-card {
+	background: #ddd;
+	border: 1px solid #999;
+	border-radius: 4px;
+}
+.decoder-status { padding: 10px 12px; font-weight: bold; }
+.decoder-status.state-disabled { background: #ccc; }
+.decoder-status.state-spectrum { background: #cde; }
+.decoder-status.state-scan { background: #fec; }
+.decoder-status.state-decode { background: #cfc; }
+.decoder-list { display: flex; flex-direction: column; gap: 8px; }
+.decoder-card {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 8px 10px;
+}
+.decoder-card.current { border-color: #04AA6D; box-shadow: inset 3px 0 0 #04AA6D; }
+.decoder-card.empty { opacity: 0.75; font-style: italic; }
+.decoder-card-head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: baseline;
+	background: #ccc;
+	margin: -8px -10px 4px;
+	padding: 6px 10px;
+}
+.decoder-ch, .decoder-id { font-weight: bold; }
+.decoder-ch { min-width: 3.5em; }
+.decoder-type { min-width: 5em; }
+.decoder-age { margin-left: auto; color: #555; font-size: 0.9em; }
+.decoder-res { font-size: 0.85em; padding: 1px 6px; border-radius: 3px; background: #eee; }
+.decoder-res.res-ok { background: #9d9; }
+.decoder-res.res-err { background: #e99; }
+.decoder-res.res-nopos { background: #ee9; }
+.decoder-res.res-stale, .decoder-res.res-timeout { background: #ccc; color: #555; }
+.decoder-card-id { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.decoder-stats { font-weight: normal; font-size: 0.95em; }
+.decoder-card-qth, .decoder-card-meteo, .decoder-card-kt, .decoder-card-links { font-size: 0.95em; }
+.decoder-card-links a { margin-right: 0.2em; }

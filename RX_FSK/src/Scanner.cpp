@@ -47,11 +47,18 @@ struct scancfg &scanconfig = scanTFT;
 // max of 120 and 210 (ceil(210/8)*8)) -- now ceil(300/8)*8
 //#define MAXDISP 216
 //#define MAXDISP 304
-#define MAXDISP 488
+#define MAXDISP SPECTRUM_MAX_BINS
 
 int scanresult[MAXN];
 int scandisp[MAXDISP];
 double peakf=0;
+
+int spectrumLen = 0;
+float spectrumStartMHz = 0;
+float spectrumStepMHz = 0;
+float spectrumPeakMHz = 0;
+int spectrumPeakRssi = 0;
+int spectrumPlotMax = 128;
 
 //#define PLOT_MIN -250
 #define PLOT_MIN (sonde.config.noisefloor*2)
@@ -195,14 +202,15 @@ void Scanner::scan()
 	for(int i=0; i<scanconfig.PLOT_W; i+=1) {
 		int r=scanresult[i*scanconfig.SMPL_PIX];
 		if(r>peakres+1) { peakres=r; peakidx=i*scanconfig.SMPL_PIX; }
-		scandisp[i] = r;
+		int sum = r;
 		for(int j=1; j<scanconfig.SMPL_PIX; j++) { 
 			r = scanresult[i*scanconfig.SMPL_PIX+j]; 
-			scandisp[i]+=r;
+			sum += r;
 			if(r>peakres+1) { peakres=r; peakidx=i*scanconfig.SMPL_PIX+j; }
 		}
-		//for(int j=1; j<PIXSAMPL; j++) { if(scanresult[i+j]>scandisp[i/PIXSAMPL]) scandisp[i/PIXSAMPL] = scanresult[i+j]; }
-		Serial.print(scanresult[i]); Serial.print(", ");
+		/* Single write of averaged value so concurrent decoder.json never sees the sum. */
+		scandisp[i] = sum / scanconfig.SMPL_PIX;
+		Serial.print(scandisp[i]); Serial.print(", ");
 	}
 	peakidx--;
 	double newpeakf = STARTF + scanconfig.CHANSTEP*1000.0*peakidx;
@@ -210,12 +218,14 @@ void Scanner::scan()
 	else if (newpeakf < peakf) peakf = 0.75*newpeakf + 0.25*peakf;		// averaging on frequency, some bias towards lower...
 	else peakf = 0.25*newpeakf + 0.75*peakf;
 	Serial.println("\n");
-	for(int i=0; i<scanconfig.PLOT_W; i++) { 
-		scandisp[i]/=scanconfig.SMPL_PIX;
-                Serial.print(scandisp[i]); Serial.print(", ");
-	}
-	Serial.println("\n");
 	Serial.printf("Peak: %f rssi %d\n", peakf, peakres);
+	spectrumLen = scanconfig.PLOT_W;
+	spectrumStartMHz = (float)(STARTF * 1e-6);
+	spectrumStepMHz = (float)(scanconfig.CHANSTEP * scanconfig.SMPL_PIX / 1000.0);
+	spectrumPeakMHz = (float)(peakf * 1e-6);
+	spectrumPeakRssi = peakres;
+	spectrumPlotMax = (scanconfig.PLOT_H8 * 8) / scanconfig.VSCALE;
+	if (spectrumPlotMax < 1) spectrumPlotMax = 1;
 #if FEATURE_MQTT
 	connMQTT.publishPeak(peakf, peakres);
 #endif

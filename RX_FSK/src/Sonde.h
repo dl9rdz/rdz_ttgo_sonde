@@ -145,6 +145,7 @@ typedef struct st_sondeinfo {
 	uint32_t rxStart;    		// millis() timestamp of continuous rx start
 	uint32_t norxStart;		// millis() timestamp of continuous no rx start
 	uint32_t viewStart;		// millis() timestamp of viewinf this sonde with current display
+	uint32_t lastRx;		// millis() of last RX_OK / RX_ERROR / RX_NOPOS (0 = never)
 	int8_t lastState;		// -1: disabled; 0: norx; 1: rx
 
 	// Third part: decoded data. Clear if reception of a new sonde has started
@@ -365,6 +366,8 @@ public:
 	// moved to heap, saving space in .bss
 	//SondeInfo sondeList[MAXSONDE+1];
 	SondeInfo *sondeList;
+	// decoder.json: force full snapshot after QRG reload
+	uint32_t listReloadMs;
 	// helper function for type string
 	static SondeType realType(SondeInfo *si);
 

@@ -41,6 +41,8 @@ LFS_COMPARE = (
     "sdfiles.html",
     "map.html",
     "livemap.js",
+    "decoder.html",
+    "decoder.js",
     "screens.txt",
     "screens1.txt",
     "screens2.txt",
@@ -60,6 +62,8 @@ STATIC_COMPARE = (
     "sdfiles.html",
     "map.html",
     "livemap.js",
+    "decoder.html",
+    "decoder.js",
 )
 
 # ---------------------------------------------------------------------------
@@ -306,11 +310,63 @@ def test_status_txt(ctx: Ctx):
 
 
 def test_status_html(ctx: Ctx):
-    st, _, body, rtt = ctx.get("/status.html")
+    st, hdrs, _, rtt = ctx.get("/status.html")
+    if st not in (301, 302, 303, 307, 308):
+        return _fail(rtt, f"expected redirect, HTTP {st}")
+    loc = (hdrs.get("location") or "").strip()
+    if "/decoder.html" not in loc:
+        return _fail(rtt, f"Location={loc!r}, want /decoder.html")
+    return _ok(rtt)
+
+
+def test_decoder_html(ctx: Ctx):
+    st, _, body, rtt = ctx.get("/decoder.html")
     if st != 200:
         return _fail(rtt, f"HTTP {st}")
-    if b"rdzTTGOserver" not in body and b"status" not in body.lower():
+    if b"decoder.js" not in body or b"decoder-status" not in body:
         return _fail(rtt, "unexpected HTML")
+    return _ok(rtt)
+
+
+def test_decoder_json(ctx: Ctx):
+    st, _, body, rtt = ctx.get("/decoder.json")
+    if st != 200:
+        return _fail(rtt, f"HTTP {st}")
+    try:
+        obj = json.loads(body.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as e:
+        return _fail(rtt, f"JSON: {e}")
+    if not isinstance(obj, dict):
+        return _fail(rtt, "non-object")
+    for key in ("now", "full", "state", "detail", "ch", "freq", "type", "entries"):
+        if key not in obj:
+            return _fail(rtt, f"missing {key}")
+    if obj.get("full") is not True:
+        return _fail(rtt, "full snapshot expected")
+    if not isinstance(obj["entries"], list):
+        return _fail(rtt, "entries not a list")
+    if obj["state"] not in ("disabled", "spectrum", "scan", "decode"):
+        return _fail(rtt, f"bad state {obj['state']!r}")
+
+    since = obj["now"]
+    st2, _, body2, rtt2 = ctx.get(f"/decoder.json?since={since}")
+    rtt = (rtt or 0) + (rtt2 or 0)
+    if st2 != 200:
+        return _fail(rtt, f"delta HTTP {st2}")
+    try:
+        delta = json.loads(body2.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as e:
+        return _fail(rtt, f"delta JSON: {e}")
+    if delta.get("full") is True:
+        # QRG reload between calls is rare; still require shape
+        if "entries" not in delta:
+            return _fail(rtt, "delta missing entries")
+        return _ok(rtt)
+    if not isinstance(delta.get("entries"), list):
+        return _fail(rtt, "delta entries not a list")
+    for key in ("now", "state", "detail", "ch"):
+        if key not in delta:
+            return _fail(rtt, f"delta missing {key}")
     return _ok(rtt)
 
 
@@ -658,6 +714,8 @@ CASES += [
     ("get /status.json", test_status_json),
     ("get /status.txt", test_status_txt),
     ("get /status.html", test_status_html),
+    ("get /decoder.html", test_decoder_html),
+    ("get /decoder.json", test_decoder_json),
     ("get /live.json", test_live_json),
     ("get /qrg.json", test_qrg_json),
     ("OPTIONS /", test_options),

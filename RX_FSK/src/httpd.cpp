@@ -1500,7 +1500,7 @@ static esp_err_t upd_html_get(httpd_req_t *req)
 }
 
 /* Sketch helpers (RX_FSK.ino) -- return pointer to sketch-owned buffer. */
-extern const char *createStatusForm(void);
+extern const char *createDecoderJson(bool use_since, uint32_t since);
 extern const char *createLiveJson(void);
 extern const char *getQRGAsJson(void);
 extern const char *createQRGForm(void);
@@ -1529,7 +1529,20 @@ static esp_err_t send_cstr(httpd_req_t *req, const char *ctype, const char *body
 
 static esp_err_t status_html_get(httpd_req_t *req)
 {
-	return send_cstr(req, "text/html", createStatusForm());
+	httpd_resp_set_status(req, "302 Found");
+	httpd_resp_set_hdr(req, "Location", "/decoder.html");
+	return httpd_resp_send(req, nullptr, 0);
+}
+
+static esp_err_t decoder_json_get(httpd_req_t *req)
+{
+	char since_str[16];
+	bool use_since = query_get(req, "since", since_str, sizeof(since_str));
+	uint32_t since = 0;
+	if (use_since) {
+		since = (uint32_t)strtoul(since_str, nullptr, 10);
+	}
+	return send_cstr(req, "application/json", createDecoderJson(use_since, since));
 }
 
 static esp_err_t live_json_get(httpd_req_t *req)
@@ -1801,6 +1814,13 @@ static const httpd_uri_t uri_status_html = {
 	.user_ctx = nullptr,
 };
 
+static const httpd_uri_t uri_decoder_json = {
+	.uri = "/decoder.json",
+	.method = HTTP_GET,
+	.handler = decoder_json_get,
+	.user_ctx = nullptr,
+};
+
 static const httpd_uri_t uri_live_json = {
 	.uri = "/live.json",
 	.method = HTTP_GET,
@@ -2033,7 +2053,8 @@ void httpd_start_server(void)
 	const httpd_uri_t *handlers[] = {
 		&uri_status_txt,   &uri_root,	       &uri_index,
 		&uri_livemap_html, &uri_upd,	     &uri_status_html,
-		&uri_live_json,	   &uri_qrg_json,      &uri_status_json,     &uri_qrg_html_get,
+		&uri_decoder_json, &uri_live_json,   &uri_qrg_json,      &uri_status_json,
+		&uri_qrg_html_get,
 		&uri_qrg_html_post,&uri_wifi_html_get, &uri_wifi_html_post,  &uri_config_html_get,
 		&uri_config_html_post, &uri_control_html_get, &uri_control_html_post,
 		&uri_update_html_get, &uri_update_html_post, &uri_live_kml, &uri_dynamic_kml,

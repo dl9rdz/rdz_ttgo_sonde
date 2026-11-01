@@ -65,6 +65,7 @@ void Sonde::defaultConfig() {
 	sondeList = (SondeInfo *)malloc((MAXSONDE+1)*sizeof(SondeInfo));
 	// addSonde should initialize everything anyway, so this should not strictly be necessary, but does no harm either
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
+	listReloadMs = 0;
 	for(int i=0; i<(MAXSONDE+1); i++) {
 		sondeList[i].freq=400;
 		sondeList[i].type=STYPE_RS41;
@@ -378,7 +379,8 @@ void Sonde::receive() {
 	}
 
 	// state information for RX_TIMER / NORX_TIMER events
-	if(res==RX_OK || res==RX_ERROR) {  // something was received...
+	if(res==RX_OK || res==RX_ERROR || res==RX_NOPOS) {  // something was received...
+		si->lastRx = millis();
 		flashLed( (res==RX_OK)?700:100);
 		if(si->lastState != 1) {
 			si->rxStart = millis();
@@ -577,6 +579,7 @@ uint8_t Sonde::updateState(uint8_t event) {
 }
 
 void Sonde::clearAllData(SondeInfo *si) {
+	si->lastRx = 0;
 	// set everything to 0
 	memset(&(si->d), 0, sizeof(SondeData));
 	// set floats to NaN
