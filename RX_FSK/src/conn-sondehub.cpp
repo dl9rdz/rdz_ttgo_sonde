@@ -614,8 +614,9 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
     uint8_t realtype = sonde.realType(s);
 
     // For DFM, s->d.time is data from subframe DAT8 (gps date/hh/mm), and sec is from DAT1 (gps sec/usec)
-    // For all others, sec should always be 0 and time the exact time in seconds
+    // RS41 classic frames carry milliseconds in s->d.msec; other types and RS41-X leave it 0
     time_t t = s->d.time;
+    unsigned sonde_msec = (realtype == STYPE_RS41) ? s->d.msec : 0;
 
     int chase = conf->chase;
     // automatically decided if CHASE or FIXED mode is used (for config AUTO)
@@ -664,7 +665,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
             "\"time_received\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
             "\"manufacturer\": \"%s\","
             "\"serial\": \"%s\","
-            "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.000Z\","
+            "\"datetime\": \"%04d-%02d-%02dT%02d:%02d:%02d.%03uZ\","
             "\"lat\": %.5f,"
             "\"lon\": %.5f,"
             "\"alt\": %.5f,"
@@ -678,7 +679,7 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
             version_name, version_id, conf->callsign,
             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday, timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec,
             manufacturer_string[realtype], s->d.ser,
-            ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec,
+            ts.tm_year + 1900, ts.tm_mon + 1, ts.tm_mday, ts.tm_hour, ts.tm_min, ts.tm_sec, sonde_msec,
             (float)s->d.lat, (float)s->d.lon, (float)s->d.alt, (float)s->freq, (float)s->d.hs, (float)s->d.vs,
             (float)s->d.dir, -((float)s->rssi / 2), s->d.vframe, sondeTypeStrSH[realtype]
                 );

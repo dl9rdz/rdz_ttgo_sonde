@@ -111,8 +111,9 @@ typedef struct st_sondedata {
 	float dir; 			// 0..360
 	uint8_t sats;			// number of sats
         uint8_t validPos;   // bit pattern for validity of above 7 fields; 0x80: position is old
-	// decoded GPS time
+	// decoded GPS time (UTC seconds). msec is the fractional second, used for RS41.
 	uint32_t time;
+	uint16_t msec;
 	uint32_t frame;
 	uint32_t vframe;		// vframe==frame if frame is unique/continous, otherweise vframe is derived from gps time
 	bool validTime;

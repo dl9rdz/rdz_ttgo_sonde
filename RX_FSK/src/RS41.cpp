@@ -816,6 +816,7 @@ int RS41::decode41(byte *data, int maxlen)
 			// gps time starts jan 6, 1980 0:00. thats 315964800 epoch seconds.
 			// subtracting 86400 yields 315878400UL
 			si->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
+			si->msec = gpstime % 1000;
 			si->validTime = true;
 			}
 			break;
@@ -825,9 +826,10 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.printf("sats: %d\n", si->sats);
 			// TODO: Maybe check elsewhere if sats < 4 => do not use position
 			break;
-		case '\202':    // pos, new X version
+		case '\202':    // pos, new X version (date is whole seconds only)
 			posrs41(data+p, len, 0);
 			si->time = rs41date(data+p+18) - 18;
+			si->msec = 0;
 			break;
 		case '\203':   // sat info, new X version
 		{
