@@ -1,4 +1,480 @@
-sdfiles.html 7576
+edit.html 3496
+<!DOCTYPE html>
+<!-- IDF httpd editor: fetch GET /file/<name>, save PUT /file/<name>  -->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+    textarea {
+      width: 100%; min-height: 24rem;
+      font-family: ui-monospace, monospace; font-size: .85rem;
+      background: #222; color: #eee; border: 1px solid #555;
+    }
+    button { background: #246; color: #fff; border: 0; padding: .4rem .8rem; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: default; }
+    .muted { color: #aaa; font-size: .9rem; }
+    .ok { color: #8f8; }
+    .err { color: #f88; }
+  </style>
+</head>
+<body>
+  <h1 id="title">Edit</h1>
+  <p id="status" class="muted">Loading…</p>
+  <textarea id="editor" cols="80" rows="40" spellcheck="false" disabled></textarea>
+  <p>
+    <button type="button" id="save" disabled>Save</button>
+  </p>
+
+  <script>
+  function basenameOk(name) {
+    return name.length > 0 && name.length <= 64 && /^[A-Za-z0-9._-]+$/.test(name);
+  }
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = cls || 'muted';
+  }
+
+  function fileFromQuery() {
+    const q = new URLSearchParams(location.search);
+    return q.get('file') || '';
+  }
+
+  async function loadFile(name) {
+    const res = await fetch('/file/' + encodeURIComponent(name), { credentials: 'same-origin' });
+    if (res.status === 401) {
+      location = '/login.html';
+      return;
+    }
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
+    }
+    return await res.text();
+  }
+
+  async function putFile(name, body) {
+    const res = await fetch('/file/' + encodeURIComponent(name), {
+      method: 'PUT',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      body: body
+    });
+    if (res.status === 401) {
+      location = '/login.html';
+      return false;
+    }
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status + (res.statusText ? ' ' + res.statusText : ''));
+    }
+    return true;
+  }
+
+  async function init() {
+    const name = fileFromQuery();
+    const title = document.getElementById('title');
+    const editor = document.getElementById('editor');
+    const saveBtn = document.getElementById('save');
+
+    if (!basenameOk(name)) {
+      title.textContent = 'Edit';
+      setStatus('Missing or invalid ?file= (basename only: A–Z a–z 0–9 . _ -)', 'err');
+      return;
+    }
+
+    title.textContent = 'Edit: ' + name;
+    document.title = 'Edit ' + name;
+
+    try {
+      const text = await loadFile(name);
+      if (text === undefined) return;
+      editor.value = text;
+      editor.disabled = false;
+      saveBtn.disabled = false;
+      setStatus('Loaded ' + name + ' (' + text.length + ' bytes)', 'ok');
+    } catch (e) {
+      setStatus('Load failed: ' + e.message, 'err');
+      return;
+    }
+
+    saveBtn.addEventListener('click', async () => {
+      saveBtn.disabled = true;
+      setStatus('Saving…', 'muted');
+      try {
+        const ok = await putFile(name, editor.value);
+        if (ok) setStatus('Saved ' + name, 'ok');
+      } catch (e) {
+        setStatus('Save failed: ' + e.message, 'err');
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  }
+
+  init();
+  </script>
+</body>
+</html>
+decoder.js 11757
+(function () {
+  var POLL_MS = 1000;
+  var STALE_SEC = 5; // after this, last OK/error is shown as stale
+  var lastNow = null;
+  var cards = {}; // ch -> { el, data }
+  var placeholderCh = null;
+  var currentCh = null;
+
+  var statusEl = document.getElementById("decoder-status");
+  var statusText = document.getElementById("decoder-status-text");
+  var listEl = document.getElementById("decoder-list");
+  var spectrumEl = document.getElementById("spectrum");
+  var spectrumCanvas = null;
+  var spectrumLabel = null;
+
+  function esc(s) {
+    if (s == null) return "";
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function fmtNum(v, digits) {
+    if (v == null || typeof v !== "number" || isNaN(v)) return "—";
+    return v.toFixed(digits);
+  }
+
+  function stampRxAt(d) {
+    if (d.empty) {
+      d._rxAt = null;
+      d._ageFrozen = null;
+      return;
+    }
+    var age = (typeof d.age === "number") ? d.age : 0;
+    d._rxAt = Date.now() - age * 1000;
+    d._ageFrozen = (age >= 86400) ? 86400 : null;
+  }
+
+  function effectiveAge(d) {
+    if (!d || d.empty || d._rxAt == null) return d && d.age != null ? d.age : null;
+    if (d._ageFrozen) return d._ageFrozen;
+    var sec = Math.max(0, Math.floor((Date.now() - d._rxAt) / 1000));
+    if (sec >= 86400) {
+      d._ageFrozen = 86400;
+      return 86400;
+    }
+    return sec;
+  }
+
+  function formatAge(sec) {
+    if (sec == null) return "";
+    if (sec >= 86400) return "> 1 day ago";
+    if (sec >= 3600) return Math.floor(sec / 3600) + "h ago";
+    if (sec >= 60) return Math.floor(sec / 60) + "m ago";
+    return sec + "s ago";
+  }
+
+  function resLabel(res) {
+    switch (res) {
+      case 0: return { text: "OK", cls: "res-ok" };
+      case 2: return { text: "partial/error", cls: "res-err" };
+      case 4: return { text: "no position", cls: "res-nopos" };
+      case 1: return { text: "timeout", cls: "res-timeout" };
+      default: return { text: "?", cls: "res-unk" };
+    }
+  }
+
+  function resLabelFor(d) {
+    var age = effectiveAge(d);
+    if (age != null && age > STALE_SEC) return { text: "stale", cls: "res-stale" };
+    return resLabel(d.res);
+  }
+
+  function buildLinks(d) {
+    var parts = [];
+    var hasPos = d.lat != null && d.lon != null && ((d.validPos || 0) & 0x03) === 0x03;
+    if (d.id) {
+      parts.push('<a target="_blank" href="https://radiosondy.info/sonde_archive.php?sondenumber=' +
+        encodeURIComponent(d.id) + '">radiosondy.info</a>');
+    }
+    if (d.ser) {
+      parts.push('<a target="_blank" href="https://tracker.sondehub.org/' +
+        encodeURIComponent(d.ser) + '">SondeHub Tracker</a>');
+    }
+    if (hasPos) {
+      parts.push('<a target="_blank" href="https://www.openstreetmap.org/?mlat=' +
+        d.lat + '&mlon=' + d.lon + '&zoom=14">OSM</a>');
+      parts.push('<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=' +
+        d.lat + ',' + d.lon + '">Google</a>');
+      parts.push('<a target="_blank" href="geo:' + d.lat + ',' + d.lon + '">Geo-App</a>');
+    }
+    return parts.length ? parts.join(" · ") : "";
+  }
+
+  function cardHtml(d) {
+    var empty = !!d.empty;
+    var rl = resLabelFor(d);
+    var age = effectiveAge(d);
+    var hasPos = !empty && d.lat != null && d.lon != null && ((d.validPos || 0) & 0x03) === 0x03;
+    var site = d.launchsite ? esc(d.launchsite) : "";
+
+    var idText = "";
+    if (empty) {
+      idText = "No decode yet";
+    } else if (d.id || d.ser) {
+      idText = esc(d.id || "");
+      if (d.ser && d.ser !== d.id) {
+        idText += (idText ? " (ser: " + esc(d.ser) + ")" : esc(d.ser));
+      }
+      if (!idText) idText = "<?>";
+      if (d.type) idText += " · " + esc(d.type);
+    } else {
+      idText = d.type ? esc(d.type) : "<?>";
+    }
+
+    var stats = [];
+    if (!empty) {
+      if (d.frame != null) stats.push("Frame# " + d.frame);
+      if (d.time) {
+        var t = new Date(d.time * 1000);
+        if (!isNaN(t.getTime())) {
+          stats.push(t.toISOString().replace("T", " ").replace(/\.\d+Z$/, "Z"));
+        }
+      }
+      if (d.rssi != null) stats.push("RSSI " + d.rssi);
+      if (d.sats != null) stats.push("Sats=" + d.sats);
+      if (d.batt != null) stats.push(fmtNum(d.batt, 1) + " V");
+    }
+
+    var posParts = [];
+    if (hasPos) {
+      posParts.push("Pos " + fmtNum(d.lat, 6) + " " + fmtNum(d.lon, 6));
+      if (d.alt != null) posParts.push("Alt " + fmtNum(d.alt, 0) + "m");
+    }
+    if (!empty) {
+      if (d.vs != null) posParts.push("Clb " + fmtNum(d.vs, 1) + " m/s");
+      if (d.hs != null) posParts.push("Spd " + fmtNum(d.hs, 1) + " m/s");
+      if (d.dir != null) posParts.push("Dir " + fmtNum(d.dir, 0) + "°");
+    }
+    var posLine = posParts.length ? posParts.join(", ") : (empty ? "" : "—");
+
+    var meteo = [];
+    if (!empty) {
+      if (d.temp != null) meteo.push(fmtNum(d.temp, 1) + " °C");
+      if (d.humidity != null) meteo.push(fmtNum(d.humidity, 1) + " %RH");
+      if (d.pressure != null) meteo.push(fmtNum(d.pressure, 1) + " hPa");
+    }
+
+    var kt = "";
+    if (!empty && (d.burstKT != null || d.launchKT != null || d.countKT != null)) {
+      kt = "Burst-KT=" + (d.burstKT != null ? d.burstKT : "?") +
+        " Launch-KT=" + (d.launchKT != null ? d.launchKT : "?") +
+        " Countdown=" + (d.countKT != null ? d.countKT : "?");
+    }
+
+    var links = empty ? "" : buildLinks(d);
+    var freqHtml = fmtNum(d.freq, 3) + " MHz" + (site ? " (" + site + ")" : "");
+
+    return (
+      '<div class="decoder-card-head">' +
+        '<span class="decoder-ch">Ch ' + esc(d.ch) + '</span>' +
+        '<span class="decoder-freq">' + freqHtml + '</span>' +
+        (empty ? "" : '<span class="decoder-res ' + rl.cls + '">' + rl.text + '</span>') +
+        '<span class="decoder-age">' + (empty || age == null ? "" : formatAge(age)) + '</span>' +
+      '</div>' +
+      '<div class="decoder-card-id">' +
+        '<span class="decoder-id">' + idText + '</span>' +
+        (stats.length ? '<span class="decoder-stats">' + esc(stats.join(", ")) + '</span>' : '') +
+      '</div>' +
+      (posLine ? '<div class="decoder-card-qth">' + esc(posLine) + '</div>' : '') +
+      (meteo.length ? '<div class="decoder-card-meteo">' + esc(meteo.join(" · ")) + '</div>' : '') +
+      (kt ? '<div class="decoder-card-kt">' + esc(kt) + '</div>' : '') +
+      (links ? '<div class="decoder-card-links">' + links + '</div>' : '')
+    );
+  }
+
+  function ensureCard(ch) {
+    if (cards[ch]) return cards[ch];
+    var el = document.createElement("div");
+    el.className = "decoder-card";
+    el.dataset.ch = String(ch);
+    listEl.appendChild(el);
+    cards[ch] = { el: el, data: null };
+    return cards[ch];
+  }
+
+  function removeCard(ch) {
+    var c = cards[ch];
+    if (!c) return;
+    if (c.el.parentNode) c.el.parentNode.removeChild(c.el);
+    delete cards[ch];
+    if (placeholderCh === ch) placeholderCh = null;
+  }
+
+  function sortCards() {
+    var keys = Object.keys(cards).map(Number);
+    keys.sort(function (a, b) {
+      var da = cards[a].data || {};
+      var db = cards[b].data || {};
+      if (da.empty && !db.empty) return 1;
+      if (!da.empty && db.empty) return -1;
+      var aa = effectiveAge(da);
+      var ab = effectiveAge(db);
+      if (aa == null) aa = 1e9;
+      if (ab == null) ab = 1e9;
+      if (aa !== ab) return aa - ab;
+      return a - b;
+    });
+    keys.forEach(function (ch) {
+      listEl.appendChild(cards[ch].el);
+    });
+  }
+
+  function renderCard(ch) {
+    var c = cards[ch];
+    if (!c || !c.data) return;
+    c.el.className = "decoder-card" +
+      (ch === currentCh ? " current" : "") +
+      (c.data.empty ? " empty" : "");
+    c.el.innerHTML = cardHtml(c.data);
+  }
+
+  function refreshAges() {
+    Object.keys(cards).forEach(function (k) {
+      renderCard(Number(k));
+    });
+    sortCards();
+  }
+
+  function applyStatus(data) {
+    statusText.textContent = data.detail || data.state || "";
+    statusEl.className = "decoder-status state-" + (data.state || "disabled");
+    currentCh = data.ch;
+  }
+
+  function renderSpectrum(spec) {
+    if (!spectrumEl) return;
+    if (!spec || !spec.rssi || !spec.rssi.length) {
+      spectrumEl.hidden = true;
+      return;
+    }
+    spectrumEl.hidden = false;
+    if (!spectrumCanvas) {
+      spectrumCanvas = document.createElement("canvas");
+      spectrumCanvas.width = 600;
+      spectrumCanvas.height = 240;
+      spectrumEl.appendChild(spectrumCanvas);
+      spectrumLabel = document.createElement("div");
+      spectrumLabel.className = "spectrum-label";
+      spectrumEl.appendChild(spectrumLabel);
+    }
+    // Same fixed Y scale as LCD/TFT: PLOT_MIN = noisefloor*2, PLOT_SCALE = (x-PLOT_MIN)/2
+    var rssi = spec.rssi;
+    var n = rssi.length;
+    var floor = (spec.noisefloor != null ? spec.noisefloor : -125) * 2;
+    var plotMax = spec.plotMax > 0 ? spec.plotMax : 128;
+    var ctx = spectrumCanvas.getContext("2d");
+    var w = spectrumCanvas.width;
+    var h = spectrumCanvas.height;
+    ctx.fillStyle = "#222";
+    ctx.fillRect(0, 0, w, h);
+    var barW = w / n;
+    ctx.fillStyle = "#4c4";
+    for (var j = 0; j < n; j++) {
+      var scaled = rssi[j] < floor ? 0 : (rssi[j] - floor) / 2;
+      var bh = Math.min(h, Math.round((scaled / plotMax) * h));
+      if (bh > 0) {
+        ctx.fillRect(Math.floor(j * barW), h - bh, Math.ceil(barW) || 1, bh);
+      }
+    }
+    if (spec.peak != null && spec.start != null && spec.step != null && spec.step > 0) {
+      var px = ((spec.peak - spec.start) / spec.step) * barW;
+      ctx.strokeStyle = "#f66";
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, h);
+      ctx.stroke();
+    }
+    var end = (spec.start != null && spec.step != null)
+      ? spec.start + spec.step * n : null;
+    spectrumLabel.textContent =
+      (spec.start != null ? spec.start.toFixed(3) : "?") + " … " +
+      (end != null ? end.toFixed(3) : "?") + " MHz" +
+      (spec.peak != null ? "  |  peak " + spec.peak.toFixed(3) + " MHz" : "") +
+      (spec.peakRssi != null ? " (" + spec.peakRssi + ")" : "");
+  }
+
+  function applyFull(data) {
+    Object.keys(cards).forEach(function (ch) { removeCard(Number(ch)); });
+    placeholderCh = null;
+    var entries = data.entries || [];
+    entries.forEach(function (e) {
+      stampRxAt(e);
+      var c = ensureCard(e.ch);
+      c.data = e;
+      if (e.empty) placeholderCh = e.ch;
+      renderCard(e.ch);
+    });
+    sortCards();
+  }
+
+  function applyDelta(data) {
+    var entries = data.entries || [];
+    entries.forEach(function (e) {
+      if (e.empty) return;
+      if (placeholderCh != null) removeCard(placeholderCh);
+      stampRxAt(e);
+      var c = ensureCard(e.ch);
+      c.data = e;
+      renderCard(e.ch);
+    });
+
+    Object.keys(cards).forEach(function (k) {
+      renderCard(Number(k));
+    });
+    sortCards();
+  }
+
+  function apply(data) {
+    if (!data || typeof data !== "object") return;
+    applyStatus(data);
+    renderSpectrum(data.spectrum);
+    if (data.full || lastNow == null) {
+      applyFull(data);
+    } else {
+      applyDelta(data);
+    }
+    if (typeof data.now === "number") lastNow = data.now;
+  }
+
+  function poll() {
+    var url = "/decoder.json";
+    if (lastNow != null) url += "?since=" + lastNow;
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(apply)
+      .catch(function (err) {
+        console.error("decoder poll:", err);
+        lastNow = null;
+        statusText.textContent = "Connection error — retrying…";
+        statusEl.className = "decoder-status state-disabled";
+      })
+      .finally(function () {
+        setTimeout(poll, POLL_MS);
+      });
+  }
+
+  setInterval(refreshAges, 1000);
+  poll();
+})();
+sdfiles.html 7318
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -50,17 +526,10 @@ sdfiles.html 7576
         const pdir = dir ? dir+"/" : '';
 
         async function fetchAllEntries() {
-            const all = [];
-            let start = 0;
-            for (;;) {
-                const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '') + (dir ? '&' : '?') + 'start=' + start;
-                const response = await fetch(url);
-                const data = await response.json();
-                if (!Array.isArray(data) || data.length === 0) break;
-                all.push(...data);
-                start += data.length;
-            }
-            return all;
+            const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '');
+            const response = await fetch(url);
+            const data = await response.json();
+            return Array.isArray(data) ? data : [];
         }
 
         function renderRow(tableBody, file) {
@@ -236,7 +705,7 @@ login.html 2068
 </div>
 </body>
 </html>
-livemap.js 19658
+livemap.js 21344
 try {
   var check = $(document);
 } catch (e) {
@@ -320,7 +789,7 @@ header += '<div id="settings"><br /><b>Prediction-Settings</b><br />';
 header += '<label for="burst">Burst at:</label><input type="text" id="burst" maxlength="5" value="..."  /> m<br />';
 header += '<label for="overwrite_descend">Descending:</label><input type="text" id="overwrite_descend" maxlength="2" value="..."  /> m/s<br />';
 header += '<label for="overwrite_descend_till">Use this descending until:</label><input type="text" id="overwrite_descend_till" maxlength="5" value="..."  /> m<br />';
-header += '<small>after the transmitted descend will be used</small>';
+header += '<small>below that, observed fall speed is converted to sea-level</small>';
 header += '<div id="submit"><input type="button" value="save" onclick="settings_save();"/>&nbsp;&nbsp;&nbsp;<input type="button" id="submit" value="reset" onclick="settings_reset();"/></div>';
 header += '</div>';
 $('.leaflet-header').append(header);
@@ -362,6 +831,8 @@ map.addControl(new L.Control.Button([ { position: 'topleft', text: '🔙', href:
 L.control.zoom({ position:'topleft' }).addTo(map);
 
 map.addControl(new L.Control.Button([ { position: 'topleft', text: '🗺️', href: 'javascript:basemap_change();' } ]));
+
+map.addControl(new L.Control.Button([ { position: 'topleft', text: '📍', href: 'javascript:request_phone_gps();' } ]));
 
 map.addControl(new L.Control.Button([ { position: 'topright', id: "status", text: '', href: 'javascript:get_data();' } ]));
 
@@ -471,6 +942,30 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
   marker_gps = false;
   icon_gps = L.divIcon({className: 'leaflet-gps'});
   circ_gps = false;
+  phone_gps_active = false;
+  phone_gps_win = null;
+
+  request_phone_gps = function() {
+    var url = (typeof phoneGpsUrl === 'string') ? phoneGpsUrl : '';
+    if (!url) {
+      alert('Missing phoneGpsUrl in livemap.html.');
+      return;
+    }
+    if (phone_gps_win && !phone_gps_win.closed) {
+      phone_gps_win.focus();
+      return;
+    }
+    phone_gps_win = window.open(url, 'rdz-phone-gps', 'width=380,height=320');
+  };
+
+  window.addEventListener('message', function(ev) {
+    var d = ev.data;
+    if (!d || d.type !== 'rdz-phone-gps') { return; }
+    if (phone_gps_win && ev.source !== phone_gps_win) { return; }
+    if (typeof d.lat !== 'number' || typeof d.lon !== 'number') { return; }
+    phone_gps_active = true;
+    gps(d);
+  });
 
   gps = function(e) {
     gps_location = [e.lat,e.lon];
@@ -512,7 +1007,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
         } else {
           setTimeout(function() {$('#status').html(yellowdot);},100);
         }
-        if (data.gps) {
+        if (data.gps && !phone_gps_active) {
           gps(data.gps);
         }
         }),
@@ -579,17 +1074,41 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
   };
 
   predictor = false;
+
+  // Same NASA density Tawhiri uses. descent_rate is sea-level: v(h) = 1.1045 * v_sea / sqrt(rho).
+  air_density = function(alt) {
+    var temp, pressure;
+    if (alt > 25000) {
+      temp = -131.21 + 0.00299 * alt;
+      pressure = 2.488 * Math.pow((temp + 273.1) / 216.6, -11.388);
+    } else if (alt > 11000) {
+      temp = -56.46;
+      pressure = 22.65 * Math.exp(1.73 - 0.000157 * alt);
+    } else {
+      temp = 15.04 - 0.00649 * alt;
+      pressure = 101.29 * Math.pow((temp + 273.1) / 288.08, 5.256);
+    }
+    return pressure / (0.2869 * (temp + 273.1));
+  };
+
+  sea_level_descent = function(rate, alt) {
+    var v = Math.abs(rate);
+    if (!(v > 0)) { return settings.overwrite_descend; }
+    return v * Math.sqrt(air_density(alt)) / 1.1045;
+  };
+
   get_predict = function(data) {
     if (!data) { return; }
-    var ascent = (data.climb > 0)? data.climb : 15;
-    var descent = (data.climb > 0)? settings.overwrite_descend : data.climb * -1;
-
-    var burst;
+    var ascent = (data.climb > 0) ? data.climb : 15;
+    var descent, burst;
     if (data.climb > 0) {
-      burst = (data.alt > settings.burst )?data.alt + 100 : settings.burst;
+      descent = settings.overwrite_descend;
+      burst = (data.alt > settings.burst) ? data.alt + 100 : settings.burst;
     } else {
       burst = parseInt(data.alt) + 7;
-      if (data.alt > settings.overwrite_descend_till ) { descent = settings.overwrite_descend; }
+      descent = (data.alt > settings.overwrite_descend_till)
+        ? settings.overwrite_descend
+        : sea_level_descent(data.climb, data.alt);
     }
 
     var m = new Date(data.time * 1000);
@@ -676,7 +1195,7 @@ map.addControl(new L.Control.Button([ { position:'topright', text: '⚙️', hre
 
     var add =
     '<br /><b>Position:</b> '+lat+',  '+lon+'<br />'+
-    '<b>Open:</b> <a href="https://www.google.de/maps/?q='+lat+', '+lon+'" target="_blank">GMaps</a> | <a href="https://www.openstreetmap.org/?mlat='+lat+'&mlon='+lon+'&zoom=15" target="_blank">OSM</a> | <a href="geo://'+lat+','+lon+'">GeoApp</a>';
+    '<b>Open:</b> <a href="https://www.google.de/maps/?q='+lat+', '+lon+'" target="_blank">GMaps</a> | <a href="https://www.openstreetmap.org/?mlat='+lat+'&mlon='+lon+'&zoom=15" target="_blank">OSM</a> | <a href="geo:'+lat+','+lon+'">GeoApp</a>';
 
     if (t == 'position') { return '<div class="i_position"><b>🎈 '+i.id+'</b>'+add+'</div>'; }
     if (t == 'burst') { return '<div class="i_burst"><b>💥 Predicted Burst:</b><br />'+fd(i.datetime)+' at '+mr(i.altitude)+'m'+add+'</div>'; }
@@ -766,7 +1285,7 @@ function bearing(latlng1, latlng2) {
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
 }
-upd.html 2131
+upd.html 2461
 <html><head>
 <link rel="stylesheet" type="text/css" href="style.css">
 </head>
@@ -815,20 +1334,57 @@ document.addEventListener("DOMContentLoaded", () => {
 const masterInfo = document.getElementById('masterDiv');
 const develInfo = document.getElementById('develDiv');
 
+function fillUpdateInfo(el, xhr) {
+  if (xhr.status >= 200 && xhr.status < 300) {
+    el.innerHTML = xhr.response.replace(/<[^>]*>/g, '');
+  } else {
+    el.textContent = '(unavailable)';
+  }
+}
+function failUpdateInfo(el) {
+  el.textContent = '(unavailable)';
+}
+
 let request = new XMLHttpRequest();
 request.open('GET', 'http://rdzsonde.org/main/update-info.html');
-request.onload = function() {
-  masterInfo.innerHTML = request.response.replace(/<[^>]*>/g, '');
-}
+request.onload = function() { fillUpdateInfo(masterInfo, request); };
+request.onerror = function() { failUpdateInfo(masterInfo); };
 request.send();
+
 let drequest = new XMLHttpRequest();
 drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
-drequest.onload = function() {
-  develInfo.innerHTML= drequest.response.replace(/<[^>]*>/g, '');;
-}
+drequest.onload = function() { fillUpdateInfo(develInfo, drequest); };
+drequest.onerror = function() { failUpdateInfo(develInfo); };
 drequest.send();
 </script>
 </body></html>
+decoder.html 746
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Decoder — rdzTTGOSonde</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" type="text/css" href="style.css">
+</head>
+<body>
+<div class="wrapper">
+  <div class="content decoder-page">
+    <div id="decoder-status" class="decoder-status state-disabled">
+      <span id="decoder-status-text">Connecting…</span>
+    </div>
+    <div id="spectrum" class="spectrum" hidden></div>
+    <div id="decoder-list" class="decoder-list"></div>
+  </div>
+  <div class="footer">
+    <span></span>
+    <span class="ttgoinfo">rdzTTGOserver</span>
+  </div>
+</div>
+<script src="decoder.js"></script>
+</body>
+</html>
 sha256.min.js 849
 var sha256=function a(b){function c(a,b){return a>>>b|a<<32-b}for(var d,e,f=Math.pow,g=f(2,32),h="length",i="",j=[],k=8*b[h],l=a.h=a.h||[],m=a.k=a.k||[],n=m[h],o={},p=2;64>n;p++)if(!o[p]){for(d=0;313>d;d+=p)o[d]=p;l[n]=f(p,.5)*g|0,m[n++]=f(p,1/3)*g|0}for(b+="\x80";b[h]%64-56;)b+="\x00";for(d=0;d<b[h];d++){if(e=b.charCodeAt(d),e>>8)return;j[d>>2]|=e<<(3-d)%4*8}for(j[j[h]]=k/g|0,j[j[h]]=k,e=0;e<j[h];){var q=j.slice(e,e+=16),r=l;for(l=l.slice(0,8),d=0;64>d;d++){var s=q[d-15],t=q[d-2],u=l[0],v=l[4],w=l[7]+(c(v,6)^c(v,11)^c(v,25))+(v&l[5]^~v&l[6])+m[d]+(q[d]=16>d?q[d]:q[d-16]+(c(s,7)^c(s,18)^s>>>3)+q[d-7]+(c(t,17)^c(t,19)^t>>>10)|0),x=(c(u,2)^c(u,13)^c(u,22))+(u&l[1]^u&l[2]^l[1]&l[2]);l=[w+x|0].concat(l),l[4]=l[4]+w|0}for(d=0;8>d;d++)l[d]=l[d]+r[d]|0}for(d=0;8>d;d++)for(e=3;e+1;e--){var y=l[d]>>8*e&255;i+=(16>y?0:"")+y.toString(16)}return i};rdz.js 3063
 let stypes=new Map();
@@ -950,7 +1506,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <body>
 </body>
 </html>
-livemap.html 720
+livemap.html 856
 <!DOCTYPE html>
 <html>
 <head>
@@ -959,7 +1515,11 @@ livemap.html 720
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
   <link rel="stylesheet" type="text/css" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
-  <script>var mapcenter=[%MAPCENTER%];</script>
+  <script>
+    var mapcenter=[%MAPCENTER%];
+    // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
+    var phoneGpsUrl='https://rdzsonde.org/locate';
+  </script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
@@ -969,7 +1529,7 @@ livemap.html 720
   <div id="map"></div>
 </body>
 </html>
-index.html 6239
+index.html 5710
 <!DOCTYPE html>
 <html>
 <head>
@@ -984,7 +1544,7 @@ index.html 6239
 <div class="topnav" id="myTopnav">
 	<a href="#home" onclick="selTab(event,'Home');fetchStatus()" class="tablinks" id="defaultTab">Home</a>
 	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks">QRG</a>
-	<a href="#data" onclick="selTab(event,'Data')" class="tablinks">Data</a>
+	<a href="#decoder" onclick="selTab(event,'Data')" class="tablinks">Decoder</a>
 	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">Livemap</a>
 	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
 	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
@@ -1044,7 +1604,7 @@ index.html 6239
 	<iframe class="tci" src="" ></iframe>
 </div>
 
-<div id="Data" class="tabcontent" data-src="status.html">
+<div id="Data" class="tabcontent" data-src="decoder.html">
 	<iframe class="tci" src="" ></iframe>
 </div>
 
@@ -1120,23 +1680,10 @@ function myFunction() {
 }
 document.getElementById("defaultTab").click();
 
-const bootID = "%BOOTID%";
-const prevID = localStorage.getItem("bootID");
-if(prevID && prevID !== bootID) {
-  document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-}
-localStorage.setItem("bootID", bootID);
-
 const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
 if(sessionC) {
   const [user] = sessionC.split(':');
-  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="#" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
-  const logoutLink = document.getElementById("logoutLink");
-  logoutLink.addEventListener("click", function(event) {
-     event.preventDefault(); // Prevent default link behavior
-     document.cookie = `SESSION=; expires:Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-     location.reload(); // Reload the page
-  });
+  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="/logout" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
 } else {
   document.getElementById("userinfo").innerHTML = `<a style="color: white;" href="login.html">Login</a>`;
 }
@@ -1146,7 +1693,7 @@ if(sessionC) {
 </body>
 </html>
 
-style.css 8753
+style.css 8440
 body, html {
 	height: 100%;
 	margin: 0;
@@ -1154,140 +1701,95 @@ body, html {
 }
 
 .system-info {
-    padding: 20px;
-    font-family: Arial, sans-serif;
-    flex-grow: 1;
-    overflow-y: auto;
+	padding: 20px;
+	font-family: Arial, sans-serif;
+	flex-grow: 1;
+	overflow-y: auto;
 }
-.system-info p {
-    margin: 8px 0;
-}
-.system-info h1 {
-    font-size: 24px;
-    margin-bottom: 10px;
-}
+.system-info p { margin: 8px 0; }
+.system-info h1 { font-size: 24px; margin-bottom: 10px; }
+
 .status-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 20px;
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 20px;
 }
 .status-table th, .status-table td {
-    padding: 10px;
-    border: 1px solid #ccc;
-    text-align: left;
-    vertical-align: top;
+	padding: 10px;
+	border: 1px solid #ccc;
+	text-align: left;
+	vertical-align: top;
 }
-.status-table th {
-    background-color: #f4f4f4;
-    font-weight: bold;
-}
-#refresh-button {
-    background: none;
-    border: none;
-    cursor: pointer;
-}
-#refresh-button:hover {
-    color: #007BFF;
-}
+.status-table th { background-color: #f4f4f4; font-weight: bold; }
+#refresh-button { background: none; border: none; cursor: pointer; }
+#refresh-button:hover { color: #007BFF; }
 
 h2.external-links {
-    margin-top: 40px;
-    text-align: center;
-    font-size: 20px;
-    margin-bottom: 15px;
+	margin-top: 40px;
+	text-align: center;
+	font-size: 20px;
+	margin-bottom: 15px;
 }
-
 .link-buttons {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
+	display: flex;
+	justify-content: center;
+	gap: 20px;
 }
-
 .link-buttons .button {
-    background-color: #04AA6D;
-    color: white;
-    padding: 15px 20px;
-    text-decoration: none;
-    border-radius: 5px;
-    font-size: 18px;
-    transition: background-color 0.3s ease;
+	background-color: #04AA6D;
+	color: white;
+	padding: 15px 20px;
+	text-decoration: none;
+	border-radius: 5px;
+	font-size: 18px;
+	transition: background-color 0.3s ease;
 }
 
-
-.active, .cfgheader:hover {
-  background-color: #ccc;
+.active, .cfgheader:hover { background-color: #ccc; }
+.cfgpanel:hover td, .cfgpanel:active td {
+	background-color: #808080 !important;
+	color: white;
 }
-.cfgpanel {
-}
-.cfgpanel:hover td, .cfgpanel:active td{
-    background-color: #808080 !important;
-    color: white;
-}
-
-th.cfg {
-  padding:5pt
-}
-table.stat {
-  margin:0px 0px 5px 0px;
-}
+th.cfg { padding: 5pt; }
 
 .hamburger {
-  position: relative;
-  display: inline-block;
-  width: 1.25em;
-  height: 0.8em;
-  margin-right: 0.3em;
-  border-top: 0.2em solid #fff;
-  border-bottom: 0.2em solid #fff;
+	position: relative;
+	display: inline-block;
+	width: 1.25em;
+	height: 0.8em;
+	margin-right: 0.3em;
+	border-top: 0.2em solid #fff;
+	border-bottom: 0.2em solid #fff;
 }
-
 .hamburger:before {
-  content: "";
-  position: absolute;
-  top: 0.3em;
-  left: 0px;
-  width: 100%;
-  border-top: 0.2em solid #fff;
+	content: "";
+	position: absolute;
+	top: 0.3em;
+	left: 0;
+	width: 100%;
+	border-top: 0.2em solid #fff;
 }
 
 .wrapper {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	margin: 0;
 }
-.tci {
-  flex-grow: 1; border: none; margin: 0; padding: 0; overflow-y: auto;
-}
+.tci { flex-grow: 1; border: none; margin: 0; padding: 0; overflow-y: auto; }
 .footer {
- background-color: #333;
- display: flex;
- justify-content: space-between;
+	background-color: #333;
+	display: flex;
+	justify-content: space-between;
 }
 
-td.ch {
-  text-align: right;
-  padding: 0px 8px;
-}
-td.act {
-  text-align: center;
-}
+td.ch { text-align: right; padding: 0 8px; }
+td.act { text-align: center; }
 table, th, td {
 	border: 1px solid black;
 	border-collapse: collapse;
-	background-color: #ddd
+	background-color: #ddd;
 }
-
-td#caption {
-	text-align: center;
-	background-color: #aaa;
-	font-weight: bold;
-}
-
-td#sfreq {
-	background-color: #ccc;
-}
-
 .content {
 	display: flex;
 	flex: 1;
@@ -1304,315 +1806,227 @@ td#sfreq {
 }
 
 html {
-  font-family: Helvetica;
-  display: inline-block;
-  margin: 0px auto;
-  text-align: left;
+	font-family: Helvetica;
+	display: inline-block;
+	margin: 0 auto;
+	text-align: left;
 }
-h1{
-  color: #0F3376;
-  font-size: 24px
-}
+h1 { color: #0F3376; font-size: 24px; }
 
-.button2 {
-  background-color: #f44336;
-}
-:disabled.save {
-  opacity: 0.5;
-}
+:disabled.save { opacity: 0.5; }
 .save {
-  background-color: #CC1111; /* 0F33C6; */
-  border: white;
-  border-width: 1;
-  color: white;
-  padding: 8px 30px;
-  text-align: center;
-  text-decoration: none;
-  display: block;
-  font-size: 14px;
-  margin: 0
+	background-color: #CC1111;
+	border: white;
+	border-width: 1;
+	color: white;
+	padding: 8px 30px;
+	text-align: center;
+	text-decoration: none;
+	display: block;
+	font-size: 14px;
+	margin: 0;
 }
-
 .ttgoinfo {
-  color: white;
-  padding: 8px 10px;
-  display: block;
-  font-size: 14px;
-  margin: 0
+	color: white;
+	padding: 8px 10px;
+	display: block;
+	font-size: 14px;
+	margin: 0;
 }
 .ctlbtn {
-  background-color: #ccc;
-  border: black;
-  border-width: 1;
-  color: black;
-  padding: 4px 30px;
-  text-align: center;
-  text-decoration: none;
-  display: block;
-  font-size: 4vh;
-  margin-top: 0.3em;
-  margin-left: 0.3em;
-  margin-right: 0.3em;
-}
-.update {
-  margin: 0;
-  display: block;
+	background-color: #ccc;
+	border: black;
+	border-width: 1;
+	color: black;
+	padding: 4px 30px;
+	text-align: center;
+	text-decoration: none;
+	display: block;
+	font-size: 4vh;
+	margin: 0.3em 0.3em 0;
 }
 
-#map {
-	height: 100%;
-}
+#map { height: 100%; }
 
 .leaflet-popup-content table, .leaflet-popup-content table td {
-	border:0;
+	border: 0;
 	background-color: white;
 }
-
-.leaflet-popup-content table td:nth-child(2),.leaflet-popup-content table td:nth-child(5) {
+.leaflet-popup-content table td:nth-child(2),
+.leaflet-popup-content table td:nth-child(5) {
 	text-align: right;
 	padding-left: 3px;
 }
-
-.leaflet-popup-content table td:nth-child(3),.leaflet-popup-content table td:nth-child(6) {
+.leaflet-popup-content table td:nth-child(3),
+.leaflet-popup-content table td:nth-child(6) {
 	text-align: left;
 	padding-right: 10px;
 }
 
-.leaflet-gps{animation:fading 1s infinite}@keyframes fading{0%{opacity:0.7}50%{opacity:1}100%{opacity:0.7}}
+.leaflet-gps { animation: fading 1s infinite; margin-left: -7px !important; margin-top: -9px !important; }
+.leaflet-gps::after { content: '🔵'; }
+@keyframes fading { 0% { opacity: 0.7; } 50% { opacity: 1; } 100% { opacity: 0.7; } }
 
-.leaflet-gps::after {
-	content: '🔵';
-}
-.leaflet-gps {
-	margin-left: -7px !important;
-	margin-top: -9px !important;
-}
-
-.leaflet-burst::after {
-	content: '💥';
-}
-.leaflet-burst {
-	margin-left: -20px !important;
-	margin-top: -22px !important;
-	font-weight: bold;
-	font-size: 30px;
-}
-
-.leaflet-landing::after {
-	content: '×';
-}
-
-.leaflet-landing {
-	margin-left: -13px !important;
-	margin-top: -30px !important;
-	font-weight: bold;
-	font-size: 40px;
-}
-
+.leaflet-burst { margin-left: -20px !important; margin-top: -22px !important; font-weight: bold; font-size: 30px; }
+.leaflet-burst::after { content: '💥'; }
+.leaflet-landing { margin-left: -13px !important; margin-top: -30px !important; font-weight: bold; font-size: 40px; }
+.leaflet-landing::after { content: '×'; }
 
 .leaflet-header {
-    text-align: center;
-    width: 250px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-    border-bottom-left-radius: 4px;
-    border-bottom-right-radius: 4px;
-    pointer-events: auto !important;
+	text-align: center;
+	width: 250px;
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-bottom-left-radius: 4px;
+	border-bottom-right-radius: 4px;
+	pointer-events: auto !important;
 }
-
-.leaflet-header #settings {
-	display: none;
-}
-
-.leaflet-header label {
-	display: block;
-	margin-top: 5px;
-}
-.leaflet-header input {
-	width: 80px;
-	margin: 0 auto;
-}
-
-.leaflet-header #submit {
-	margin: 3px auto;
-}
+.leaflet-header #settings, .leaflet-header #sonde_detail { display: none; }
+.leaflet-header label { display: block; margin-top: 5px; }
+.leaflet-header input { width: 80px; margin: 0 auto; }
+.leaflet-header #submit { margin: 3px auto; }
 
 .leaflet-footer {
-		display:none;
-    text-align: center;
-    width: 180px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.65);
-    border-top-left-radius: 4px;
-    border-top-right-radius: 4px;
+	display: none;
+	text-align: center;
+	width: 180px;
+	box-shadow: 0 1px 5px rgba(0,0,0,0.65);
+	border-top-left-radius: 4px;
+	border-top-right-radius: 4px;
 }
-
 .leaflet-center {
-    left:0;
-    right:0;
-    margin: 0 auto;
-    padding: 5px;
-    background: #fff;
-    background: rgba(255, 255, 255, 0.8);
-}
-
-.leaflet-header #sonde_detail {
-	display:none;
+	left: 0;
+	right: 0;
+	margin: 0 auto;
+	padding: 5px;
+	background: rgba(255,255,255,0.8);
 }
 
 @media screen and (max-width: 600px) {
-    .leaflet-control-attribution {
-        -moz-transform: rotate(-90deg) translateX(100%);
-        -ms-transform: rotate(-90deg) translateX(100%);
-        -o-transform: rotate(-90deg) translateX(100%);;
-        -webkit-transform: rotate(-90deg) translateX(100%);
-        transform: rotate(-90deg) translateX(100%);
-        -webkit-transform-origin: 100% 100%;
-        -moz-transform-origin: 100% 100%;
-        -ms-transform-origin: 100% 100%;
-        -o-transform-origin: 100% 100%;
-        transform-origin: 100% 100%;
-    }
+	.leaflet-control-attribution {
+		transform: rotate(-90deg) translateX(100%);
+		transform-origin: 100% 100%;
+		-webkit-transform: rotate(-90deg) translateX(100%);
+		-webkit-transform-origin: 100% 100%;
+	}
+	.topnav a:not(.active) { display: none; }
+	.topnav a.icon { float: right; display: block; }
+	.topnav.responsive { position: relative; }
+	.topnav.responsive a.icon { position: absolute; right: 0; top: 0; }
+	.topnav.responsive a { float: none; display: block; text-align: left; }
 }
 
 .ldot {
-  height: 15px;
-  width: 15px;
+	height: 15px;
+	width: 15px;
 	margin-top: 8px;
 	margin-left: -1px;
-  border-radius: 50%;
-  display: inline-block;
+	border-radius: 50%;
+	display: inline-block;
 }
-
 .ybg {
 	background-color: orange;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(yellow), to(orange));
 	background-image: linear-gradient(top, yellow, orange);
 }
 .gbg {
 	background-color: green;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(lime), to(green));
-	background-image: linear-gradient(top, lime, green); 
+	background-image: linear-gradient(top, lime, green);
 }
-.rbg { 
+.rbg {
 	background-color: red;
-	background-image: -webkit-gradient(linear, left top, left bottom, from(orange), to(red));
-	background-image: linear-gradient(top, orange, red); 
+	background-image: linear-gradient(top, orange, red);
 }
+#sonde_statbar .ldot { margin-right: 3px; }
 
-#sonde_statbar .ldot {
-	margin-right: 3px;
-}
-
-/* Add a black background color to the top navigation */
-.topnav {
-  background-color: #333;
-  overflow: hidden;
-}
-
-/* Style the links inside the navigation bar */
+/* topnav */
+.topnav { background-color: #333; overflow: hidden; }
 .topnav a {
-  float: left;
-  display: block;
-  color: #f2f2f2;
-  text-align: center;
-  padding: 14px 16px;
-  text-decoration: none;
-  font-size: 17px;
+	float: left;
+	display: block;
+	color: #f2f2f2;
+	text-align: center;
+	padding: 14px 16px;
+	text-decoration: none;
+	font-size: 17px;
 }
-
-/* Change the color of links on hover */
-.topnav a:hover {
-  background-color: #ddd;
-  color: black;
-}
-
-/* Add an active class to highlight the current page */
-.topnav a.active {
-  background-color: #04AA6D;
-  color: white;
-}
-
-/* Hide the link that should open and close the topnav on small screens */
-.topnav .icon {
-  display: none;
-  padding-bottom: 12px;
-  padding-top: 11px;
-}
-
-/* When the screen is less than 600 pixels wide, hide all links, except for the first one ("Home"). Show the link that contains should open and close the topnav (.icon) */
-@media screen and (max-width: 600px) {
-  .topnav a:not(.active) {display: none;}
-  .topnav a.icon {
-    float: right;
-    display: block;
-  }
-}
-
-/* The "responsive" class is added to the topnav with JavaScript when the user clicks on the icon. This class makes the topnav look good on small screens (display the links vertically instead of horizontally) */
-@media screen and (max-width: 600px) {
-  .topnav.responsive {position: relative;}
-  .topnav.responsive a.icon {
-    position: absolute;
-    right: 0;
-    top: 0;
-  }
-  .topnav.responsive a {
-    float: none;
-    display: block;
-    text-align: left;
-  }
-}
+.topnav a:hover { background-color: #ddd; color: black; }
+.topnav a.active { background-color: #04AA6D; color: white; }
+.topnav .icon { display: none; padding: 11px 16px 12px; }
 
 @media (prefers-color-scheme: dark) {
-  body {
-    background-color: #333;
-  }
-  h1{
-    color: #3378f6;
-  } 
-  h2{
-    color: white;
-  }
-  .system-info p {
-	  color: #bdbdbd;
-  }
-  .status-table th {
-	  color: black;
-  }
-  table, th, td, .save, a.active {
-    color: white;
-    border: 1px solid grey;
-    border-collapse: collapse;
-    background-color: #333;
-  }
-  input, select, .tci, .warning {
-    color: white;
-    background-color: #333;
-  }
-  a:link, a:visited {
-    color: #D3D3D3;
-  }
-  .topnav, td#sfreq {
-    background-color: grey;
-  }
-  .topnav a:visited {
-    color: white;
-  }
-  .ctlbtn {
-    color: white;
-    background-color: grey;
-  }
-  .leaflet-center {
-    color: white;
-    background-color: grey;
-  }
-  .leaflet-bar a {
-    background-color: grey !important;
-  }
-  .leaflet-popup-content-wrapper, .leaflet-popup-tip {
-    color: white !important;
-    background: grey !important;
-  }
+	body { background-color: #333; }
+	h1 { color: #3378f6; }
+	h2 { color: white; }
+	.system-info p { color: #bdbdbd; }
+	.status-table th { color: black; }
+	table, th, td, .save, a.active {
+		color: white;
+		border: 1px solid grey;
+		border-collapse: collapse;
+		background-color: #333;
+	}
+	input, select, .tci { color: white; background-color: #333; }
+	a:link, a:visited { color: #D3D3D3; }
+	.topnav { background-color: grey; }
+	.topnav a:visited { color: white; }
+	.ctlbtn, .leaflet-center { color: white; background-color: grey; }
+	.leaflet-bar a { background-color: grey !important; }
+	.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+		color: white !important;
+		background: grey !important;
+	}
 }
+
+/* decoder */
+.decoder-page { padding: 8px; gap: 8px; }
+.spectrum {
+	background: #222;
+	border: 1px solid #999;
+	border-radius: 4px;
+	padding: 4px;
+}
+.spectrum canvas { width: 100%; height: 240px; display: block; }
+.spectrum-label { color: #ccc; font-size: 0.85em; padding: 4px 2px 0; }
+.decoder-status, .decoder-card {
+	background: #ddd;
+	border: 1px solid #999;
+	border-radius: 4px;
+}
+.decoder-status { padding: 10px 12px; font-weight: bold; }
+.decoder-status.state-disabled { background: #ccc; }
+.decoder-status.state-spectrum { background: #cde; }
+.decoder-status.state-scan { background: #fec; }
+.decoder-status.state-decode { background: #cfc; }
+.decoder-list { display: flex; flex-direction: column; gap: 8px; }
+.decoder-card {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 8px 10px;
+}
+.decoder-card.current { border-color: #04AA6D; box-shadow: inset 3px 0 0 #04AA6D; }
+.decoder-card.empty { opacity: 0.75; font-style: italic; }
+.decoder-card-head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+	align-items: baseline;
+	background: #ccc;
+	margin: -8px -10px 4px;
+	padding: 6px 10px;
+}
+.decoder-ch, .decoder-id { font-weight: bold; }
+.decoder-ch { min-width: 3.5em; }
+.decoder-type { min-width: 5em; }
+.decoder-age { margin-left: auto; color: #555; font-size: 0.9em; }
+.decoder-res { font-size: 0.85em; padding: 1px 6px; border-radius: 3px; background: #eee; }
+.decoder-res.res-ok { background: #9d9; }
+.decoder-res.res-err { background: #e99; }
+.decoder-res.res-nopos { background: #ee9; }
+.decoder-res.res-stale, .decoder-res.res-timeout { background: #ccc; color: #555; }
+.decoder-card-id { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
+.decoder-stats { font-weight: normal; font-size: 0.95em; }
+.decoder-card-qth, .decoder-card-meteo, .decoder-card-kt, .decoder-card-links { font-size: 0.95em; }
+.decoder-card-links a { margin-right: 0.2em; }
 cfg.js 11621
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
