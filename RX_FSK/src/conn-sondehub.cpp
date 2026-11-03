@@ -18,9 +18,24 @@
 
 #include <sys/socket.h>
 #include <lwip/dns.h>
+#include <stdarg.h>
+#include <unistd.h>
 
 extern const char *version_name;
 extern const char *version_id;
+
+// newer idf use picolib that does not have dprintf any more...
+static int fdprintf(int fd, const char *fmt, ...) {
+    char buf[640];
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    if (n < 0) return -1;
+    size_t len = ((size_t)n >= sizeof(buf)) ? sizeof(buf) - 1 : (size_t)n;
+    return write(fd, buf, len);
+}
+
 
 #define SONDEHUB_STATION_UPDATE_TIME (60*60*1000) // 60 min
 #define SONDEHUB_MOBILE_STATION_UPDATE_TIME (30*1000) // 30 sec
@@ -534,7 +549,7 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
     // otherwise (in SH_LOC_NONE mode) we dont include any position info
     sprintf(w, "}");
 
-    dprintf( shclient, "PUT /listeners HTTP/1.1\r\n"
+    fdprintf( shclient, "PUT /listeners HTTP/1.1\r\n"
             "Host: %s\r\n"
             "accept: text/plain\r\n"
             "Content-Type: application/json\r\n"
@@ -808,7 +823,7 @@ static const char *MONTHS[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", 
 
 void ConnSondehub::sondehub_send_header(SondeInfo * s, struct tm * now) {
     struct st_sondehub *conf = &sonde.config.sondehub;
-    dprintf(shclient, "PUT /sondes/telemetry HTTP/1.1\r\n"
+    fdprintf(shclient, "PUT /sondes/telemetry HTTP/1.1\r\n"
             "Host: %s\n"
             "accept: text/plain\r\n"
             "Content-Type: application/json\r\n"
@@ -822,16 +837,16 @@ void ConnSondehub::sondehub_send_header(SondeInfo * s, struct tm * now) {
         LOG_D(TAG,        "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
                 DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
                 now->tm_hour, now->tm_min, now->tm_sec);
-        dprintf(shclient, "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
+        fdprintf(shclient, "Date: %s, %02d %s %04d %02d:%02d:%02d GMT\r\n",
                 DAYS[now->tm_wday], now->tm_mday, MONTHS[now->tm_mon], now->tm_year + 1900,
                 now->tm_hour, now->tm_min, now->tm_sec);
     }
-    dprintf(shclient, "User-agent: %s/%s\n\n", version_name, version_id);
+    fdprintf(shclient, "User-agent: %s/%s\n\n", version_name, version_id);
     // another cr lf as indication of end of header
 }
 void ConnSondehub::sondehub_send_next(SondeInfo * s, char *chunk, int chunklen, int first) {
     // send next chunk of JSON request
-    dprintf(shclient, "%x\r\n%c", chunklen + 1, first ? '[' : ',');
+    fdprintf(shclient, "%x\r\n%c", chunklen + 1, first ? '[' : ',');
     write(shclient, chunk, chunklen);
     write(shclient, "\r\n", 2);
 
@@ -841,7 +856,7 @@ void ConnSondehub::sondehub_send_next(SondeInfo * s, char *chunk, int chunklen, 
 }
 void ConnSondehub::sondehub_send_last() {
     // last chunk. just the closing "]" of the json request
-    dprintf(shclient, "1\r\n]\r\n0\r\n\r\n");
+    write(shclient, "1\r\n]\r\n0\r\n\r\n", 11);
     LOG_D(TAG, "1\r\n]\r\n0\r\n\r\n");
 }
 

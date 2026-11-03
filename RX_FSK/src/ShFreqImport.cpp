@@ -233,8 +233,8 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
             "Accept: application/json\r\n"
             "Cache-Control: no-cache\r\n\r\n",
             lat, lon, dist*1000, time*60, sonde.config.sondehub.host);
-    int res = dprintf(client, req);
-    Serial.printf("dprintf res: %d (%d)\n", res, errno);
+    int res = write(client, req, strlen(req));
+    Serial.printf("write res: %d (%d)\n", res, errno);
     Serial.print(req);
     importState = START;
     homelat = lat;

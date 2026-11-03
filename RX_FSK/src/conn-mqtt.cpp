@@ -186,7 +186,7 @@ void MQTT::publishPmuInfo()
     if(!pmu) {
         float batt = getBattNoPMU();
         if(batt<0) return;
-        snprintf(payload, sizeof(payload), "{\"V_Batt\": %.3f}", batt);
+        snprintf(payload, sizeof(payload), "{\"V_Batt\": %.3f, \"user\": \"%s\"}", batt, sonde.config.mqtt.username);
     } else {
 	float i_batt = 0;
 	float i_d = pmu->getBattDischargeCurrent();
@@ -198,10 +198,10 @@ void MQTT::publishPmuInfo()
 	  i_batt = -i_d;
 
 	snprintf(payload, sizeof(payload),
-	    "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f, \"T_sys\": %.1f}",
+	    "{\"I_Batt\": %.1f, \"V_Batt\": %.3f, \"I_Vbus\": %.1f, \"V_Vbus\": %.3f, \"T_sys\": %.1f , \"user\": \"%s\"}",
 	    i_batt, pmu->getBattVoltage() / 1000.,
 	pmu->getVbusCurrent(), pmu->getVbusVoltage() / 1000.,
-	pmu->getTemperature());
+	pmu->getTemperature(), sonde.config.mqtt.username);
     }
     LOG_D(TAG, "publishPmuInfo: sending %s\n", payload);
 
@@ -220,10 +220,11 @@ void MQTT::publishGps()
     snprintf(payload, sizeof(payload),
              "{\"valid\": %1d, \"systime\": \"%s\", \"gpstime\": \"%s\", "
              "\"lat\": %f, \"lon\": %f, \"alt\": %d, "
-             "\"course\":%d, \"speed\":%.1f, \"sat\": %d}",
+             "\"course\":%d, \"speed\":%.1f, \"sat\": %d, \"user\": \"%s\"}",
              gpsPos.valid, time_str, gpsPos.time,
              gpsPos.lat, gpsPos.lon, gpsPos.alt,
-             gpsPos.course, gpsPos.speed, gpsPos.sat
+             gpsPos.course, gpsPos.speed, gpsPos.sat,
+             sonde.config.mqtt.username
         );
     LOG_D(TAG, "publishGps: sending %s\n", payload);
 
@@ -299,8 +300,10 @@ void MQTT::publishPacket(SondeInfo *si)
     if(n<0) {
 	// ERROR
         LOG_E(TAG, "publishPacket: sonde2json failed, string too long");
+        return;
     }
-    strcat(payload, "}");   // terminate payload string
+    int len = strlen(payload);
+    snprintf(payload + len, 1023 - len, ",\"user\":\"%s\"}", sonde.config.mqtt.username);
 
     char topic[128];
     snprintf(topic, 128, "%s%s", sonde.config.mqtt.prefix, "packet");

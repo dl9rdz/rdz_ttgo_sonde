@@ -555,7 +555,7 @@ void Display::initFromFile(int index) {
 			default:	// parse content... (additional data or line `what`)
 				if(strncmp(s,"timer=",6)==0) {  // timer values
 					char t1[10],t2[10],t3[10];
-					sscanf(s+6, "%5[0-9a-zA-Z-] , %5[0-9a-zA-Z-] , %5[0-9a-zA-Z-]", t1, t2, t3);
+					sscanf(s+6, "%5[-0-9a-zA-Z] , %5[-0-9a-zA-Z] , %5[-0-9a-zA-Z]", t1, t2, t3);
 					LOG_D(TAG, "timers are %s, %s, %s\n", t1, t2, t3);
 					newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout:atoi(t1);
 					newlayouts[idx].timeouts[1] = (*t2=='n'||*t2=='N')?sonde.config.norx_timeout:atoi(t2);
