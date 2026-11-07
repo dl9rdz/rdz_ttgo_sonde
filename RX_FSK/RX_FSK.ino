@@ -181,7 +181,7 @@ String readLine(Stream &stream) {
 // Read line from file, without using dynamic memory allocation (String class)
 // returns length line.
 int readLine(Stream &stream, char *buffer, int maxlen) {
-  int n = stream.readBytesUntil('\n', buffer, maxlen);
+  int n = stream.readBytesUntil('\n', buffer, maxlen-1);
   buffer[n] = 0;
   if (n <= 0) return 0;
   if (buffer[n - 1] == '\r') {
@@ -389,7 +389,7 @@ int updateWiFi(String ssid, String pw) {
 
 
 
-// FIXME: For now, we don't uspport wifi networks that contain newline or null characters
+// FIXME: For now, we don't support wifi networks that contain newline or null characters
 // ... would require a more sophisicated file format (currently one line SSID; one line Password
 void setupWifiList() {
   File file = LittleFS.open("/networks.txt", "r");
@@ -401,7 +401,7 @@ void setupWifiList() {
   }
   int i = 0;
 
-  while (file.available()) {
+  while (file.available() && i<MAX_WIFI) {
     String line = readLine(file);  //file.readStringUntil('\n');
     if (!file.available()) break;
     networks[i].id = line;
@@ -1029,21 +1029,12 @@ const char *httpdHandleWIFIPost(void) { return handleWIFIPost(); }
 const char *httpdHandleConfigPost(void) { return handleConfigPost(); }
 const char *httpdHandleControlPost(void) { return handleControlPost(); }
 
-// will be removed. its now in data/upd.html (for GET; POST to update.html still handled here)
-const char *createUpdateForm(boolean run) {
+/* Reply after POST /update.html. The form itself is /upd.html. */
+const char *createUpdateForm(void) {
   char *ptr = message;
   strcpy(ptr, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
-  if (run) {
-    strcat(ptr, "<p>Doing update, wait until reboot</p>");
-  } else {
-    sprintf(ptr + strlen(ptr), "<p>Currently installed: %s-%c%d</p>\n", version_id, FS_MAJOR + 'A' - 1, FS_MINOR);
-    strcat(ptr, "<p>Available main: <iframe src=\"http://rdzsonde.org/main/update-info.html\" style=\"height:40px;width:400px\"></iframe><br>"
-           "Available devel: <iframe src=\"http://rdzsonde.org/dev2/update-info.html\" style=\"height:40px;width:400px\"></iframe></p>");
-    strcat(ptr, "<input type=\"submit\" name=\"main\" value=\"Main-Update\"></input><br><input type=\"submit\" name=\"dev\" value=\"Devel-Update\">");
-    strcat(ptr, "<br><p>Note: If suffix is the same, update should work fully. If the number is different, update contains changes in the file system. A full re-flash is required to get all new features, but the update should not break anything. If the letter is different, a full re-flash is mandatory, update will not work</p>");
-  }
+  strcat(ptr, "<p>Doing update, wait until reboot</p>");
   strcat(ptr, "</form></body></html>");
-  LOG_D(TAG, "Update form: size=%d bytes\n", strlen(message));
   return message;
 }
 
@@ -1106,7 +1097,7 @@ const char *handleUpdatePost(void) {
 }
 
 const char *httpdHandleUpdatePost(void) { return handleUpdatePost(); }
-const char *httpdCreateUpdateForm(int run) { return createUpdateForm(run ? true : false); }
+const char *httpdCreateUpdateForm(void) { return createUpdateForm(); }
 
 const char *createKMLLive(const char *myIP) {
   char *ptr = message;
@@ -1158,8 +1149,6 @@ const char *createGPX(int index) {
     return "ERROR";
   }
   SondeInfo *si = &sonde.sondeList[index];
-  strcpy(si->d.id, "test");
-  si->d.lat = 48; si->d.lon = 11; si->d.alt = 500;
   snprintf(ptr, 10240, "<?xml version='1.0' encoding='UTF-8'?>\n"
            "<gpx version=\"1.1\" creator=\"http://rdzsonde.local\" xmlns=\"http://www.topografix.com/GPX/1/1\" "
            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "

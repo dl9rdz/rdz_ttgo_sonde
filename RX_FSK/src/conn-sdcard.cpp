@@ -294,7 +294,10 @@ String ConnSDCard::getStatus() {
 
   SPI_MUTEX_LOCK();
   uint8_t cardType = SD.cardType();
-  if (cardType == CARD_NONE) { return String(cardTypeStr(cardType)); }
+  if (cardType == CARD_NONE) {
+    SPI_MUTEX_UNLOCK();
+    return String(cardTypeStr(cardType));
+  }
 
   uint32_t cardSize = SD.cardSize() / (1024 * 1024);
   uint32_t usedSize = SD.usedBytes() / (1024 * 1024);

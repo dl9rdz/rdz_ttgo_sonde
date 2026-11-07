@@ -457,6 +457,18 @@ error:
    Update station data to the sondehub v2 DB
    */
 /* which_pos: 0=none, 1=fixed, 2=gps */
+static bool sh_append(char **w, char *end, const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int n = vsnprintf(*w, (size_t)(end - *w), fmt, ap);
+    va_end(ap);
+    if (n < 0 || *w + n >= end)
+        return false;
+    *w += n;
+    return true;
+}
+
 void ConnSondehub::updateStation( PosInfo *pi ) {
     sondehub_client_fsm();
     if (!sonde.config.sondehub.active)
@@ -465,9 +477,10 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
     // Currently, internal handler uses gpsInfo global variable instead of this pi
 
     struct st_sondehub *conf = &sonde.config.sondehub;
-#define STATION_DATA_LEN 300
+#define STATION_DATA_LEN 512
     char data[STATION_DATA_LEN];
-    char *w;
+    char *w = data;
+    char *end = data + STATION_DATA_LEN;
 
     sondehub_client_fsm();  // let's handle the connection state..
     if(shclient_state != SH_CONN_IDLE) return;  // Only if connected and idle can we send data...
@@ -495,59 +508,57 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
     LOG_D(TAG, "sondehub_station_update: send update\n");
     time_last_update = time_now;
 
-    w = data;
-    // not necessary...  memset(w, 0, STATION_DATA_LEN);
-
-    sprintf(w,
+    if (!sh_append(&w, end,
             "{"
             "\"software_name\": \"%s\","
             "\"software_version\": \"%s\","
             "\"uploader_callsign\": \"%s\",",
-            version_name, version_id, conf->callsign);
-    w += strlen(w);
+            version_name, version_id, conf->callsign))
+        return;
 
     // Only send email if provided
     if (strlen(conf->email) != 0) {
-        sprintf(w, "\"uploader_contact_email\": \"%s\",", conf->email);
-        w += strlen(w);
+        if (!sh_append(&w, end, "\"uploader_contact_email\": \"%s\",", conf->email))
+            return;
     }
 
     // Only send antenna if provided
     if (strlen(conf->antenna) != 0) {
-        sprintf(w, "\"uploader_antenna\": \"%s\",", conf->antenna);
-        w += strlen(w);
+        if (!sh_append(&w, end, "\"uploader_antenna\": \"%s\",", conf->antenna))
+            return;
     }
 
     // We send GPS position: (a) in CHASE mode, (b) in AUTO mode if no fixed location has been specified in config
     if (chase == SH_LOC_CHASE) {
         if (gpsPos.valid) {
-            sprintf(w,
+            if (!sh_append(&w, end,
                     "\"uploader_position\": [%.6f,%.6f,%d],"
                     "\"mobile\": true",
-                    gpsPos.lat, gpsPos.lon, gpsPos.alt);
-        } else {
-            sprintf(w, "\"uploader_position\": [null,null,null]");
+                    gpsPos.lat, gpsPos.lon, gpsPos.alt))
+                return;
+        } else if (!sh_append(&w, end, "\"uploader_position\": [null,null,null]")) {
+            return;
         }
-        w += strlen(w);
     }
     // Otherweise, in FIXED mode we send the fixed position from config (if specified)
     else if (chase == SH_LOC_FIXED) {
         if ((!isnan(sonde.config.rxlat)) && (!isnan(sonde.config.rxlon))) {
-            if (isnan(sonde.config.rxalt))
-                sprintf(w, "\"uploader_position\": [%.6f,%.6f,null]", sonde.config.rxlat, sonde.config.rxlon);
-            else
-                sprintf(w, "\"uploader_position\": [%.6f,%.6f,%d]", sonde.config.rxlat, sonde.config.rxlon, (int)sonde.config.rxalt);
-        } else {
-            sprintf(w, "\"uploader_position\": [null,null,null]");
+            if (isnan(sonde.config.rxalt)) {
+                if (!sh_append(&w, end, "\"uploader_position\": [%.6f,%.6f,null]", sonde.config.rxlat, sonde.config.rxlon))
+                    return;
+            } else if (!sh_append(&w, end, "\"uploader_position\": [%.6f,%.6f,%d]", sonde.config.rxlat, sonde.config.rxlon, (int)sonde.config.rxalt)) {
+                return;
+            }
+        } else if (!sh_append(&w, end, "\"uploader_position\": [null,null,null]")) {
+            return;
         }
-        w += strlen(w);
-    } else {
-        sprintf(w, "\"uploader_position\": [null,null,null]");
-        w += strlen(w);
+    } else if (!sh_append(&w, end, "\"uploader_position\": [null,null,null]")) {
+        return;
     }
 
     // otherwise (in SH_LOC_NONE mode) we dont include any position info
-    sprintf(w, "}");
+    if (!sh_append(&w, end, "}"))
+        return;
 
     fdprintf( shclient, "PUT /listeners HTTP/1.1\r\n"
             "Host: %s\r\n"

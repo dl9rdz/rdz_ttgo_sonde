@@ -1214,6 +1214,12 @@ static bool delete_sd_dir_recursive(const char *vfs_path)
 	return rc == 0;
 }
 
+/* .int is the virtual LittleFS root used by the SD file browser. */
+static bool path_is_int(const char *rel)
+{
+	return rel != nullptr && (strcmp(rel, ".int") == 0 || strncmp(rel, ".int/", 5) == 0);
+}
+
 static esp_err_t files_json_flush(httpd_req_t *req, char *chunk, size_t *chunk_len)
 {
 	if (*chunk_len == 0) {
@@ -1244,6 +1250,9 @@ static esp_err_t files_json_get(httpd_req_t *req)
 			httpd_resp_set_status(req, "400 Bad Request");
 			httpd_resp_set_type(req, "application/json");
 			return httpd_resp_send(req, "[]", 2);
+		}
+		if (path_is_int(decoded) && !require_auth(req, 2)) {
+			return ESP_OK;
 		}
 		if (strcmp(decoded, ".int") == 0) {
 			strncpy(subdir, "/littlefs/", sizeof(subdir) - 1);
@@ -1366,6 +1375,10 @@ static esp_err_t sd_file_get(httpd_req_t *req)
 	char vfs[96];
 	if (!vfs_from_sd_uri(req, vfs, sizeof(vfs))) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid path");
+	}
+	/* vfs is "/sd/<rel>". .int is LittleFS in the file browser. */
+	if (path_is_int(vfs + 4) && !require_auth(req, 2)) {
+		return ESP_OK;
 	}
 
 	SPI_MUTEX_LOCK();
@@ -1513,7 +1526,7 @@ extern const char *httpdHandleWIFIPost(void);
 extern const char *httpdHandleConfigPost(void);
 extern const char *httpdHandleControlPost(void);
 extern const char *httpdHandleUpdatePost(void);
-extern const char *httpdCreateUpdateForm(int run);
+extern const char *httpdCreateUpdateForm(void);
 extern const char *httpdCreateKMLLive(void);
 extern const char *httpdCreateKMLDynamic(void);
 extern const char *httpdCreateGPX(int index);
@@ -1530,7 +1543,7 @@ static esp_err_t send_cstr(httpd_req_t *req, const char *ctype, const char *body
 static esp_err_t status_html_get(httpd_req_t *req)
 {
 	httpd_resp_set_status(req, "302 Found");
-	httpd_resp_set_hdr(req, "Location", "/decoder.html");
+	httpd_resp_set_hdr(req, "Location", "/#decoder");
 	return httpd_resp_send(req, nullptr, 0);
 }
 
@@ -1675,14 +1688,6 @@ static esp_err_t control_html_post(httpd_req_t *req)
 	return editor_post(req, httpdHandleControlPost, createControlForm, true);
 }
 
-static esp_err_t update_html_get(httpd_req_t *req)
-{
-	if (!require_auth(req, 2)) {
-		return ESP_OK;
-	}
-	return send_cstr(req, "text/html", httpdCreateUpdateForm(0));
-}
-
 static esp_err_t update_html_post(httpd_req_t *req)
 {
 	if (!require_auth(req, 2)) {
@@ -1696,7 +1701,7 @@ static esp_err_t update_html_post(httpd_req_t *req)
 	}
 	formParseUrlencodedMutable(body);
 	(void)httpdHandleUpdatePost();
-	return send_cstr(req, "text/html", httpdCreateUpdateForm(1));
+	return send_cstr(req, "text/html", httpdCreateUpdateForm());
 }
 
 static esp_err_t live_kml_get(httpd_req_t *req)
@@ -1898,13 +1903,6 @@ static const httpd_uri_t uri_control_html_post = {
 	.user_ctx = nullptr,
 };
 
-static const httpd_uri_t uri_update_html_get = {
-	.uri = "/update.html",
-	.method = HTTP_GET,
-	.handler = update_html_get,
-	.user_ctx = nullptr,
-};
-
 static const httpd_uri_t uri_update_html_post = {
 	.uri = "/update.html",
 	.method = HTTP_POST,
@@ -2057,7 +2055,7 @@ void httpd_start_server(void)
 		&uri_qrg_html_get,
 		&uri_qrg_html_post,&uri_wifi_html_get, &uri_wifi_html_post,  &uri_config_html_get,
 		&uri_config_html_post, &uri_control_html_get, &uri_control_html_post,
-		&uri_update_html_get, &uri_update_html_post, &uri_live_kml, &uri_dynamic_kml,
+		&uri_update_html_post, &uri_live_kml, &uri_dynamic_kml,
 		&uri_edit,
 		&uri_login_get,	   &uri_login_post,    &uri_logout,
 		&uri_file_get,	     &uri_file_put,

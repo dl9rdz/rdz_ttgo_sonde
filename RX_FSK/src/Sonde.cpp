@@ -212,7 +212,7 @@ void Sonde::setConfig(const char *cfg) {
 		{
 			int idx = 0;
 			char *ptr;
-			while(val) {
+			while(val && idx<28) {
 				ptr = strchr(val,',');
 				if(ptr) *ptr = 0;
 				config.display[idx++] = atoi(val);

@@ -153,23 +153,33 @@ void MQTT::publishUptime()
         return;
 
     char payload[256];
+    size_t n = 0;
+    int w;
 
     timeFormat();
 
     // maybe TODO: Use dynamic position if GPS is available?
     // rxlat, rxlon only if not empty
-    snprintf(payload, 256,
+    w = snprintf(payload, sizeof(payload),
         "{\"uptime\": %.1f, \"user\": \"%s\", \"time\": \"%s\",",
-        millis() / 1000.0, sonde.config.mqtt.username, time_str );
+        millis() / 1000.0, sonde.config.mqtt.username, time_str);
+    if (w < 0 || (size_t)w >= sizeof(payload))
+        return;
+    n = (size_t)w;
 
     if (!isnan(sonde.config.rxlat) && !isnan(sonde.config.rxlon)) {
-        snprintf(payload, 256,
-            "%s \"rxlat\": %.5f, \"rxlon\": %.5f,",
-            payload, sonde.config.rxlat, sonde.config.rxlon);
+        w = snprintf(payload + n, sizeof(payload) - n,
+            " \"rxlat\": %.5f, \"rxlon\": %.5f,",
+            sonde.config.rxlat, sonde.config.rxlon);
+        if (w < 0 || (size_t)w >= sizeof(payload) - n)
+            return;
+        n += (size_t)w;
     }
-    snprintf(payload, 256,
-        "%s \"SW\": \"%s\", \"VER\": \"%s\"}",
-        payload, version_name, version_id);
+    w = snprintf(payload + n, sizeof(payload) - n,
+        " \"SW\": \"%s\", \"VER\": \"%s\"}",
+        version_name, version_id);
+    if (w < 0 || (size_t)w >= sizeof(payload) - n)
+        return;
     LOG_D(TAG, "publishUptime: sending %s\n", payload);
     char topic[128];
     snprintf(topic, 128, "%s%s", sonde.config.mqtt.prefix, "uptime");

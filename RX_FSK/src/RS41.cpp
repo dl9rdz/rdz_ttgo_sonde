@@ -5,13 +5,8 @@
 #include "rsc.h"
 #include "Sonde.h"
 
-#define RS41_DEBUG 1
-
-#if RS41_DEBUG
-#define RS41_DBG(x) x
-#else
-#define RS41_DBG(x)
-#endif
+#define TAG "RS41"
+#include "logger.h"
 
 #define RS41MAXLEN (320)
 static byte data[800];
@@ -212,55 +207,17 @@ int RS41::setup(float frequency, int /*type*/)
 	}
 
 	if(radio.ON()!=0) {
-		RS41_DBG(Serial.println("Setting SX1278 power on FAILED"));
+		LOG_E(TAG, "Setting SX1278 power on FAILED");
 		return 1;
 	}
 	if(DecoderBase::setup(rs41SetupCfg, sonde.config.rs41.agcbw, sonde.config.rs41.rxbw)!=0 ) {
 		return 1;
 	}
-#if 0
-	// all moved to DecoderBase now
-	if(radio.setFSK()!=0) {
-		RS41_DBG(Serial.println("Setting FSK mode FAILED"));
-		return 1;
-	}
-	if(radio.setBitrate(4800)!=0) {
-		RS41_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
-		return 1;
-	}
-
-	if(radio.setAFCBandwidth(sonde.config.rs41.agcbw)!=0) {
-		RS41_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs41.agcbw));
-		return 1;
-	}
-	if(radio.setRxBandwidth(sonde.config.rs41.rxbw)!=0) {
-		RS41_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs41.rxbw));
-		return 1;
-	}
-	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
-	if(radio.setRxConf(0x1E)!=0) {
-		RS41_DBG(Serial.println("Setting RX Config FAILED"));
-		return 1;
-	}
-	// Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
-	//char header[] = "0110.0101 0110.0110 1010.0101 1010.1010";
-
-	//const char *SYNC="\x10\xB6\xCA\x11\x22\x96\x12\xF8";
-	const char *SYNC="\x08\x6D\x53\x88\x44\x69\x48\x1F";
-	if(radio.setSyncConf(0x57, 8, (const uint8_t *)SYNC)!=0) {
-		RS41_DBG(Serial.println("Setting SYNC Config FAILED"));
-		return 1;
-	}
-	if(radio.setPreambleDetect(0xA8)!=0) {
-		RS41_DBG(Serial.println("Setting PreambleDetect FAILED"));
-		return 1;
-	}
-#endif
 
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
 	if(radio.setPacketConfig(0x08, 0x40)!=0) {
-		RS41_DBG(Serial.println("Setting Packet config FAILED"));
+		LOG_E(TAG, "Setting Packet config FAILED");
 		return 1;
 	}
 	int retval = radio.setFrequency(frequency);
@@ -463,7 +420,7 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
       return;
    }
 #else
-   Serial.printf("x:%g, y:%g, z:%g\n", x, y, z);
+   LOG_D(TAG, "x:%g, y:%g, z:%g\n", x, y, z);
    if( x==0 && y==0 && z==0 ) {
       // RS41 sometimes sends frame with all 0
       if(si->validPos) si->validPos |= 0x80; // flag as old
@@ -472,17 +429,8 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
 #endif
 
    wgs84r(x, y, z, &lat, &long0, &heig);
-   Serial.print(" ");
    si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
-   Serial.print(si->lat);
-   Serial.print(" ");
    si->lon = (float)(X2C_DIVL(long0,1.7453292519943E-2));
-   Serial.print(si->lon);
-   if (heig<1.E+5 && heig>(-1.E+5)) {
-      Serial.print(" ");
-      Serial.print((uint32_t)heig);
-      Serial.print("m");
-   }
    /*speed */
    vx = (double)getint16(b, b_len, p+12UL)*0.01;
    vy = (double)getint16(b, b_len, p+14UL)*0.01;
@@ -493,15 +441,8 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    dir = X2C_DIVL(atang2(vn, ve),1.7453292519943E-2);
    if (dir<0.0) dir = 360.0+dir;
    si->dir = dir;
-   Serial.print(" ");
    si->hs = sqrt(vn*vn+ve*ve);
-   Serial.print(si->hs*3.6);
-   Serial.print("km/h ");
-   Serial.print(dir);
-   Serial.print("deg ");
-   Serial.print((float)vu);
    si->vs = vu;
-   Serial.print("m/s ");
    si->alt = heig;
    if( 0==(int)(lat*10000) && 0==(int)(long0*10000) ) {
       if(si->validPos) {
@@ -511,6 +452,8 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    }
    else
       si->validPos = 0x7f;
+   LOG_D(TAG, "lat:%.5f lon:%.5f alt:%.0fm %.1fkm/h dir:%.1fdeg %.1fm/s\n",
+         si->lat, si->lon, si->alt, si->hs * 3.6f, si->dir, si->vs);
 } /* end posrs41() */
 
 static uint32_t rs41date(const uint8_t f[])
@@ -528,6 +471,11 @@ static uint32_t rs41date(const uint8_t f[])
 
 
 void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
+   if(subframeNumber < 0 || subframeNumber >= 51) {
+      LOG_E(TAG, "Invalid subframe number %d\n", subframeNumber);
+      return;
+   }
+
    // the total subframe consists of 51 rows, each row 16 bytes
    // based on https://github.com/bazjo/RS41_Decoding/tree/master/RS41-SGP#Subframe 
    struct subframeBuffer *s = (struct subframeBuffer *)sonde.si()->extra;

@@ -6,7 +6,7 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 
-#define USE_BAD_DEBUGGING_CODE 1
+#define USE_BAD_DEBUGGING_CODE 0
 
 #if USE_BAD_DEBUGGING_CODE
 extern WiFiUDP udp;

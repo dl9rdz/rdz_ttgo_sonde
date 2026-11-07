@@ -50,7 +50,7 @@ void ShFreqImport::usekeyvalue() {
     if(strcmp(keyword,"lon")==0) lon = atof(value);
     if(strcmp(keyword,"frequency")==0) { if(isnan(freq)) freq = atof(value); } // prefer tx_frequency if available
     if(strcmp(keyword,"tx_frequency")==0) freq = atof(value);
-    if(strcmp(keyword,"type")==0) strcpy(type, value);
+    if(strcmp(keyword,"type")==0) strlcpy(type, value, 20);
 }
 
 /* populate qrg.txt with frequency of near sonde */
