@@ -1,23 +1,30 @@
-edit.html 3496
+edit.html 3628
 <!DOCTYPE html>
 <!-- IDF httpd editor: fetch GET /file/<name>, save PUT /file/<name>  -->
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Edit</title>
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <link rel="stylesheet" href="./app.css">
   <style>
-    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+    html, body { height: auto; overflow: auto; }
+    body { margin: 1rem; }
     textarea {
       width: 100%; min-height: 24rem;
       font-family: ui-monospace, monospace; font-size: .85rem;
-      background: #222; color: #eee; border: 1px solid #555;
+      background: var(--bg-elev); color: var(--text); border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
-    button { background: #246; color: #fff; border: 0; padding: .4rem .8rem; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: default; }
-    .muted { color: #aaa; font-size: .9rem; }
-    .ok { color: #8f8; }
-    .err { color: #f88; }
   </style>
 </head>
 <body>
@@ -25,7 +32,7 @@ edit.html 3496
   <p id="status" class="muted">Loading…</p>
   <textarea id="editor" cols="80" rows="40" spellcheck="false" disabled></textarea>
   <p>
-    <button type="button" id="save" disabled>Save</button>
+    <button type="button" id="save" class="primary" disabled>Save</button>
   </p>
 
   <script>
@@ -118,591 +125,384 @@ edit.html 3496
   </script>
 </body>
 </html>
-decoder.js 11757
-(function () {
-  var POLL_MS = 1000;
-  var STALE_SEC = 5; // after this, last OK/error is shown as stale
-  var lastNow = null;
-  var cards = {}; // ch -> { el, data }
-  var placeholderCh = null;
-  var currentCh = null;
-
-  var statusEl = document.getElementById("decoder-status");
-  var statusText = document.getElementById("decoder-status-text");
-  var listEl = document.getElementById("decoder-list");
-  var spectrumEl = document.getElementById("spectrum");
-  var spectrumCanvas = null;
-  var spectrumLabel = null;
-
-  function esc(s) {
-    if (s == null) return "";
-    return String(s)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  function fmtNum(v, digits) {
-    if (v == null || typeof v !== "number" || isNaN(v)) return "—";
-    return v.toFixed(digits);
-  }
-
-  function stampRxAt(d) {
-    if (d.empty) {
-      d._rxAt = null;
-      d._ageFrozen = null;
-      return;
+sdfiles.html 9356
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>rdzTTGOSonde SD card</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
     }
-    var age = (typeof d.age === "number") ? d.age : 0;
-    d._rxAt = Date.now() - age * 1000;
-    d._ageFrozen = (age >= 86400) ? 86400 : null;
-  }
+  })();
+  </script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs -->
+  <link rel="stylesheet" href="./app.1f88533f.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav">
+      <a class="nav-item" href="/">← Home</a>
+      <span class="nav-item active">SD card</span>
+    </nav>
+    <main class="main">
+      <div class="panel">
+        <div class="card">
+          <div class="card-title" id="sd-heading">SD card: /</div>
+          <div class="table-wrap">
+            <table class="status-table compact" id="fileTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Size</th>
+                  <th>Timestamp</th>
+                  <th class="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fileBody">
+                <tr><td colspan="4" class="muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="sd-foot">rdzTTGOsonde</div>
+    </footer>
+  </div>
 
-  function effectiveAge(d) {
-    if (!d || d.empty || d._rxAt == null) return d && d.age != null ? d.age : null;
-    if (d._ageFrozen) return d._ageFrozen;
-    var sec = Math.max(0, Math.floor((Date.now() - d._rxAt) / 1000));
-    if (sec >= 86400) {
-      d._ageFrozen = 86400;
-      return 86400;
+  <div class="modal" id="viewModal">
+    <div class="modal-dialog">
+      <div class="modal-head">
+        <h2 id="viewModalTitle">File</h2>
+        <button type="button" id="viewModalClose" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="viewModalTable"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const dir = params.get('dir') || '';
+    const pdir = dir ? dir + '/' : '';
+    const internal = dir === '.int' || dir.startsWith('.int/');
+
+    function internalFileParam(fileName) {
+      const full = pdir + fileName;
+      return full.startsWith('.int/') ? full.slice('.int/'.length) : fileName;
     }
-    return sec;
-  }
 
-  function formatAge(sec) {
-    if (sec == null) return "";
-    if (sec >= 86400) return "> 1 day ago";
-    if (sec >= 3600) return Math.floor(sec / 3600) + "h ago";
-    if (sec >= 60) return Math.floor(sec / 60) + "m ago";
-    return sec + "s ago";
-  }
-
-  function resLabel(res) {
-    switch (res) {
-      case 0: return { text: "OK", cls: "res-ok" };
-      case 2: return { text: "partial/error", cls: "res-err" };
-      case 4: return { text: "no position", cls: "res-nopos" };
-      case 1: return { text: "timeout", cls: "res-timeout" };
-      default: return { text: "?", cls: "res-unk" };
+    function parentDir(d) {
+      if (!d) return '';
+      const i = d.lastIndexOf('/');
+      return i < 0 ? '' : d.slice(0, i);
     }
-  }
 
-  function resLabelFor(d) {
-    var age = effectiveAge(d);
-    if (age != null && age > STALE_SEC) return { text: "stale", cls: "res-stale" };
-    return resLabel(d.res);
-  }
-
-  function buildLinks(d) {
-    var parts = [];
-    var hasPos = d.lat != null && d.lon != null && ((d.validPos || 0) & 0x03) === 0x03;
-    if (d.id) {
-      parts.push('<a target="_blank" href="https://radiosondy.info/sonde_archive.php?sondenumber=' +
-        encodeURIComponent(d.id) + '">radiosondy.info</a>');
+    function formatSize(n) {
+      if (n === undefined || n === null || n === '') return '';
+      const v = Number(n);
+      if (!Number.isFinite(v)) return String(n);
+      if (v < 1024) return v + ' B';
+      if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+      return (v / (1024 * 1024)).toFixed(1) + ' MB';
     }
-    if (d.ser) {
-      parts.push('<a target="_blank" href="https://tracker.sondehub.org/' +
-        encodeURIComponent(d.ser) + '">SondeHub Tracker</a>');
-    }
-    if (hasPos) {
-      parts.push('<a target="_blank" href="https://www.openstreetmap.org/?mlat=' +
-        d.lat + '&mlon=' + d.lon + '&zoom=14">OSM</a>');
-      parts.push('<a target="_blank" href="https://www.google.com/maps/search/?api=1&query=' +
-        d.lat + ',' + d.lon + '">Google</a>');
-      parts.push('<a target="_blank" href="geo:' + d.lat + ',' + d.lon + '">Geo-App</a>');
-    }
-    return parts.length ? parts.join(" · ") : "";
-  }
 
-  function cardHtml(d) {
-    var empty = !!d.empty;
-    var rl = resLabelFor(d);
-    var age = effectiveAge(d);
-    var hasPos = !empty && d.lat != null && d.lon != null && ((d.validPos || 0) & 0x03) === 0x03;
-    var site = d.launchsite ? esc(d.launchsite) : "";
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
 
-    var idText = "";
-    if (empty) {
-      idText = "No decode yet";
-    } else if (d.id || d.ser) {
-      idText = esc(d.id || "");
-      if (d.ser && d.ser !== d.id) {
-        idText += (idText ? " (ser: " + esc(d.ser) + ")" : esc(d.ser));
+    function parseCsv(text) {
+      const lines = text.split(/\r?\n/).filter(function (l) { return l.length > 0; });
+      return lines.map(function (line) {
+        const row = [];
+        let cell = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQuotes = !inQuotes; continue; }
+          if (!inQuotes && c === ',') { row.push(cell.trim()); cell = ''; continue; }
+          cell += c;
+        }
+        row.push(cell.trim());
+        return row;
+      });
+    }
+
+    function viewCsv(path, title) {
+      const modal = document.getElementById('viewModal');
+      const titleEl = document.getElementById('viewModalTitle');
+      const tableEl = document.getElementById('viewModalTable');
+      titleEl.textContent = title;
+      tableEl.innerHTML = '<p class="muted">Loading…</p>';
+      tableEl.scrollTop = 0;
+      modal.classList.add('show');
+      fetch('/sd/' + path)
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          const rows = parseCsv(text);
+          if (!rows.length) {
+            tableEl.innerHTML = '<p class="muted">Empty file.</p>';
+            return;
+          }
+          let html = '<div class="table-wrap"><table class="status-table"><tbody>';
+          rows.forEach(function (row) {
+            html += '<tr>';
+            row.forEach(function (cell) {
+              html += '<td>' + escapeHtml(cell) + '</td>';
+            });
+            html += '</tr>';
+          });
+          html += '</tbody></table></div>';
+          tableEl.innerHTML = html;
+        })
+        .catch(function (err) {
+          tableEl.innerHTML = '<p class="err">Error loading file: ' + escapeHtml(err.message) + '</p>';
+        });
+    }
+
+    function sortEntries(entries) {
+      return entries.slice().sort(function (a, b) {
+        if ((a.dir === 1) !== (b.dir === 1)) return a.dir === 1 ? -1 : 1;
+        const tA = new Date(a.ts || 0).getTime();
+        const tB = new Date(b.ts || 0).getTime();
+        return tB - tA;
+      });
+    }
+
+    function renderRow(tableBody, file) {
+      const row = document.createElement('tr');
+      const nameCell = document.createElement('td');
+      const sizeCell = document.createElement('td');
+      const tsCell = document.createElement('td');
+      const actionCell = document.createElement('td');
+      actionCell.className = 'actions';
+
+      const link = document.createElement('a');
+      if (file.dir === 1) {
+        link.href = 'sdfiles.html?dir=' + encodeURIComponent(pdir + file.name);
+        link.textContent = file.name + '/';
+      } else {
+        link.href = '/sd/' + pdir + file.name;
+        link.textContent = file.name;
       }
-      if (!idText) idText = "<?>";
-      if (d.type) idText += " · " + esc(d.type);
-    } else {
-      idText = d.type ? esc(d.type) : "<?>";
-    }
+      nameCell.appendChild(link);
+      sizeCell.textContent = file.dir === 1 ? '—' : formatSize(file.size);
+      tsCell.textContent = file.ts || '';
 
-    var stats = [];
-    if (!empty) {
-      if (d.frame != null) stats.push("Frame# " + d.frame);
-      if (d.time) {
-        var t = new Date(d.time * 1000);
-        if (!isNaN(t.getTime())) {
-          stats.push(t.toISOString().replace("T", " ").replace(/\.\d+Z$/, "Z"));
+      if (file.dir !== 1) {
+        if (!internal) {
+          const viewBtn = document.createElement('button');
+          viewBtn.type = 'button';
+          viewBtn.className = 'btn-sm';
+          viewBtn.textContent = 'View';
+          viewBtn.onclick = function () { viewCsv(pdir + file.name, file.name); };
+          actionCell.appendChild(viewBtn);
+        }
+
+        if (internal) {
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'btn-sm';
+          editBtn.textContent = 'Edit';
+          const editName = internalFileParam(file.name);
+          editBtn.onclick = function () {
+            location.href = 'edit.html?file=' + encodeURIComponent(editName);
+          };
+          actionCell.appendChild(editBtn);
         }
       }
-      if (d.rssi != null) stats.push("RSSI " + d.rssi);
-      if (d.sats != null) stats.push("Sats=" + d.sats);
-      if (d.batt != null) stats.push(fmtNum(d.batt, 1) + " V");
-    }
 
-    var posParts = [];
-    if (hasPos) {
-      posParts.push("Pos " + fmtNum(d.lat, 6) + " " + fmtNum(d.lon, 6));
-      if (d.alt != null) posParts.push("Alt " + fmtNum(d.alt, 0) + "m");
-    }
-    if (!empty) {
-      if (d.vs != null) posParts.push("Clb " + fmtNum(d.vs, 1) + " m/s");
-      if (d.hs != null) posParts.push("Spd " + fmtNum(d.hs, 1) + " m/s");
-      if (d.dir != null) posParts.push("Dir " + fmtNum(d.dir, 0) + "°");
-    }
-    var posLine = posParts.length ? posParts.join(", ") : (empty ? "" : "—");
-
-    var meteo = [];
-    if (!empty) {
-      if (d.temp != null) meteo.push(fmtNum(d.temp, 1) + " °C");
-      if (d.humidity != null) meteo.push(fmtNum(d.humidity, 1) + " %RH");
-      if (d.pressure != null) meteo.push(fmtNum(d.pressure, 1) + " hPa");
-    }
-
-    var kt = "";
-    if (!empty && (d.burstKT != null || d.launchKT != null || d.countKT != null)) {
-      kt = "Burst-KT=" + (d.burstKT != null ? d.burstKT : "?") +
-        " Launch-KT=" + (d.launchKT != null ? d.launchKT : "?") +
-        " Countdown=" + (d.countKT != null ? d.countKT : "?");
-    }
-
-    var links = empty ? "" : buildLinks(d);
-    var freqHtml = fmtNum(d.freq, 3) + " MHz" + (site ? " (" + site + ")" : "");
-
-    return (
-      '<div class="decoder-card-head">' +
-        '<span class="decoder-ch">Ch ' + esc(d.ch) + '</span>' +
-        '<span class="decoder-freq">' + freqHtml + '</span>' +
-        (empty ? "" : '<span class="decoder-res ' + rl.cls + '">' + rl.text + '</span>') +
-        '<span class="decoder-age">' + (empty || age == null ? "" : formatAge(age)) + '</span>' +
-      '</div>' +
-      '<div class="decoder-card-id">' +
-        '<span class="decoder-id">' + idText + '</span>' +
-        (stats.length ? '<span class="decoder-stats">' + esc(stats.join(", ")) + '</span>' : '') +
-      '</div>' +
-      (posLine ? '<div class="decoder-card-qth">' + esc(posLine) + '</div>' : '') +
-      (meteo.length ? '<div class="decoder-card-meteo">' + esc(meteo.join(" · ")) + '</div>' : '') +
-      (kt ? '<div class="decoder-card-kt">' + esc(kt) + '</div>' : '') +
-      (links ? '<div class="decoder-card-links">' + links + '</div>' : '')
-    );
-  }
-
-  function ensureCard(ch) {
-    if (cards[ch]) return cards[ch];
-    var el = document.createElement("div");
-    el.className = "decoder-card";
-    el.dataset.ch = String(ch);
-    listEl.appendChild(el);
-    cards[ch] = { el: el, data: null };
-    return cards[ch];
-  }
-
-  function removeCard(ch) {
-    var c = cards[ch];
-    if (!c) return;
-    if (c.el.parentNode) c.el.parentNode.removeChild(c.el);
-    delete cards[ch];
-    if (placeholderCh === ch) placeholderCh = null;
-  }
-
-  function sortCards() {
-    var keys = Object.keys(cards).map(Number);
-    keys.sort(function (a, b) {
-      var da = cards[a].data || {};
-      var db = cards[b].data || {};
-      if (da.empty && !db.empty) return 1;
-      if (!da.empty && db.empty) return -1;
-      var aa = effectiveAge(da);
-      var ab = effectiveAge(db);
-      if (aa == null) aa = 1e9;
-      if (ab == null) ab = 1e9;
-      if (aa !== ab) return aa - ab;
-      return a - b;
-    });
-    keys.forEach(function (ch) {
-      listEl.appendChild(cards[ch].el);
-    });
-  }
-
-  function renderCard(ch) {
-    var c = cards[ch];
-    if (!c || !c.data) return;
-    c.el.className = "decoder-card" +
-      (ch === currentCh ? " current" : "") +
-      (c.data.empty ? " empty" : "");
-    c.el.innerHTML = cardHtml(c.data);
-  }
-
-  function refreshAges() {
-    Object.keys(cards).forEach(function (k) {
-      renderCard(Number(k));
-    });
-    sortCards();
-  }
-
-  function applyStatus(data) {
-    statusText.textContent = data.detail || data.state || "";
-    statusEl.className = "decoder-status state-" + (data.state || "disabled");
-    currentCh = data.ch;
-  }
-
-  function renderSpectrum(spec) {
-    if (!spectrumEl) return;
-    if (!spec || !spec.rssi || !spec.rssi.length) {
-      spectrumEl.hidden = true;
-      return;
-    }
-    spectrumEl.hidden = false;
-    if (!spectrumCanvas) {
-      spectrumCanvas = document.createElement("canvas");
-      spectrumCanvas.width = 600;
-      spectrumCanvas.height = 240;
-      spectrumEl.appendChild(spectrumCanvas);
-      spectrumLabel = document.createElement("div");
-      spectrumLabel.className = "spectrum-label";
-      spectrumEl.appendChild(spectrumLabel);
-    }
-    // Same fixed Y scale as LCD/TFT: PLOT_MIN = noisefloor*2, PLOT_SCALE = (x-PLOT_MIN)/2
-    var rssi = spec.rssi;
-    var n = rssi.length;
-    var floor = (spec.noisefloor != null ? spec.noisefloor : -125) * 2;
-    var plotMax = spec.plotMax > 0 ? spec.plotMax : 128;
-    var ctx = spectrumCanvas.getContext("2d");
-    var w = spectrumCanvas.width;
-    var h = spectrumCanvas.height;
-    ctx.fillStyle = "#222";
-    ctx.fillRect(0, 0, w, h);
-    var barW = w / n;
-    ctx.fillStyle = "#4c4";
-    for (var j = 0; j < n; j++) {
-      var scaled = rssi[j] < floor ? 0 : (rssi[j] - floor) / 2;
-      var bh = Math.min(h, Math.round((scaled / plotMax) * h));
-      if (bh > 0) {
-        ctx.fillRect(Math.floor(j * barW), h - bh, Math.ceil(barW) || 1, bh);
+      if (!internal) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-sm danger';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.onclick = function () {
+          if (!confirm('Delete "' + file.name + '"?')) return;
+          fetch('sdrm.html?file=' + encodeURIComponent(pdir + file.name))
+            .then(function (resp) {
+              if (resp.ok) row.remove();
+              else alert('Delete failed.');
+            })
+            .catch(function () { alert('Error sending request.'); });
+        };
+        actionCell.appendChild(deleteBtn);
       }
+
+      row.append(nameCell, sizeCell, tsCell, actionCell);
+      tableBody.appendChild(row);
     }
-    if (spec.peak != null && spec.start != null && spec.step != null && spec.step > 0) {
-      var px = ((spec.peak - spec.start) / spec.step) * barW;
-      ctx.strokeStyle = "#f66";
-      ctx.beginPath();
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, h);
-      ctx.stroke();
-    }
-    var end = (spec.start != null && spec.step != null)
-      ? spec.start + spec.step * n : null;
-    spectrumLabel.textContent =
-      (spec.start != null ? spec.start.toFixed(3) : "?") + " … " +
-      (end != null ? end.toFixed(3) : "?") + " MHz" +
-      (spec.peak != null ? "  |  peak " + spec.peak.toFixed(3) + " MHz" : "") +
-      (spec.peakRssi != null ? " (" + spec.peakRssi + ")" : "");
-  }
 
-  function applyFull(data) {
-    Object.keys(cards).forEach(function (ch) { removeCard(Number(ch)); });
-    placeholderCh = null;
-    var entries = data.entries || [];
-    entries.forEach(function (e) {
-      stampRxAt(e);
-      var c = ensureCard(e.ch);
-      c.data = e;
-      if (e.empty) placeholderCh = e.ch;
-      renderCard(e.ch);
-    });
-    sortCards();
-  }
+    document.getElementById('viewModalClose').onclick = function () {
+      document.getElementById('viewModal').classList.remove('show');
+    };
+    document.getElementById('viewModal').onclick = function (e) {
+      if (e.target.id === 'viewModal') e.target.classList.remove('show');
+    };
 
-  function applyDelta(data) {
-    var entries = data.entries || [];
-    entries.forEach(function (e) {
-      if (e.empty) return;
-      if (placeholderCh != null) removeCard(placeholderCh);
-      stampRxAt(e);
-      var c = ensureCard(e.ch);
-      c.data = e;
-      renderCard(e.ch);
-    });
+    document.getElementById('sd-heading').textContent = 'SD card: /' + (dir || '');
 
-    Object.keys(cards).forEach(function (k) {
-      renderCard(Number(k));
-    });
-    sortCards();
-  }
+    fetch('/meta.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (meta) {
+        var id = meta.versionId || '';
+        document.getElementById('sd-foot').textContent = id ? ('rdzTTGOsonde ' + id) : 'rdzTTGOsonde';
+      })
+      .catch(function () {});
 
-  function apply(data) {
-    if (!data || typeof data !== "object") return;
-    applyStatus(data);
-    renderSpectrum(data.spectrum);
-    if (data.full || lastNow == null) {
-      applyFull(data);
-    } else {
-      applyDelta(data);
-    }
-    if (typeof data.now === "number") lastNow = data.now;
-  }
-
-  function poll() {
-    var url = "/decoder.json";
-    if (lastNow != null) url += "?since=" + lastNow;
+    const body = document.getElementById('fileBody');
+    const url = '/files.json' + (dir ? '?dir=' + encodeURIComponent(dir) : '');
     fetch(url)
       .then(function (r) {
-        if (!r.ok) throw new Error("HTTP " + r.status);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       })
-      .then(apply)
-      .catch(function (err) {
-        console.error("decoder poll:", err);
-        lastNow = null;
-        statusText.textContent = "Connection error — retrying…";
-        statusEl.className = "decoder-status state-disabled";
+      .then(function (data) {
+        body.innerHTML = '';
+        if (dir) {
+          const up = document.createElement('tr');
+          up.innerHTML =
+            '<td colspan="4"><a href="sdfiles.html' +
+            (parentDir(dir) ? '?dir=' + encodeURIComponent(parentDir(dir)) : '') +
+            '">.. parent directory</a></td>';
+          body.appendChild(up);
+        }
+        const entries = Array.isArray(data) ? sortEntries(data) : [];
+        if (!entries.length) {
+          const empty = document.createElement('tr');
+          empty.innerHTML = '<td colspan="4" class="muted">No files</td>';
+          body.appendChild(empty);
+          return;
+        }
+        entries.forEach(function (file) { renderRow(body, file); });
       })
-      .finally(function () {
-        setTimeout(poll, POLL_MS);
+      .catch(function (err) {
+        body.innerHTML = '<tr><td colspan="4" class="err">' + escapeHtml(err.message) + '</td></tr>';
       });
-  }
-
-  setInterval(refreshAges, 1000);
-  poll();
-})();
-sdfiles.html 7318
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>rdzTTGOsonde SD card file browser</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f4f4f4; }
-        h1 { color: #333; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
-        th { background: #4CAF50; color: #fff; }
-        tr:hover { background: #f1f1f1; }
-        #viewModal { display: none; position: fixed; z-index: 10; inset: 0; background: rgba(0,0,0,0.5); overflow: auto; }
-        #viewModal.show { display: flex; align-items: center; justify-content: center; }
-        .modalContent { background: #fff; padding: 16px; max-width: 95%; max-height: 90vh; overflow: auto; border-radius: 8px; }
-        .modalContent h2 { margin-top: 0; }
-        .modalContent table { font-size: 0.9em; }
-        .modalContent th, .modalContent td { padding: 4px 8px; border: 1px solid #ddd; }
-        .modalContent th { background: #4CAF50; color: #fff; }
-    </style>
-</head>
-<body>
-    <div id="viewModal">
-        <div class="modalContent">
-            <h2 id="viewModalTitle">CSV</h2>
-            <div id="viewModalTable"></div>
-            <p><button type="button" id="viewModalClose">Close</button></p>
-        </div>
-    </div>
-    <h1>SD Card Directory Listing</h1>
-    <table id="fileTable">
-        <thead>
-            <tr>
-                <th>Filename</th>
-                <th>Size (bytes)</th>
-                <th>Timestamp</th>
-                <th colspan="2">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            <!-- File entries will be inserted here -->
-        </tbody>
-    </table>
-
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        const dir = params.get('dir') || '';
-        const pdir = dir ? dir+"/" : '';
-
-        async function fetchAllEntries() {
-            const url = '/files.json' + (dir ? '?dir='+encodeURIComponent(dir) : '');
-            const response = await fetch(url);
-            const data = await response.json();
-            return Array.isArray(data) ? data : [];
-        }
-
-        function renderRow(tableBody, file) {
-            const row = document.createElement('tr');
-            const nameCell = document.createElement('td');
-            const sizeCell = document.createElement('td');
-            const tsCell = document.createElement('td');
-            const viewCell = document.createElement('td');
-            const deleteCell = document.createElement('td');
-
-            const link = document.createElement('a');
-            if (file.dir === 1) {
-                link.href = `sdfiles.html?dir=${encodeURIComponent(pdir + file.name)}`;
-                link.textContent = `📁 ${file.name}`;
-            } else {
-                link.href = `/sd/${pdir}${file.name}`;
-                link.textContent = file.name;
-            }
-            nameCell.appendChild(link);
-            sizeCell.textContent = file.size !== undefined ? file.size : '';
-            tsCell.textContent = file.ts;
-
-            if (file.dir !== 1) {
-                const viewBtn = document.createElement('button');
-                viewBtn.textContent = '🔍';
-                viewBtn.title = 'View file';
-                viewBtn.style.cursor = 'pointer';
-                viewBtn.onclick = () => viewCsv(pdir + file.name, file.name);
-                viewCell.appendChild(viewBtn);
-            }
-
-            const deleteBtn = document.createElement('button');
-            deleteBtn.textContent = '🗑️';
-            deleteBtn.title = 'Delete';
-            deleteBtn.style.cursor = 'pointer';
-            deleteBtn.onclick = () => {
-                if (confirm(`Confirm to delete "${file.name}"?`)) {
-                    fetch(`sdrm.html?file=${pdir}${encodeURIComponent(file.name)}`)
-                        .then(resp => resp.ok ? (alert('Deleted.'), row.remove()) : alert('Delete failed.'))
-                        .catch(() => alert('Error sending request.'));
-                }
-            };
-            deleteCell.appendChild(deleteBtn);
-
-            row.append(nameCell, sizeCell, tsCell, viewCell, deleteCell);
-            tableBody.appendChild(row);
-        }
-
-        function parseCsv(text) {
-            const lines = text.split(/\r?\n/).filter(l => l.length > 0);
-            return lines.map(line => {
-                const row = [];
-                let cell = '', inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                    const c = line[i];
-                    if (c === '"') { inQuotes = !inQuotes; continue; }
-                    if (!inQuotes && c === ',') { row.push(cell.trim()); cell = ''; continue; }
-                    cell += c;
-                }
-                row.push(cell.trim());
-                return row;
-            });
-        }
-
-        function viewCsv(path, title) {
-            const modal = document.getElementById('viewModal');
-            const titleEl = document.getElementById('viewModalTitle');
-            const tableEl = document.getElementById('viewModalTable');
-            titleEl.textContent = title;
-            tableEl.innerHTML = 'Loading…';
-            modal.classList.add('show');
-            fetch('/sd/' + path)
-                .then(r => r.text())
-                .then(text => {
-                    const rows = parseCsv(text);
-                    if (rows.length === 0) { tableEl.innerHTML = '<p>Empty file.</p>'; return; }
-                    let html = '<table><tbody>';
-                    rows.forEach(row => {
-                        html += '<tr>';
-                        row.forEach(cell => html += '<td>' + escapeHtml(cell) + '</td>');
-                        html += '</tr>';
-                    });
-                    html += '</tbody></table>';
-                    tableEl.innerHTML = html;
-                })
-                .catch(err => {
-                    tableEl.innerHTML = '<p>Error loading file: ' + escapeHtml(err.message) + '</p>';
-                });
-        }
-
-        function escapeHtml(s) {
-            const div = document.createElement('div');
-            div.textContent = s;
-            return div.innerHTML;
-        }
-
-        document.getElementById('viewModalClose').onclick = () => {
-            document.getElementById('viewModal').classList.remove('show');
-        };
-        document.getElementById('viewModal').onclick = (e) => {
-            if (e.target.id === 'viewModal') e.target.classList.remove('show');
-        };
-
-        function sortEntries(entries) {
-            return entries.slice().sort((a, b) => {
-                const tA = new Date(a.ts || 0).getTime();
-                const tB = new Date(b.ts || 0).getTime();
-                return tB - tA;
-            });
-        }
-
-        fetchAllEntries()
-            .then(data => {
-                const tableBody = document.getElementById('fileTable').getElementsByTagName('tbody')[0];
-                sortEntries(data).forEach(file => renderRow(tableBody, file));
-            })
-            .catch(error => {
-                console.error('Error fetching file list:', error);
-            });
-    </script>
+  </script>
 </body>
 </html>
-
-login.html 2068
+login.html 4102
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>rdzTTGOSonde Login</title>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Login Form</title>
-    <link rel="icon" href="data:,">
-    <link rel="stylesheet" type="text/css" href="style.css">
-    <script src="sha256.min.js" type="text/javascript"></script>
-    <script>
-        function computeHash(event) {
-            event.preventDefault(); // Prevent form's default submission behavior
-            const username = document.getElementById('user').value;
-            const password = document.getElementById('pass').value;
-            const preauth = document.getElementById('preauth').value;
-            const hashInput = `${username}:${preauth}:${password}`;
-            const hash = sha256(hashInput);
-            document.getElementById('auth').value = hash;
-            document.getElementById('pass').value = '';
-            document.getElementById('loginForm').submit();
-        }
-    </script>
+  <title>rdzTTGOSonde Login</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <script src="sha256.min.js"></script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs to force reload after changes -->
+  <link rel="stylesheet" href="./app.1f88533f.css">
 </head>
 <body>
-<div class="wrapper">
- <div class="header"><div id="myTopnav" class="topnav">
-  <a id="defaultTab" class="tablinks active">Login</a>
- </div></div>
- <div id="Login" class="tabcontent" style="display: flex;">
-  <div class="system-info">
-  <h1>%VERSION_NAME% version %VERSION_ID%</h1>
-  <p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
-  <br>
-    <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
-        <label for="user">Username:</label>
-        <input type="text" id="user" name="user" required><br><br>
-        
-        <label for="pass">Password:</label>
-        <input type="password" id="pass" name="pass" required><br><br>
-
-        <input type="hidden" id="preauth" name="preauth" value="%PREAUTH%">
-        <input type="hidden" id="auth" name="auth" value=""> 
-        <button type="submit">Login</button>
-    </form>
+  <div class="app">
+    <nav class="nav">
+      <span class="nav-item active">Login</span>
+    </nav>
+    <main class="main">
+      <div class="panel panel-narrow">
+        <div class="card">
+          <h1>Login</h1>
+          <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
+            <div class="field">
+              <label for="user">Username</label>
+              <input type="text" id="user" name="user" required autocomplete="username">
+            </div>
+            <div class="field">
+              <label for="pass">Password</label>
+              <input type="password" id="pass" name="pass" required autocomplete="current-password">
+            </div>
+            <input type="hidden" id="preauth" name="preauth" value="">
+            <button type="submit" class="primary btn-block">Login</button>
+            <p id="login-status" class="err" hidden></p>
+          </form>
+        </div>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="login-foot">rdzTTGOsonde</div>
+    </footer>
   </div>
-  <div class="footer"><span></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
- </div>
-</div>
+  <script>
+    function setLoginStatus(text) {
+      var el = document.getElementById('login-status');
+      el.textContent = text || '';
+      el.hidden = !text;
+    }
+    async function computeHash(event) {
+      event.preventDefault();
+      setLoginStatus('');
+      var username = document.getElementById('user').value;
+      var password = document.getElementById('pass').value;
+      var preauth = document.getElementById('preauth').value;
+      if (!preauth) {
+        setLoginStatus('The device was not reached.');
+        return;
+      }
+      document.getElementById('pass').value = '';
+      var auth = sha256(username + ':' + preauth + ':' + password);
+      var btn = event.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      try {
+        var r = await fetch('/login.html', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ user: username, preauth: preauth, auth: auth })
+        });
+        if (r.ok) {
+          location.href = '/index.html';
+          return;
+        }
+        var msg = (await r.text()).trim();
+        setLoginStatus(msg || ('HTTP ' + r.status));
+      } catch (e) {
+        setLoginStatus('The device was not reached.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function initLogin() {
+      try {
+        var preRes = await fetch('/preauth', { credentials: 'same-origin' });
+        if (!preRes.ok) throw new Error('preauth');
+        var pre = await preRes.json();
+        if (!pre.preauth) throw new Error('preauth');
+        document.getElementById('preauth').value = pre.preauth;
+      } catch (e) {
+        setLoginStatus('The device was not reached.');
+      }
+      try {
+        var metaRes = await fetch('/meta.json', { credentials: 'same-origin' });
+        if (!metaRes.ok) return;
+        var meta = await metaRes.json();
+        var id = meta.versionId || '';
+        document.getElementById('login-foot').textContent = id ? ('rdzTTGOsonde ' + id) : 'rdzTTGOsonde';
+      } catch (e) { /* version line is optional */ }
+    }
+    document.addEventListener('DOMContentLoaded', initLogin);
+  </script>
 </body>
 </html>
 livemap.js 21344
@@ -1285,108 +1085,115 @@ function bearing(latlng1, latlng2) {
     bearing = bearing < 0 ? bearing-360 : bearing;
     return Math.round(bearing);
 }
-upd.html 2461
-<html><head>
-<link rel="stylesheet" type="text/css" href="style.css">
-</head>
-<body>
-
-
-<form action="update.html" method="post"><p>Currently installed: %FULLNAMEID%</p>
-<p>
-Available main: <span id="masterDiv">(...checking...)</span>
-
-<br>
-Available dev2: <span id="develDiv">(...checking...)</span>
-
-</p>
-<input type="submit" name="main" value="Main-Update"></input><br>
-<input type="submit" name="dev2" value="Dev-Update"><br>
-<div id="local-update-section">
-  <input type="submit" name="local" value="Local-Update"> from
-  <input type="text" name="url" value="%LOCAL_UPDATES%" size="64"><br>
-</div>
-</form>
-
-<p>Note: If suffix is the same, update should work fully. If the number is
-different, update contains changes in the file system. A full re-flash is
-required to get all new features, but the update should not break anything.
-If the letter is different, a full re-flash is mandatory, update will not
-work.</p>
-<p id="local-update-info">
-The local-update feature is for developers and requires a path containing
-<tt>update.fs.bin</tt> and <tt>update.ino.bin</tt>.
-</p>
-
-<script>
-const localEnabled = "%LOCAL_UPDATES%";
-
-document.addEventListener("DOMContentLoaded", () => {
-  if (localEnabled.trim() === "") {
-    // Hide the local update section
-    const localUpdateSection = document.getElementById("local-update-section");
-    const localUpdateInfo = document.getElementById("local-update-info");
-    if (localUpdateSection) localUpdateSection.style.display = "none";
-    if (localUpdateInfo) localUpdateInfo.style.display = "none";
-  }
-});
-
-const masterInfo = document.getElementById('masterDiv');
-const develInfo = document.getElementById('develDiv');
-
-function fillUpdateInfo(el, xhr) {
-  if (xhr.status >= 200 && xhr.status < 300) {
-    el.innerHTML = xhr.response.replace(/<[^>]*>/g, '');
-  } else {
-    el.textContent = '(unavailable)';
-  }
-}
-function failUpdateInfo(el) {
-  el.textContent = '(unavailable)';
-}
-
-let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.org/main/update-info.html');
-request.onload = function() { fillUpdateInfo(masterInfo, request); };
-request.onerror = function() { failUpdateInfo(masterInfo); };
-request.send();
-
-let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
-drequest.onload = function() { fillUpdateInfo(develInfo, drequest); };
-drequest.onerror = function() { failUpdateInfo(develInfo); };
-drequest.send();
-</script>
-</body></html>
-decoder.html 746
+upd.html 4038
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Decoder — rdzTTGOSonde</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>rdzTTGOSonde Update</title>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" type="text/css" href="style.css">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs -->
+  <link rel="stylesheet" href="./app.1f88533f.css">
 </head>
 <body>
-<div class="wrapper">
-  <div class="content decoder-page">
-    <div id="decoder-status" class="decoder-status state-disabled">
-      <span id="decoder-status-text">Connecting…</span>
-    </div>
-    <div id="spectrum" class="spectrum" hidden></div>
-    <div id="decoder-list" class="decoder-list"></div>
+  <div class="app">
+    <nav class="nav">
+      <a class="nav-item" href="/">← Home</a>
+      <span class="nav-item active">Update</span>
+    </nav>
+    <main class="main">
+      <div class="panel panel-narrow">
+        <div class="card">
+          <h1>Firmware update</h1>
+          <p class="text">Installed: <strong class="version-id" id="fullId">…</strong></p>
+        </div>
+
+        <form id="upd-form" action="/update.html" method="post">
+          <div class="card">
+            <h2>Stable</h2>
+            <p>Latest: <strong class="text" id="masterDiv">…checking…</strong></p>
+            <button type="submit" name="main" value="Main-Update" class="primary btn-block">Update to stable</button>
+          </div>
+
+          <div class="card">
+            <h2>Development</h2>
+            <p>Latest: <strong class="text" id="develDiv">…checking…</strong></p>
+            <button type="submit" name="dev2" value="Dev-Update" class="btn-block">Update to development</button>
+          </div>
+
+          <div id="local-update-section" hidden>
+            <p class="dev-label">Developer</p>
+            <div class="card">
+              <h2>Custom server</h2>
+              <p class="muted">Path must contain <code>update.fs.bin</code> and <code>update.ino.bin</code>.</p>
+              <div class="field">
+                <label for="localUrl">Update URL</label>
+                <input type="text" name="url" id="localUrl" value="">
+              </div>
+              <button type="submit" name="local" value="Local-Update" class="btn-block">Update from this server</button>
+            </div>
+          </div>
+        </form>
+
+        <p class="muted">If the version letter changes, OTA will fail and a full reflash is required.</p>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="upd-foot">rdzTTGOsonde</div>
+    </footer>
   </div>
-  <div class="footer">
-    <span></span>
-    <span class="ttgoinfo">rdzTTGOserver</span>
-  </div>
-</div>
-<script src="decoder.js"></script>
+  <script>
+    function fillRemote(el, url) {
+      fetch(url)
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+        .then(function (t) {
+          el.textContent = t.replace(/<[^>]*>/g, '').trim() || '(empty)';
+        })
+        .catch(function () {
+          el.textContent = '(unavailable)';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      fetch('/status.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var meta = data.meta || {};
+          var id = meta.fullId || meta.versionId || '';
+          document.getElementById('fullId').textContent = id || '(unknown)';
+          document.getElementById('upd-foot').textContent =
+            id ? ('rdzTTGOsonde ' + (meta.versionId || id)) : 'rdzTTGOsonde';
+          var local = (meta.localUpdates || '').trim();
+          if (local) {
+            document.getElementById('localUrl').value = local;
+            document.getElementById('local-update-section').hidden = false;
+          }
+        })
+        .catch(function () {
+          document.getElementById('fullId').textContent = '(unavailable)';
+        });
+
+      fillRemote(document.getElementById('masterDiv'), 'http://rdzsonde.org/main/update-info.html');
+      fillRemote(document.getElementById('develDiv'), 'http://rdzsonde.org/dev2/update-info.html');
+    });
+  </script>
 </body>
 </html>
 sha256.min.js 849
-var sha256=function a(b){function c(a,b){return a>>>b|a<<32-b}for(var d,e,f=Math.pow,g=f(2,32),h="length",i="",j=[],k=8*b[h],l=a.h=a.h||[],m=a.k=a.k||[],n=m[h],o={},p=2;64>n;p++)if(!o[p]){for(d=0;313>d;d+=p)o[d]=p;l[n]=f(p,.5)*g|0,m[n++]=f(p,1/3)*g|0}for(b+="\x80";b[h]%64-56;)b+="\x00";for(d=0;d<b[h];d++){if(e=b.charCodeAt(d),e>>8)return;j[d>>2]|=e<<(3-d)%4*8}for(j[j[h]]=k/g|0,j[j[h]]=k,e=0;e<j[h];){var q=j.slice(e,e+=16),r=l;for(l=l.slice(0,8),d=0;64>d;d++){var s=q[d-15],t=q[d-2],u=l[0],v=l[4],w=l[7]+(c(v,6)^c(v,11)^c(v,25))+(v&l[5]^~v&l[6])+m[d]+(q[d]=16>d?q[d]:q[d-16]+(c(s,7)^c(s,18)^s>>>3)+q[d-7]+(c(t,17)^c(t,19)^t>>>10)|0),x=(c(u,2)^c(u,13)^c(u,22))+(u&l[1]^u&l[2]^l[1]&l[2]);l=[w+x|0].concat(l),l[4]=l[4]+w|0}for(d=0;8>d;d++)l[d]=l[d]+r[d]|0}for(d=0;8>d;d++)for(e=3;e+1;e--){var y=l[d]>>8*e&255;i+=(16>y?0:"")+y.toString(16)}return i};rdz.js 3063
+var sha256=function a(b){function c(a,b){return a>>>b|a<<32-b}for(var d,e,f=Math.pow,g=f(2,32),h="length",i="",j=[],k=8*b[h],l=a.h=a.h||[],m=a.k=a.k||[],n=m[h],o={},p=2;64>n;p++)if(!o[p]){for(d=0;313>d;d+=p)o[d]=p;l[n]=f(p,.5)*g|0,m[n++]=f(p,1/3)*g|0}for(b+="\x80";b[h]%64-56;)b+="\x00";for(d=0;d<b[h];d++){if(e=b.charCodeAt(d),e>>8)return;j[d>>2]|=e<<(3-d)%4*8}for(j[j[h]]=k/g|0,j[j[h]]=k,e=0;e<j[h];){var q=j.slice(e,e+=16),r=l;for(l=l.slice(0,8),d=0;64>d;d++){var s=q[d-15],t=q[d-2],u=l[0],v=l[4],w=l[7]+(c(v,6)^c(v,11)^c(v,25))+(v&l[5]^~v&l[6])+m[d]+(q[d]=16>d?q[d]:q[d-16]+(c(s,7)^c(s,18)^s>>>3)+q[d-7]+(c(t,17)^c(t,19)^t>>>10)|0),x=(c(u,2)^c(u,13)^c(u,22))+(u&l[1]^u&l[2]^l[1]&l[2]);l=[w+x|0].concat(l),l[4]=l[4]+w|0}for(d=0;8>d;d++)l[d]=l[d]+r[d]|0}for(d=0;8>d;d++)for(e=3;e+1;e--){var y=l[d]>>8*e&255;i+=(16>y?0:"")+y.toString(16)}return i};app.css 10803
+:root{color-scheme:light dark;--bg: #f4f5f7;--bg-elev: #ffffff;--text: #1a1d21;--muted: #5c6570;--border: #d0d5dd;--accent: #0b6e4f;--accent-fg: #fff;--danger: #b42318;--warn: #b54708;--ok: #027a48;--nav-h: 3rem;--top-h: 3rem;--radius: .6rem;--shadow: 0 1px 2px rgba(0, 0, 0, .08);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg: #121417;--bg-elev: #1c2128;--text: #e8eaed;--muted: #9aa3ad;--border: #2f363f;--accent: #2bb673;--accent-fg: #0b1a12;--danger: #f97066;--warn: #fdb022;--ok: #6ce9a6;--shadow: 0 1px 2px rgba(0, 0, 0, .4)}}:root[data-theme=dark]{--bg: #121417;--bg-elev: #1c2128;--text: #e8eaed;--muted: #9aa3ad;--border: #2f363f;--accent: #2bb673;--accent-fg: #0b1a12;--danger: #f97066;--warn: #fdb022;--ok: #6ce9a6;--shadow: 0 1px 2px rgba(0, 0, 0, .4)}*{box-sizing:border-box}html,body{height:100%;margin:0;overflow:hidden;background:var(--bg);color:var(--text)}body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}.app{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;min-height:0}.nav-toggle{display:none;flex-shrink:0;background:transparent;border:1px solid var(--border);color:var(--text);border-radius:.4rem;width:2.5rem;height:2.5rem;font-size:1.1rem}.nav{display:flex;align-items:center;gap:.35rem;padding:.35rem .5rem;background:var(--bg-elev);border-bottom:1px solid var(--border);z-index:20}.nav-items{display:flex;gap:.25rem;overflow-x:auto;flex:1;min-width:0}.nav-item{appearance:none;border:0;display:inline-flex;align-items:center;justify-content:center;background:transparent;color:var(--muted);text-decoration:none;font:inherit;font-weight:600;font-size:.92rem;line-height:1.2;padding:.55rem .65rem;min-height:44px;border-radius:999px;white-space:nowrap;cursor:pointer}.nav-item.active,.nav-item:hover{background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text)}.statusbar{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.45rem .75rem;padding-bottom:calc(.45rem + env(safe-area-inset-bottom));background:#222;color:#eee;font-size:.9rem;min-height:2.75rem;z-index:20}.statusbar a{color:#9fd}.statusbar-left{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}.statusbar-right{color:#bbb;font-size:.85rem;text-align:right}.statusbar .bar-save{min-height:2.25rem;padding:.35rem .9rem;text-decoration:none;display:inline-flex;align-items:center}.statusbar .status-msg{margin:0}.statusbar .status-msg.ok{color:#8f8}.statusbar .status-msg.err{color:#f88}.statusbar .status-msg.muted{color:#bbb}.main{min-height:0;overflow:auto;display:flex;flex-direction:column}.main.main-fixed{overflow:hidden}.panel{padding:1rem;max-width:56rem;margin:0 auto;width:100%}.panel-narrow{max-width:42rem}.panel[hidden]{display:none!important}h1,h2,h3{margin:0 0 .75rem;line-height:1.25}h1{font-size:1.35rem}h2{font-size:1.1rem}p{margin:.4rem 0;color:var(--muted)}.card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:.85rem 1rem;margin-bottom:.75rem}.card-title{font-weight:650;margin-bottom:.35rem}.muted{color:var(--muted)}.text{color:var(--text)}.ok{color:var(--ok)}.err{color:var(--danger)}.version-id{color:var(--text);font-weight:650;word-break:break-all}.btn-block{width:100%}.dev-label{margin:.5rem 0 .35rem;font-size:.75rem;font-weight:650;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}.btn-row{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}button,.button,input[type=submit]{font:inherit;min-height:44px;padding:.55rem .9rem;border-radius:.5rem;border:1px solid var(--border);background:var(--bg-elev);color:var(--text);cursor:pointer}button.primary,.button.primary,input[type=submit].primary{background:var(--accent);border-color:transparent;color:var(--accent-fg);font-weight:650}button.danger{background:color-mix(in srgb,var(--danger) 18%,var(--bg-elev));border-color:color-mix(in srgb,var(--danger) 40%,var(--border));color:var(--danger)}button:disabled{opacity:.5;cursor:default}input[type=text],input[type=password],select,textarea{font:inherit;font-size:16px;width:100%;min-height:44px;padding:.55rem .7rem;border-radius:.5rem;border:1px solid var(--border);background:var(--bg);color:var(--text)}label{display:block;font-size:.9rem;color:var(--muted);margin-bottom:.25rem}.field{margin-bottom:.75rem}.table-wrap{overflow-x:auto}table.form{width:100%;border-collapse:collapse;background:var(--bg-elev)}table.form th,table.form td{border:1px solid var(--border);padding:.2rem .35rem;text-align:left;vertical-align:middle}table.form input[type=text],table.form select{min-height:0;font-size:.9rem;line-height:1.2;padding:.15rem .4rem;border-radius:.35rem}table.form th{background:color-mix(in srgb,var(--border) 35%,var(--bg-elev))}table.form td.ch{text-align:right;width:2.5rem}table.form td.act{text-align:center;width:3.5rem}.home-hero{display:flex;gap:1rem;align-items:flex-start;justify-content:space-between}.home-hero-main{flex:1;min-width:0}.home-theme{flex-shrink:0;display:flex;flex-direction:column;gap:.25rem;min-width:7.5rem}.home-theme label{margin:0;font-size:.8rem}.home-theme select{min-height:2.25rem;padding:.3rem .45rem;font-size:.9rem}@media(max-width:520px){.home-hero{flex-direction:column}.home-theme{width:100%}}.status-heading{display:flex;align-items:baseline;gap:.5rem}button.linkish{background:none;border:none;color:var(--accent);min-height:0;padding:0;font:inherit;font-weight:600;cursor:pointer}button.linkish:hover{text-decoration:underline}.status-table{width:100%;border-collapse:collapse;background:var(--bg-elev);margin:0}.status-table th,.status-table td{border:1px solid var(--border);padding:.45rem .6rem;text-align:left;vertical-align:top;font-size:.92rem}.status-table th{background:color-mix(in srgb,var(--border) 35%,var(--bg-elev));font-weight:650}.status-table td.status-name{width:7.5rem;white-space:nowrap;font-weight:600}.status-table th.actions,.status-table td.actions{text-align:right;white-space:nowrap;width:1%;vertical-align:middle}.status-table.compact th,.status-table.compact td{padding:.25rem .45rem;vertical-align:middle}.status-table a{color:var(--accent);text-decoration:none;font-weight:600}.status-table a:hover{text-decoration:underline}.btn-sm{min-height:0;height:auto;line-height:1.2;padding:.15rem .4rem;font-size:.8rem;margin:0 .15rem 0 0;border-radius:.35rem;vertical-align:middle}.modal{display:none;position:fixed;z-index:40;inset:0;background:#00000073;align-items:center;justify-content:center;padding:1rem}.modal.show{display:flex}.modal-dialog{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);max-width:min(56rem,95vw);max-height:90vh;overflow:hidden;width:100%;display:flex;flex-direction:column}.modal-head{display:flex;align-items:center;gap:.75rem;flex-shrink:0;padding:.55rem .55rem .55rem 1rem;border-bottom:1px solid var(--border);background:var(--bg-elev)}.modal-head h2{margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:1rem}.modal-close{flex-shrink:0;min-height:0;width:2rem;height:2rem;padding:0;line-height:1;font-size:1.35rem;border:none;background:transparent;border-radius:.35rem}.modal-close:hover{background:color-mix(in srgb,var(--border) 55%,transparent)}.modal-body{overflow:auto;min-height:0;padding:.75rem 1rem 1rem}.modal-dialog .status-table{font-size:.85rem}.modal-dialog .status-table th,.modal-dialog .status-table td{padding:.3rem .45rem}.link-buttons{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:.75rem}.link-buttons a.button{text-decoration:none;display:inline-flex;align-items:center}.panel-fill{flex:1;padding:0;max-width:none;margin:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}.fill-frame{flex:1;width:100%;min-height:0;border:0;background:var(--bg-elev)}.status-html{font-size:.92rem;overflow-wrap:anywhere}.ctl-group{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:.45rem;margin-bottom:.85rem;align-items:stretch}.ctl-group h2{grid-column:1 / -1;margin:0 0 .1rem;font-size:1rem}.ctl-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.12rem;min-height:2.75rem;height:auto;padding:.4rem .5rem;line-height:1.15;text-align:center;white-space:normal}.ctl-main{font-weight:650}.ctl-sub{font-size:.78rem;font-weight:500;color:var(--muted);line-height:1.15}.decoder-modes{display:grid;grid-template-columns:1.7fr 1fr 1fr;gap:.4rem;margin-bottom:.65rem}.decoder-modes button{min-height:2.4rem;height:auto;padding:.35rem .4rem;font-size:.82rem;line-height:1.15;white-space:normal}.decoder-status{padding:.65rem .85rem;border-radius:var(--radius);margin-bottom:.75rem;font-weight:600;background:var(--bg-elev);border:1px solid var(--border)}.decoder-status.state-decode{border-color:var(--ok)}.decoder-status.state-scan{border-color:var(--warn)}.decoder-status.state-spectrum{border-color:#5b8def}.decoder-status.state-disabled{opacity:.85}.spectrum{margin-bottom:.75rem;background:#222;border-radius:var(--radius);overflow:hidden}.spectrum canvas{width:100%;height:auto;display:block}.spectrum-label{color:#ccc;font-size:.8rem;padding:.35rem .6rem .55rem}.decoder-list{display:grid;gap:.65rem}.decoder-card{background:var(--bg-elev);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .85rem}.decoder-card.current{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}.decoder-card.empty{opacity:.7}.decoder-card-head,.decoder-card-id{display:flex;flex-wrap:wrap;gap:.45rem .75rem;align-items:baseline;margin-bottom:.25rem}.decoder-ch{font-weight:700}.decoder-freq{color:var(--muted)}.decoder-age{margin-left:auto;color:var(--muted);font-size:.9rem}.decoder-id{font-weight:650}.decoder-stats,.decoder-card-qth,.decoder-card-meteo,.decoder-card-kt{color:var(--muted);font-size:.92rem;margin-top:.15rem}.decoder-card-links{margin-top:.35rem;font-size:.9rem}.decoder-card-links a{color:var(--accent)}.decoder-res{font-size:.8rem;font-weight:700;padding:.1rem .4rem;border-radius:999px;background:color-mix(in srgb,var(--border) 50%,transparent)}.res-ok{color:var(--ok)}.res-err,.res-timeout{color:var(--danger)}.res-nopos,.res-stale,.res-unk{color:var(--warn)}.toast{position:fixed;left:50%;bottom:calc(.75rem + env(safe-area-inset-bottom));transform:translate(-50%);background:#111;color:#fff;padding:.65rem 1rem;border-radius:999px;z-index:50;max-width:90vw}@media(max-width:720px){.nav{flex-wrap:wrap}.nav-toggle{display:inline-flex;align-items:center;justify-content:center}.nav-items{display:none;flex-direction:column;width:100%}.nav.open .nav-items{display:flex}.nav-item{width:100%;text-align:left;border-radius:var(--radius)}}
+rdz.js 3063
 let stypes=new Map();
 stypes.set('4', 'RS41');
 stypes.set('R', 'RS92');
@@ -1472,41 +1279,94 @@ function qrgTable() {
   prep();
   footer();
 }
-map.html 1206
-<html>
-<head>
-<script>
-maptype = "SH"; // TODO: Get from config
-
-const maps = {
-  "WS": ["https://www.wettersonde.net/map.php", (s)=>"?sonde="+s, (lat,lon)=>""],
-  "SH": ["https://sondehub.org/", (s)=>s, (lat,lon)=>'#!mz=8&mc=' + lat + ',' + lon],
-  "RS": ["https://radiosondy.info/", (s)=>"sonde.php?sondenumber="+s, (lat,lon)=>""],
-  "OW": ["https://v2.openwx.de/start.php", (s)=>"?sonde="+s, (lat,lon)=>"?mode=mobile"],
-};
-
-data = ["T4420541",63.5,-20.0];
-document.addEventListener("DOMContentLoaded", function(){
-   fetch('live.json')
-     .then((response) => response.json())
-     .then((data) => {
-        if (data.gps===undefined) { data.gps={} };
-  	console.log(data.gps.lat, data.gps.lon, data.sonde.ser);
-        if( (data.sonde.ser||'')=='' && !(data.gps.lat===undefined) ) {
-          urlarg = maps[maptype][2](data.gps.lat, data.gps.lon);
-        } else {
-          urlarg = maps[maptype][1](data.sonde.ser||'');
-        }
-        iftxt='<iframe src="' + maps[maptype][0] + urlarg + '" style="border:1px solid #00A3D3;border-radius:20px;height:98vh;width:100%"></iframe>';
-        document.getElementsByTagName('body')[0].innerHTML = iftxt;
-     })
-})
-</script>
-</head>
-<body>
-</body>
-</html>
-livemap.html 856
+app.js 21381
+(function(){"use strict";async function A(e,o={}){const s=await fetch(e,{credentials:"same-origin",...o});if(s.status===401)throw location.href="login.html",new Error("auth");if(!s.ok)throw new Error(`HTTP ${s.status}`);return s.json()}async function st(e,o){const s=await fetch(e,{method:"PUT",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)});if(s.status===401)throw location.href="login.html",new Error("auth");if(!s.ok){const l=await s.text().catch(()=>"");throw new Error(l||`HTTP ${s.status}`)}return(s.headers.get("content-type")||"").includes("application/json")?s.json():{ok:!0}}async function z(e,o){const s=await fetch(e,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)});if(s.status===401)throw location.href="login.html",new Error("auth");if(!s.ok){const l=await s.text().catch(()=>"");throw new Error(l||`HTTP ${s.status}`)}return(s.headers.get("content-type")||"").includes("application/json")?s.json():{ok:!0}}async function rt(e,o){const s=new URLSearchParams(o).toString(),c=await fetch(e,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:s});if(c.status===401)throw location.href="login.html",new Error("auth");if(!c.ok)throw new Error(`HTTP ${c.status}`);return c.text()}function ot(){const e=document.cookie.split("; ").find(s=>s.startsWith("SESSION="));return e&&e.split("=").slice(1).join("=").split(":")[0]||null}function M(e,o){let s=document.getElementById("toast");s||(s=document.createElement("div"),s.id="toast",s.className="toast",document.body.appendChild(s)),s.textContent=e,s.className="toast"+(o?" "+o:""),clearTimeout(M._t),M._t=setTimeout(()=>{s.parentNode&&s.parentNode.removeChild(s)},2500)}function K(e){const o=e||localStorage.getItem("rdz-theme")||"auto";o==="auto"?document.documentElement.removeAttribute("data-theme"):document.documentElement.setAttribute("data-theme",o)}function lt(e,o){const s=localStorage.getItem("rdz-theme")||"auto";e.innerHTML=`
+    <div class="card">
+      <div class="home-hero">
+        <div class="home-hero-main">
+          <h1 id="home-title">rdzTTGOSonde</h1>
+          <p>Copyright © 2019–2026 by Hansi Reiser, DL9RDZ and contributors</p>
+          <p class="muted">Free software under the
+            <a href="https://www.gnu.org/licenses/gpl-2.0.txt" target="_blank" rel="noopener">GNU GPL v2</a>.
+            See <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/" target="_blank" rel="noopener">GitHub</a>.</p>
+          <p><a href="/upd.html">Check for update</a></p>
+        </div>
+        <div class="home-theme">
+          <label for="theme">Theme</label>
+          <select id="theme">
+            <option value="auto">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title status-heading">
+        Status
+        <button type="button" id="home-refresh" class="linkish">[refresh]</button>
+      </div>
+      <div class="table-wrap">
+        <table class="status-table" id="status-table">
+          <thead>
+            <tr><th>Component</th><th>Status</th></tr>
+          </thead>
+          <tbody id="status-body">
+            <tr><td colspan="2" class="muted">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">External sites</div>
+      <div class="link-buttons">
+        <a class="button" target="_blank" rel="noopener" href="https://www.wettersonde.net">wettersonde.net</a>
+        <a class="button" target="_blank" rel="noopener" href="https://www.radiosondy.info">radiosondy.info</a>
+        <a class="button" target="_blank" rel="noopener" href="https://www.sondehub.org">sondehub.org</a>
+      </div>
+    </div>
+  `;const c=e.querySelector("#home-title"),l=e.querySelector("#status-body"),d=e.querySelector("#theme");d.value=s,d.onchange=()=>{localStorage.setItem("rdz-theme",d.value),K(d.value)};function i(a){a&&(c.textContent=`${a.versionName||"rdzTTGOSonde"} ${a.versionId||""}`.trim())}i(o.meta);let m=null,g=null,p=!1;async function h(){m&&m.abort(),m=new AbortController;try{const a=await A("/status.json",{signal:m.signal});a.meta&&(o.onMeta(a.meta),i(a.meta)),l.innerHTML="";let r=0;for(const[u,k]of Object.entries(a)){if(u==="meta")continue;const b=document.createElement("tr");b.innerHTML=`<td class="status-name">${G(u)}</td><td class="status-html">${k}</td>`,l.appendChild(b),r++}r||(l.innerHTML='<tr><td colspan="2" class="muted">No status</td></tr>')}catch(a){if(a.name==="AbortError"||a.message==="auth")return;l.innerHTML=`<tr><td colspan="2" class="err">${G(a.message)}</td></tr>`}}function T(){p||h().finally(()=>{p||(g=setTimeout(T,5e3))})}return e.querySelector("#home-refresh").onclick=()=>h(),T(),()=>{p=!0,g&&clearTimeout(g),m&&m.abort()}}function G(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}const $=1e3,it=80,U=50,ct=5;function ut(e){e.innerHTML=`
+    <div class="decoder-modes">
+      <button type="button" data-cmd="rx">Decoder / Next frequency</button>
+      <button type="button" data-cmd="scan">Scanner</button>
+      <button type="button" data-cmd="spec">Spectrum</button>
+    </div>
+    <div id="decoder-status" class="decoder-status state-disabled">
+      <span id="decoder-status-text">Connecting…</span>
+    </div>
+    <div id="spectrum" class="spectrum" hidden></div>
+    <div id="decoder-list" class="decoder-list"></div>
+  `,e.querySelectorAll(".decoder-modes button").forEach(t=>{t.addEventListener("click",()=>o(t))});async function o(t){const n=t.dataset.cmd;t.disabled=!0;try{await z("/control",{cmd:n}),M("Command sent")}catch(f){if(f.message==="auth")return;M(f.message,"err")}finally{t.disabled=!1}}const s=e.querySelector("#decoder-status"),c=e.querySelector("#decoder-status-text"),l=e.querySelector("#decoder-list"),d=e.querySelector("#spectrum");let i=null,m=null,g=null,p={},h=null,T=null,a=null,r=null,u=null,k=!1;function b(t){return t==null?"":String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}function E(t,n){return t==null||typeof t!="number"||isNaN(t)?"—":t.toFixed(n)}function Y(t){if(t.empty){t._rxAt=null,t._ageFrozen=null;return}const n=typeof t.age=="number"?t.age:0;t._rxAt=Date.now()-n*1e3,t._ageFrozen=n>=86400?86400:null}function R(t){if(!t||t.empty||t._rxAt==null)return t&&t.age!=null?t.age:null;if(t._ageFrozen)return t._ageFrozen;const n=Math.max(0,Math.floor((Date.now()-t._rxAt)/1e3));return n>=86400?(t._ageFrozen=86400,86400):n}function wt(t){return t==null?"":t>=86400?"> 1 day ago":t>=3600?Math.floor(t/3600)+"h ago":t>=60?Math.floor(t/60)+"m ago":t+"s ago"}function Tt(t){switch(t){case 0:return{text:"OK",cls:"res-ok"};case 2:return{text:"partial/error",cls:"res-err"};case 4:return{text:"no position",cls:"res-nopos"};case 1:return{text:"timeout",cls:"res-timeout"};default:return{text:"?",cls:"res-unk"}}}function Et(t){const n=R(t);return n!=null&&n>ct?{text:"stale",cls:"res-stale"}:Tt(t.res)}function xt(t){const n=[],f=t.lat!=null&&t.lon!=null&&((t.validPos||0)&3)===3;return t.id&&n.push(`<a target="_blank" rel="noopener" href="https://radiosondy.info/sonde_archive.php?sondenumber=${encodeURIComponent(t.id)}">radiosondy.info</a>`),t.ser&&n.push(`<a target="_blank" rel="noopener" href="https://tracker.sondehub.org/${encodeURIComponent(t.ser)}">SondeHub Tracker</a>`),f&&(n.push(`<a target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat=${t.lat}&mlon=${t.lon}&zoom=14">OSM</a>`),n.push(`<a target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${t.lat},${t.lon}">Google</a>`),n.push(`<a href="geo:${t.lat},${t.lon}">Geo-App</a>`)),n.length?n.join(" · "):""}function kt(t){const n=!!t.empty,f=Et(t),L=R(t),N=!n&&t.lat!=null&&t.lon!=null&&((t.validPos||0)&3)===3,y=t.launchsite?b(t.launchsite):"";let v="";n?v="No decode yet":t.id||t.ser?(v=b(t.id||""),t.ser&&t.ser!==t.id&&(v+=v?` (ser: ${b(t.ser)})`:b(t.ser)),v||(v="<?>"),t.type&&(v+=" · "+b(t.type))):v=t.type?b(t.type):"<?>";const x=[];if(!n){if(t.frame!=null&&x.push("Frame# "+t.frame),t.time){const at=new Date(t.time*1e3);isNaN(at.getTime())||x.push(at.toISOString().replace("T"," ").replace(/\.\d+Z$/,"Z"))}t.rssi!=null&&x.push("RSSI "+t.rssi),t.sats!=null&&x.push("Sats="+t.sats),t.batt!=null&&x.push(E(t.batt,1)+" V")}const C=[];N&&(C.push("Pos "+E(t.lat,6)+" "+E(t.lon,6)),t.alt!=null&&C.push("Alt "+E(t.alt,0)+"m")),n||(t.vs!=null&&C.push("Clb "+E(t.vs,1)+" m/s"),t.hs!=null&&C.push("Spd "+E(t.hs,1)+" m/s"),t.dir!=null&&C.push("Dir "+E(t.dir,0)+"°"));const P=C.length?C.join(", "):n?"":"—",w=[];n||(t.temp!=null&&w.push(E(t.temp,1)+" °C"),t.humidity!=null&&w.push(E(t.humidity,1)+" %RH"),t.pressure!=null&&w.push(E(t.pressure,1)+" hPa"));let j="";!n&&(t.burstKT!=null||t.launchKT!=null||t.countKT!=null)&&(j="Burst-KT="+(t.burstKT!=null?t.burstKT:"?")+" Launch-KT="+(t.launchKT!=null?t.launchKT:"?")+" Countdown="+(t.countKT!=null?t.countKT:"?"));const H=n?"":xt(t),Nt=E(t.freq,3)+" MHz"+(y?" ("+y+")":"");return'<div class="decoder-card-head"><span class="decoder-ch">Ch '+b(t.ch)+'</span><span class="decoder-freq">'+Nt+"</span>"+(n?"":'<span class="decoder-res '+f.cls+'">'+f.text+"</span>")+'<span class="decoder-age">'+(n||L==null?"":wt(L))+'</span></div><div class="decoder-card-id"><span class="decoder-id">'+v+"</span>"+(x.length?'<span class="decoder-stats">'+b(x.join(", "))+"</span>":"")+"</div>"+(P?'<div class="decoder-card-qth">'+b(P)+"</div>":"")+(w.length?'<div class="decoder-card-meteo">'+b(w.join(" · "))+"</div>":"")+(j?'<div class="decoder-card-kt">'+b(j)+"</div>":"")+(H?'<div class="decoder-card-links">'+H+"</div>":"")}function tt(t){if(p[t])return p[t];const n=document.createElement("div");return n.className="decoder-card",n.dataset.ch=String(t),l.appendChild(n),p[t]={el:n,data:null},p[t]}function et(t){const n=p[t];n&&(n.el.parentNode&&n.el.parentNode.removeChild(n.el),delete p[t],h===t&&(h=null))}function D(){const t=Object.keys(p).map(Number);t.sort((n,f)=>{const L=p[n].data||{},N=p[f].data||{};if(L.empty&&!N.empty)return 1;if(!L.empty&&N.empty)return-1;let y=R(L),v=R(N);return y==null&&(y=1e9),v==null&&(v=1e9),y!==v?y-v:n-f}),t.forEach(n=>l.appendChild(p[n].el))}function F(t){const n=p[t];!n||!n.data||(n.el.className="decoder-card"+(t===T?" current":"")+(n.data.empty?" empty":""),n.el.innerHTML=kt(n.data))}function Ct(t){if(!d)return;if(!t||!t.rssi||!t.rssi.length){d.hidden=!0;return}d.hidden=!1,i||(i=document.createElement("canvas"),i.width=600,i.height=240,d.appendChild(i),m=document.createElement("div"),m.className="spectrum-label",d.appendChild(m));const n=t.rssi,f=n.length,L=(t.noisefloor!=null?t.noisefloor:-125)*2,N=t.plotMax>0?t.plotMax:128,y=i.getContext("2d"),v=i.width,x=i.height;y.fillStyle="#222",y.fillRect(0,0,v,x);const C=v/f;y.fillStyle="#4c4";for(let w=0;w<f;w++){const j=n[w]<L?0:(n[w]-L)/2,H=Math.min(x,Math.round(j/N*x));H>0&&y.fillRect(Math.floor(w*C),x-H,Math.ceil(C)||1,H)}if(t.peak!=null&&t.start!=null&&t.step!=null&&t.step>0){const w=(t.peak-t.start)/t.step*C;y.strokeStyle="#f66",y.beginPath(),y.moveTo(w,0),y.lineTo(w,x),y.stroke()}const P=t.start!=null&&t.step!=null?t.start+t.step*f:null;m.textContent=(t.start!=null?t.start.toFixed(3):"?")+" … "+(P!=null?P.toFixed(3):"?")+" MHz"+(t.peak!=null?"  |  peak "+t.peak.toFixed(3)+" MHz":"")+(t.peakRssi!=null?" ("+t.peakRssi+")":"")}function Lt(t){Object.keys(p).forEach(n=>et(Number(n))),h=null,(t.entries||[]).forEach(n=>{Y(n);const f=tt(n.ch);f.data=n,n.empty&&(h=n.ch),F(n.ch)}),D()}function Mt(t){(t.entries||[]).forEach(n=>{if(n.empty)return;h!=null&&et(h),Y(n);const f=tt(n.ch);f.data=n,F(n.ch)}),Object.keys(p).forEach(n=>F(Number(n))),D()}function $t(t){!t||typeof t!="object"||(c.textContent=t.detail||t.state||"",s.className="decoder-status state-"+(t.state||"disabled"),T=t.ch,Ct(t.spectrum),t.full||g==null?Lt(t):Mt(t),typeof t.now=="number"&&(g=t.now))}function qt(t){if(!t||t.state==="spectrum"||typeof t.now!="number"||typeof t.lastChange!="number")return $;const n=t.now-t.lastChange,f=$-n+it;return f<U?U:f>$?$:f}async function nt(){if(k)return;a&&a.abort(),a=new AbortController;let t="/decoder.json";g!=null&&(t+="?since="+g);let n=$;try{const f=await A(t,{signal:a.signal});$t(f),n=qt(f)}catch(f){if(f.name==="AbortError"||f.message==="auth")return;g=null,c.textContent="Connection error — retrying…",s.className="decoder-status state-disabled",n=$}finally{k||(r=setTimeout(nt,n))}}return u=setInterval(()=>{Object.keys(p).forEach(t=>F(Number(t))),D()},1e3),nt(),()=>{k=!0,r&&clearTimeout(r),u&&clearInterval(u),a&&a.abort()}}const dt=[["4","RS41"],["R","RS92"],["D","DFM"],["M","M10/M20"],["3","MP3H"]];function mt(e,o){e.innerHTML=`
+    <div class="card">
+      <div class="card-title">QRG channels</div>
+      <p class="muted">Active channels are scanned / decoded. Save writes qrg.txt on the device.</p>
+      <div class="table-wrap" id="qrg-table"><p class="muted">Loading…</p></div>
+    </div>
+  `;const s=e.querySelector("#qrg-table");let c=!1,l="",d="muted";function i(){o.setSaveBar({disabled:!c,status:l,statusClass:d,onSave:T})}function m(a){c=a,i()}function g(a){let r=a==="2"?"M":a;return dt.map(([u,k])=>`<option value="${u}"${u===r?" selected":""}>${k}</option>`).join("")}function p(a){let r='<table class="form"><thead><tr><th>Ch</th><th>Active</th><th>Frequency</th><th>Decoder</th><th>Launchsite</th></tr></thead><tbody>';a.forEach((u,k)=>{const b=k+1,E=u.typeCode||"4";r+=`<tr>
+        <td class="ch">${b}</td>
+        <td class="act"><input name="A${b}" type="checkbox" ${u.active?"checked":""}></td>
+        <td><input name="F${b}" type="text" value="${W(String(u.freq))}"></td>
+        <td><select name="T${b}">${g(E)}</select></td>
+        <td><input name="S${b}" type="text" value="${W(u.launchsite||"")}"></td>
+      </tr>`}),r+="</tbody></table>",s.innerHTML=r,s.querySelectorAll("input, select").forEach(u=>{u.addEventListener("input",()=>m(!0)),u.addEventListener("change",()=>m(!0))}),m(!1)}async function h(){l="",d="muted",i();try{const a=await A("/qrg.json");p(a.channels||[])}catch(a){if(a.message==="auth")return;s.innerHTML=`<p class="err">${ft(a.message)}</p>`}}async function T(){const a={};s.querySelectorAll("input, select").forEach(r=>{r.name&&(r.type==="checkbox"?r.checked&&(a[r.name]="on"):a[r.name]=r.value)}),c=!1,l="Saving…",d="muted",i();try{await rt("/qrg.html",a),l="Saved",d="ok",M("QRG saved"),i(),await h()}catch(r){if(r.message==="auth")return;c=!0,l=r.message,d="err",i()}}return i(),h(),()=>o.setSaveBar(null)}function W(e){return String(e).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}function ft(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}function pt(e,o){e.innerHTML=`
+    <div class="card">
+      <div class="card-title">Wi-Fi networks</div>
+      <p class="muted">AP config is used in access point mode. Station mode tries all other SSID slots.</p>
+      <div class="table-wrap" id="wifi-list"><p class="muted">Loading…</p></div>
+    </div>
+  `;const s=e.querySelector("#wifi-list");let c=[],l=!1,d="",i="muted";function m(){o.setSaveBar({disabled:!l,status:d,statusClass:i,onSave:T})}function g(a){l=a,m()}function p(){let a='<table class="form"><thead><tr><th>Slot</th><th>SSID</th><th>Password</th></tr></thead><tbody>';c.forEach((r,u)=>{const k=u===0?"AP":String(u);a+=`<tr>
+        <td class="ch">${k}</td>
+        <td><input data-i="${u}" data-f="ssid" type="text" value="${J(r.ssid||"")}" autocomplete="off"></td>
+        <td><input data-i="${u}" data-f="password" type="text" value="${J(r.password||"")}" autocomplete="off"></td>
+      </tr>`}),a+="</tbody></table>",s.innerHTML=a,s.querySelectorAll("input").forEach(r=>{r.addEventListener("input",()=>{const u=Number(r.dataset.i);c[u][r.dataset.f]=r.value,g(!0)})}),g(!1)}async function h(){d="",i="muted",m();try{c=((await A("/wifi.json")).slots||[]).map((r,u)=>({role:r.role||(u===0?"ap":"sta"),ssid:r.ssid||"",password:r.password||""})),p()}catch(a){if(a.message==="auth")return;s.innerHTML=`<p class="err">${ht(a.message)}</p>`}}async function T(){l=!1,d="Saving…",i="muted",m();try{await st("/wifi.json",{slots:c}),d="Saved",i="ok",M("Wi-Fi saved"),m(),await h()}catch(a){if(a.message==="auth")return;l=!0,d=a.message,i="err",m()}}return m(),h(),()=>o.setSaveBar(null)}function J(e){return String(e).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;")}function ht(e){return String(e).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}const Q={rx:{main:"Short",sub:"Receiver / next frequency"},scan:{main:"Double",sub:"Scanner"},spec:{main:"Medium",sub:"Spectrum"},wifi:{main:"Long",sub:"Wi-Fi screen"},rx2:{main:"Short",sub:"Next screen"},scan2:{main:"Double"},spec2:{main:"Medium"},wifi2:{main:"Long"},rinex:{main:"Update RS92 RINEX eph"},format:{main:"Format SD card"},reboot:{main:"Reboot"}},gt=[{title:"Button 1",ids:["rx","scan","spec","wifi"]},{title:"Button 2",ids:["rx2","scan2","spec2","wifi2"]},{title:"Maintenance",ids:["rinex","format","reboot"]}];function bt(e,o){const s=new Set(o.meta&&o.meta.actions||Object.keys(Q));e.innerHTML=`
+    <div class="card">
+      <div class="card-title">Remote control</div>
+      <p class="muted">Same actions as the physical buttons on the device.</p>
+      <div id="ctl-groups"></div>
+      <p id="ctl-status" class="muted"></p>
+    </div>
+  `;const c=e.querySelector("#ctl-groups"),l=e.querySelector("#ctl-status");gt.forEach(i=>{const m=i.ids.filter(h=>s.has(h));if(!m.length)return;const g=document.createElement("div");g.className="ctl-group";const p=document.createElement("h2");p.textContent=i.title,g.appendChild(p),m.forEach(h=>{const T=Q[h]||{main:h},a=document.createElement("button");a.type="button",a.className="ctl-btn",(h==="reboot"||h==="format")&&a.classList.add("danger");const r=document.createElement("span");if(r.className="ctl-main",r.textContent=T.main,a.appendChild(r),T.sub){const u=document.createElement("span");u.className="ctl-sub",u.textContent=T.sub,a.appendChild(u)}a.onclick=()=>d(h,a),g.appendChild(a)}),c.appendChild(g)});async function d(i,m){if(!(i==="reboot"&&!confirm("Reboot the device now?"))&&!(i==="format"&&!confirm("Format the SD card? This erases all SD data."))){m.disabled=!0,l.textContent="Sending…",l.className="muted";try{await z("/control",{cmd:i}),l.textContent=i==="reboot"?"Rebooting…":"OK",l.className="ok",M(i==="reboot"?"Reboot sent":"Command sent")}catch(g){if(g.message==="auth")return;l.textContent=g.message,l.className="err"}finally{i!=="reboot"&&(m.disabled=!1)}}}return()=>{}}K();let q=null;const S={meta:null,onMetaPaint:null,onMeta(e){S.meta=e||S.meta,typeof S.onMetaPaint=="function"&&S.onMetaPaint(),q||_()},setSaveBar(e){if(!e){q=null,_();return}q=e.onSave||null,yt(e)}},I={home:document.getElementById("panel-home"),decoder:document.getElementById("panel-decoder"),map:document.getElementById("panel-map"),qrg:document.getElementById("panel-qrg"),wifi:document.getElementById("panel-wifi"),config:document.getElementById("panel-config"),control:document.getElementById("panel-control")},Z={home:e=>lt(e,S),decoder:ut,qrg:e=>mt(e,S),wifi:e=>pt(e,S),control:e=>bt(e,S)};let B=null;const O=I.config.querySelector("iframe"),V=I.map.querySelector("iframe");function _(){const e=document.getElementById("bar-left"),o=document.getElementById("bar-right"),s=ot();e.innerHTML=s?`<span class="bar-user">${s}</span> <a href="/logout">Logout</a>`:'<a class="button primary bar-save" href="login.html">Login</a>';const c=S.meta&&(S.meta.versionId||S.meta.fullId)||"";o.textContent=c?`rdzTTGOsonde ${c}`:"rdzTTGOsonde"}function yt({disabled:e=!0,status:o="",statusClass:s="muted"}={}){const c=document.getElementById("bar-left"),l=document.getElementById("bar-right");c.innerHTML=`<button type="button" class="primary bar-save" id="bar-save"${e?" disabled":""}>Save changes</button>`,l.innerHTML=`<span class="status-msg ${s}">${o||""}</span>`;const d=document.getElementById("bar-save");d.onclick=()=>{typeof q=="function"&&q()}}function vt(e){document.querySelectorAll(".nav-item[data-panel]").forEach(o=>{o.classList.toggle("active",o.dataset.panel===e)})}function St(e){I[e]||(e="home"),B&&(B(),B=null),q=null,Object.entries(I).forEach(([c,l])=>{const d=c===e;l.hidden=!d,l.classList.toggle("active",d)}),e==="config"?O.getAttribute("src")||O.setAttribute("src","config.html"):O.setAttribute("src",""),e==="map"&&(V.getAttribute("src")||V.setAttribute("src","livemap.html")),Z[e]&&(B=Z[e](I[e],S)||null),q||_();const o=document.querySelector(".main"),s=e==="map"||e==="config";o.classList.toggle("main-fixed",s),vt(e),document.getElementById("nav").classList.remove("open")}function X(){const e=(location.hash||"#home").replace(/^#/,"")||"home";St(e)}document.getElementById("nav-toggle").onclick=()=>{document.getElementById("nav").classList.toggle("open")},document.querySelectorAll(".nav-item[data-panel]").forEach(e=>{e.addEventListener("click",()=>{location.hash=e.dataset.panel})}),window.addEventListener("hashchange",X),_(),A("/meta.json").then(e=>S.onMeta(e)).catch(()=>A("/status.json").then(e=>{e.meta&&S.onMeta(e.meta)}).catch(()=>{})).finally(X)})();
+livemap.html 1275
 <!DOCTYPE html>
 <html>
 <head>
@@ -1516,183 +1376,81 @@ livemap.html 856
   <link rel="stylesheet" type="text/css" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
   <script>
-    var mapcenter=[%MAPCENTER%];
+    var mapcenter=[48,13];
     // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
     var phoneGpsUrl='https://rdzsonde.org/locate';
   </script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
-  <script src="livemap.js"></script>
 </head>
 <body>
   <div id="map"></div>
+  <script>
+    fetch('/status.json')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.meta && Array.isArray(d.meta.mapCenter) && d.meta.mapCenter.length >= 2) {
+          mapcenter = d.meta.mapCenter;
+        }
+      })
+      .catch(function () {})
+      .finally(function () {
+        var s = document.createElement('script');
+        s.src = 'livemap.js';
+        document.body.appendChild(s);
+      });
+  </script>
 </body>
 </html>
-index.html 5710
+index.html 2021
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>rdzTTGOSonde Server</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>rdzTTGOSonde</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" type="text/css" href="style.css">
+  <script defer src="./app.4ca9d2a5.js"></script>
+  <link rel="stylesheet" href="./app.1f88533f.css">
 </head>
 <body>
- <div class="wrapper"><div class="header">
-<div class="topnav" id="myTopnav">
-	<a href="#home" onclick="selTab(event,'Home');fetchStatus()" class="tablinks" id="defaultTab">Home</a>
-	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks">QRG</a>
-	<a href="#decoder" onclick="selTab(event,'Data')" class="tablinks">Decoder</a>
-	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">Livemap</a>
-	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
-	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
-	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
-	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
-		<span class="hamburger"></span>
-	</a>
-</div>
-</div>
+  <div id="app" class="app">
+    <nav class="nav" id="nav">
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
+      <div class="nav-items">
+        <button type="button" class="nav-item active" data-panel="home">Home</button>
+        <button type="button" class="nav-item" data-panel="decoder">Decoder</button>
+        <button type="button" class="nav-item" data-panel="map">Map</button>
+        <button type="button" class="nav-item" data-panel="control">Control</button>
+        <button type="button" class="nav-item" data-panel="qrg">QRG</button>
+        <button type="button" class="nav-item" data-panel="wifi">WiFi</button>
+        <button type="button" class="nav-item" data-panel="config">Config</button>
+      </div>
+    </nav>
 
-<div id="Home" class="tabcontent">
-<div class="system-info">
-<h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
-<p>
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
-    published by the Free Software Foundation; either version 2 of
-    the License, or (at your option) any later version. 
-    See <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/">https://github.com/dl9rdz/rdz_ttgo_sonde/</a>
-    for details, contributors, and license exceptions of third-party components.
-</p>
-<p><br><a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br></p>
-<table class="status-table">
-<thead>
- <tr>
- <th>Component</th><th>Status<button id="refresh-button" onclick="fetchStatus()">[refresh]</button></th>
- </tr>
-</thead>
-<tbody id="status-body"> 
- <tr>
- <td>TTGO</td>
- <td>Autodetect info: %AUTODETECT_INFO%</td>
- </tr>
-</tbody>
-</table>
+    <main class="main">
+      <section id="panel-home" class="panel active"></section>
+      <section id="panel-decoder" class="panel" hidden></section>
+      <section id="panel-map" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Live map" src=""></iframe>
+      </section>
+      <section id="panel-control" class="panel" hidden></section>
+      <section id="panel-qrg" class="panel" hidden></section>
+      <section id="panel-wifi" class="panel" hidden></section>
+      <section id="panel-config" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Config" src=""></iframe>
+      </section>
+    </main>
 
-<!--</div>
-<div class="external-links">
--->
-<h2 class="external-links">External Sites</h2>
-<div class="link-buttons">
- <a href="https://www.wettersonde.net" target="_blank" class="button">wettersonde.net</a>
- <a href="https://www.radiosondy.info" target="_blank" class="button">radiosondy.info</a>
- <a href="https://www.sondehub.org" target="_blank" class="button">sondehub.org</a>
-</div>
-</div>
-<div class="footer"><span class="ttgoinfo" id="userinfo"></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
-
-</div>
-
-<div id="QRG" class="tabcontent" data-src="qrg.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="WiFi" class="tabcontent" data-src="wifi.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Data" class="tabcontent" data-src="decoder.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Config" class="tabcontent" data-src="config.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Control" class="tabcontent" data-src="control.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-</div>
-<script>
-function fetchStatus() {
-  fetch('/status.json')
-      .then(response => response.json())
-      .then(data => {
-          const statusBody = document.getElementById('status-body');
-          statusBody.innerHTML = ''; // Clear existing rows
-    
-          for (const [subsystem, status] of Object.entries(data)) {
-              const row = document.createElement('tr');
-
-              const subsystemCell = document.createElement('td');
-              subsystemCell.textContent = subsystem;
-              row.appendChild(subsystemCell);
-    
-              const statusCell = document.createElement('td');
-              statusCell.innerHTML = status; 
-              row.appendChild(statusCell);
-    
-              statusBody.appendChild(row);
-          }
-      })
-      .catch(error => {
-          console.error('Error fetching subsystem status:', error);
-      });
-} 
-function selTab(evt, id) {
-	var i, tabcontent, tablinks;
-	tabcontent=document.getElementsByClassName("tabcontent");
-	for(i=0; i<tabcontent.length; i++) {
-		tabcontent[i].style.display = "none";
-		var link = tabcontent[i].dataset.src;
-		if(link) {
-			var iframe = tabcontent[i].getElementsByTagName("iframe")[0];
-			iframe.setAttribute("src", "");
-		}
-	}
-	tablinks=document.getElementsByClassName("tablinks");
-	for(i=0; i<tablinks.length; i++) {
-		tablinks[i].className = tablinks[i].className.replace(" active", "");
-	}	
-	var act = document.getElementById(id);
-	act.style.display = "flex";
-	evt.currentTarget.className += " active";
-	
-	var link = act.dataset.src;
-	if(link) {
-		var iframe = act.getElementsByTagName("iframe")[0];
-		iframe.setAttribute("src", link);
-	}
-	var x = document.getElementById("myTopnav");
-    x.className = "topnav";
-}
-/* Toggle between adding and removing the "responsive" class to topnav when the user clicks on the icon */
-function myFunction() {
-  var x = document.getElementById("myTopnav");
-  if (x.className === "topnav") {
-    x.className += " responsive";
-  } else {
-    x.className = "topnav";
-  }
-}
-document.getElementById("defaultTab").click();
-
-const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
-if(sessionC) {
-  const [user] = sessionC.split(':');
-  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="/logout" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
-} else {
-  document.getElementById("userinfo").innerHTML = `<a style="color: white;" href="login.html">Login</a>`;
-}
-
-</script>
-
+    <footer class="statusbar" id="statusbar">
+      <div class="statusbar-left" id="bar-left"></div>
+      <div class="statusbar-right" id="bar-right"></div>
+    </footer>
+  </div>
 </body>
 </html>
-
 style.css 8440
 body, html {
 	height: 100%;
@@ -2027,7 +1785,7 @@ h1 { color: #0F3376; font-size: 24px; }
 .decoder-stats { font-weight: normal; font-size: 0.95em; }
 .decoder-card-qth, .decoder-card-meteo, .decoder-card-kt, .decoder-card-links { font-size: 0.95em; }
 .decoder-card-links a { margin-right: 0.2em; }
-cfg.js 11621
+cfg.js 11772
 var cfgs = [
 [ "", "General configuration", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/General-configuration" ],
 [ "wifi", "Wifi mode (0=off, 1=client, 2=AP, 3=client or AP, 4=client-noscan)" ],
@@ -2206,8 +1964,11 @@ function checkForDuplicates() {
     return true;
 }
 
+function htmlAttr(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
 function mkcfg(id, key, label, value) {
- var s = "<tr style=\"visibility: collapse;\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + value + "\"/></td></tr>\n";
+ var s = "<tr style=\"visibility: collapse;\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + htmlAttr(value) + "\"/></td></tr>\n";
  return s;
 }
 function mkcfgbtn(id, key, label, value) {
@@ -2217,7 +1978,7 @@ function mkcfgbtn(id, key, label, value) {
     touch = " checked";
     v = v & 127;
   }
-  var s = "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + v + "\"/>";
+  var s = "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + htmlAttr(v) + "\"/>";
   s += "<input type=\"checkbox\" name=\"" + key + "#\" "+touch+"> Touch</td></tr>\n";
   return s;
 }
