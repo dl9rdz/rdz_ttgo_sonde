@@ -66,6 +66,7 @@ void Sonde::defaultConfig() {
 	// addSonde should initialize everything anyway, so this should not strictly be necessary, but does no harm either
 	memset(sondeList, 0, (MAXSONDE+1)*sizeof(SondeInfo));
 	listReloadMs = 0;
+	lastViewChangeMs = 0;
 	for(int i=0; i<(MAXSONDE+1); i++) {
 		sondeList[i].freq=400;
 		sondeList[i].type=STYPE_RS41;
@@ -265,6 +266,10 @@ void Sonde::addSonde(float frequency, SondeType type, int active, char *launchsi
 	nSonde++;
 }
 
+void Sonde::markViewChange() {
+	lastViewChangeMs = millis();
+}
+
 // called by updateState (only)
 void Sonde::nextConfig() {
 	currentSonde++;
@@ -278,6 +283,7 @@ void Sonde::nextConfig() {
 			if(currentSonde>=config.maxsonde) currentSonde=0;
 		}
 	}
+	markViewChange();
 }
 void Sonde::nextRxSonde() {
 	rxtask.currentSonde++;
@@ -316,6 +322,7 @@ void Sonde::setup() {
 			}
 		}
 		sonde.currentSonde = rxtask.currentSonde;
+		markViewChange();
 	}
 
 	// update receiver config
@@ -573,6 +580,7 @@ uint8_t Sonde::updateState(uint8_t event) {
 	}
 	if(event&0x80) {
 		sonde.currentSonde = (event&0x7F);
+		sonde.markViewChange();
 		return ACT_NEXTSONDE;
 	}
 	return 0xFF;

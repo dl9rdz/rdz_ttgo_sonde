@@ -1,163 +1,47 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>rdzTTGOSonde Server</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>rdzTTGOSonde</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" type="text/css" href="style.css">
+  <script defer src="./app.4ca9d2a5.js"></script>
+  <link rel="stylesheet" href="./app.1f88533f.css">
 </head>
 <body>
- <div class="wrapper"><div class="header">
-<div class="topnav" id="myTopnav">
-	<a href="#home" onclick="selTab(event,'Home');fetchStatus()" class="tablinks" id="defaultTab">Home</a>
-	<a href="#qrg" onclick="selTab(event,'QRG')" class="tablinks">QRG</a>
-	<a href="#decoder" onclick="selTab(event,'Data')" class="tablinks">Decoder</a>
-	<a href="#livemap" onclick="document.location.href='livemap.html'" class="tablinks">Livemap</a>
-	<a href="#ctrl" onclick="selTab(event,'Control')" class="tablinks">Control</a>
-	<a href="#config" onclick="selTab(event,'Config')" class="tablinks">Config</a>
-	<a href="#wifi" onclick="selTab(event,'WiFi')" class="tablinks">WiFi</a>
-	<a href="javascript:void(0);" class="icon" onclick="myFunction()">
-		<span class="hamburger"></span>
-	</a>
-</div>
-</div>
+  <div id="app" class="app">
+    <nav class="nav" id="nav">
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
+      <div class="nav-items">
+        <button type="button" class="nav-item active" data-panel="home">Home</button>
+        <button type="button" class="nav-item" data-panel="decoder">Decoder</button>
+        <button type="button" class="nav-item" data-panel="map">Map</button>
+        <button type="button" class="nav-item" data-panel="control">Control</button>
+        <button type="button" class="nav-item" data-panel="qrg">QRG</button>
+        <button type="button" class="nav-item" data-panel="wifi">WiFi</button>
+        <button type="button" class="nav-item" data-panel="config">Config</button>
+      </div>
+    </nav>
 
-<div id="Home" class="tabcontent">
-<div class="system-info">
-<h1>%VERSION_NAME% version %VERSION_ID%</h1>
-<p>Copyright &copy; 2019-2026 by Hansi Reiser, DL9RDZ and contributors</p>
-<p>
-    This program is free software; you can redistribute it and/or
-    modify it under the terms of the <a href="https://www.gnu.org/licenses/gpl-2.0.txt">GNU General Public License</a> as
-    published by the Free Software Foundation; either version 2 of
-    the License, or (at your option) any later version. 
-    See <a href="https://github.com/dl9rdz/rdz_ttgo_sonde/">https://github.com/dl9rdz/rdz_ttgo_sonde/</a>
-    for details, contributors, and license exceptions of third-party components.
-</p>
-<p><br><a href="/upd.html">Check for update (requires TTGO internet connection via WiFi)</a><br></p>
-<table class="status-table">
-<thead>
- <tr>
- <th>Component</th><th>Status<button id="refresh-button" onclick="fetchStatus()">[refresh]</button></th>
- </tr>
-</thead>
-<tbody id="status-body"> 
- <tr>
- <td>TTGO</td>
- <td>Autodetect info: %AUTODETECT_INFO%</td>
- </tr>
-</tbody>
-</table>
+    <main class="main">
+      <section id="panel-home" class="panel active"></section>
+      <section id="panel-decoder" class="panel" hidden></section>
+      <section id="panel-map" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Live map" src=""></iframe>
+      </section>
+      <section id="panel-control" class="panel" hidden></section>
+      <section id="panel-qrg" class="panel" hidden></section>
+      <section id="panel-wifi" class="panel" hidden></section>
+      <section id="panel-config" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Config" src=""></iframe>
+      </section>
+    </main>
 
-<!--</div>
-<div class="external-links">
--->
-<h2 class="external-links">External Sites</h2>
-<div class="link-buttons">
- <a href="https://www.wettersonde.net" target="_blank" class="button">wettersonde.net</a>
- <a href="https://www.radiosondy.info" target="_blank" class="button">radiosondy.info</a>
- <a href="https://www.sondehub.org" target="_blank" class="button">sondehub.org</a>
-</div>
-</div>
-<div class="footer"><span class="ttgoinfo" id="userinfo"></span><span class="ttgoinfo">rdzTTGOserver %VERSION_ID%</span></div>
-
-</div>
-
-<div id="QRG" class="tabcontent" data-src="qrg.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="WiFi" class="tabcontent" data-src="wifi.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Data" class="tabcontent" data-src="decoder.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Config" class="tabcontent" data-src="config.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-
-<div id="Control" class="tabcontent" data-src="control.html">
-	<iframe class="tci" src="" ></iframe>
-</div>
-</div>
-<script>
-function fetchStatus() {
-  fetch('/status.json')
-      .then(response => response.json())
-      .then(data => {
-          const statusBody = document.getElementById('status-body');
-          statusBody.innerHTML = ''; // Clear existing rows
-    
-          for (const [subsystem, status] of Object.entries(data)) {
-              const row = document.createElement('tr');
-
-              const subsystemCell = document.createElement('td');
-              subsystemCell.textContent = subsystem;
-              row.appendChild(subsystemCell);
-    
-              const statusCell = document.createElement('td');
-              statusCell.innerHTML = status; 
-              row.appendChild(statusCell);
-    
-              statusBody.appendChild(row);
-          }
-      })
-      .catch(error => {
-          console.error('Error fetching subsystem status:', error);
-      });
-} 
-function selTab(evt, id) {
-	var i, tabcontent, tablinks;
-	tabcontent=document.getElementsByClassName("tabcontent");
-	for(i=0; i<tabcontent.length; i++) {
-		tabcontent[i].style.display = "none";
-		var link = tabcontent[i].dataset.src;
-		if(link) {
-			var iframe = tabcontent[i].getElementsByTagName("iframe")[0];
-			iframe.setAttribute("src", "");
-		}
-	}
-	tablinks=document.getElementsByClassName("tablinks");
-	for(i=0; i<tablinks.length; i++) {
-		tablinks[i].className = tablinks[i].className.replace(" active", "");
-	}	
-	var act = document.getElementById(id);
-	act.style.display = "flex";
-	evt.currentTarget.className += " active";
-	
-	var link = act.dataset.src;
-	if(link) {
-		var iframe = act.getElementsByTagName("iframe")[0];
-		iframe.setAttribute("src", link);
-	}
-	var x = document.getElementById("myTopnav");
-    x.className = "topnav";
-}
-/* Toggle between adding and removing the "responsive" class to topnav when the user clicks on the icon */
-function myFunction() {
-  var x = document.getElementById("myTopnav");
-  if (x.className === "topnav") {
-    x.className += " responsive";
-  } else {
-    x.className = "topnav";
-  }
-}
-document.getElementById("defaultTab").click();
-
-const sessionC  = document.cookie.split("; ").find((row) => row.startsWith("SESSION="))?.split("=")[1];
-if(sessionC) {
-  const [user] = sessionC.split(':');
-  document.getElementById("userinfo").innerHTML = `User: ${user} <a href="/logout" id="logoutLink" style="margin-left: 10px; color: white;">Logout</a>`;
-} else {
-  document.getElementById("userinfo").innerHTML = `<a style="color: white;" href="login.html">Login</a>`;
-}
-
-</script>
-
+    <footer class="statusbar" id="statusbar">
+      <div class="statusbar-left" id="bar-left"></div>
+      <div class="statusbar-right" id="bar-right"></div>
+    </footer>
+  </div>
 </body>
 </html>
-

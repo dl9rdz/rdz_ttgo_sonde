@@ -7,16 +7,30 @@
   <link rel="stylesheet" type="text/css" href="style.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
   <script>
-    var mapcenter=[%MAPCENTER%];
+    var mapcenter=[48,13];
     // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
     var phoneGpsUrl='https://rdzsonde.org/locate';
   </script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
-  <script src="livemap.js"></script>
 </head>
 <body>
   <div id="map"></div>
+  <script>
+    fetch('/status.json')
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d && d.meta && Array.isArray(d.meta.mapCenter) && d.meta.mapCenter.length >= 2) {
+          mapcenter = d.meta.mapCenter;
+        }
+      })
+      .catch(function () {})
+      .finally(function () {
+        var s = document.createElement('script');
+        s.src = 'livemap.js';
+        document.body.appendChild(s);
+      });
+  </script>
 </body>
 </html>

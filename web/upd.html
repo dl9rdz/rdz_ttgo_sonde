@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>rdzTTGOSonde Update</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs -->
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav">
+      <a class="nav-item" href="/">← Home</a>
+      <span class="nav-item active">Update</span>
+    </nav>
+    <main class="main">
+      <div class="panel panel-narrow">
+        <div class="card">
+          <h1>Firmware update</h1>
+          <p class="text">Installed: <strong class="version-id" id="fullId">…</strong></p>
+        </div>
+
+        <form id="upd-form" action="/update.html" method="post">
+          <div class="card">
+            <h2>Stable</h2>
+            <p>Latest: <strong class="text" id="masterDiv">…checking…</strong></p>
+            <button type="submit" name="main" value="Main-Update" class="primary btn-block">Update to stable</button>
+          </div>
+
+          <div class="card">
+            <h2>Development</h2>
+            <p>Latest: <strong class="text" id="develDiv">…checking…</strong></p>
+            <button type="submit" name="dev2" value="Dev-Update" class="btn-block">Update to development</button>
+          </div>
+
+          <div id="local-update-section" hidden>
+            <p class="dev-label">Developer</p>
+            <div class="card">
+              <h2>Custom server</h2>
+              <p class="muted">Path must contain <code>update.fs.bin</code> and <code>update.ino.bin</code>.</p>
+              <div class="field">
+                <label for="localUrl">Update URL</label>
+                <input type="text" name="url" id="localUrl" value="">
+              </div>
+              <button type="submit" name="local" value="Local-Update" class="btn-block">Update from this server</button>
+            </div>
+          </div>
+        </form>
+
+        <p class="muted">If the version letter changes, OTA will fail and a full reflash is required.</p>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="upd-foot">rdzTTGOsonde</div>
+    </footer>
+  </div>
+  <script>
+    function fillRemote(el, url) {
+      fetch(url)
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+        .then(function (t) {
+          el.textContent = t.replace(/<[^>]*>/g, '').trim() || '(empty)';
+        })
+        .catch(function () {
+          el.textContent = '(unavailable)';
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+      fetch('/status.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var meta = data.meta || {};
+          var id = meta.fullId || meta.versionId || '';
+          document.getElementById('fullId').textContent = id || '(unknown)';
+          document.getElementById('upd-foot').textContent =
+            id ? ('rdzTTGOsonde ' + (meta.versionId || id)) : 'rdzTTGOsonde';
+          var local = (meta.localUpdates || '').trim();
+          if (local) {
+            document.getElementById('localUrl').value = local;
+            document.getElementById('local-update-section').hidden = false;
+          }
+        })
+        .catch(function () {
+          document.getElementById('fullId').textContent = '(unavailable)';
+        });
+
+      fillRemote(document.getElementById('masterDiv'), 'http://rdzsonde.org/main/update-info.html');
+      fillRemote(document.getElementById('develDiv'), 'http://rdzsonde.org/dev2/update-info.html');
+    });
+  </script>
+</body>
+</html>

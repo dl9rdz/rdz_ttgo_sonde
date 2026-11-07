@@ -1,6 +1,7 @@
 #include "Scanner.h"
 #include <inttypes.h>
 #include <U8x8lib.h>
+#include "esp_heap_caps.h"
 
 #include "Radio.h"
 #include "Sonde.h"
@@ -49,7 +50,6 @@ struct scancfg &scanconfig = scanTFT;
 //#define MAXDISP 304
 #define MAXDISP SPECTRUM_MAX_BINS
 
-int scanresult[MAXN];
 int scandisp[MAXDISP];
 double peakf=0;
 
@@ -162,6 +162,21 @@ void Scanner::scan()
 	} else {
 		scanconfig = scan934x;
 	}
+	int nchan = scanconfig.PLOT_W * scanconfig.SMPL_PIX;
+	if (nchan < 1 || nchan > MAXN) {
+		Serial.printf("scan: bad channel count %d\n", nchan);
+		return;
+	}
+	/* Hop samples are only needed for this sweep. 32-bit IRAM is enough:
+	 * every access is an aligned int load or store. */
+	int *scanresult = (int *)heap_caps_malloc(nchan * sizeof(int), MALLOC_CAP_32BIT);
+	if (!scanresult) {
+		scanresult = (int *)heap_caps_malloc(nchan * sizeof(int), MALLOC_CAP_8BIT);
+	}
+	if (!scanresult) {
+		Serial.println("scan: no memory for scanresult");
+		return;
+	}
 	// Configure 
  	STARTF = (sonde.config.startfreq * 1000000);
 	radio.setFrequency(STARTF);
@@ -176,7 +191,7 @@ void Scanner::scan()
 	Serial.print("wait time (us) is: "); Serial.println(wait);
 	for(int iter=0; iter<3; iter++) {   // three interations, to catch all RS41 transmissions
 	    delayMicroseconds(20000); yield();
-	    for(int i=0; i<scanconfig.PLOT_W*scanconfig.SMPL_PIX; i++) {
+	    for(int i=0; i<nchan; i++) {
 		freq = STARTF + 1000.0*i*scanconfig.CHANSTEP;
 		//freq = 404000000 + 100*i*scanconfig.CHANSTEP;
 		radio.scanSetFrequency(freq);
@@ -229,6 +244,7 @@ void Scanner::scan()
 #if FEATURE_MQTT
 	connMQTT.publishPeak(peakf, peakres);
 #endif
+	heap_caps_free(scanresult);
 }
 
 Scanner scanner = Scanner();

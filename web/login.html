@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>rdzTTGOSonde Login</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <script src="sha256.min.js"></script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs to force reload after changes -->
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav">
+      <span class="nav-item active">Login</span>
+    </nav>
+    <main class="main">
+      <div class="panel panel-narrow">
+        <div class="card">
+          <h1>Login</h1>
+          <form id="loginForm" action="/login.html" method="POST" onsubmit="computeHash(event)">
+            <div class="field">
+              <label for="user">Username</label>
+              <input type="text" id="user" name="user" required autocomplete="username">
+            </div>
+            <div class="field">
+              <label for="pass">Password</label>
+              <input type="password" id="pass" name="pass" required autocomplete="current-password">
+            </div>
+            <input type="hidden" id="preauth" name="preauth" value="">
+            <button type="submit" class="primary btn-block">Login</button>
+            <p id="login-status" class="err" hidden></p>
+          </form>
+        </div>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="login-foot">rdzTTGOsonde</div>
+    </footer>
+  </div>
+  <script>
+    function setLoginStatus(text) {
+      var el = document.getElementById('login-status');
+      el.textContent = text || '';
+      el.hidden = !text;
+    }
+    async function computeHash(event) {
+      event.preventDefault();
+      setLoginStatus('');
+      var username = document.getElementById('user').value;
+      var password = document.getElementById('pass').value;
+      var preauth = document.getElementById('preauth').value;
+      if (!preauth) {
+        setLoginStatus('The device was not reached.');
+        return;
+      }
+      document.getElementById('pass').value = '';
+      var auth = sha256(username + ':' + preauth + ':' + password);
+      var btn = event.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      try {
+        var r = await fetch('/login.html', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ user: username, preauth: preauth, auth: auth })
+        });
+        if (r.ok) {
+          location.href = '/index.html';
+          return;
+        }
+        var msg = (await r.text()).trim();
+        setLoginStatus(msg || ('HTTP ' + r.status));
+      } catch (e) {
+        setLoginStatus('The device was not reached.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+    async function initLogin() {
+      try {
+        var preRes = await fetch('/preauth', { credentials: 'same-origin' });
+        if (!preRes.ok) throw new Error('preauth');
+        var pre = await preRes.json();
+        if (!pre.preauth) throw new Error('preauth');
+        document.getElementById('preauth').value = pre.preauth;
+      } catch (e) {
+        setLoginStatus('The device was not reached.');
+      }
+      try {
+        var metaRes = await fetch('/meta.json', { credentials: 'same-origin' });
+        if (!metaRes.ok) return;
+        var meta = await metaRes.json();
+        var id = meta.versionId || '';
+        document.getElementById('login-foot').textContent = id ? ('rdzTTGOsonde ' + id) : 'rdzTTGOsonde';
+      } catch (e) { /* version line is optional */ }
+    }
+    document.addEventListener('DOMContentLoaded', initLogin);
+  </script>
+</body>
+</html>

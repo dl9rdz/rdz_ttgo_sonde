@@ -39,10 +39,7 @@ LFS_COMPARE = (
     "sha256.min.js",
     "edit.html",
     "sdfiles.html",
-    "map.html",
     "livemap.js",
-    "decoder.html",
-    "decoder.js",
     "screens.txt",
     "screens1.txt",
     "screens2.txt",
@@ -60,10 +57,7 @@ STATIC_COMPARE = (
     "sha256.min.js",
     "edit.html",
     "sdfiles.html",
-    "map.html",
     "livemap.js",
-    "decoder.html",
-    "decoder.js",
 )
 
 # ---------------------------------------------------------------------------
@@ -296,7 +290,28 @@ def test_status_json(ctx: Ctx):
         return _fail(rtt, f"JSON: {e}")
     if not isinstance(obj, dict) or not obj:
         return _fail(rtt, "empty or non-object")
+    meta = obj.get("meta")
+    if not isinstance(meta, dict):
+        return _fail(rtt, "meta is not an object")
+    for key in ("versionName", "versionId", "fullId", "board", "eph", "localUpdates"):
+        if not isinstance(meta.get(key), str):
+            return _fail(rtt, f"meta.{key} not a string")
+    center = meta.get("mapCenter")
+    if not (
+        isinstance(center, list)
+        and len(center) == 2
+        and all(isinstance(x, (int, float)) and not isinstance(x, bool) for x in center)
+    ):
+        return _fail(rtt, "meta.mapCenter not [lat, lon]")
+    actions = meta.get("actions")
+    if not isinstance(actions, list) or not all(isinstance(a, str) for a in actions):
+        return _fail(rtt, "meta.actions not a string list")
+    for need in ("rx", "scan", "reboot"):
+        if need not in actions:
+            return _fail(rtt, f"meta.actions missing {need}")
     for k, v in obj.items():
+        if k == "meta":
+            continue
         if not isinstance(k, str) or not isinstance(v, str):
             return _fail(rtt, f"non-string entry {k!r}")
     return _ok(rtt)
@@ -314,17 +329,8 @@ def test_status_html(ctx: Ctx):
     if st not in (301, 302, 303, 307, 308):
         return _fail(rtt, f"expected redirect, HTTP {st}")
     loc = (hdrs.get("location") or "").strip()
-    if "/decoder.html" not in loc:
-        return _fail(rtt, f"Location={loc!r}, want /decoder.html")
-    return _ok(rtt)
-
-
-def test_decoder_html(ctx: Ctx):
-    st, _, body, rtt = ctx.get("/decoder.html")
-    if st != 200:
-        return _fail(rtt, f"HTTP {st}")
-    if b"decoder.js" not in body or b"decoder-status" not in body:
-        return _fail(rtt, "unexpected HTML")
+    if "/#decoder" not in loc:
+        return _fail(rtt, f"Location={loc!r}, want /#decoder")
     return _ok(rtt)
 
 
@@ -496,36 +502,31 @@ def test_sd_csv_largest(ctx: Ctx):
 
 
 def test_login(ctx: Ctx):
-    """GET /login.html → POST admin/admin; expect Set-Cookie SESSION=."""
-    st, _, body, _ = ctx.get("/login.html", timed=False)
-    if st == 404:
-        return _skip("route not implemented")
+    """GET /preauth, then POST admin/admin; expect 302 and Set-Cookie SESSION=."""
+    st, _, body, _ = ctx.get("/preauth", timed=False)
     if st != 200:
-        return _fail(None, f"GET login HTTP {st}")
-    text = body.decode("utf-8", errors="replace")
-    m = re.search(r'id=["\']preauth["\'][^>]*value=["\']([^"\']*)["\']', text)
-    if not m:
-        m = re.search(r'name=["\']preauth["\'][^>]*value=["\']([^"\']*)["\']', text)
-    if not m:
-        return _skip("no preauth field")
-    preauth = m.group(1)
-    if preauth == "%PREAUTH%" or not preauth:
-        return _skip("PREAUTH not substituted (no template handler)")
+        return _fail(None, f"GET /preauth HTTP {st}")
+    try:
+        pre = json.loads(body.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError as e:
+        return _fail(None, f"preauth JSON: {e}")
+    preauth = pre.get("preauth") if isinstance(pre, dict) else None
+    if not isinstance(preauth, str) or not preauth:
+        return _fail(None, "preauth missing")
 
     user, password = "admin", "admin"
     auth = hashlib.sha256(f"{user}:{preauth}:{password}".encode("utf-8")).hexdigest()
     st, hdr, _, rtt = ctx.post_form(
         "/login.html",
-        {"user": user, "preauth": preauth, "auth": auth, "pass": ""},
+        {"user": user, "preauth": preauth, "auth": auth},
         timed=True,
     )
-    if st == 404:
-        return _skip("POST /login.html not implemented")
-    if st in (400, 401):
+    if st != 302:
         return _fail(rtt, f"HTTP {st}")
-    set_cookie = hdr.get("set-cookie", "")
-    if "SESSION=" not in set_cookie:
-        return _fail(rtt, f"no SESSION cookie (HTTP {st})")
+    if "index.html" not in (hdr.get("location") or ""):
+        return _fail(rtt, f"Location={hdr.get('location')!r}")
+    if "SESSION=" not in hdr.get("set-cookie", ""):
+        return _fail(rtt, "no SESSION cookie")
     return _ok(rtt)
 
 
@@ -714,7 +715,6 @@ CASES += [
     ("get /status.json", test_status_json),
     ("get /status.txt", test_status_txt),
     ("get /status.html", test_status_html),
-    ("get /decoder.html", test_decoder_html),
     ("get /decoder.json", test_decoder_json),
     ("get /live.json", test_live_json),
     ("get /qrg.json", test_qrg_json),

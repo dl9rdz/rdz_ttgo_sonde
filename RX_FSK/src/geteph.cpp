@@ -8,6 +8,7 @@
 #include <miniz.h>
 #include <inttypes.h>
 #include <WiFi.h>
+#include "esp_heap_caps.h"
 #include "Display.h"
 #include "Sonde.h"
 
@@ -37,6 +38,13 @@ uint8_t getreply() {
 		} while( str[0]!=str2[0] || str[1]!=str2[1] || str[2]!=str2[2] || str2[3]!=' ' );
 	}
 	return str[0];
+}
+
+static void eph_heap(const char *where) {
+	Serial.printf("eph %s: free=%u largest=%u min=%u\n", where,
+		(unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+		(unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_8BIT),
+		(unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT));
 }
 
 void writeFully(File &file, uint8_t *buf, size_t len)
@@ -80,6 +88,7 @@ static void eph_fmt_path(char *out, size_t outsz, const char *path_tmpl, int yea
 }
 
 void geteph() {
+	eph_heap("entry");
 	// Set current time via network...	
 	ephstate = EPH_PENDING;
 	struct tm tinfo;
@@ -135,23 +144,26 @@ void geteph() {
 		Serial.printf("FTP connection to %s failed\n", host);
 		return;
 	}
-	if(getreply()>='4') { Serial.println("connected failed"); return; }
+	if(getreply()>='4') { Serial.println("connected failed"); client.stop(); return; }
 	client.print("USER anonymous\r\n");
-	if(getreply()>='4') { Serial.println("USER failed"); return; }
+	if(getreply()>='4') { Serial.println("USER failed"); client.stop(); return; }
 	client.print("PASS anonymous\r\n");
-	if(getreply()>='4') { Serial.println("PASS failed"); return; }
+	if(getreply()>='4') { Serial.println("PASS failed"); client.stop(); return; }
 	client.print("TYPE I\r\n");
-	if(getreply()>='4') { Serial.println("TYPE I failed"); return; }
+	if(getreply()>='4') { Serial.println("TYPE I failed"); client.stop(); return; }
 	client.print("PASV\r\n");
+	int len = 0;
+	{
 	String s = client.readStringUntil('\n');
 	Serial.println(s);
-	if(s.c_str()[0]>='4') { Serial.println("PASV failed"); return; }
+	if(s.c_str()[0]>='4') { Serial.println("PASV failed"); client.stop(); return; }
 	int array_pasv[6];
 	char *tStr = strtok((char *)s.c_str(), "(,");
 	for(int i=0; i<6; i++) {
 		tStr = strtok(NULL, "(,");
 		if(tStr==NULL) {
 			Serial.println("strange response to PASV");
+			client.stop();
 			return;
 		}
 		array_pasv[i] = atoi(tStr);  
@@ -163,6 +175,7 @@ void geteph() {
 	dclient.connect(host, port);
 	if(!dclient) {
 		Serial.println("data connection failed");
+		client.stop();
 		return;
 	}
 	client.print("RETR ");
@@ -180,10 +193,10 @@ void geteph() {
 	   Serial.println(s);
 	   if(s.c_str()[0]>='4') {
              Serial.println("RETR failed (2)");
+             client.stop();
              return;
            }
         }
-	int len=0;
 	while(dclient.connected()) {
 		while(dclient.available()) {
 			int c = dclient.read();
@@ -195,7 +208,10 @@ void geteph() {
 			}
 		}
 	}
+	dclient.stop();
 	Serial.printf("fetched %d bytes\n", len);
+	}
+	client.stop();
 	fh.close();
 	snprintf(buf, 16, "Fetched %d B    ",len);
 	buf[16]=0;
@@ -204,15 +220,25 @@ void geteph() {
 	disp.rdis->drawString(0,4*dispys,"Decompressing...");
 	// decompression
 	tinfl_decompressor *decomp = (tinfl_decompressor *)malloc(sizeof(tinfl_decompressor));
+	if(!decomp) {
+		Serial.println("eph: no memory for decompressor");
+		ephstate = EPH_ERROR;
+		return;
+	}
 	tinfl_init(decomp);
 	File file = LittleFS.open("/brdc.gz","r");
 	if(!file) {	
 		Serial.println("cannot open file\n");
+		free(decomp);
+		ephstate = EPH_ERROR;
 		return;
 	}
 	File ofile = LittleFS.open("/brdc", "w");
 	if(!ofile) {
 		Serial.println("cannot open file /brdc for writing");
+		free(decomp);
+		file.close();
+		ephstate = EPH_ERROR;
 		return;
 	}
 	file.readBytes(buf, 10);  // skip gzip header
@@ -235,8 +261,19 @@ void geteph() {
 	int opos = 0;
 	int total = 0;
 	Serial.println("Decompressing ephemeris data...\n");
+	eph_heap("before malloc");
 	char *obuf =(char *)malloc(32768);
 	char *ibuf =(char *)malloc(8192);
+	if(!obuf || !ibuf) {
+		Serial.println("eph: no memory for decompress buffers");
+		free(obuf);
+		free(ibuf);
+		free(decomp);
+		file.close();
+		ofile.close();
+		ephstate = EPH_ERROR;
+		return;
+	}
 	while(file.available()) {
 		size_t len = file.readBytes(ibuf, 8192);
 		size_t inofs = 0;

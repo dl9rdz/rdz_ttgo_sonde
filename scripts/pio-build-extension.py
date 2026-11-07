@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 from os.path import join
 
 Import("env")
@@ -34,10 +35,26 @@ def generate_image(source, target, env):
 #  ["$BUILD_DIR/${PROGNAME}.bin", target_fsbin],
 #  generate_image)
 
+def build_web(source, target, env):
+    web_dir = env.subst("$PROJECT_DIR/web")
+    print("Building web UI into RX_FSK/data")
+    status = env.Execute('npm --prefix "%s" run build' % web_dir)
+    if status:
+        return status
+    with open(target[0].get_abspath(), "w") as stamp:
+        stamp.write("ok\n")
+    return 0
+
+# npm writes RX_FSK/data before the filesystem image is packed.
+web_stamp = env.Command(join("$BUILD_DIR", "web-build.stamp"), [], build_web)
+env.AlwaysBuild(web_stamp)
+
 target_fsbin = env.DataToBin(
     join("$BUILD_DIR", "${ESP32_FS_IMAGE_NAME}"),
     "$PROJECT_DATA_DIR",
 )
+env.Depends(target_fsbin, web_stamp)
+env.AlwaysBuild(target_fsbin)
 
 env.AddCustomTarget(
   "firmware",
@@ -45,15 +62,27 @@ env.AddCustomTarget(
   generate_image
 )
 
-# After generating the elf file, generate fonts.bin as well
-env.AddPostAction("$PROGPATH", 
-  env.VerboseAction(" ".join([
-    "xtensa-esp32-elf-g++", "-fno-lto", "-c", "RX_FSK/src/fonts/fonts.cpp", "-o", "$BUILD_DIR/src/src/fonts/fonts.cpp.o" ]),
-    "Building $BUILD_DIR/fonts.bin"))
-env.AddPostAction("$PROGPATH", 
-  env.VerboseAction(" ".join([
-    "xtensa-esp32-elf-ld", "-T", "fontlink.ld", "--oformat=binary", "-o", "$BUILD_DIR/fonts.bin", "$BUILD_DIR/src/src/fonts/fonts.cpp.o" ]),
-    "Building $BUILD_DIR/fonts.bin"))
+# After generating the elf file, generate fonts.bin as well.
+# The Arduino core rebuild does not compile project sources, so the old
+# object directory is not created for us. g++ will not create it either.
+def build_fonts_bin(source, target, env):
+    out_dir = env.subst(join("$BUILD_DIR", "src", "src", "fonts"))
+    os.makedirs(out_dir, exist_ok=True)
+    obj = join(out_dir, "fonts.cpp.o")
+    fonts_bin = env.subst(join("$BUILD_DIR", "fonts.bin"))
+    print("Building %s" % fonts_bin)
+    status = env.Execute(" ".join([
+        "xtensa-esp32-elf-g++", "-fno-lto", "-c",
+        "RX_FSK/src/fonts/fonts.cpp", "-o", obj,
+    ]))
+    if status:
+        return status
+    return env.Execute(" ".join([
+        "xtensa-esp32-elf-ld", "-T", "fontlink.ld", "--oformat=binary",
+        "-o", fonts_bin, obj,
+    ]))
+
+env.AddPostAction("$PROGPATH", build_fonts_bin)
 
 
 

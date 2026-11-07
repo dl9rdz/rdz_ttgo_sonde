@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>rdzTTGOSonde SD card</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs -->
+  <link rel="stylesheet" href="./app.css">
+</head>
+<body>
+  <div class="app">
+    <nav class="nav">
+      <a class="nav-item" href="/">← Home</a>
+      <span class="nav-item active">SD card</span>
+    </nav>
+    <main class="main">
+      <div class="panel">
+        <div class="card">
+          <div class="card-title" id="sd-heading">SD card: /</div>
+          <div class="table-wrap">
+            <table class="status-table compact" id="fileTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Size</th>
+                  <th>Timestamp</th>
+                  <th class="actions">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="fileBody">
+                <tr><td colspan="4" class="muted">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="sd-foot">rdzTTGOsonde</div>
+    </footer>
+  </div>
+
+  <div class="modal" id="viewModal">
+    <div class="modal-dialog">
+      <div class="modal-head">
+        <h2 id="viewModalTitle">File</h2>
+        <button type="button" id="viewModalClose" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="viewModalTable"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const dir = params.get('dir') || '';
+    const pdir = dir ? dir + '/' : '';
+    const internal = dir === '.int' || dir.startsWith('.int/');
+
+    function internalFileParam(fileName) {
+      const full = pdir + fileName;
+      return full.startsWith('.int/') ? full.slice('.int/'.length) : fileName;
+    }
+
+    function parentDir(d) {
+      if (!d) return '';
+      const i = d.lastIndexOf('/');
+      return i < 0 ? '' : d.slice(0, i);
+    }
+
+    function formatSize(n) {
+      if (n === undefined || n === null || n === '') return '';
+      const v = Number(n);
+      if (!Number.isFinite(v)) return String(n);
+      if (v < 1024) return v + ' B';
+      if (v < 1024 * 1024) return (v / 1024).toFixed(1) + ' KB';
+      return (v / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function escapeHtml(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function parseCsv(text) {
+      const lines = text.split(/\r?\n/).filter(function (l) { return l.length > 0; });
+      return lines.map(function (line) {
+        const row = [];
+        let cell = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const c = line[i];
+          if (c === '"') { inQuotes = !inQuotes; continue; }
+          if (!inQuotes && c === ',') { row.push(cell.trim()); cell = ''; continue; }
+          cell += c;
+        }
+        row.push(cell.trim());
+        return row;
+      });
+    }
+
+    function viewCsv(path, title) {
+      const modal = document.getElementById('viewModal');
+      const titleEl = document.getElementById('viewModalTitle');
+      const tableEl = document.getElementById('viewModalTable');
+      titleEl.textContent = title;
+      tableEl.innerHTML = '<p class="muted">Loading…</p>';
+      tableEl.scrollTop = 0;
+      modal.classList.add('show');
+      fetch('/sd/' + path)
+        .then(function (r) { return r.text(); })
+        .then(function (text) {
+          const rows = parseCsv(text);
+          if (!rows.length) {
+            tableEl.innerHTML = '<p class="muted">Empty file.</p>';
+            return;
+          }
+          let html = '<div class="table-wrap"><table class="status-table"><tbody>';
+          rows.forEach(function (row) {
+            html += '<tr>';
+            row.forEach(function (cell) {
+              html += '<td>' + escapeHtml(cell) + '</td>';
+            });
+            html += '</tr>';
+          });
+          html += '</tbody></table></div>';
+          tableEl.innerHTML = html;
+        })
+        .catch(function (err) {
+          tableEl.innerHTML = '<p class="err">Error loading file: ' + escapeHtml(err.message) + '</p>';
+        });
+    }
+
+    function sortEntries(entries) {
+      return entries.slice().sort(function (a, b) {
+        if ((a.dir === 1) !== (b.dir === 1)) return a.dir === 1 ? -1 : 1;
+        const tA = new Date(a.ts || 0).getTime();
+        const tB = new Date(b.ts || 0).getTime();
+        return tB - tA;
+      });
+    }
+
+    function renderRow(tableBody, file) {
+      const row = document.createElement('tr');
+      const nameCell = document.createElement('td');
+      const sizeCell = document.createElement('td');
+      const tsCell = document.createElement('td');
+      const actionCell = document.createElement('td');
+      actionCell.className = 'actions';
+
+      const link = document.createElement('a');
+      if (file.dir === 1) {
+        link.href = 'sdfiles.html?dir=' + encodeURIComponent(pdir + file.name);
+        link.textContent = file.name + '/';
+      } else {
+        link.href = '/sd/' + pdir + file.name;
+        link.textContent = file.name;
+      }
+      nameCell.appendChild(link);
+      sizeCell.textContent = file.dir === 1 ? '—' : formatSize(file.size);
+      tsCell.textContent = file.ts || '';
+
+      if (file.dir !== 1) {
+        if (!internal) {
+          const viewBtn = document.createElement('button');
+          viewBtn.type = 'button';
+          viewBtn.className = 'btn-sm';
+          viewBtn.textContent = 'View';
+          viewBtn.onclick = function () { viewCsv(pdir + file.name, file.name); };
+          actionCell.appendChild(viewBtn);
+        }
+
+        if (internal) {
+          const editBtn = document.createElement('button');
+          editBtn.type = 'button';
+          editBtn.className = 'btn-sm';
+          editBtn.textContent = 'Edit';
+          const editName = internalFileParam(file.name);
+          editBtn.onclick = function () {
+            location.href = 'edit.html?file=' + encodeURIComponent(editName);
+          };
+          actionCell.appendChild(editBtn);
+        }
+      }
+
+      if (!internal) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'btn-sm danger';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.onclick = function () {
+          if (!confirm('Delete "' + file.name + '"?')) return;
+          fetch('sdrm.html?file=' + encodeURIComponent(pdir + file.name))
+            .then(function (resp) {
+              if (resp.ok) row.remove();
+              else alert('Delete failed.');
+            })
+            .catch(function () { alert('Error sending request.'); });
+        };
+        actionCell.appendChild(deleteBtn);
+      }
+
+      row.append(nameCell, sizeCell, tsCell, actionCell);
+      tableBody.appendChild(row);
+    }
+
+    document.getElementById('viewModalClose').onclick = function () {
+      document.getElementById('viewModal').classList.remove('show');
+    };
+    document.getElementById('viewModal').onclick = function (e) {
+      if (e.target.id === 'viewModal') e.target.classList.remove('show');
+    };
+
+    document.getElementById('sd-heading').textContent = 'SD card: /' + (dir || '');
+
+    fetch('/meta.json', { credentials: 'same-origin' })
+      .then(function (r) { return r.json(); })
+      .then(function (meta) {
+        var id = meta.versionId || '';
+        document.getElementById('sd-foot').textContent = id ? ('rdzTTGOsonde ' + id) : 'rdzTTGOsonde';
+      })
+      .catch(function () {});
+
+    const body = document.getElementById('fileBody');
+    const url = '/files.json' + (dir ? '?dir=' + encodeURIComponent(dir) : '');
+    fetch(url)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        body.innerHTML = '';
+        if (dir) {
+          const up = document.createElement('tr');
+          up.innerHTML =
+            '<td colspan="4"><a href="sdfiles.html' +
+            (parentDir(dir) ? '?dir=' + encodeURIComponent(parentDir(dir)) : '') +
+            '">.. parent directory</a></td>';
+          body.appendChild(up);
+        }
+        const entries = Array.isArray(data) ? sortEntries(data) : [];
+        if (!entries.length) {
+          const empty = document.createElement('tr');
+          empty.innerHTML = '<td colspan="4" class="muted">No files</td>';
+          body.appendChild(empty);
+          return;
+        }
+        entries.forEach(function (file) { renderRow(body, file); });
+      })
+      .catch(function (err) {
+        body.innerHTML = '<tr><td colspan="4" class="err">' + escapeHtml(err.message) + '</td></tr>';
+      });
+  </script>
+</body>
+</html>

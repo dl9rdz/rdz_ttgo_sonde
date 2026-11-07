@@ -25,6 +25,11 @@ static int valuepos;
 
 static int importState;
 static float homelat, homelon;
+static int nImported;
+
+int ShFreqImport::importedCount() {
+    return nImported;
+}
 
 
 // Map SondeHub type string to Stype. -1 for not supported types.
@@ -74,6 +79,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
                 if( *l=='@' || *l==' ' || *l==0 ) {
                     setLabel(i, id, lat, lon);
                     inuse[i/8] |= (1<<(i&7));
+                    nImported++;
                 }
                 sonde.sondeList[i].active = 1;
                 return;
@@ -98,6 +104,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
     sonde.sondeList[ppos].type = (SondeType)stype;
     setLabel(ppos, id, lat, lon);
     inuse[ppos/8] |= (1<<(ppos&7));
+    nImported++;
     ppos++;
 }
 
@@ -240,6 +247,7 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
     Serial.printf("write res: %d (%d)\n", res, errno);
     Serial.print(req);
     importState = START;
+    nImported = 0;
     homelat = lat;
     homelon = lon;
     memset(inuse, 0, sizeof(inuse));

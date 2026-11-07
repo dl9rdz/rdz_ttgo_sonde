@@ -4,19 +4,26 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Edit</title>
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <link rel="stylesheet" href="./app.css">
   <style>
-    body { font-family: system-ui, sans-serif; margin: 1rem; background: #111; color: #eee; }
+    html, body { height: auto; overflow: auto; }
+    body { margin: 1rem; }
     textarea {
       width: 100%; min-height: 24rem;
       font-family: ui-monospace, monospace; font-size: .85rem;
-      background: #222; color: #eee; border: 1px solid #555;
+      background: var(--bg-elev); color: var(--text); border: 1px solid var(--border);
+      border-radius: var(--radius);
     }
-    button { background: #246; color: #fff; border: 0; padding: .4rem .8rem; cursor: pointer; }
-    button:disabled { opacity: .5; cursor: default; }
-    .muted { color: #aaa; font-size: .9rem; }
-    .ok { color: #8f8; }
-    .err { color: #f88; }
   </style>
 </head>
 <body>
@@ -24,7 +31,7 @@
   <p id="status" class="muted">Loading…</p>
   <textarea id="editor" cols="80" rows="40" spellcheck="false" disabled></textarea>
   <p>
-    <button type="button" id="save" disabled>Save</button>
+    <button type="button" id="save" class="primary" disabled>Save</button>
   </p>
 
   <script>

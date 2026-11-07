@@ -368,6 +368,8 @@ public:
 	SondeInfo *sondeList;
 	// decoder.json: force full snapshot after QRG reload
 	uint32_t listReloadMs;
+	// decoder.json: millis of last channel/view hop (scan/decode UI)
+	uint32_t lastViewChangeMs;
 	// helper function for type string
 	static SondeType realType(SondeInfo *si);
 
@@ -381,6 +383,7 @@ public:
 	void nextConfig();
 	void nextRxSonde();
 	void nextRxFreq(int addkhz);
+	void markViewChange();
 
 	/* new interface */
 	void setup();

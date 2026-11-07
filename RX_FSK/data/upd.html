@@ -1,72 +1,104 @@
-<html><head>
-<link rel="stylesheet" type="text/css" href="style.css">
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>rdzTTGOSonde Update</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:,">
+  <script>
+  (function () {
+    var mode = localStorage.getItem('rdz-theme') || 'auto';
+    if (mode === 'light' || mode === 'dark') {
+      document.documentElement.setAttribute('data-theme', mode);
+    }
+  })();
+  </script>
+  <!-- href rewritten to hashed app.*.css by web/scripts/copy-to-data.mjs -->
+  <link rel="stylesheet" href="./app.1f88533f.css">
 </head>
 <body>
+  <div class="app">
+    <nav class="nav">
+      <a class="nav-item" href="/">← Home</a>
+      <span class="nav-item active">Update</span>
+    </nav>
+    <main class="main">
+      <div class="panel panel-narrow">
+        <div class="card">
+          <h1>Firmware update</h1>
+          <p class="text">Installed: <strong class="version-id" id="fullId">…</strong></p>
+        </div>
 
+        <form id="upd-form" action="/update.html" method="post">
+          <div class="card">
+            <h2>Stable</h2>
+            <p>Latest: <strong class="text" id="masterDiv">…checking…</strong></p>
+            <button type="submit" name="main" value="Main-Update" class="primary btn-block">Update to stable</button>
+          </div>
 
-<form action="update.html" method="post"><p>Currently installed: %FULLNAMEID%</p>
-<p>
-Available main: <span id="masterDiv">(...checking...)</span>
+          <div class="card">
+            <h2>Development</h2>
+            <p>Latest: <strong class="text" id="develDiv">…checking…</strong></p>
+            <button type="submit" name="dev2" value="Dev-Update" class="btn-block">Update to development</button>
+          </div>
 
-<br>
-Available dev2: <span id="develDiv">(...checking...)</span>
+          <div id="local-update-section" hidden>
+            <p class="dev-label">Developer</p>
+            <div class="card">
+              <h2>Custom server</h2>
+              <p class="muted">Path must contain <code>update.fs.bin</code> and <code>update.ino.bin</code>.</p>
+              <div class="field">
+                <label for="localUrl">Update URL</label>
+                <input type="text" name="url" id="localUrl" value="">
+              </div>
+              <button type="submit" name="local" value="Local-Update" class="btn-block">Update from this server</button>
+            </div>
+          </div>
+        </form>
 
-</p>
-<input type="submit" name="main" value="Main-Update"></input><br>
-<input type="submit" name="dev2" value="Dev-Update"><br>
-<div id="local-update-section">
-  <input type="submit" name="local" value="Local-Update"> from
-  <input type="text" name="url" value="%LOCAL_UPDATES%" size="64"><br>
-</div>
-</form>
+        <p class="muted">If the version letter changes, OTA will fail and a full reflash is required.</p>
+      </div>
+    </main>
+    <footer class="statusbar">
+      <div class="statusbar-left"></div>
+      <div class="statusbar-right" id="upd-foot">rdzTTGOsonde</div>
+    </footer>
+  </div>
+  <script>
+    function fillRemote(el, url) {
+      fetch(url)
+        .then(function (r) { return r.ok ? r.text() : Promise.reject(); })
+        .then(function (t) {
+          el.textContent = t.replace(/<[^>]*>/g, '').trim() || '(empty)';
+        })
+        .catch(function () {
+          el.textContent = '(unavailable)';
+        });
+    }
 
-<p>Note: If suffix is the same, update should work fully. If the number is
-different, update contains changes in the file system. A full re-flash is
-required to get all new features, but the update should not break anything.
-If the letter is different, a full re-flash is mandatory, update will not
-work.</p>
-<p id="local-update-info">
-The local-update feature is for developers and requires a path containing
-<tt>update.fs.bin</tt> and <tt>update.ino.bin</tt>.
-</p>
+    document.addEventListener('DOMContentLoaded', function () {
+      fetch('/status.json', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          var meta = data.meta || {};
+          var id = meta.fullId || meta.versionId || '';
+          document.getElementById('fullId').textContent = id || '(unknown)';
+          document.getElementById('upd-foot').textContent =
+            id ? ('rdzTTGOsonde ' + (meta.versionId || id)) : 'rdzTTGOsonde';
+          var local = (meta.localUpdates || '').trim();
+          if (local) {
+            document.getElementById('localUrl').value = local;
+            document.getElementById('local-update-section').hidden = false;
+          }
+        })
+        .catch(function () {
+          document.getElementById('fullId').textContent = '(unavailable)';
+        });
 
-<script>
-const localEnabled = "%LOCAL_UPDATES%";
-
-document.addEventListener("DOMContentLoaded", () => {
-  if (localEnabled.trim() === "") {
-    // Hide the local update section
-    const localUpdateSection = document.getElementById("local-update-section");
-    const localUpdateInfo = document.getElementById("local-update-info");
-    if (localUpdateSection) localUpdateSection.style.display = "none";
-    if (localUpdateInfo) localUpdateInfo.style.display = "none";
-  }
-});
-
-const masterInfo = document.getElementById('masterDiv');
-const develInfo = document.getElementById('develDiv');
-
-function fillUpdateInfo(el, xhr) {
-  if (xhr.status >= 200 && xhr.status < 300) {
-    el.innerHTML = xhr.response.replace(/<[^>]*>/g, '');
-  } else {
-    el.textContent = '(unavailable)';
-  }
-}
-function failUpdateInfo(el) {
-  el.textContent = '(unavailable)';
-}
-
-let request = new XMLHttpRequest();
-request.open('GET', 'http://rdzsonde.org/main/update-info.html');
-request.onload = function() { fillUpdateInfo(masterInfo, request); };
-request.onerror = function() { failUpdateInfo(masterInfo); };
-request.send();
-
-let drequest = new XMLHttpRequest();
-drequest.open('GET', 'http://rdzsonde.org/dev2/update-info.html');
-drequest.onload = function() { fillUpdateInfo(develInfo, drequest); };
-drequest.onerror = function() { failUpdateInfo(develInfo); };
-drequest.send();
-</script>
-</body></html>
+      fillRemote(document.getElementById('masterDiv'), 'http://rdzsonde.org/main/update-info.html');
+      fillRemote(document.getElementById('develDiv'), 'http://rdzsonde.org/dev2/update-info.html');
+    });
+  </script>
+</body>
+</html>

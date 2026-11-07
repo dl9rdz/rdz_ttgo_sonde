@@ -1046,7 +1046,7 @@ static bool form_get(const char *body, const char *key, char *out, size_t out_ca
 
 static esp_err_t login_html_get(httpd_req_t *req)
 {
-	return send_lfs(req, "/login.html", "text/html; charset=utf-8", nullptr, true);
+	return send_lfs(req, "/login.html", "text/html; charset=utf-8", "no-cache", false);
 }
 
 static esp_err_t login_html_post(httpd_req_t *req)
@@ -1124,7 +1124,7 @@ static const char *sd_content_type(const char *path)
 	return "application/octet-stream";
 }
 
-/* Map /sd/<rel> -> VFS path /sd/<rel> in out. */
+/* Map /sd/<rel> to a VFS path. .int/<name> is LittleFS; everything else is the SD card. */
 static bool vfs_from_sd_uri(httpd_req_t *req, char *out, size_t out_cap)
 {
 	const char *uri = req->uri;
@@ -1146,7 +1146,16 @@ static bool vfs_from_sd_uri(httpd_req_t *req, char *out, size_t out_cap)
 	if (!rel_path_ok(decoded)) {
 		return false;
 	}
-	int w = snprintf(out, out_cap, "/sd/%s", decoded);
+	/* .int is the virtual LittleFS root used by sdfiles.html, not an SD directory. */
+	int w;
+	if (strncmp(decoded, ".int/", 5) == 0) {
+		if (decoded[5] == '\0') {
+			return false;
+		}
+		w = snprintf(out, out_cap, "/littlefs/%s", decoded + 5);
+	} else {
+		w = snprintf(out, out_cap, "/sd/%s", decoded);
+	}
 	return w > 0 && (size_t)w < out_cap;
 }
 
@@ -1440,6 +1449,12 @@ static esp_err_t sdrm_html_get(httpd_req_t *req)
 		return httpd_resp_send(req, "<html><body>invalid path</body></html>",
 				       HTTPD_RESP_USE_STRLEN);
 	}
+	if (strcmp(rel, ".int") == 0 || strncmp(rel, ".int/", 5) == 0) {
+		httpd_resp_set_status(req, "403 Forbidden");
+		httpd_resp_set_type(req, "text/html");
+		return httpd_resp_send(req, "<html><body>refusing to delete internal storage</body></html>",
+				       HTTPD_RESP_USE_STRLEN);
+	}
 
 	snprintf(vfs, sizeof(vfs), "/sd/%s", rel);
 
@@ -1490,18 +1505,18 @@ static esp_err_t status_txt_get(httpd_req_t *req)
 static esp_err_t root_get(httpd_req_t *req)
 {
 	maybe_clear_stale_session(req);
-	return send_lfs(req, "/index.html", "text/html", nullptr, true);
+	return send_lfs(req, "/index.html", "text/html", "no-cache", false);
 }
 
 static esp_err_t index_html_get(httpd_req_t *req)
 {
 	maybe_clear_stale_session(req);
-	return send_lfs(req, "/index.html", "text/html", nullptr, true);
+	return send_lfs(req, "/index.html", "text/html", "no-cache", false);
 }
 
 static esp_err_t livemap_html_get(httpd_req_t *req)
 {
-	return send_lfs(req, "/livemap.html", "text/html", nullptr, true);
+	return send_lfs(req, "/livemap.html", "text/html", "no-cache", false);
 }
 
 static esp_err_t upd_html_get(httpd_req_t *req)
@@ -1509,7 +1524,7 @@ static esp_err_t upd_html_get(httpd_req_t *req)
 	if (!require_auth(req, 2)) {
 		return ESP_OK;
 	}
-	return send_lfs(req, "/upd.html", "text/html", nullptr, true);
+	return send_lfs(req, "/upd.html", "text/html", "no-cache", false);
 }
 
 /* Sketch helpers (RX_FSK.ino) -- return pointer to sketch-owned buffer. */
@@ -1525,6 +1540,10 @@ extern const char *httpdHandleQRGPost(void);
 extern const char *httpdHandleWIFIPost(void);
 extern const char *httpdHandleConfigPost(void);
 extern const char *httpdHandleControlPost(void);
+extern const char *httpdGetWifiAsJson(void);
+extern const char *httpdHandleWifiJsonPut(const char *body);
+extern const char *httpdHandleControlJson(const char *body);
+extern const char *httpdGetControlActionsJson(void);
 extern const char *httpdHandleUpdatePost(void);
 extern const char *httpdCreateUpdateForm(void);
 extern const char *httpdCreateKMLLive(void);
@@ -1539,6 +1558,8 @@ static esp_err_t send_cstr(httpd_req_t *req, const char *ctype, const char *body
 	httpd_resp_set_type(req, ctype);
 	return httpd_resp_send(req, body, HTTPD_RESP_USE_STRLEN);
 }
+
+static esp_err_t recv_post_body(httpd_req_t *req, char *buf, size_t cap);
 
 static esp_err_t status_html_get(httpd_req_t *req)
 {
@@ -1568,20 +1589,123 @@ static esp_err_t qrg_json_get(httpd_req_t *req)
 	return send_cstr(req, "application/json", getQRGAsJson());
 }
 
-/* One chunk per connector, same bytes as the old Async chunked handler.
- * getStatus() is up to ~1 KiB; a single line fits on this stack (httpd stack is 8 KiB). */
+/* Escape a short string into a JSON string body (no surrounding quotes). */
+static void json_escape_short(char *dst, size_t dst_cap, const char *src)
+{
+	size_t o = 0;
+	if (dst_cap == 0) {
+		return;
+	}
+	if (src == nullptr) {
+		dst[0] = '\0';
+		return;
+	}
+	while (*src && o + 1 < dst_cap) {
+		unsigned char c = (unsigned char)*src++;
+		if (c == '"' || c == '\\') {
+			if (o + 2 >= dst_cap) {
+				break;
+			}
+			dst[o++] = '\\';
+			dst[o++] = (char)c;
+		} else if (c < 0x20) {
+			continue;
+		} else {
+			dst[o++] = (char)c;
+		}
+	}
+	dst[o] = '\0';
+}
+
+/* Fill buf with meta object fields (no surrounding braces). Returns bytes written or -1. */
+static int format_meta_fields(char *buf, size_t cap)
+{
+	const char *fpstr = "Unknown board";
+	int i = 0;
+	while (fingerprintValue[i] != sonde.fingerprint && fingerprintValue[i] != -1) {
+		i++;
+	}
+	if (fingerprintValue[i] != -1) {
+		fpstr = fingerprintText[i];
+	}
+	char board[96];
+	snprintf(board, sizeof(board), "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
+	char board_esc[128];
+	json_escape_short(board_esc, sizeof(board_esc), board);
+
+	double lat = 48, lon = 13;
+	if (posInfo.valid) {
+		lat = posInfo.lat;
+		lon = posInfo.lon;
+	}
+
+#if FEATURE_RS92
+	const char *eph = ephtxt[ephstate];
+#else
+	const char *eph = "Not supported";
+#endif
+	char eph_esc[64];
+	json_escape_short(eph_esc, sizeof(eph_esc), eph);
+
+	char local_esc[160];
+	json_escape_short(local_esc, sizeof(local_esc), localUpdates ? localUpdates : "");
+
+	return snprintf(buf, cap,
+			"\"versionName\":\"%s\","
+			"\"versionId\":\"%s\","
+			"\"fullId\":\"%s-%c%d\","
+			"\"board\":\"%s\","
+			"\"mapCenter\":[%.8g,%.8g],"
+			"\"eph\":\"%s\","
+			"\"localUpdates\":\"%s\","
+			"\"actions\":%s",
+			version_name, version_id, version_id, FS_MAJOR + 'A' - 1, FS_MINOR,
+			board_esc, lat, lon, eph_esc, local_esc, httpdGetControlActionsJson());
+}
+
+/* Light endpoint for Home / login (no connector HTML). */
+static esp_err_t meta_json_get(httpd_req_t *req)
+{
+	char fields[700];
+	int n = format_meta_fields(fields, sizeof(fields));
+	if (n < 0 || (size_t)n >= sizeof(fields)) {
+		return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "meta");
+	}
+	char body[768];
+	snprintf(body, sizeof(body), "{%s}", fields);
+	return send_cstr(req, "application/json", body);
+}
+
+/* meta object + one chunk per connector (HTML status strings, as before). */
 static esp_err_t status_json_get(httpd_req_t *req)
 {
 	httpd_resp_set_type(req, "application/json");
-	if (connectors[0] == nullptr) {
-		return httpd_resp_send(req, "{}\n", HTTPD_RESP_USE_STRLEN);
+
+	char fields[700];
+	int fn = format_meta_fields(fields, sizeof(fields));
+	if (fn < 0 || (size_t)fn >= sizeof(fields)) {
+		return ESP_FAIL;
 	}
-	for (int i = 0; connectors[i] != nullptr; i++) {
+	char meta[768];
+	int mn = snprintf(meta, sizeof(meta), "{\"meta\":{%s}", fields);
+	if (mn < 0 || (size_t)mn >= sizeof(meta)) {
+		return ESP_FAIL;
+	}
+	if (httpd_resp_send_chunk(req, meta, (size_t)mn) != ESP_OK) {
+		return ESP_FAIL;
+	}
+
+	if (connectors[0] == nullptr) {
+		if (httpd_resp_send_chunk(req, "}\n", 2) != ESP_OK) {
+			return ESP_FAIL;
+		}
+		return httpd_resp_send_chunk(req, nullptr, 0);
+	}
+	for (int ci = 0; connectors[ci] != nullptr; ci++) {
 		char line[1280];
-		String name = connectors[i]->getName();
-		String st = connectors[i]->getStatus();
-		int n = snprintf(line, sizeof(line), "%s\"%s\": \"%s\"\n",
-				 i == 0 ? "{" : ",\n", name.c_str(), st.c_str());
+		String name = connectors[ci]->getName();
+		String st = connectors[ci]->getStatus();
+		int n = snprintf(line, sizeof(line), ",\n\"%s\": \"%s\"\n", name.c_str(), st.c_str());
 		if (n < 0) {
 			return ESP_FAIL;
 		}
@@ -1596,6 +1720,58 @@ static esp_err_t status_json_get(httpd_req_t *req)
 		return ESP_FAIL;
 	}
 	return httpd_resp_send_chunk(req, nullptr, 0);
+}
+
+static esp_err_t preauth_get(httpd_req_t *req)
+{
+	char preauth[COOKIE_SIZE];
+	generateRandomCookie("preauth", preauth);
+	storeCookie(preauth, -1);
+	char body[COOKIE_SIZE + 32];
+	snprintf(body, sizeof(body), "{\"preauth\":\"%s\"}", preauth);
+	return send_cstr(req, "application/json", body);
+}
+
+static esp_err_t wifi_json_get(httpd_req_t *req)
+{
+	if (!require_auth(req, 2)) {
+		return ESP_OK;
+	}
+	return send_cstr(req, "application/json", httpdGetWifiAsJson());
+}
+
+static esp_err_t wifi_json_put(httpd_req_t *req)
+{
+	if (!require_auth(req, 2)) {
+		return ESP_OK;
+	}
+	static char body[3072];
+	esp_err_t err = recv_post_body(req, body, sizeof(body));
+	if (err != ESP_OK) {
+		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad body");
+	}
+	const char *res = httpdHandleWifiJsonPut(body);
+	if (res && res[0]) {
+		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, res);
+	}
+	return send_cstr(req, "application/json", "{\"ok\":true}");
+}
+
+static esp_err_t control_json_post(httpd_req_t *req)
+{
+	if (!require_auth(req, 2)) {
+		return ESP_OK;
+	}
+	static char body[256];
+	esp_err_t err = recv_post_body(req, body, sizeof(body));
+	if (err != ESP_OK) {
+		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad body");
+	}
+	const char *res = httpdHandleControlJson(body);
+	if (res && res[0]) {
+		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, res);
+	}
+	return send_cstr(req, "application/json", "{\"ok\":true}");
 }
 
 static esp_err_t recv_post_body(httpd_req_t *req, char *buf, size_t cap)
@@ -1772,9 +1948,37 @@ static esp_err_t static_catchall_get(httpd_req_t *req)
 	if (!path_is_direct_static(path)) {
 		return httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Not Found");
 	}
-	const char *ctype = content_type_for_path(path);
-	const char *cache = path_ends_with_ci(path, ".css") ? "max-age=86400" : "max-age=900";
-	return send_lfs(req, path, ctype, cache, false);
+	/*
+	 * Cache-busting URLs: HTML references /app.<hash>.js|css, but LittleFS
+	 * always stores stable /app.js and /app.css (OTA-friendly fixed names).
+	 * app.<hash>.js → /app.js, app.<hash>.css → /app.css.
+	 */
+	const char *base = strrchr(path, '/');
+	base = base ? base + 1 : path;
+	char mapped[32];
+	const char *lfs_path = path;
+	bool hashed_app = false;
+	if (strncmp(base, "app.", 4) == 0) {
+		const char *rest = base + 4;
+		const char *dot = strrchr(rest, '.');
+		if (dot != nullptr && dot != rest) {
+			if (strcasecmp(dot, ".js") == 0) {
+				strncpy(mapped, "/app.js", sizeof(mapped));
+				mapped[sizeof(mapped) - 1] = '\0';
+				lfs_path = mapped;
+				hashed_app = true;
+			} else if (strcasecmp(dot, ".css") == 0) {
+				strncpy(mapped, "/app.css", sizeof(mapped));
+				mapped[sizeof(mapped) - 1] = '\0';
+				lfs_path = mapped;
+				hashed_app = true;
+			}
+		}
+	}
+	const char *ctype = content_type_for_path(lfs_path);
+	const char *cache = hashed_app ? "public, max-age=31536000, immutable"
+				       : (path_ends_with_ci(lfs_path, ".css") ? "max-age=86400" : "max-age=900");
+	return send_lfs(req, lfs_path, ctype, cache, false);
 }
 
 static const httpd_uri_t uri_status_txt = {
@@ -1844,6 +2048,41 @@ static const httpd_uri_t uri_status_json = {
 	.uri = "/status.json",
 	.method = HTTP_GET,
 	.handler = status_json_get,
+	.user_ctx = nullptr,
+};
+
+static const httpd_uri_t uri_meta_json = {
+	.uri = "/meta.json",
+	.method = HTTP_GET,
+	.handler = meta_json_get,
+	.user_ctx = nullptr,
+};
+
+static const httpd_uri_t uri_preauth = {
+	.uri = "/preauth",
+	.method = HTTP_GET,
+	.handler = preauth_get,
+	.user_ctx = nullptr,
+};
+
+static const httpd_uri_t uri_wifi_json_get = {
+	.uri = "/wifi.json",
+	.method = HTTP_GET,
+	.handler = wifi_json_get,
+	.user_ctx = nullptr,
+};
+
+static const httpd_uri_t uri_wifi_json_put = {
+	.uri = "/wifi.json",
+	.method = HTTP_PUT,
+	.handler = wifi_json_put,
+	.user_ctx = nullptr,
+};
+
+static const httpd_uri_t uri_control_json_post = {
+	.uri = "/control",
+	.method = HTTP_POST,
+	.handler = control_json_post,
 	.user_ctx = nullptr,
 };
 
@@ -2037,7 +2276,7 @@ void httpd_start_server(void)
 	/* Default stack is 4096; SD stream uses a 4 KiB local buf + lwIP -- need headroom. */
 	config.stack_size = 8192;
 	config.lru_purge_enable = true;
-	config.max_uri_handlers = 40;
+	config.max_uri_handlers = 48;
 	config.max_open_sockets = 7;
 	config.uri_match_fn = httpd_uri_match_wildcard;
 
@@ -2052,6 +2291,8 @@ void httpd_start_server(void)
 		&uri_status_txt,   &uri_root,	       &uri_index,
 		&uri_livemap_html, &uri_upd,	     &uri_status_html,
 		&uri_decoder_json, &uri_live_json,   &uri_qrg_json,      &uri_status_json,
+		&uri_meta_json,
+		&uri_preauth,	   &uri_wifi_json_get, &uri_wifi_json_put, &uri_control_json_post,
 		&uri_qrg_html_get,
 		&uri_qrg_html_post,&uri_wifi_html_get, &uri_wifi_html_post,  &uri_config_html_get,
 		&uri_config_html_post, &uri_control_html_get, &uri_control_html_post,

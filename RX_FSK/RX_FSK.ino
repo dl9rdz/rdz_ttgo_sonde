@@ -299,11 +299,154 @@ const char *getQRGAsJson() {
       strcat(ptr, ",");
     }
     sprintf(ptr + strlen(ptr),
-            "{\"channel\":%d, \"active\":%d, \"freq\":%.3f, \"launchsite\":\"%s\", \"type\":\"%s\"}",
-            i+1, si->active, si->freq, si->launchsite, sondeTypeStr[si->type]);
+            "{\"channel\":%d, \"active\":%d, \"freq\":%.3f, \"launchsite\":\"%s\", \"type\":\"%s\", \"typeCode\":\"%c\"}",
+            i+1, si->active, si->freq, si->launchsite, sondeTypeStr[si->type], sondeTypeChar[si->type]);
   }
   strcat(ptr, "]}");
   return message;
+}
+
+/* Escape for JSON string values into dst (NUL-terminated). */
+static void jsonEscapeInto(char *dst, size_t dst_cap, const char *src)
+{
+  if (dst_cap == 0) {
+    return;
+  }
+  size_t o = 0;
+  if (!src) {
+    dst[0] = '\0';
+    return;
+  }
+  while (*src && o + 1 < dst_cap) {
+    unsigned char c = (unsigned char)*src++;
+    if (c == '"' || c == '\\') {
+      if (o + 2 >= dst_cap) {
+        break;
+      }
+      dst[o++] = '\\';
+      dst[o++] = (char)c;
+    } else if (c < 0x20) {
+      if (o + 6 >= dst_cap) {
+        break;
+      }
+      snprintf(dst + o, dst_cap - o, "\\u%04x", c);
+      o = strlen(dst);
+    } else {
+      dst[o++] = (char)c;
+    }
+  }
+  dst[o] = '\0';
+}
+
+/* Read JSON string value for key "name" starting search at *pp; advance *pp past value. */
+static bool jsonNextStringField(const char **pp, const char *name, char *out, size_t out_cap)
+{
+  if (!pp || !*pp || !name || out_cap == 0) {
+    return false;
+  }
+  char keypat[48];
+  snprintf(keypat, sizeof(keypat), "\"%s\"", name);
+  const char *p = strstr(*pp, keypat);
+  if (!p) {
+    return false;
+  }
+  p += strlen(keypat);
+  while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
+    p++;
+  }
+  if (*p != ':') {
+    return false;
+  }
+  p++;
+  while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
+    p++;
+  }
+  if (*p != '"') {
+    return false;
+  }
+  p++;
+  size_t o = 0;
+  while (*p && *p != '"') {
+    char c = *p++;
+    if (c == '\\' && *p) {
+      char e = *p++;
+      if (e == 'n') {
+        c = '\n';
+      } else if (e == 'r') {
+        c = '\r';
+      } else if (e == 't') {
+        c = '\t';
+      } else {
+        c = e;
+      }
+    }
+    if (o + 1 < out_cap) {
+      out[o++] = c;
+    }
+  }
+  out[o] = '\0';
+  if (*p == '"') {
+    p++;
+  }
+  *pp = p;
+  return true;
+}
+
+const char *getControlActionsJson(void)
+{
+  static char buf[160];
+  strcpy(buf, "[\"rx\",\"scan\",\"spec\",\"wifi\",\"rx2\",\"scan2\",\"spec2\",\"wifi2\"");
+#if FEATURE_RS92
+  strcat(buf, ",\"rinex\"");
+#endif
+#if FEATURE_SDCARD
+  strcat(buf, ",\"format\"");
+#endif
+  strcat(buf, ",\"reboot\"]");
+  return buf;
+}
+
+const char *runControlCmd(const char *param)
+{
+  if (!param) {
+    return "missing cmd";
+  }
+  if (strcmp(param, "rx") == 0) {
+    keyboardInject(EVT_KEY1SHORT);
+  } else if (strcmp(param, "scan") == 0) {
+    keyboardInject(EVT_KEY1DOUBLE);
+  } else if (strcmp(param, "spec") == 0) {
+    keyboardInject(EVT_KEY1MID);
+  } else if (strcmp(param, "wifi") == 0) {
+    keyboardInject(EVT_KEY1LONG);
+  } else if (strcmp(param, "rx2") == 0) {
+    keyboardInject(EVT_KEY2SHORT);
+  } else if (strcmp(param, "scan2") == 0) {
+    keyboardInject(EVT_KEY2DOUBLE);
+  } else if (strcmp(param, "spec2") == 0) {
+    keyboardInject(EVT_KEY2MID);
+  } else if (strcmp(param, "wifi2") == 0) {
+    keyboardInject(EVT_KEY2LONG);
+  } else if (strcmp(param, "rinex") == 0) {
+    keyboardInject(EVT_RINEX);
+  } else if (strcmp(param, "format") == 0) {
+    keyboardInject(EVT_FORMAT);
+  } else if (strcmp(param, "reboot") == 0) {
+    ESP.restart();
+  } else {
+    return "unknown cmd";
+  }
+  return "";
+}
+
+const char *handleControlJson(const char *body)
+{
+  char cmd[24];
+  const char *p = body ? body : "";
+  if (!jsonNextStringField(&p, "cmd", cmd, sizeof(cmd))) {
+    return "bad cmd";
+  }
+  return runControlCmd(cmd);
 }
 
 const char *createQRGForm() {
@@ -482,6 +625,84 @@ const char *handleWIFIPost(void) {
   return "";
 }
 
+const char *getWifiAsJson(void)
+{
+  char *ptr = message;
+  strcpy(ptr, "{\"slots\":[");
+  for (int i = 0; i < MAX_WIFI; i++) {
+    char ssid[96];
+    char pw[96];
+    const char *id = (i < nNetworks) ? networks[i].id.c_str() : "";
+    const char *pass = (i < nNetworks) ? networks[i].pw.c_str() : "";
+    jsonEscapeInto(ssid, sizeof(ssid), id);
+    jsonEscapeInto(pw, sizeof(pw), pass);
+    if (i > 0) {
+      strcat(ptr, ",");
+    }
+    sprintf(ptr + strlen(ptr),
+            "{\"role\":\"%s\",\"ssid\":\"%s\",\"password\":\"%s\"}",
+            i == 0 ? "ap" : "sta", ssid, pw);
+  }
+  strcat(ptr, "]}");
+  return message;
+}
+
+const char *handleWifiJsonPut(const char *body)
+{
+  if (!body) {
+    return "bad body";
+  }
+  File f = LittleFS.open("/networks.txt", "w");
+  if (!f) {
+    return "Error while opening '/networks.txt' for writing";
+  }
+  const char *p = strstr(body, "\"slots\"");
+  if (!p) {
+    f.close();
+    return "missing slots";
+  }
+  p = strchr(p, '[');
+  if (!p) {
+    f.close();
+    return "bad slots";
+  }
+  p++;
+  for (int i = 0; i < MAX_WIFI; i++) {
+    const char *obj = strchr(p, '{');
+    if (!obj) {
+      break;
+    }
+    const char *end = strchr(obj, '}');
+    if (!end) {
+      break;
+    }
+    char objbuf[256];
+    size_t n = (size_t)(end - obj + 1);
+    if (n >= sizeof(objbuf)) {
+      n = sizeof(objbuf) - 1;
+    }
+    memcpy(objbuf, obj, n);
+    objbuf[n] = '\0';
+    const char *scan = objbuf;
+    char ssid[64];
+    char pw[64];
+    ssid[0] = pw[0] = '\0';
+    if (!jsonNextStringField(&scan, "ssid", ssid, sizeof(ssid))) {
+      p = end + 1;
+      continue;
+    }
+    scan = objbuf;
+    (void)jsonNextStringField(&scan, "password", pw, sizeof(pw));
+    if (ssid[0]) {
+      f.printf("%s\n%s\n", ssid, pw);
+    }
+    p = end + 1;
+  }
+  f.close();
+  setupWifiList();
+  return "";
+}
+
 /* decoder.json helpers: unsigned millis compare safe across wrap for gaps < ~24d */
 static bool ms_after(uint32_t t, uint32_t since) {
   return (int32_t)(t - since) > 0;
@@ -601,10 +822,19 @@ const char *createDecoderJson(bool use_since, uint32_t since) {
     }
   }
 
+  uint32_t lastChange = sonde.lastViewChangeMs;
+  for (int i = 0; i < sonde.config.maxsonde; i++) {
+    SondeInfo *s = &sonde.sondeList[i];
+    if (!s->active || s->lastRx == 0) continue;
+    if (ms_after(s->lastRx, lastChange) || lastChange == 0) {
+      lastChange = s->lastRx;
+    }
+  }
+
   strcpy(ptr, "{");
   sprintf(ptr + strlen(ptr),
-          "\"now\":%u,\"full\":%s,\"state\":\"%s\",\"detail\":\"",
-          (unsigned)now, full ? "true" : "false", state);
+          "\"now\":%u,\"lastChange\":%u,\"full\":%s,\"state\":\"%s\",\"detail\":\"",
+          (unsigned)now, (unsigned)lastChange, full ? "true" : "false", state);
   json_append_escaped(ptr, detail);
   sprintf(ptr + strlen(ptr),
           "\",\"ch\":%d,\"freq\":%.3f,\"type\":\"",
@@ -1007,39 +1237,7 @@ const char *handleControlPost(void) {
     const char *param = formNameAt(i);
     if (!param) continue;
     LOG_D(TAG, "Contral post: %s\n", param);
-    if (strcmp(param, "rx") == 0) {
-      keyboardInject(EVT_KEY1SHORT);
-    }
-    else if (strcmp(param, "scan") == 0) {
-      keyboardInject(EVT_KEY1DOUBLE);
-    }
-    else if (strcmp(param, "spec") == 0) {
-      keyboardInject(EVT_KEY1MID);
-    }
-    else if (strcmp(param, "wifi") == 0) {
-      keyboardInject(EVT_KEY1LONG);
-    }
-    else if (strcmp(param, "rx2") == 0) {
-      keyboardInject(EVT_KEY2SHORT);
-    }
-    else if (strcmp(param, "scan2") == 0) {
-      keyboardInject(EVT_KEY2DOUBLE);
-    }
-    else if (strcmp(param, "spec2") == 0) {
-      keyboardInject(EVT_KEY2MID);
-    }
-    else if (strcmp(param, "wifi2") == 0) {
-      keyboardInject(EVT_KEY2LONG);
-    }
-    else if (strcmp(param, "rinex") == 0) {
-      keyboardInject(EVT_RINEX);
-    }
-    else if (strcmp(param, "format") == 0) {
-      keyboardInject(EVT_FORMAT);
-    }
-    else if (strcmp(param, "reboot") == 0) {
-      ESP.restart();
-    }
+    (void)runControlCmd(param);
   }
   return "";
 }
@@ -1049,6 +1247,10 @@ const char *httpdHandleQRGPost(void) { return handleQRGPost(); }
 const char *httpdHandleWIFIPost(void) { return handleWIFIPost(); }
 const char *httpdHandleConfigPost(void) { return handleConfigPost(); }
 const char *httpdHandleControlPost(void) { return handleControlPost(); }
+const char *httpdGetWifiAsJson(void) { return getWifiAsJson(); }
+const char *httpdHandleWifiJsonPut(const char *body) { return handleWifiJsonPut(body); }
+const char *httpdHandleControlJson(const char *body) { return handleControlJson(body); }
+const char *httpdGetControlActionsJson(void) { return getControlActionsJson(); }
 
 /* Reply after POST /update.html. The form itself is /upd.html. */
 const char *createUpdateForm(void) {
@@ -1454,17 +1656,6 @@ void setup()
 
 #else
 /// DEBUG ONLY
-  WiFi.begin("Dinosauro", "03071975");
-  while(WiFi.status() != WL_CONNECTED) { delay(500); Serial.print(":"); }
-  Serial.println("... WiFi is connected!\n");
-  defaultUserLevel = getDefaultAuthLevel();
-  httpd_set_allowed_cb(checkAllowed);
-  httpd_set_after_write_cb([](const char *name) {
-    if (name && strncmp(name, "screens", 7) == 0) {
-      forceReloadScreenConfig = true;
-    }
-  });
-  httpd_start_server();
   sonde.config.sd.cs = 13;
   sonde.config.sd.clk = 14;
   sonde.config.sd.miso = 2;
@@ -1803,6 +1994,9 @@ void enableNetwork(bool enable) {
     httpd_set_after_write_cb([](const char *name) {
       if (name && strncmp(name, "screens", 7) == 0) {
         forceReloadScreenConfig = true;
+      }
+      if (name && strcmp(name, "user.txt") == 0) {
+        defaultUserLevel = getDefaultAuthLevel();
       }
     });
     httpd_start_server();
@@ -2533,8 +2727,11 @@ int fetchHTTPheader(int *validType) {
 
 
 void loop() {
-  LOG_I(TAG, "Running loop in state %d [currentDisp:%d, lastDisp:%d]. free heap: %d, unused stack: %d\n",
-                mainState, currentDisplay, lastDisplay, ESP.getFreeHeap(), uxTaskGetStackHighWaterMark(0));
+  LOG_I(TAG, "Running loop in state %d [currentDisp:%d, lastDisp:%d]. free heap: %u (8bit), %u (total), unused stack: %d\n",
+                mainState, currentDisplay, lastDisplay,
+                (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),
+                (unsigned)ESP.getFreeHeap(),
+                uxTaskGetStackHighWaterMark(0));
 
   Log.handleImprov();
 

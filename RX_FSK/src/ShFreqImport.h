@@ -16,6 +16,9 @@ class ShFreqImport {
         // Asynchronous I/O. Handle data if available
         static int shImportHandleReply(const char *buf, int len);
 
+        /* Sondes applied by the import that is in progress or just finished. */
+        static int importedCount();
+
     private:
         static int stringToStype(const char *type);
         static void setLabel(int idx, char *id, float lat, float lon);

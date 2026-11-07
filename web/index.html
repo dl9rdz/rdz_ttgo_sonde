@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <title>rdzTTGOSonde</title>
+  <link rel="icon" href="data:,">
+</head>
+<body>
+  <div id="app" class="app">
+    <nav class="nav" id="nav">
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-label="Menu">☰</button>
+      <div class="nav-items">
+        <button type="button" class="nav-item active" data-panel="home">Home</button>
+        <button type="button" class="nav-item" data-panel="decoder">Decoder</button>
+        <button type="button" class="nav-item" data-panel="map">Map</button>
+        <button type="button" class="nav-item" data-panel="control">Control</button>
+        <button type="button" class="nav-item" data-panel="qrg">QRG</button>
+        <button type="button" class="nav-item" data-panel="wifi">WiFi</button>
+        <button type="button" class="nav-item" data-panel="config">Config</button>
+      </div>
+    </nav>
+
+    <main class="main">
+      <section id="panel-home" class="panel active"></section>
+      <section id="panel-decoder" class="panel" hidden></section>
+      <section id="panel-map" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Live map" src=""></iframe>
+      </section>
+      <section id="panel-control" class="panel" hidden></section>
+      <section id="panel-qrg" class="panel" hidden></section>
+      <section id="panel-wifi" class="panel" hidden></section>
+      <section id="panel-config" class="panel panel-fill" hidden>
+        <iframe class="fill-frame" title="Config" src=""></iframe>
+      </section>
+    </main>
+
+    <footer class="statusbar" id="statusbar">
+      <div class="statusbar-left" id="bar-left"></div>
+      <div class="statusbar-right" id="bar-right"></div>
+    </footer>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

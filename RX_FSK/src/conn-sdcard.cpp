@@ -289,29 +289,31 @@ void ConnSDCard::updateStation( PosInfo *pi ) {
 }
 
 String ConnSDCard::getStatus() {
-  if(sonde.config.sd.cs == -1) { return String("disabled"); }
-  if(!initok) { return String("SD card init failed"); }
-
-  SPI_MUTEX_LOCK();
-  uint8_t cardType = SD.cardType();
-  if (cardType == CARD_NONE) {
-    SPI_MUTEX_UNLOCK();
-    return String(cardTypeStr(cardType));
-  }
-
-  uint32_t cardSize = SD.cardSize() / (1024 * 1024);
-  uint32_t usedSize = SD.usedBytes() / (1024 * 1024);
-  uint32_t totalSize = SD.totalBytes() / (1024 * 1024);
-  SPI_MUTEX_UNLOCK();
   char buf[256];
-  snprintf(buf, 256, "SD card type: %s [size: %lu MB]. File system: %lu / %lu MB used", cardTypeStr(cardType),
-    cardSize, usedSize, totalSize);
-  strlcat(buf, "; <a href=\\\"/sdfiles.html\\\">SD-Card content</a>", 256);
+  if(sonde.config.sd.cs == -1) { strncpy(buf, "SD card disabled", 256); }
+  else if(!initok) { strncpy(buf, "SD card init failed", 256); }
+  else {
+	  SPI_MUTEX_LOCK();
+	  uint8_t cardType = SD.cardType();
+	  if (cardType == CARD_NONE) {
+	    SPI_MUTEX_UNLOCK();
+	    return String(cardTypeStr(cardType));
+	  }
+
+	  uint32_t cardSize = SD.cardSize() / (1024 * 1024);
+	  uint32_t usedSize = SD.usedBytes() / (1024 * 1024);
+	  uint32_t totalSize = SD.totalBytes() / (1024 * 1024);
+	  SPI_MUTEX_UNLOCK();
+	  snprintf(buf, 256, "SD card type: %s [size: %lu MB]. File system: %lu / %lu MB used", cardTypeStr(cardType),
+	    cardSize, usedSize, totalSize);
+	  strlcat(buf, "<br><a href=\\\"/sdfiles.html\\\">SD-Card content</a>", 256);
+  }
+  strlcat(buf, "<br><a href=\\\"/sdfiles.html?dir=.int\\\">LittleFS content</a>", 256);
   return String(buf);
 }
 
 String ConnSDCard::getName() {
-  return String("SD Card");
+  return String("Storage");
 }
 
 

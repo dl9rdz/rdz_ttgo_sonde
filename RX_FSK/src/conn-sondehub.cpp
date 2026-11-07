@@ -48,6 +48,9 @@ static ip_addr_t shclient_ipaddr;
 static unsigned long time_next_import = 0;
 static unsigned long time_last_update = 0;
 static unsigned long time_wait_start = 0;
+static time_t time_last_import = 0;
+static int last_import_count = -1;
+static bool import_result_noted = false;
 
 enum SHState { SH_DISCONNECTED, SH_DNSLOOKUP, SH_DNSRESOLVED, SH_CONNECTING, SH_CONN_IDLE, SH_CONN_APPENDING, SH_CONN_WAITACK, SH_CONN_WAITIMPORTRES, SH_ERROR_RETRY };
 
@@ -65,6 +68,8 @@ static rs_buf_t *_rs_current_target = &_rs_ack;
 
 static void _sh_set_next_target(rs_buf_t *target) {
     _rs_next_target = target;
+    /* Drop any leftover target so the next bytes start in this buffer. */
+    _rs_current_target = NULL;
     if (target) target->len = 0;
 }
 
@@ -422,10 +427,19 @@ void ConnSondehub::sondehub_client_fsm() {
                             int import_res = ShFreqImport::shImportHandleReply(buf, res);
                             LOG_D(TAG, "shImportHandleReply: ret=%d\n", import_res);
                             // import_ress==0 means more data is expected, import_res==1 means complete reply received (or error)
+                            if (!import_result_noted && strncmp(_rs_import.buf, "HTTP/1.", 7) == 0 &&
+                                strncmp(_rs_import.buf, "HTTP/1.1 200", 12) != 0) {
+                                time_last_import = time(NULL);
+                                last_import_count = -1;
+                                import_result_noted = true;
+                            }
                             if (import_res == 1) {
                                 shclient_state = SH_CONN_IDLE;
                                 time_wait_start = 0;
                                 time_next_import = millis() + sonde.config.sondehub.fiinterval * 60000;
+                                time_last_import = time(NULL);
+                                last_import_count = ShFreqImport::importedCount();
+                                import_result_noted = true;
                             }
                         }
                     }
@@ -611,6 +625,7 @@ void ConnSondehub::sondehub_send_fimport() {
             _sh_set_next_target(&_rs_import);
             shclient_state = SH_CONN_WAITIMPORTRES;
             time_wait_start = millis();
+            import_result_noted = false;
         }
     }
 }
@@ -875,26 +890,92 @@ void ConnSondehub::sondehub_send_last() {
 }
 
 
+static int append_import_status(char *info, int n, int cap)
+{
+    if (n < 0 || n >= cap) {
+        return n;
+    }
+    if (!sonde.config.sondehub.fiactive) {
+        return n + snprintf(info + n, cap - n, "<br>Import: off");
+    }
+    if (time_next_import == 0) {
+        n += snprintf(info + n, cap - n, "<br>Import: on");
+    } else {
+        long left = (long)(time_next_import - millis()) / 1000;
+        if (left > 60) {
+            n += snprintf(info + n, cap - n, "<br>Import: on, next in %ld min", left / 60);
+        } else if (left > 0) {
+            n += snprintf(info + n, cap - n, "<br>Import: on, next in %ld s", left);
+        } else {
+            n += snprintf(info + n, cap - n, "<br>Import: on, due");
+        }
+    }
+    if (n < 0 || n >= cap) {
+        return n;
+    }
+    if (time_last_import == 0) {
+        return n + snprintf(info + n, cap - n, ", last: none");
+    }
+    time_t now;
+    time(&now);
+    long ago = (long)(now - time_last_import);
+    if (ago < 0) {
+        ago = 0;
+    }
+    const char *unit = "s";
+    long shown = ago;
+    if (ago >= 60) {
+        shown = ago / 60;
+        unit = "min";
+    }
+    if (last_import_count >= 0) {
+        n += snprintf(info + n, cap - n, ", last: %ld %s ago, %d channel%s (",
+                      shown, unit, last_import_count, last_import_count == 1 ? "" : "s");
+    } else {
+        n += snprintf(info + n, cap - n, ", last: %ld %s ago (", shown, unit);
+    }
+    if (n < 0 || n >= cap) {
+        return n;
+    }
+    if (strncmp(_rs_import.buf, "HTTP/1.1 200", 12) == 0) {
+        /* if ok only show beginning. if error show more */
+        strcpy(_rs_import.buf + 17, "...");
+    }
+    Conn::escapeJson(info + n, _rs_import.buf, cap - n);
+    n = strlen(info);
+    if (n + 1 < cap) {
+        info[n++] = ')';
+        info[n] = '\0';
+    }
+    return n;
+}
+
 String ConnSondehub::getStatus() {
     char info[1200];
-    time_t now;
-    if(sonde.config.sondehub.active==0) {
+    int active = sonde.config.sondehub.active;
+    int fi = sonde.config.sondehub.fiactive;
+    if (!active && !fi) {
         strcpy(info, "disabled");
-    } else {
-        time(&now);
-        if(shStart==0) now=-1;
-        snprintf(info, 1200, "State: %s. Last upload start: %ld s ago<br>Last reply: ",
-                state2str(shclient_state), (uint32_t)(now-shStart));
-        int n = strlen(info);
-        escapeJson(info+n, _rs_ack.buf, 1200-n);
-        n = strlen(info);
-        int k = snprintf(info+n, 1200-n, "<br>Import reply: ");
-        if(strncmp(_rs_import.buf, "HTTP/1.1 200", 12)==0) {
-            /* if ok only show beginning. if error show more */
-            strcpy(_rs_import.buf+27, "...");
-        }
-        escapeJson(info+n+k, _rs_import.buf, 1200-n-k);
+        return String(info);
     }
+    int n;
+    if (active) {
+        time_t now;
+        time(&now);
+        if (shStart == 0) {
+            now = -1;
+        }
+        n = snprintf(info, sizeof(info), "State: %s. Last upload start: %ld s ago<br>Last reply: ",
+                     state2str(shclient_state), (uint32_t)(now - shStart));
+        if (n < 0 || n >= (int)sizeof(info)) {
+            return String(info);
+        }
+        escapeJson(info + n, _rs_ack.buf, sizeof(info) - n);
+        n = strlen(info);
+    } else {
+        n = snprintf(info, sizeof(info), "Upload: off<br>State: %s", state2str(shclient_state));
+    }
+    append_import_status(info, n, sizeof(info));
     return String(info);
 }
 
