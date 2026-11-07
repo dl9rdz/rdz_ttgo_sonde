@@ -829,6 +829,27 @@ struct st_configitems config_list[] = {
 
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
+/* Keep a config value inside the cf.set("...", "...") script on /config.html. */
+static void appendJsString(char *dst, const char *src) {
+  char *p = dst + strlen(dst);
+  if (!src) src = "";
+  for (; *src; src++) {
+    unsigned char c = (unsigned char)*src;
+    if (c == '"' || c == '\\') {
+      *p++ = '\\';
+      *p++ = (char)c;
+    } else if (c == '<') {
+      memcpy(p, "\\u003c", 6);
+      p += 6;
+    } else if (c < 0x20) {
+      p += sprintf(p, "\\u%04x", c);
+    } else {
+      *p++ = (char)c;
+    }
+  }
+  *p = 0;
+}
+
 const char *createConfigForm() {
   char *ptr = message;
   strcpy(ptr, HTMLHEAD);
@@ -872,7 +893,7 @@ const char *createConfigForm() {
           sprintf(ptr + strlen(ptr), "%.8g", *(double *)config_list[i].data);
         break;
       default: // string
-        strcat(ptr, (char *)config_list[i].data);
+        appendJsString(ptr, (char *)config_list[i].data);
     }
     strcat(ptr, "\");\n");
   }

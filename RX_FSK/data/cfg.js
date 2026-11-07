@@ -176,8 +176,11 @@ function checkForDuplicates() {
     return true;
 }
 
+function htmlAttr(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+}
 function mkcfg(id, key, label, value) {
- var s = "<tr style=\"visibility: collapse;\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + value + "\"/></td></tr>\n";
+ var s = "<tr style=\"visibility: collapse;\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" value=\"" + htmlAttr(value) + "\"/></td></tr>\n";
  return s;
 }
 function mkcfgbtn(id, key, label, value) {
@@ -187,7 +190,7 @@ function mkcfgbtn(id, key, label, value) {
     touch = " checked";
     v = v & 127;
   }
-  var s = "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + v + "\"/>";
+  var s = "<tr style=\"visibility:collapse\" class=\"cfgpanel\"><td>" + label + "</td><td><input name=\"" + key + "\" type=\"text\" size=\"3\" value=\"" + htmlAttr(v) + "\"/>";
   s += "<input type=\"checkbox\" name=\"" + key + "#\" "+touch+"> Touch</td></tr>\n";
   return s;
 }
