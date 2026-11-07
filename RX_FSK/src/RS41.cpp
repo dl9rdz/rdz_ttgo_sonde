@@ -774,10 +774,12 @@ int RS41::decode41(byte *data, int maxlen)
 			Serial.printf("sats: %d\n", si->sats);
 			// TODO: Maybe check elsewhere if sats < 4 => do not use position
 			break;
-		case '\202':    // pos, new X version (date is whole seconds only)
+		case '\202':    // pos + UTC date, new X version. Next byte after seconds is centiseconds.
 			posrs41(data+p, len, 0);
 			si->time = rs41date(data+p+18) - 18;
 			si->msec = 0;
+			if (data[p + 25] < 100)
+				si->msec = data[p + 25] * 10;
 			break;
 		case '\203':   // sat info, new X version
 		{

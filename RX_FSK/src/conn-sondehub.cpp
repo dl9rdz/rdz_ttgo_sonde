@@ -564,15 +564,18 @@ void ConnSondehub::updateStation( PosInfo *pi ) {
             "Host: %s\r\n"
             "accept: text/plain\r\n"
             "Content-Type: application/json\r\n"
-            "Content-Length: %d\r\n\r\n%s",
-            conf->host, strlen(data), data);
+            "User-agent: %s/%s\r\n"
+            "Content-Length: %d\r\n\r\n",
+            conf->host, version_name, version_id, (int)strlen(data));
+    write(shclient, data, strlen(data));
 
     LOG_I(TAG, "PUT /listeners HTTP/1.1\n"
             "Host: %s\n"
             "accept: text/plain\n"
             "Content-Type: application/json\n"
+            "User-agent: %s/%s\n"
             "Content-Length: %d\n\n%s",
-            conf->host, strlen(data), data);
+            conf->host, version_name, version_id, (int)strlen(data), data);
 
     LOG_D(TAG, "Waiting for response");
     _sh_set_next_target(&_rs_ack);

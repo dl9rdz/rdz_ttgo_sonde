@@ -7,6 +7,7 @@
 
 #include "ShFreqImport.h"
 #include "Sonde.h"
+#include "../version.h"
 
 static int ppos;
 static int quotes;
@@ -227,12 +228,14 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
     }
 #endif
     Serial.println("Sending SondeHub import request");
-    char req[300];
-    snprintf(req, 200, "GET /sondes?lat=%f&lon=%f&distance=%d&last=%d HTTP/1.1\r\n"
+    char req[400];
+    snprintf(req, sizeof(req), "GET /sondes?lat=%f&lon=%f&distance=%d&last=%d HTTP/1.1\r\n"
             "Host: %s\r\n"
             "Accept: application/json\r\n"
+            "User-agent: %s/%s\r\n"
             "Cache-Control: no-cache\r\n\r\n",
-            lat, lon, dist*1000, time*60, sonde.config.sondehub.host);
+            lat, lon, dist*1000, time*60, sonde.config.sondehub.host,
+            version_name, version_id);
     int res = write(client, req, strlen(req));
     Serial.printf("write res: %d (%d)\n", res, errno);
     Serial.print(req);
