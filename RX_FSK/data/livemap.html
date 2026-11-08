@@ -1,21 +1,37 @@
 <!DOCTYPE html>
-<html>
+<html class="livemap-page">
 <head>
   <title>rdzTTGOSonde Server LiveMap</title>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-  <link rel="stylesheet" type="text/css" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
+  <!-- After Leaflet so map chrome overrides win; ?v= busts long-lived style.css cache. -->
+  <link rel="stylesheet" type="text/css" href="style.css?v=map8" />
   <script>
     var mapcenter=[48,13];
     // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
     var phoneGpsUrl='https://rdzsonde.org/locate';
+    try {
+      if (window.parent !== window) document.documentElement.classList.add('embedded');
+    } catch (e) {
+      document.documentElement.classList.add('embedded');
+    }
+    try {
+      var theme = null;
+      if (window.parent !== window) {
+        theme = window.parent.document.documentElement.getAttribute('data-theme') ||
+          window.parent.localStorage.getItem('rdz-theme');
+      } else {
+        theme = localStorage.getItem('rdz-theme');
+      }
+      if (theme && theme !== 'auto') document.documentElement.setAttribute('data-theme', theme);
+    } catch (e2) {}
   </script>
   <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
 </head>
-<body>
+<body class="livemap-page">
   <div id="map"></div>
   <script>
     fetch('/status.json')
@@ -28,7 +44,7 @@
       .catch(function () {})
       .finally(function () {
         var s = document.createElement('script');
-        s.src = 'livemap.js';
+        s.src = 'livemap.js?v=map6';
         document.body.appendChild(s);
       });
   </script>

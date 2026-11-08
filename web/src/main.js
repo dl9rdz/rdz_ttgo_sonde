@@ -6,6 +6,7 @@ import { mountDecoder } from './panels/decoder.js';
 import { mountQrg } from './panels/qrg.js';
 import { mountWifi } from './panels/wifi.js';
 import { mountControl } from './panels/control.js';
+import { mountConfig } from './panels/config.js';
 
 applyTheme();
 
@@ -47,11 +48,11 @@ const mounts = {
   decoder: mountDecoder,
   qrg: (el) => mountQrg(el, ctx),
   wifi: (el) => mountWifi(el, ctx),
+  config: (el) => mountConfig(el, ctx),
   control: (el) => mountControl(el, ctx),
 };
 
 let unmount = null;
-const configFrame = panels.config.querySelector('iframe');
 const mapFrame = panels.map.querySelector('iframe');
 
 function paintAuthBar() {
@@ -68,12 +69,16 @@ function paintAuthBar() {
 function paintSaveBar({ disabled = true, status = '', statusClass = 'muted' } = {}) {
   const left = document.getElementById('bar-left');
   const right = document.getElementById('bar-right');
-  left.innerHTML = `<button type="button" class="primary bar-save" id="bar-save"${disabled ? ' disabled' : ''}>Save changes</button>`;
+  let btn = document.getElementById('bar-save');
+  if (!btn) {
+    left.innerHTML = '<button type="button" class="primary bar-save" id="bar-save">Save changes</button>';
+    btn = document.getElementById('bar-save');
+    btn.onclick = () => {
+      if (typeof saveAction === 'function') saveAction();
+    };
+  }
+  btn.disabled = !!disabled;
   right.innerHTML = `<span class="status-msg ${statusClass}">${status || ''}</span>`;
-  const btn = document.getElementById('bar-save');
-  btn.onclick = () => {
-    if (typeof saveAction === 'function') saveAction();
-  };
 }
 
 function setNav(name) {
@@ -96,12 +101,6 @@ function show(name) {
     el.classList.toggle('active', on);
   });
 
-  if (name === 'config') {
-    if (!configFrame.getAttribute('src')) configFrame.setAttribute('src', 'config.html');
-  } else {
-    configFrame.setAttribute('src', '');
-  }
-
   if (name === 'map') {
     if (!mapFrame.getAttribute('src')) mapFrame.setAttribute('src', 'livemap.html');
   }
@@ -114,7 +113,7 @@ function show(name) {
   if (!saveAction) paintAuthBar();
 
   const main = document.querySelector('.main');
-  const fixed = name === 'map' || name === 'config';
+  const fixed = name === 'map';
   main.classList.toggle('main-fixed', fixed);
 
   setNav(name);

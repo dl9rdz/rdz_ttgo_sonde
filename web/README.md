@@ -10,7 +10,10 @@ npm install
 VITE_DEVICE=http://192.168.4.1 npm run dev
 ```
 
-Open the printed local URL. API calls are proxied to the device.
+Open the printed local URL. API/JSON and control endpoints are proxied to the device.
+Map assets (`livemap.html` / `livemap.js` / `style.css`) and standalone pages
+(`login.html` / `upd.html` / `sdfiles.html`) are served from the repo so edits show
+without `uploadfs`. Flash the filesystem before testing those same files on-device.
 
 ## Build into LittleFS
 

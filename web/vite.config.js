@@ -25,14 +25,12 @@ const PROXY_PATHS = [
   '/control',
   '/preauth',
   '/config.html',
+  '/config.json',
   '/file',
   '/files.json',
   '/sd',
   '/sdrm.html',
-  '/livemap.html',
-  '/livemap.js',
-  '/style.css',
-  /* GET login/upd/sdfiles are served locally; POST /login.html still proxies for auth. */
+  /* GET login/upd/sdfiles + livemap.* / style.css are served locally (see littlefsStaticDev). */
   '/login.html',
   '/logout',
   '/update.html',
@@ -87,14 +85,27 @@ function classicScript() {
 }
 
 /**
- * Serve local login/upd/sdfiles HTML in dev (so edits show without uploadfs).
+ * Serve LittleFS-backed static pages from the repo in dev (no uploadfs needed).
+ * - web/: login, upd, sdfiles (rewrite hashed app*.css → /src/style.css)
+ * - RX_FSK/data/: livemap.html / livemap.js / style.css
  * POST /login.html still reaches the device via proxy.
- * Map hashed app*.css to the live source stylesheet.
  */
-function standalonePagesDev() {
-  const pages = new Set(['/login.html', '/upd.html', '/sdfiles.html']);
+function littlefsStaticDev() {
+  const webPages = new Set(['/login.html', '/upd.html', '/sdfiles.html']);
+  const dataFiles = new Map([
+    ['/livemap.html', 'text/html; charset=utf-8'],
+    ['/livemap.js', 'text/javascript; charset=utf-8'],
+    ['/style.css', 'text/css; charset=utf-8'],
+  ]);
+  const assetTypes = {
+    '.png': 'image/png',
+    '.svg': 'image/svg+xml',
+    '.ico': 'image/x-icon',
+    '.json': 'application/json',
+  };
+  const dataRoot = path.resolve(__dirname, '../RX_FSK/data');
   return {
-    name: 'standalone-pages-dev',
+    name: 'littlefs-static-dev',
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const urlPath = (req.url || '').split('?')[0];
@@ -103,7 +114,7 @@ function standalonePagesDev() {
           next();
           return;
         }
-        if (req.method === 'GET' && pages.has(urlPath)) {
+        if (req.method === 'GET' && webPages.has(urlPath)) {
           const file = path.join(__dirname, urlPath.slice(1));
           if (!fs.existsSync(file)) {
             next();
@@ -117,6 +128,29 @@ function standalonePagesDev() {
           res.setHeader('Content-Type', 'text/html; charset=utf-8');
           res.end(html);
           return;
+        }
+        if (req.method === 'GET' && dataFiles.has(urlPath)) {
+          const file = path.join(dataRoot, urlPath.slice(1));
+          if (!fs.existsSync(file)) {
+            next();
+            return;
+          }
+          res.setHeader('Content-Type', dataFiles.get(urlPath));
+          res.setHeader('Cache-Control', 'no-store');
+          fs.createReadStream(file).pipe(res);
+          return;
+        }
+        if (req.method === 'GET' && urlPath.startsWith('/') && !urlPath.slice(1).includes('/')) {
+          const base = urlPath.slice(1);
+          const ext = path.extname(base).toLowerCase();
+          const ctype = assetTypes[ext];
+          const file = path.join(dataRoot, base);
+          if (ctype && fs.existsSync(file)) {
+            res.setHeader('Content-Type', ctype);
+            res.setHeader('Cache-Control', 'no-store');
+            fs.createReadStream(file).pipe(res);
+            return;
+          }
         }
         next();
       });
@@ -133,7 +167,7 @@ export default defineConfig(({ command }) => {
     root: '.',
     /* Relative base breaks Vite HMR/client in dev; keep it for LittleFS builds. */
     base: command === 'build' ? './' : '/',
-    plugins: [classicScript(), standalonePagesDev()],
+    plugins: [classicScript(), littlefsStaticDev()],
     build: {
       outDir: 'dist',
       emptyOutDir: true,

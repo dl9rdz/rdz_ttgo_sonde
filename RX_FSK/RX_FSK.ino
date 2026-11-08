@@ -1135,6 +1135,98 @@ const char *createConfigForm() {
   return message;
 }
 
+static int configRawValue(int i, char *dst, int cap)
+{
+  if (cap < 1) return -1;
+  dst[0] = '\0';
+  switch (config_list[i].type) {
+    case -4:
+    case -3:
+    case -2:
+    case 0:
+      return snprintf(dst, cap, "%d", *(int *)config_list[i].data);
+    case -6: {
+      int8_t *l = (int8_t *)config_list[i].data;
+      int n;
+      if (*l == -1) return snprintf(dst, cap, "0");
+      n = snprintf(dst, cap, "%d", l[0]);
+      l++;
+      while (*l != -1 && n >= 0 && n < cap - 1) {
+        int k = snprintf(dst + n, cap - n, ",%d", *l);
+        if (k < 0) return k;
+        n += k;
+        l++;
+      }
+      return n;
+    }
+    case -7:
+      if (isnan(*(double *)config_list[i].data)) return 0;
+      return snprintf(dst, cap, "%.8g", *(double *)config_list[i].data);
+    default:
+      return snprintf(dst, cap, "%s", (char *)config_list[i].data);
+  }
+}
+
+static bool jsonQuote(char **p, char *end, const char *src)
+{
+  char *w = *p;
+  if (w >= end) return false;
+  *w++ = '"';
+  if (!src) src = "";
+  for (; *src; src++) {
+    unsigned char c = (unsigned char)*src;
+    if (c == '"' || c == '\\') {
+      if (w + 2 >= end) return false;
+      *w++ = '\\';
+      *w++ = (char)c;
+    } else if (c < 0x20) {
+      continue;
+    } else {
+      if (w + 1 >= end) return false;
+      *w++ = (char)c;
+    }
+  }
+  if (w + 1 >= end) return false;
+  *w++ = '"';
+  *w = '\0';
+  *p = w;
+  return true;
+}
+
+const char *createConfigJson(void)
+{
+  char *p = message;
+  char *end = message + sizeof(message);
+  char value[160];
+  int n = snprintf(p, end - p, "{\"screenIndex\":%d,\"layouts\":[",
+                   Display::getScreenIndex(sonde.config.screenfile));
+  if (n < 0 || n >= (int)(end - p)) return "{\"error\":\"truncated\"}";
+  p += n;
+  int nLay = disp.layouts ? disp.nLayouts : 0;
+  for (int i = 0; i < nLay; i++) {
+    if (i && p < end) *p++ = ',';
+    if (!jsonQuote(&p, end, disp.layouts[i].label)) return "{\"error\":\"truncated\"}";
+  }
+  if (p + 12 >= end) return "{\"error\":\"truncated\"}";
+  memcpy(p, "],\"values\":{", 12);
+  p += 12;
+  *p = '\0';
+  for (int i = 0; i < N_CONFIG; i++) {
+    if (p + 1 >= end) return "{\"error\":\"truncated\"}";
+    if (i) *p++ = ',';
+    if (!jsonQuote(&p, end, config_list[i].name)) return "{\"error\":\"truncated\"}";
+    if (p >= end) return "{\"error\":\"truncated\"}";
+    *p++ = ':';
+    if (configRawValue(i, value, sizeof(value)) < 0) return "{\"error\":\"truncated\"}";
+    if (!jsonQuote(&p, end, value)) return "{\"error\":\"truncated\"}";
+  }
+  if (p + 2 >= end) return "{\"error\":\"truncated\"}";
+  *p++ = '}';
+  *p++ = '}';
+  *p = '\0';
+  return message;
+}
+
 
 const char *handleConfigPost(void) {
   // parameters: a_i, f_1, t_i  (active/frequency/type)

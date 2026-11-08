@@ -165,6 +165,9 @@ static const char *content_type_for_path(const char *path)
 	if (n >= 4 && strcasecmp(path + n - 4, ".png") == 0) {
 		return "image/png";
 	}
+	if (n >= 4 && strcasecmp(path + n - 4, ".svg") == 0) {
+		return "image/svg+xml";
+	}
 	if (n >= 4 && strcasecmp(path + n - 4, ".ico") == 0) {
 		return "image/x-icon";
 	}
@@ -183,7 +186,18 @@ static const char *content_type_for_basename(const char *name)
 	if (n >= 3 && strcasecmp(name + n - 3, ".js") == 0) {
 		return "application/javascript";
 	}
+	if (n >= 5 && strcasecmp(name + n - 5, ".json") == 0) {
+		return "application/json";
+	}
 	return "text/plain; charset=utf-8";
+}
+
+/* Password-bearing LittleFS files: GET /file/* requires auth for these only. */
+static bool file_get_requires_auth(const char *basename)
+{
+	return strcasecmp(basename, "config.txt") == 0 ||
+	       strcasecmp(basename, "networks.txt") == 0 ||
+	       strcasecmp(basename, "user.txt") == 0;
 }
 
 /* Copy req URI path (no query) into out; ensure leading '/'. Reject ".." . */
@@ -848,12 +862,12 @@ static esp_err_t write_multipart_to_lfs(httpd_req_t *req, char *basename_inout, 
 
 static esp_err_t file_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
-		return ESP_OK;
-	}
 	char name[72];
 	if (!basename_from_file_uri(req, name, sizeof(name))) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid path");
+	}
+	if (file_get_requires_auth(name) && !require_auth(req, 2)) {
+		return ESP_OK;
 	}
 	char path[80];
 	lfs_path_for(name, path, sizeof(path));
@@ -1535,6 +1549,7 @@ extern const char *createQRGForm(void);
 extern Conn *connectors[];
 extern const char *createWIFIForm(void);
 extern const char *createConfigForm(void);
+extern const char *createConfigJson(void);
 extern const char *createControlForm(void);
 extern const char *httpdHandleQRGPost(void);
 extern const char *httpdHandleWIFIPost(void);
@@ -1846,6 +1861,14 @@ static esp_err_t config_html_get(httpd_req_t *req)
 	return send_cstr(req, "text/html", createConfigForm());
 }
 
+static esp_err_t config_json_get(httpd_req_t *req)
+{
+	if (!require_auth(req, 2)) {
+		return ESP_OK;
+	}
+	return send_cstr(req, "application/json", createConfigJson());
+}
+
 static esp_err_t config_html_post(httpd_req_t *req)
 {
 	return editor_post(req, httpdHandleConfigPost, createConfigForm, true);
@@ -1914,7 +1937,9 @@ static bool path_ends_with_gpx(const char *path)
 static bool path_is_direct_static(const char *path)
 {
 	return path_ends_with_ci(path, ".html") || path_ends_with_ci(path, ".css") ||
-	       path_ends_with_ci(path, ".js");
+	       path_ends_with_ci(path, ".js") || path_ends_with_ci(path, ".json") ||
+	       path_ends_with_ci(path, ".png") || path_ends_with_ci(path, ".svg") ||
+	       path_ends_with_ci(path, ".ico");
 }
 
 static esp_err_t logout_get(httpd_req_t *req)
@@ -2121,6 +2146,13 @@ static const httpd_uri_t uri_config_html_get = {
 	.user_ctx = nullptr,
 };
 
+static const httpd_uri_t uri_config_json_get = {
+	.uri = "/config.json",
+	.method = HTTP_GET,
+	.handler = config_json_get,
+	.user_ctx = nullptr,
+};
+
 static const httpd_uri_t uri_config_html_post = {
 	.uri = "/config.html",
 	.method = HTTP_POST,
@@ -2295,7 +2327,7 @@ void httpd_start_server(void)
 		&uri_preauth,	   &uri_wifi_json_get, &uri_wifi_json_put, &uri_control_json_post,
 		&uri_qrg_html_get,
 		&uri_qrg_html_post,&uri_wifi_html_get, &uri_wifi_html_post,  &uri_config_html_get,
-		&uri_config_html_post, &uri_control_html_get, &uri_control_html_post,
+		&uri_config_html_post, &uri_config_json_get, &uri_control_html_get, &uri_control_html_post,
 		&uri_update_html_post, &uri_live_kml, &uri_dynamic_kml,
 		&uri_edit,
 		&uri_login_get,	   &uri_login_post,    &uri_logout,

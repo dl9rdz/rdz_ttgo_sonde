@@ -1,0 +1,47 @@
+{
+  "default": "osm",
+  "basemaps": [
+    {
+      "id": "osm",
+      "label": "OSM",
+      "url": "https://{s}.tile.openstreetmap.de/{z}/{x}/{y}.png",
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
+      "maxZoom": 19
+    },
+    {
+      "id": "opentopo",
+      "label": "OpenTopo",
+      "url": "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      "attribution": "Map data: &copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, <a href=\"http://viewfinderpanoramas.org\">SRTM</a><br />Map style: &copy; <a href=\"https://opentopomap.org\">OpenTopoMap</a> (<a href=\"https://creativecommons.org/licenses/by-sa/3.0/\">CC-BY-SA</a>)",
+      "maxZoom": 17
+    },
+    {
+      "id": "cyclosm",
+      "label": "CyclOSM",
+      "url": "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors, style &copy; <a href=\"https://www.cyclosm.org\">CyclOSM</a> hosted by <a href=\"https://openstreetmap.fr/\">OpenStreetMap France</a>",
+      "maxZoom": 20
+    },
+    {
+      "id": "esri",
+      "label": "Esri",
+      "url": "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      "attribution": "Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye,<br />Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
+      "maxZoom": 21
+    },
+    {
+      "id": "esridark",
+      "label": "Esri Dark Gray",
+      "url": "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+      "attribution": "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors, and the GIS user community",
+      "maxZoom": 16
+    },
+    {
+      "id": "osmdark",
+      "label": "CARTO Gray",
+      "url": "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      "attribution": "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO</a>",
+      "maxZoom": 19
+    }
+  ]
+}
