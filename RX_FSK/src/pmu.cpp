@@ -369,6 +369,10 @@ float AXP192PMU::getTemperature() {
     return readRegisters_8_4(AXP192_INTERNAL_TEMP_H8, AXP192_INTERNAL_TEMP_L4) * AXP192_INTERNAL_TEMP_STEP - 144.7;
 }
 
+float AXP192PMU::getBattLevel() {
+	return -1;
+}
+
 //////////////////////////////////////////////////////////////////
 
 /////// Functions for AXP2101
@@ -392,6 +396,7 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_PMU_ADC0			 (0x34)
 #define AXP2101_PMU_ADC1			 (0x36)
 #define AXP2101_PMU_ADC2			 (0x38)
+#define AXP2101_TDIE_ADC			 (0x3C)  // die temperature, 14 bit (H6/L8)
 
 // vterm_cfg: Bit 2:0, 4.2V = 011 (3)
 #define AXP2101_CHG_V_CFG		         (0x64)
@@ -419,6 +424,7 @@ float AXP192PMU::getTemperature() {
 #define AXP2101_CHG_CUR_500MA			 (0x0B)
 #define AXP2101_CHG_VOL_4V2			 (3)
 
+#define AXP2101_BATT_LVL 				(0xA4)
 
 // return 0: ok, -1: error
 int AXP2101PMU::init() {
@@ -523,8 +529,8 @@ int AXP2101PMU::init() {
     writeRegister(AXP2101_ICC_CFG, val | AXP2101_CHG_CUR_500MA);
 
     // Disable TS is important for T-Beam 1.2 (no TS thermistor), otherwise it will not charge.
-    // Enable vsys, vbus, vbat measurement
-    writeRegister(AXP2101_ADC_CHANNEL_CTRL, 0x0d);
+    // Enable die temperature (bit 4), vsys, vbus, vbat measurement
+    writeRegister(AXP2101_ADC_CHANNEL_CTRL, 0x1d);
 
     // Clear all IRQ
     getIrqKeyStatus();
@@ -595,7 +601,22 @@ float AXP2101PMU::getVbusVoltage() {
 	return vbus;
 }
 float AXP2101PMU::getVbusCurrent() { return -1; }
-float AXP2101PMU::getTemperature() { return -1; }
+// returns die temperature in degree C, or PMU_INVALID on read error
+float AXP2101PMU::getTemperature() {
+	int hi = readRegister(AXP2101_TDIE_ADC);
+	int lo = readRegister(AXP2101_TDIE_ADC+1);
+	if(hi<0 || lo<0) return PMU_INVALID;
+	int raw = ((hi & 0x3F)<<8) | lo;
+	// conversion formula as in XPowersLib (XPOWERS_AXP2101_CONVERSION)
+	return 22.0 + (7274 - raw) / 20.0;
+}
+// returns battery level from fuel gauge (0..100%), or -1 if no battery or read error
+float AXP2101PMU::getBattLevel() {
+	if(!isBatteryConnected()) return -1;
+	int lvl = readRegister(AXP2101_BATT_LVL);
+	if(lvl<0 || lvl>100) return -1;
+	return lvl;
+}
 
 /* Simple function to get battery voltage on systems that do not have a PMU */
 float getBattNoPMU() {

@@ -5,6 +5,8 @@
 
 enum { TYPE_NONE=-1, TYPE_UNKNOWN=0, TYPE_AXP192, TYPE_AXP2101 };
 
+#define PMU_INVALID (-999)
+
 
 /* Simple function to get battery voltage on systems that do not have a PMU */
 float getBattNoPMU();
@@ -47,7 +49,7 @@ public:
     virtual float getVbusVoltage() = 0;
     virtual float getVbusCurrent() = 0;
     virtual float getTemperature() = 0;
-
+	virtual float getBattLevel() = 0;
 };
 
 /* Interface */
@@ -70,6 +72,7 @@ public:
     float getVbusVoltage();
     float getVbusCurrent();
     float getTemperature();
+	float getBattLevel();
 
 protected:
     void _enableIRQ(uint8_t addr, uint8_t mask);
@@ -93,7 +96,7 @@ protected:
 
 class AXP2101PMU : public PMU {
 public:
-    AXP2101PMU(TwoWire &wire) : PMU(wire) { };
+    AXP2101PMU(TwoWire &wire) : PMU(wire) { type = TYPE_AXP2101; };
     int init();
     void disableAllIRQ();
     void enableIRQ();
@@ -110,6 +113,7 @@ public:
     float getVbusVoltage();
     float getVbusCurrent();
     float getTemperature();
+	float getBattLevel();
 
 protected:
     void _enableIRQ(uint8_t addr, uint8_t mask);

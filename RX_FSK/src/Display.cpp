@@ -1194,7 +1194,8 @@ void Display::drawGPS(DispEntry *de) {
 				break;
 			case 'T':
 				val = pmu->getTemperature();
-				snprintf(buf, 30, "%.2f%s", val, de->extra+1);
+				if(val<=PMU_INVALID) snprintf(buf, 30, "--%s", de->extra+1);
+				else snprintf(buf, 30, "%.2f%s", val, de->extra+1);
 				break;
 		}
 		if(pmu->type==TYPE_AXP192) {
@@ -1218,7 +1219,13 @@ void Display::drawGPS(DispEntry *de) {
 			}   
 		}
 		else if (pmu->type == TYPE_AXP2101) {
-			// AXP2101-specific items here... I guess there are none for now...
+			switch(de->extra[0]) {
+				case 'L':
+					val = pmu->getBattLevel();
+					if(val<0) snprintf(buf, 30, "--%s", de->extra+1);
+					else snprintf(buf, 30, "%.0f%s", val, de->extra+1);
+					break;
+			}
 		}
 		xSemaphoreGive( axpSemaphore );
 		rdis->setFont(de->fmt);
