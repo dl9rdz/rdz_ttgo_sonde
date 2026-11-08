@@ -266,6 +266,11 @@ struct st_sdcard {
 	int speed;	/* SPI speed in Hz (0 = library default), e.g. 4000000, 8000000, 16000000 */
 };
 
+/* 0=off, 1=last_rx.csv only, 2=last_rx + lt_<ser>.csv light tracks on LittleFS */
+struct st_hist {
+	int mode;
+};
+
 // to be extended
 enum { TYPE_TTGO, TYPE_M5_CORE2, TYPE_M5_CORE };
 
@@ -337,6 +342,7 @@ typedef struct st_rdzconfig {
 	struct st_sondehub sondehub;
 	struct st_cm cm;
 	struct st_sdcard sd;
+	struct st_hist hist;
 	struct st_ss ss;
 } RDZConfig;
 

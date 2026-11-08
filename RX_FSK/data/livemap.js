@@ -75,6 +75,7 @@ $(document).ready(function(){
 
   var map = L.map('map', { attributionControl: false, zoomControl: false });
   map.on('mousedown touchstart', function () { follow = false; });
+  map.on('click', function() { clearTrackInspect(); });
 
   L.control.scale({ position: 'bottomleft', metric: true, imperial: false }).addTo(map);
   L.control.attribution({ prefix: false }).addTo(map);
@@ -254,7 +255,21 @@ $(document).ready(function(){
   var reddot = '<span class="ldot rbg"></span>';
   var yellowdot = '<span class="ldot ybg"></span>';
   var greendot = '<span class="ldot gbg"></span>';
+  var bluedot = '<span class="ldot bbg"></span>';
   var lastframe = 0;
+  var HIST_LINE_STYLE = { color: '#c45c26', weight: 3, opacity: 0.85 };
+  var LOW_VS_CLEAR_MS = 5 * 60 * 1000;
+  var predictInflight = false;
+  var predictHold = false;
+  var lowVsSince = null;
+  var predictorIntervalSec = 30;
+  var predictor = false;
+  var lastRxEntries = [];
+  var lastRxShown = {}; /* ser -> true/false, default true */
+  var lastRxMarkers = {};
+  var lastRxTracks = {};
+  /* SD / file-list overlays: key -> { path, label, pts, data, layer, marker, shown } */
+  var sdOverlays = {};
 
   $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
   var header = '';
@@ -275,29 +290,144 @@ $(document).ready(function(){
   $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-bottom leaflet-center leaflet-footer'));
   $('.leaflet-footer').append('<div id="gps_main"><span class="gps-label">Dir</span> <span class="gps_dir">...</span>° · <span class="gps-label">Dist</span> <span class="gps_dist">...</span>m</div>');
 
-  var statbar = '';
-  headtxt = function(data, stat) {
-    var staticon = (stat == '1') ? greendot : yellowdot;
-    statbar = staticon + statbar;
-    if ((statbar.length) > 10 * greendot.length) { statbar = statbar.substring(0, 10 * greendot.length); }
-    if (data.id && data.vframe != lastframe) {
-      lastframe = data.vframe;
-      $('#sonde_id').html(data.id);
-      $('#sonde_alt').html(data.alt);
-      $('#sonde_climb').html(data.climb);
-      $('#sonde_speed').html(mr(data.speed * 3.6 * 10) / 10);
-      $('#sonde_dir').html(data.dir);
-      $('#sonde_time').html(new Date(data.time * 1000).toISOString());
-      $('#sonde_rssi').html(data.rssi / 2);
-      $('#sonde_detail').show();
-    } else {
-      if (!data.id) {
-        $('#sonde_id').html(data.launchsite.trim());
+  function statusDotClass(res) {
+    if (res === 0) return 'gbg';
+    if (res === 2) return 'ybg';
+    if (res === 4) return 'bbg';
+    return 'rbg'; /* 1 timeout, 3 unset, other */
+  }
+
+  function statusDotHtml(res, hasId) {
+    var cls = 'ldot ' + statusDotClass(res);
+    /* Hollow only for a received frame without confirmed id (e.g. DFM).
+       No-RX / error dots stay filled so the scanner strip does not flicker. */
+    if (!hasId && (res === 0 || res === 4)) cls += ' hollow';
+    return '<span class="' + cls + '"></span>';
+  }
+
+  function formatSondeTime(unixSec) {
+    if (unixSec == null || unixSec === '' || isNaN(Number(unixSec))) return '';
+    var n = Number(unixSec);
+    if (!(n > 0)) return '';
+    return new Date(n * 1000).toISOString().slice(0, 19) + 'Z';
+  }
+
+  function formatLastRxListTime(unixSec) {
+    var full = formatSondeTime(unixSec);
+    if (!full) return '';
+    /* List line: yyyy-mm-dd hh:mm (UTC, no seconds) */
+    return full.slice(0, 16).replace('T', ' ');
+  }
+
+  var trackInspectMarker = null;
+
+  function clearTrackInspect() {
+    if (trackInspectMarker) {
+      map.removeLayer(trackInspectMarker);
+      trackInspectMarker = null;
+    }
+  }
+
+  function ptsToLatLngs(pts) {
+    if (!pts) return [];
+    return pts.map(function(p) {
+      if (Array.isArray(p)) return [p[0], p[1]];
+      return [p.lat, p.lon];
+    });
+  }
+
+  function nearestTrackPt(pts, latlng) {
+    if (!pts || !pts.length || !latlng) return null;
+    var best = null;
+    var bestD = Infinity;
+    for (var i = 0; i < pts.length; i++) {
+      var p = pts[i];
+      var lat = Array.isArray(p) ? p[0] : p.lat;
+      var lon = Array.isArray(p) ? p[1] : p.lon;
+      var d = map.distance(latlng, [lat, lon]);
+      if (d < bestD) {
+        bestD = d;
+        best = p;
       }
     }
-    $('#sonde_freq').html(data.freq);
-    $('#sonde_type').html(data.type);
-    $('#sonde_statbar').html('&nbsp;' + statbar);
+    return best;
+  }
+
+  function showTrackInspect(pt, label) {
+    if (!pt) return;
+    var lat = Array.isArray(pt) ? pt[0] : pt.lat;
+    var lon = Array.isArray(pt) ? pt[1] : pt.lon;
+    var alt = Array.isArray(pt) ? pt[2] : pt.alt;
+    var t = Array.isArray(pt) ? pt[3] : pt.t;
+    clearTrackInspect();
+    var html = '';
+    if (label) html += '<b>' + label + '</b><br/>';
+    html += lat.toFixed(5) + ', ' + lon.toFixed(5);
+    if (alt != null && !isNaN(alt)) html += '<br/>' + Math.round(alt) + 'm';
+    var ts = formatSondeTime(t);
+    if (ts) html += '<br/>' + ts;
+    trackInspectMarker = L.circleMarker([lat, lon], {
+      radius: 8,
+      color: '#1a5fb4',
+      fillColor: '#62a0ea',
+      fillOpacity: 0.95,
+      weight: 2
+    }).addTo(map).bindPopup(html, { closeOnClick: true, autoPan: true }).openPopup();
+  }
+
+  function bindTrackInspect(layer, pts, label) {
+    if (!layer || !pts || pts.length < 1) return;
+    layer._rdzPts = pts;
+    layer._rdzLabel = label || '';
+    layer.off('click');
+    layer.on('click', function(ev) {
+      L.DomEvent.stopPropagation(ev);
+      if (ev.originalEvent) L.DomEvent.stop(ev.originalEvent);
+      var pt = nearestTrackPt(pts, ev.latlng);
+      showTrackInspect(pt, label);
+    });
+  }
+
+  function pushStatDot(html) {
+    var box = document.getElementById('sonde_statbar');
+    if (!box) return;
+    var wrap = document.createElement('span');
+    wrap.innerHTML = html;
+    var node = wrap.firstChild;
+    if (!node) return;
+    box.insertBefore(node, box.firstChild);
+    while (box.childNodes.length > 10) box.removeChild(box.lastChild);
+  }
+
+  function setStatusButton(html) {
+    $('#status').html(html);
+  }
+
+  headtxt = function(data, res) {
+    var hasId = !!(data && data.id);
+    var dot = statusDotHtml(typeof res === 'number' ? res : 1, hasId);
+    pushStatDot(dot);
+    setStatusButton(dot);
+
+    if (data.res === 0) {
+      if (data.id) {
+        lastframe = data.vframe;
+        $('#sonde_id').html(data.id);
+      } else if (data.launchsite) {
+        $('#sonde_id').html(String(data.launchsite).trim());
+      }
+      if (data.alt != null) $('#sonde_alt').html(data.alt);
+      if (data.climb != null) $('#sonde_climb').html(data.climb);
+      if (data.speed != null) $('#sonde_speed').html(mr(data.speed * 3.6 * 10) / 10);
+      if (data.dir != null) $('#sonde_dir').html(data.dir);
+      if (data.time != null) $('#sonde_time').html(formatSondeTime(data.time));
+      if (data.rssi != null) $('#sonde_rssi').html(data.rssi / 2);
+      $('#sonde_detail').show();
+    } else if (!data.id && data.launchsite) {
+      $('#sonde_id').html(String(data.launchsite).trim());
+    }
+    if (data.freq != null) $('#sonde_freq').html(data.freq);
+    if (data.type != null) $('#sonde_type').html(data.type);
   };
 
   // Control strip: zoom + GPS left; basemap/status/follow/settings right (fixed size — no expanding layers control)
@@ -307,6 +437,14 @@ $(document).ready(function(){
     title: 'Phone GPS',
     html: '<img class="map-btn-icon" src="gps.svg" width="16" height="16" alt="GPS"/>',
     href: 'javascript:request_phone_gps();'
+  }]));
+  map.addControl(new L.Control.Button([{
+    position: 'topleft',
+    id: 'lastrx-btn',
+    title: 'Last RX',
+    text: '◷',
+    className: 'lastrx-toggle',
+    href: '#'
   }]));
   map.addControl(new L.Control.Button([{
     position: 'topright',
@@ -440,7 +578,7 @@ $(document).ready(function(){
   fetchBasemapsConfig(applyBasemapConfig);
 
   show = function(e, p) {
-    if (p == 'landing') { get_predict(last_data); }
+    if (p == 'landing') { get_predict(last_data, true); }
     if (e) {
       map.closePopup();
       map.setView(map._layers[e._leaflet_id].getLatLng());
@@ -528,26 +666,174 @@ $(document).ready(function(){
   };
 
   tiphtml = function(data) {
+    var label = data.id || data.ser || '';
     var alt = (typeof data.alt === 'number') ? data.alt.toFixed(0) : data.alt;
     var vs = (typeof data.climb === 'number') ? data.climb.toFixed(1) : data.climb;
-    var hs = mr(data.speed * 3.6 * 10) / 10;
-    return '<div class="tooltip-container">' + data.id +
+    var hs = mr((data.speed || 0) * 3.6 * 10) / 10;
+    return '<div class="tooltip-container">' + label +
       '<div class="text-speed">' + alt + 'm ' + vs + 'm/s ' + hs + 'km/h</div></div>';
   };
 
+  function freqMarkerKey(freq) {
+    if (freq == null || freq === '' || isNaN(freq)) return null;
+    return 'f:' + Number(freq).toFixed(3);
+  }
+
+  function liveMarkerKey(data) {
+    if (data && data.id) return data.id;
+    return freqMarkerKey(data && data.freq);
+  }
+
+  function isTempFreqKey(key) {
+    return !!(key && String(key).indexOf('f:') === 0);
+  }
+
+  function liveSerOf(data) {
+    if (!data) return '';
+    if (data.ser) return String(data.ser);
+    if (data.id && data.id.charAt(0) === 'D' && data.id.length > 1) return data.id.slice(1);
+    return data.id ? String(data.id) : '';
+  }
+
+  function liveOwnsSer(ser) {
+    if (!ser) return false;
+    var keys = Object.keys(marker);
+    for (var i = 0; i < keys.length; i++) {
+      var m = marker[keys[i]];
+      if (!m) continue;
+      var mser = m._rdzSer || keys[i];
+      if (mser === ser) return true;
+      if (keys[i] === ser) return true;
+      if (keys[i] === 'D' + ser) return true;
+      if (mser === 'D' + ser) return true;
+      if (('D' + mser) === ser) return true;
+    }
+    return false;
+  }
+
+  function migrateFreqMarker(freqKey, realId, data) {
+    if (!freqKey || !realId || freqKey === realId) return;
+    if (!marker[freqKey]) return;
+    if (marker[realId] && marker[realId] !== marker[freqKey]) {
+      map.removeLayer(marker[freqKey]);
+      delete marker[freqKey];
+    } else {
+      marker[realId] = marker[freqKey];
+      delete marker[freqKey];
+    }
+    if (dots[freqKey]) {
+      if (!dots[realId]) dots[realId] = [];
+      dots[realId] = dots[freqKey].concat(dots[realId] || []);
+      delete dots[freqKey];
+    }
+    if (line[freqKey]) {
+      if (line[realId] && line[realId] !== line[freqKey]) {
+        map.removeLayer(line[freqKey]);
+      } else {
+        line[realId] = line[freqKey];
+      }
+      delete line[freqKey];
+      if (line[realId] && dots[realId]) line[realId].setLatLngs(dots[realId]);
+    }
+    if (marker[realId]) {
+      marker[realId]._rdzSer = liveSerOf(data);
+      marker[realId]._rdzKey = realId;
+      marker[realId].setPopupContent(poptxt('position', data));
+      marker[realId].setTooltipContent(tiphtml(data));
+    }
+  }
+
+  function ensureLiveLightTrack(data) {
+    var ser = liveSerOf(data);
+    if (!ser) return;
+    if (lastRxShown[ser] === false) return;
+    if (!lastRxTracks[ser]) loadLightTrack(ser);
+  }
+
+  function updateLowVsState(data) {
+    if (!data || data.res !== 0) return;
+    var vs = data.climb;
+    var moving = (typeof vs === 'number' && isFinite(vs) && Math.abs(vs) >= 1);
+    if (moving) {
+      lowVsSince = null;
+      if (predictHold) predictHold = false;
+    } else {
+      if (lowVsSince == null) lowVsSince = Date.now();
+      if (!predictHold && last_id && !isTempFreqKey(last_id) &&
+          (Date.now() - lowVsSince) >= LOW_VS_CLEAR_MS) {
+        clearPredictForId(last_id);
+      }
+    }
+  }
+
+  function canAutoPredict(data) {
+    if (!data || !data.id || isTempFreqKey(data.id)) return false;
+    var vs = data.climb;
+    return (typeof vs === 'number' && isFinite(vs) && Math.abs(vs) >= 1);
+  }
+
+  function nextPredictIntervalSec(data) {
+    if (!data) return 30;
+    if (data.climb > 0) return 5 * 60;
+    if (data.climb < 0 && data.alt > 5000) return 2 * 60;
+    return 30;
+  }
+
+  function armPredictTimer(sec) {
+    if (sec == null || sec < 0) sec = 30;
+    predictorIntervalSec = sec;
+    clearTimeout(predictor);
+    predictor = setTimeout(predictTick, sec * 1000);
+  }
+
+  function predictTick() {
+    predictor = false;
+    var data = last_data;
+    if (!data) {
+      armPredictTimer(30);
+      return;
+    }
+    if (canAutoPredict(data)) {
+      get_predict(data, false);
+      armPredictTimer(nextPredictIntervalSec(data));
+    } else {
+      armPredictTimer(30);
+    }
+  }
+
   draw = function(data) {
-    var stat;
-    if (data.id) {
-      last_id = data.id;
-      // data.res: 0: ok  1: no rx (timeout), 2: crc err, >2 some other error
-      if ((data.lat && data.lon && data.alt) && (lastframe != 0)) {
+    var res = (typeof data.res === 'number') ? data.res : 1;
+    data.res = res;
+
+    if (res === 0) {
+      var key = liveMarkerKey(data);
+      if (data.id) {
+        var fkey = freqMarkerKey(data.freq);
+        if (fkey) migrateFreqMarker(fkey, data.id, data);
+        last_id = data.id;
+      } else if (key) {
+        last_id = key;
+      }
+
+      if (key && data.lat && data.lon && data.alt) {
         var location = [data.lat, data.lon, data.alt];
         var ic = sondeIconFor(data);
-        if (!marker[data.id]) {
+        var mapData = {
+          id: data.id || key,
+          ser: liveSerOf(data),
+          lat: data.lat,
+          lon: data.lon,
+          alt: data.alt,
+          climb: data.climb,
+          speed: data.speed,
+          type: data.type,
+          time: data.time
+        };
+        if (!marker[key]) {
           map.setView(location, 14);
-          marker[data.id] = L.marker(location, { icon: ic }).addTo(map)
-            .bindPopup(poptxt('position', data), { closeOnClick: false, autoPan: false })
-            .bindTooltip(tiphtml(data), {
+          marker[key] = L.marker(location, { icon: ic }).addTo(map)
+            .bindPopup(poptxt('position', mapData), { closeOnClick: false, autoPan: false })
+            .bindTooltip(tiphtml(mapData), {
               permanent: true,
               direction: 'right',
               className: 'sondeTooltip',
@@ -556,38 +842,47 @@ $(document).ready(function(){
               interactive: false
             })
             .openPopup();
-          get_predict(data);
+          marker[key]._rdzSer = liveSerOf(data);
+          marker[key]._rdzKey = key;
         } else {
-          marker[data.id].setIcon(ic);
-          marker[data.id].slideTo(location, {
+          marker[key].setIcon(ic);
+          marker[key]._rdzSer = liveSerOf(data);
+          marker[key]._rdzKey = key;
+          marker[key].slideTo(location, {
             duration: 500,
-            keepAtCenter: (follow == 'marker') ? true : false
+            keepAtCenter: (follow == 'marker')
           })
-            .setPopupContent(poptxt('position', data))
-            .setTooltipContent(tiphtml(data));
+            .setPopupContent(poptxt('position', mapData))
+            .setTooltipContent(tiphtml(mapData));
         }
-        if (!dots[data.id]) { dots[data.id] = []; }
-        dots[data.id].push(location);
-        if (!line[data.id]) {
-          line[data.id] = L.polyline(dots[data.id]).addTo(map);
+        if (!dots[key]) dots[key] = [];
+        dots[key].push(location);
+        if (!line[key]) {
+          line[key] = L.polyline(dots[key]).addTo(map);
         } else {
-          line[data.id].setLatLngs(dots[data.id]);
+          line[key].setLatLngs(dots[key]);
         }
+        ensureLiveLightTrack(data);
+        syncLastRxMarkers();
       }
-      if (data.res == 0) {
-        storage_write(data);
-        $('#status').html(greendot);
-        stat = 1;
-      } else {
-        $('#status').html(yellowdot);
-        stat = 0;
-      }
-      headtxt(data, stat);
+
+      if (data.id) storage_write(data);
       last_data = data;
+      updateLowVsState(data);
+      if (!predictor) armPredictTimer(0);
     } else {
-      $('#status').html(yellowdot);
-      headtxt(data, 0);
+      if (data.id) last_id = data.id;
+      if (last_data) {
+        /* Keep last good fix for follow/prediction; refresh type/freq/launchsite. */
+        last_data.freq = data.freq;
+        last_data.type = data.type;
+        last_data.launchsite = data.launchsite;
+        last_data.res = res;
+        last_data.rssi = data.rssi;
+      }
     }
+
+    headtxt(data, res);
   };
 
   marker_gps = false;
@@ -653,7 +948,6 @@ $(document).ready(function(){
   };
 
   get_data = function() {
-    $('#status').html(reddot);
     $.ajax({
       url: 'live.json',
       success: (function(data) {
@@ -661,12 +955,15 @@ $(document).ready(function(){
         if (data.sonde) {
           draw(data.sonde);
         } else {
-          setTimeout(function() { $('#status').html(yellowdot); }, 100);
+          setStatusButton(yellowdot);
         }
         if (data.gps && !phone_gps_active) {
           gps(data.gps);
         }
       }),
+      error: function() {
+        setStatusButton(reddot);
+      },
       timeout: 1000
     });
   };
@@ -709,7 +1006,7 @@ $(document).ready(function(){
     if (Number.isInteger(settings.burst) && Number.isInteger(settings.overwrite_descend) && Number.isInteger(settings.overwrite_descend_till)) {
       settings_write(settings);
       $('#settings').slideUp();
-      get_predict(last_data);
+      get_predict(last_data, true);
     } else {
       alert('Error: only numeric values allowed!');
     }
@@ -728,8 +1025,6 @@ $(document).ready(function(){
     $('#settings #overwrite_descend_till').val(settings.overwrite_descend_till);
     $('#settings').slideToggle();
   };
-
-  predictor = false;
 
   // Same NASA density Tawhiri uses. descent_rate is sea-level: v(h) = 1.1045 * v_sea / sqrt(rho).
   air_density = function(alt) {
@@ -753,33 +1048,71 @@ $(document).ready(function(){
     return v * Math.sqrt(air_density(alt)) / 1.1045;
   };
 
-  get_predict = function(data) {
-    if (!data) { return; }
+  predCacheSave = function(id, prediction, data) {
+    if (!id || !storage || isTempFreqKey(id)) return;
+    try {
+      localStorage.setItem('rdz.pred.' + id, JSON.stringify({
+        ts: Date.now(),
+        prediction: prediction,
+        data: { id: data.id, lat: data.lat, lon: data.lon, alt: data.alt, climb: data.climb, time: data.time }
+      }));
+    } catch (e) {}
+  };
+
+  predCacheLoad = function(id) {
+    if (!id || !storage || isTempFreqKey(id)) return null;
+    try {
+      var raw = localStorage.getItem('rdz.pred.' + id);
+      if (!raw) return null;
+      var o = JSON.parse(raw);
+      if (!o || !o.prediction || !o.ts) return null;
+      if (Date.now() - o.ts > 72 * 3600 * 1000) return null;
+      return o;
+    } catch (e) { return null; }
+  };
+
+  get_predict = function(data, force) {
+    if (!data) return;
+    if (!data.id || isTempFreqKey(data.id)) return;
+    if (!data.lat || !data.lon || data.alt == null) return;
+    if (!force && !canAutoPredict(data)) return;
+    if (predictInflight) return;
+
+    if (force) predictHold = true;
+
     var ascent = (data.climb > 0) ? data.climb : 15;
     var descent, burst;
     if (data.climb > 0) {
       descent = settings.overwrite_descend;
       burst = (data.alt > settings.burst) ? data.alt + 100 : settings.burst;
     } else {
-      burst = parseInt(data.alt) + 7;
+      burst = parseInt(data.alt, 10) + 7;
       descent = (data.alt > settings.overwrite_descend_till)
         ? settings.overwrite_descend
         : sea_level_descent(data.climb, data.alt);
     }
 
-    var m = new Date(data.time * 1000);
+    var m = new Date((data.time || 0) * 1000);
     var datetime = m.toISOString().slice(0, 19) + 'Z';
     var url = 'https://api.v2.sondehub.org/tawhiri';
     url += '?launch_latitude=' + data.lat + '&launch_longitude=' + tawhiri_lon(data.lon);
     url += '&launch_altitude=' + data.alt + '&launch_datetime=' + datetime;
     url += '&ascent_rate=' + ascent + '&burst_altitude=' + burst + '&descent_rate=' + descent;
 
+    predictInflight = true;
     $.getJSON(url, function(prediction) {
-      draw_predict(prediction, data);
+      predictInflight = false;
+      predCacheSave(data.id, prediction, data);
+      draw_predict(prediction, data, false);
+    }).fail(function() {
+      predictInflight = false;
+      var cached = predCacheLoad(data.id);
+      if (cached) draw_predict(cached.prediction, data, true);
     });
   };
 
-  draw_predict = function(prediction, data) {
+  draw_predict = function(prediction, data, fromCache) {
+    if (!data || !data.id || isTempFreqKey(data.id)) return;
     var ascending = prediction.prediction[0].trajectory;
     var highest = ascending[ascending.length - 1];
     var highest_location = [highest.latitude, sanitize_lon(highest.longitude)];
@@ -794,7 +1127,7 @@ $(document).ready(function(){
     } else {
       marker_landing[data.id].slideTo(landing_location, {
         duration: 500,
-        keepAtCenter: (follow == 'landing') ? true : false
+        keepAtCenter: (follow == 'landing')
       })
         .setPopupContent(poptxt('landing', landing));
     }
@@ -810,28 +1143,21 @@ $(document).ready(function(){
       } else {
         marker_burst[data.id].slideTo(highest_location, {
           duration: 500,
-          keepAtCenter: (follow == 'burst') ? true : false
+          keepAtCenter: (follow == 'burst')
         }).setPopupContent(poptxt('burst', highest));
       }
     }
 
     descending.forEach(function(p) { dots_predict[data.id].push([p.latitude, sanitize_lon(p.longitude)]); });
 
+    var predColor = fromCache ? '#f0a020' : 'yellow';
     if (!line_predict[data.id]) {
-      line_predict[data.id] = L.polyline(dots_predict[data.id], { color: 'yellow' }).addTo(map);
+      line_predict[data.id] = L.polyline(dots_predict[data.id], { color: predColor, dashArray: fromCache ? '6 6' : null }).addTo(map);
     } else {
+      line_predict[data.id].setStyle({ color: predColor, dashArray: fromCache ? '6 6' : null });
       line_predict[data.id].setLatLngs(dots_predict[data.id]);
     }
-
-    if (data.climb > 0) {
-      predictor_time = 5 * 60; // ascending, every 5 min
-    } else if (data.climb < 0 && data.alt > 5000) {
-      predictor_time = 2 * 60; // descending, above 5km, every 2 min
-    } else {
-      predictor_time = 30; // descending, below 5km, every 30 sec
-    }
-    clearTimeout(predictor);
-    predictor = setTimeout(function() { get_predict(last_data); }, predictor_time * 1000);
+    /* Timer is armed from the live poll / predictTick, not from here. */
   };
 
   sanitize_lon = function(lon) {
@@ -900,13 +1226,503 @@ $(document).ready(function(){
   session_storage = storage_read();
   if (session_storage) {
     session_storage.forEach(function(d) {
-      dots.push([d.lat, d.lon, d.alt]);
       session_storage_last = d;
     });
-    draw(session_storage_last);
+    if (session_storage_last) {
+      session_storage_last.res = 0;
+      draw(session_storage_last);
+    }
   }
 
   setInterval(get_data, 1000);
+
+  /* ---- last_rx.csv history pins + light tracks + SD overlays ---- */
+  var lastRxMenu = L.DomUtil.create('div', 'basemap-popover lastrx-popover', map.getContainer());
+  lastRxMenu.setAttribute('role', 'menu');
+  lastRxMenu.setAttribute('aria-hidden', 'true');
+  lastRxMenu.innerHTML = '<div class="basemap-popover-title">Last RX</div><div id="last-rx-list"></div>';
+  L.DomEvent.disableClickPropagation(lastRxMenu);
+  L.DomEvent.disableScrollPropagation(lastRxMenu);
+
+  function positionLastRxMenu() {
+    var btn = document.getElementById('lastrx-btn');
+    if (!btn || !lastRxMenu) return;
+    var mapEl = map.getContainer();
+    var br = btn.getBoundingClientRect();
+    var mr = mapEl.getBoundingClientRect();
+    lastRxMenu.style.top = Math.max(4, br.top - mr.top) + 'px';
+    lastRxMenu.style.left = Math.max(4, br.right - mr.left + 6) + 'px';
+    lastRxMenu.style.right = 'auto';
+  }
+
+  function closeLastRxMenu() {
+    lastRxMenu.classList.remove('open');
+    lastRxMenu.setAttribute('aria-hidden', 'true');
+    var btn = document.getElementById('lastrx-btn');
+    if (btn) btn.classList.remove('active');
+  }
+
+  function openLastRxMenu() {
+    positionLastRxMenu();
+    lastRxMenu.classList.add('open');
+    lastRxMenu.setAttribute('aria-hidden', 'false');
+    var btn = document.getElementById('lastrx-btn');
+    if (btn) btn.classList.add('active');
+  }
+
+  function toggleLastRxMenu() {
+    if (lastRxMenu.classList.contains('open')) closeLastRxMenu();
+    else openLastRxMenu();
+  }
+
+  (function wireLastRxUi() {
+    var btn = document.getElementById('lastrx-btn');
+    if (!btn) return;
+    var hoverTimer = null;
+    var canHover = window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+
+    L.DomEvent.on(btn, 'click', function(ev) {
+      L.DomEvent.preventDefault(ev);
+      L.DomEvent.stopPropagation(ev);
+      toggleLastRxMenu();
+    });
+
+    if (canHover) {
+      L.DomEvent.on(btn, 'mouseenter', function() {
+        clearTimeout(hoverTimer);
+        openLastRxMenu();
+      });
+      L.DomEvent.on(btn, 'mouseleave', function() {
+        hoverTimer = setTimeout(closeLastRxMenu, 180);
+      });
+      L.DomEvent.on(lastRxMenu, 'mouseenter', function() {
+        clearTimeout(hoverTimer);
+      });
+      L.DomEvent.on(lastRxMenu, 'mouseleave', function() {
+        hoverTimer = setTimeout(closeLastRxMenu, 180);
+      });
+    }
+
+    map.on('click', closeLastRxMenu);
+    map.on('resize moveend', function() {
+      if (lastRxMenu.classList.contains('open')) positionLastRxMenu();
+    });
+    document.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Escape') closeLastRxMenu();
+    });
+  })();
+
+  function parseCsvLines(txt) {
+    var rows = [];
+    String(txt || '').split(/\r?\n/).forEach(function(line) {
+      line = line.trim();
+      if (!line || line.charAt(0) === '#' || line.indexOf('ser,') === 0 || line.indexOf('lat,') === 0) return;
+      var p = line.split(',');
+      if (p.length < 4) return;
+      rows.push(p);
+    });
+    return rows;
+  }
+
+  function downsamplePts(pts, maxPts) {
+    if (!pts || pts.length <= maxPts) return pts;
+    var out = [];
+    var step = (pts.length - 1) / (maxPts - 1);
+    for (var i = 0; i < maxPts; i++) {
+      out.push(pts[Math.round(i * step)]);
+    }
+    return out;
+  }
+
+  function parseTrackCsv(txt) {
+    var pts = [];
+    parseCsvLines(txt).forEach(function(p) {
+      var lat = parseFloat(p[0]), lon = parseFloat(p[1]);
+      var alt = parseFloat(p[2]);
+      var t = parseInt(p[3], 10);
+      if (isNaN(lat) || isNaN(lon)) return;
+      pts.push({
+        lat: lat,
+        lon: lon,
+        alt: isNaN(alt) ? null : alt,
+        t: isNaN(t) ? 0 : t
+      });
+    });
+    return pts;
+  }
+
+  function parseSdTrackCsv(txt) {
+    var pts = [];
+    var last = null;
+    String(txt || '').split(/\r?\n/).forEach(function(line, idx) {
+      line = line.trim();
+      if (!line) return;
+      if (idx === 0 && /lat/i.test(line) && /lon/i.test(line)) return;
+      var p = line.split(',');
+      /* SD log: validID,ser,typestr,subtype,lat,lon,alt,vs,hs,dir,sats,validPos,time,... */
+      var lat, lon, alt, vs, hs, ser, type, t;
+      if (p.length >= 6 && (p[0] === '0' || p[0] === '1')) {
+        ser = p[1] || '';
+        type = p[2] || '';
+        lat = parseFloat(p[4]); lon = parseFloat(p[5]);
+        alt = parseFloat(p[6]);
+        vs = parseFloat(p[7]);
+        hs = parseFloat(p[8]);
+        t = parseInt(p[12], 10);
+      } else if (p.length >= 5 && isNaN(parseFloat(p[0])) && !isNaN(parseFloat(p[2]))) {
+        /* hist header rows: ser,type,lat,lon,alt,freq,time,... */
+        ser = p[0] || '';
+        type = p[1] || '';
+        lat = parseFloat(p[2]); lon = parseFloat(p[3]);
+        alt = parseFloat(p[4]);
+        t = parseInt(p[6], 10);
+        vs = parseFloat(p[7]);
+        hs = parseFloat(p[8]);
+      } else {
+        /* light-track style: lat,lon,alt,t */
+        lat = parseFloat(p[0]); lon = parseFloat(p[1]);
+        alt = parseFloat(p[2]);
+        t = parseInt(p[3], 10);
+        vs = NaN; hs = NaN; ser = ''; type = '';
+      }
+      if (isNaN(lat) || isNaN(lon) || (lat === 0 && lon === 0)) return;
+      var pt = {
+        lat: lat,
+        lon: lon,
+        alt: isNaN(alt) ? null : alt,
+        t: isNaN(t) ? 0 : t
+      };
+      pts.push(pt);
+      last = {
+        id: ser || '',
+        ser: ser || '',
+        type: type || '',
+        lat: lat,
+        lon: lon,
+        alt: isNaN(alt) ? 0 : alt,
+        climb: isNaN(vs) ? 0 : vs,
+        speed: isNaN(hs) ? 0 : hs,
+        time: isNaN(t) ? 0 : t
+      };
+    });
+    return { pts: downsamplePts(pts, 600), last: last };
+  }
+
+  function sdOverlayKey(path) {
+    return 'sd:' + path;
+  }
+
+  function sdOverlayBasename(path) {
+    var parts = String(path || '').split('/');
+    return parts[parts.length - 1] || path;
+  }
+
+  function removeSdOverlayLayers(key) {
+    var o = sdOverlays[key];
+    if (!o) return;
+    if (o.layer) { map.removeLayer(o.layer); o.layer = null; clearTrackInspect(); }
+    if (o.marker) { map.removeLayer(o.marker); o.marker = null; }
+  }
+
+  function showSdOverlay(key) {
+    var o = sdOverlays[key];
+    if (!o || !o.pts || o.pts.length < 2 || o.shown === false) return;
+    if (!o.layer) {
+      o.layer = L.polyline(ptsToLatLngs(o.pts), HIST_LINE_STYLE).addTo(map);
+      bindTrackInspect(o.layer, o.pts, o.label || sdOverlayBasename(o.path));
+    }
+    if (!o.marker && o.data && o.data.lat && o.data.lon) {
+      var ic = sondeIconFor(o.data);
+      var loc = [o.data.lat, o.data.lon];
+      var ts = formatSondeTime(o.data.time);
+      var popup =
+        '<b>' + (o.data.id || o.label || '') + '</b> (file)<br/>' +
+        (o.data.type || '') +
+        '<br/>' + o.data.lat.toFixed(5) + ', ' + o.data.lon.toFixed(5) +
+        '<br/>' + Math.round(o.data.alt) + 'm' +
+        (ts ? '<br/>' + ts : '');
+      o.marker = L.marker(loc, { icon: ic }).addTo(map)
+        .bindPopup(popup, { closeOnClick: false, autoPan: false })
+        .bindTooltip(tiphtml(o.data), {
+          permanent: true,
+          direction: 'right',
+          className: 'sondeTooltip',
+          offset: [10, -16],
+          opacity: 0.75,
+          interactive: false
+        });
+    }
+  }
+
+  function clearPredictForId(id) {
+    if (!id) return;
+    if (marker_landing[id]) { map.removeLayer(marker_landing[id]); delete marker_landing[id]; }
+    if (marker_burst[id]) { map.removeLayer(marker_burst[id]); delete marker_burst[id]; }
+    if (line_predict[id]) { map.removeLayer(line_predict[id]); delete line_predict[id]; }
+    delete dots_predict[id];
+  }
+
+  function removeLastRxCircle(ser) {
+    if (lastRxMarkers[ser]) {
+      map.removeLayer(lastRxMarkers[ser]);
+      delete lastRxMarkers[ser];
+    }
+  }
+
+  function removeLastRxTrack(ser) {
+    if (lastRxTracks[ser]) {
+      map.removeLayer(lastRxTracks[ser]);
+      delete lastRxTracks[ser];
+      clearTrackInspect();
+    }
+  }
+
+  function hideLastRxSer(ser) {
+    removeLastRxCircle(ser);
+    removeLastRxTrack(ser);
+    /* Only clear prediction if this id is not the live sonde marker */
+    if (!liveOwnsSer(ser)) clearPredictForId(ser);
+  }
+
+  function showLastRxPredict(e) {
+    if (liveOwnsSer(e.ser)) return;
+    var cached = predCacheLoad(e.ser);
+    if (cached) {
+      draw_predict(cached.prediction, {
+        id: e.ser, lat: e.lat, lon: e.lon, alt: e.alt, climb: e.vs, time: e.time
+      }, true);
+    }
+  }
+
+  function lastRxTipData(e) {
+    return {
+      id: e.ser,
+      ser: e.ser,
+      alt: e.alt,
+      climb: e.vs,
+      speed: e.hs
+    };
+  }
+
+  function renderLastRxList() {
+    var box = document.getElementById('last-rx-list');
+    if (!box) return;
+    var sdKeys = Object.keys(sdOverlays);
+    if (!lastRxEntries.length && !sdKeys.length) {
+      box.innerHTML = '<div class="last-rx-empty">No last_rx.csv</div>';
+      return;
+    }
+    var html = '';
+    lastRxEntries.forEach(function(e) {
+      var on = lastRxShown[e.ser] !== false;
+      var when = formatLastRxListTime(e.time);
+      html += '<label class="basemap-option last-rx-item">' +
+        '<input type="checkbox" data-ser="' + e.ser + '"' + (on ? ' checked' : '') + '/>' +
+        '<span class="last-rx-body">' +
+          '<span class="last-rx-main"><span class="last-rx-id">' + e.ser + '</span> ' +
+          '<span class="basemap-key-hint">' + (e.type || '') + ' ' + Math.round(e.alt) + 'm</span></span>' +
+          (when ? '<span class="last-rx-time">' + when + '</span>' : '') +
+        '</span></label>';
+    });
+    sdKeys.forEach(function(key) {
+      var o = sdOverlays[key];
+      var on = o.shown !== false;
+      var type = (o.data && o.data.type) ? o.data.type : '';
+      var hint = type;
+      if (o.data && o.data.alt) {
+        hint += (hint ? ' ' : '') + Math.round(o.data.alt) + 'm';
+      } else if (!hint && o.path) {
+        hint = sdOverlayBasename(o.path);
+      }
+      var when = formatLastRxListTime(o.data && o.data.time);
+      html += '<label class="basemap-option last-rx-item">' +
+        '<input type="checkbox" data-sd-key="' + key.replace(/"/g, '') + '"' + (on ? ' checked' : '') + '/>' +
+        '<span class="last-rx-body">' +
+          '<span class="last-rx-main"><span class="last-rx-id">' + (o.label || sdOverlayBasename(o.path)) + '</span> ' +
+          '<span class="basemap-key-hint">' + hint +
+          ' <span class="last-rx-file-icon" title="from file">📄</span></span></span>' +
+          (when ? '<span class="last-rx-time">' + when + '</span>' : '') +
+        '</span></label>';
+    });
+    box.innerHTML = html;
+    box.querySelectorAll('input[data-ser]').forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var ser = inp.getAttribute('data-ser');
+        lastRxShown[ser] = inp.checked;
+        if (!inp.checked) hideLastRxSer(ser);
+        else syncLastRxMarkers();
+      });
+    });
+    box.querySelectorAll('input[data-sd-key]').forEach(function(inp) {
+      inp.addEventListener('change', function() {
+        var key = inp.getAttribute('data-sd-key');
+        var o = sdOverlays[key];
+        if (!o) return;
+        o.shown = inp.checked;
+        if (!inp.checked) removeSdOverlayLayers(key);
+        else showSdOverlay(key);
+      });
+    });
+  }
+
+  function syncLastRxMarkers() {
+    var keepCircle = {};
+    var keepTrack = {};
+    lastRxEntries.forEach(function(e) {
+      if (lastRxShown[e.ser] === false) return;
+      keepTrack[e.ser] = true;
+      if (!lastRxTracks[e.ser]) loadLightTrack(e.ser);
+
+      var owned = liveOwnsSer(e.ser);
+      if (owned) {
+        removeLastRxCircle(e.ser);
+        return;
+      }
+
+      keepCircle[e.ser] = true;
+      var loc = [e.lat, e.lon];
+      var tip = lastRxTipData(e);
+      var ts = formatSondeTime(e.time);
+      var popupHtml =
+        '<b>' + e.ser + '</b> (last RX)<br/>' + (e.type || '') +
+        '<br/>' + e.lat.toFixed(5) + ', ' + e.lon.toFixed(5) +
+        '<br/>' + Math.round(e.alt) + 'm' +
+        (ts ? '<br/>' + ts : '');
+      if (!lastRxMarkers[e.ser]) {
+        lastRxMarkers[e.ser] = L.circleMarker(loc, {
+          radius: 7, color: '#888', fillColor: '#bbb', fillOpacity: 0.85, weight: 2
+        }).addTo(map)
+          .bindPopup(popupHtml)
+          .bindTooltip(tiphtml(tip), {
+            permanent: true,
+            direction: 'right',
+            className: 'sondeTooltip',
+            offset: [10, -16],
+            opacity: 0.75,
+            interactive: false
+          });
+        showLastRxPredict(e);
+      } else {
+        lastRxMarkers[e.ser].setLatLng(loc);
+        lastRxMarkers[e.ser].setPopupContent(popupHtml);
+        lastRxMarkers[e.ser].setTooltipContent(tiphtml(tip));
+      }
+    });
+    Object.keys(lastRxMarkers).forEach(function(ser) {
+      if (!keepCircle[ser]) removeLastRxCircle(ser);
+    });
+    /* Keep tracks for checked last_rx rows and for the live sonde (even before last_rx lists it). */
+    Object.keys(lastRxTracks).forEach(function(ser) {
+      if (lastRxShown[ser] === false) {
+        removeLastRxTrack(ser);
+        return;
+      }
+      if (keepTrack[ser] || liveOwnsSer(ser)) return;
+      removeLastRxTrack(ser);
+    });
+  }
+
+  function loadLightTrack(ser) {
+    if (lastRxShown[ser] === false) return;
+    $.ajax({
+      url: '/file/lt_' + encodeURIComponent(ser) + '.csv',
+      dataType: 'text',
+      success: function(txt) {
+        if (lastRxShown[ser] === false) return;
+        var pts = parseTrackCsv(txt);
+        if (pts.length < 2) return;
+        if (lastRxTracks[ser]) map.removeLayer(lastRxTracks[ser]);
+        lastRxTracks[ser] = L.polyline(ptsToLatLngs(pts), HIST_LINE_STYLE).addTo(map);
+        bindTrackInspect(lastRxTracks[ser], pts, ser);
+      }
+    });
+  }
+
+  function loadLastRx() {
+    $.ajax({
+      url: '/file/last_rx.csv',
+      dataType: 'text',
+      success: function(txt) {
+        lastRxEntries = [];
+        parseCsvLines(txt).forEach(function(p) {
+          if (p.length < 7) return;
+          var e = {
+            ser: p[0], type: p[1],
+            lat: parseFloat(p[2]), lon: parseFloat(p[3]),
+            alt: parseFloat(p[4]), freq: parseFloat(p[5]),
+            time: parseInt(p[6], 10) || 0,
+            vs: parseFloat(p[7]) || 0, hs: parseFloat(p[8]) || 0,
+            dir: parseFloat(p[9]) || 0
+          };
+          if (!e.ser || isNaN(e.lat) || isNaN(e.lon)) return;
+          if (lastRxShown[e.ser] === undefined) lastRxShown[e.ser] = true;
+          lastRxEntries.push(e);
+        });
+        renderLastRxList();
+        syncLastRxMarkers();
+      },
+      error: function() {
+        lastRxEntries = [];
+        renderLastRxList();
+        syncLastRxMarkers();
+      }
+    });
+  }
+
+  function loadSdOverlays() {
+    var list = [];
+    try {
+      list = JSON.parse(sessionStorage.getItem('rdzMapOverlay') || '[]');
+      if (!Array.isArray(list)) list = [];
+    } catch (e) { list = []; }
+    if (!list.length) return;
+    sessionStorage.removeItem('rdzMapOverlay');
+    list.forEach(function(path) {
+      $.ajax({
+        url: path,
+        dataType: 'text',
+        success: function(txt) {
+          var parsed = parseSdTrackCsv(txt);
+          if (!parsed.pts || parsed.pts.length < 2) return;
+          var key = sdOverlayKey(path);
+          var base = sdOverlayBasename(path);
+          var data = parsed.last || {};
+          if (!data.id) data.id = data.ser || base.replace(/\.csv$/i, '');
+          if (typeof data.climb !== 'number') data.climb = 0;
+          if (typeof data.speed !== 'number') data.speed = 0;
+          if (typeof data.alt !== 'number') data.alt = 0;
+          /* End of track may differ from downsampled polyline end — use last raw point */
+          if ((!data.lat || !data.lon) && parsed.pts.length) {
+            var end = parsed.pts[parsed.pts.length - 1];
+            data.lat = end.lat != null ? end.lat : end[0];
+            data.lon = end.lon != null ? end.lon : end[1];
+            if (!data.time && end.t) data.time = end.t;
+          }
+          removeSdOverlayLayers(key);
+          sdOverlays[key] = {
+            path: path,
+            label: data.id || base,
+            pts: parsed.pts,
+            data: data,
+            shown: true,
+            layer: null,
+            marker: null
+          };
+          showSdOverlay(key);
+          renderLastRxList();
+          try {
+            if (sdOverlays[key].layer) {
+              map.fitBounds(sdOverlays[key].layer.getBounds(), { padding: [20, 20] });
+            }
+          } catch (e2) {}
+        }
+      });
+    });
+  }
+
+  loadLastRx();
+  setInterval(loadLastRx, 60000);
+  loadSdOverlays();
 
 });
 

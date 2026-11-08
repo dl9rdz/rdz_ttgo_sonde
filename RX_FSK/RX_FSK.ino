@@ -56,6 +56,7 @@
 #if FEATURE_SDCARD
 #include "src/conn-sdcard.h"
 #endif
+#include "src/sonde_hist.h"
 #if FEATURE_APRS
 #include "src/conn-aprs.h"
 #endif
@@ -825,8 +826,9 @@ const char *createDecoderJson(bool use_since, uint32_t since) {
   uint32_t lastChange = sonde.lastViewChangeMs;
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     SondeInfo *s = &sonde.sondeList[i];
-    if (!s->active || s->lastRx == 0) continue;
-    if (ms_after(s->lastRx, lastChange) || lastChange == 0) {
+    /* Include hist-seeded slots (validID) even before a live lastRx update. */
+    if (!s->active || (s->lastRx == 0 && !s->d.validID)) continue;
+    if (s->lastRx != 0 && (ms_after(s->lastRx, lastChange) || lastChange == 0)) {
       lastChange = s->lastRx;
     }
   }
@@ -847,9 +849,9 @@ const char *createDecoderJson(bool use_since, uint32_t since) {
   int decoded = 0;
   for (int i = 0; i < sonde.config.maxsonde; i++) {
     SondeInfo *s = &sonde.sondeList[i];
-    if (!s->active || s->lastRx == 0) continue;
+    if (!s->active || (s->lastRx == 0 && !s->d.validID)) continue;
     decoded++;
-    if (!full && !ms_after(s->lastRx, since)) continue;
+    if (!full && s->lastRx != 0 && !ms_after(s->lastRx, since)) continue;
     if (!first) strcat(ptr, ",");
     first = false;
     appendDecoderEntry(ptr, i, false);
@@ -1016,6 +1018,8 @@ struct st_configitems config_list[] = {
   {"sd.name", 0, &sonde.config.sd.name},
   {"sd.speed", 0, &sonde.config.sd.speed},
 #endif
+  /* LittleFS last RX / light tracks: 0=off 1=last_rx 2=last_rx+lt_* */
+  {"hist.mode", 0, &sonde.config.hist.mode},
   /* Hardware dependeing settings */
   {"disptype", 0, &sonde.config.disptype},
   {"norx_timeout", 0, &sonde.config.norx_timeout},
@@ -1356,29 +1360,13 @@ const char *createUpdateForm(void) {
 
 const char *handleUpdatePost(void) {
   Serial.println("Handling post request");
-  bool updateFromURL = false;
-  int params = formCount();
-  for (int i = 0; i < params; i++) {
-    const char *param = formNameAt(i);
-    if (!param) continue;
-    Serial.println(param);
-    if (strcmp(param, "dev2") == 0) {
-      Serial.println("equals devel");
-      updatePrefix = updatePrefixD;
-    }
-    else if (strcmp(param, "main") == 0) {
-      Serial.println("equals main");
-      updatePrefix = updatePrefixM;
-    }
-    else if (localUpdates && strcmp(param, "local") == 0) {
-      // Local updates permitted. Expect URL as url parameter...
-      updateFromURL = true;
-    }
-    else if (updateFromURL && strcmp(param, "url") == 0) {
+  // Prefer formGet so action/url order in the POST body does not matter
+  // (url is listed before the local submit button in upd.html).
+  if (localUpdates && formGet("local")) {
+    const char *raw = formGet("url");
+    if (raw && raw[0]) {
       // Note: strdup allocates memory that is never free'd.
       // Let's not care about this as we are going to reboot after the update anyway...
-      const char *raw = formValueAt(i);
-      if (!raw) continue;
       char localsrc[160];
       strncpy(localsrc, raw, sizeof(localsrc) - 1);
       localsrc[sizeof(localsrc) - 1] = '\0';
@@ -1394,7 +1382,7 @@ const char *handleUpdatePost(void) {
         updatePrefix = strdup(pos);
         *pos = '\0';
       } else {
-         updatePrefix = strdup("/");
+        updatePrefix = strdup("/");
       }
 
       if ((pos = strchr(localsrc, ':')) != nullptr) {
@@ -1405,7 +1393,15 @@ const char *handleUpdatePost(void) {
       } else {
         updateHost = strdup(localsrc);
       }
+    } else {
+      LOG_E(TAG, "Local update requested but url parameter missing\n");
     }
+  } else if (formGet("dev2")) {
+    Serial.println("equals devel");
+    updatePrefix = updatePrefixD;
+  } else if (formGet("main")) {
+    Serial.println("equals main");
+    updatePrefix = updatePrefixM;
   }
   LOG_I(TAG, "Updating: %s%s from %s:%d\n", updatePrefix, updateIno, updateHost, updatePort);
   enterMode(ST_UPDATE);
@@ -1723,6 +1719,7 @@ void setup()
   // == setup default channel list if qrg.txt read fails =========== //
   sonde.clearSonde();
   setupChannelList();
+  sondeHistLoad();
   /// not here, done by sonde.setup(): rs41.setup();
   // == setup default channel list if qrg.txt read fails =========== //
 #ifndef DISABLE_SX1278
@@ -1892,6 +1889,11 @@ void loopDecoder() {
 
   // wifi active and good packet received => send packet
   SondeInfo *s = &sonde.sondeList[rxtask.receiveSonde];
+  if ((res & 0xff) == 0) {
+    /* Local LittleFS history does not need WiFi. */
+    if (s->d.validID && VALIDPOS(s->d.validPos))
+      sondeHistUpdate(s);
+  }
   if ((res & 0xff) == 0 && connected) {
     //Send a packet with position information
     // first check if ID and position lat+lonis ok
@@ -1922,6 +1924,7 @@ void loopDecoder() {
     connSondehub.updateSonde( NULL );
 #endif
   }
+  sondeHistTick();
 
   // Send own position periodically
 #if FEATURE_MQTT

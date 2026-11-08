@@ -30,21 +30,25 @@
           <p class="text">Installed: <strong class="version-id" id="fullId">…</strong></p>
         </div>
 
-        <form id="upd-form" action="/update.html" method="post">
+        <form action="/update.html" method="post">
           <div class="card">
             <h2>Stable</h2>
             <p>Latest: <strong class="text" id="masterDiv">…checking…</strong></p>
             <button type="submit" name="main" value="Main-Update" class="primary btn-block">Update to stable</button>
           </div>
+        </form>
 
+        <form action="/update.html" method="post">
           <div class="card">
             <h2>Development</h2>
             <p>Latest: <strong class="text" id="develDiv">…checking…</strong></p>
             <button type="submit" name="dev2" value="Dev-Update" class="btn-block">Update to development</button>
           </div>
+        </form>
 
-          <div id="local-update-section" hidden>
-            <p class="dev-label">Developer</p>
+        <div id="local-update-section" hidden>
+          <p class="dev-label">Developer</p>
+          <form action="/update.html" method="post">
             <div class="card">
               <h2>Custom server</h2>
               <p class="muted">Path must contain <code>update.fs.bin</code> and <code>update.ino.bin</code>.</p>
@@ -54,8 +58,8 @@
               </div>
               <button type="submit" name="local" value="Local-Update" class="btn-block">Update from this server</button>
             </div>
-          </div>
-        </form>
+          </form>
+        </div>
 
         <p class="muted">If the version letter changes, OTA will fail and a full reflash is required.</p>
       </div>

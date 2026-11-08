@@ -24,6 +24,7 @@
 #include "user.h"
 #include "posinfo.h"
 #include "Startup.h"
+#include "sonde_hist.h"
 #include "../version.h"
 #if FEATURE_RS92
 #include "geteph.h"
@@ -1463,11 +1464,23 @@ static esp_err_t sdrm_html_get(httpd_req_t *req)
 		return httpd_resp_send(req, "<html><body>invalid path</body></html>",
 				       HTTPD_RESP_USE_STRLEN);
 	}
+	/* Allow deleting only hist-managed LittleFS files (last_rx.csv / lt_*.csv). */
 	if (strcmp(rel, ".int") == 0 || strncmp(rel, ".int/", 5) == 0) {
-		httpd_resp_set_status(req, "403 Forbidden");
+		const char *base = (strncmp(rel, ".int/", 5) == 0) ? rel + 5 : nullptr;
+		if (!base || strchr(base, '/') != nullptr || !sondeHistIsManagedFile(base)) {
+			httpd_resp_set_status(req, "403 Forbidden");
+			httpd_resp_set_type(req, "text/html");
+			return httpd_resp_send(req, "<html><body>refusing to delete internal storage</body></html>",
+					       HTTPD_RESP_USE_STRLEN);
+		}
+		char lfs[80];
+		snprintf(lfs, sizeof(lfs), "/%s", base);
+		bool removed = LittleFS.exists(lfs) && LittleFS.remove(lfs);
 		httpd_resp_set_type(req, "text/html");
-		return httpd_resp_send(req, "<html><body>refusing to delete internal storage</body></html>",
-				       HTTPD_RESP_USE_STRLEN);
+		if (removed) {
+			return httpd_resp_send(req, "<html><body>ok</body></html>", HTTPD_RESP_USE_STRLEN);
+		}
+		return httpd_resp_send(req, "<html><body>not found</body></html>", HTTPD_RESP_USE_STRLEN);
 	}
 
 	snprintf(vfs, sizeof(vfs), "/sd/%s", rel);

@@ -95,6 +95,7 @@ void Sonde::defaultConfig() {
 	config.sd.clk = -1;
 	config.sd.name = 0;
 	config.sd.speed = 4000000;
+	config.hist.mode = 0;
 	config.disptype = 0;
 	config.dispcontrast = -1;
 	config.tft_orient = 1;
@@ -162,6 +163,8 @@ extern const int N_CONFIG;
 
 void Sonde::checkConfig() {
 	if(config.maxsonde > MAXSONDE) config.maxsonde = MAXSONDE;
+	if(config.hist.mode < 0) config.hist.mode = 0;
+	if(config.hist.mode > 2) config.hist.mode = 2;
 	if(config.sondehub.fiinterval<5) config.sondehub.fiinterval = 5;
 	if(config.sondehub.fimaxdist>700) config.sondehub.fimaxdist = 700;
 	if(config.sondehub.fimaxage>48) config.sondehub.fimaxage = 48;

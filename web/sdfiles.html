@@ -172,6 +172,15 @@
       sizeCell.textContent = file.dir === 1 ? '—' : formatSize(file.size);
       tsCell.textContent = file.ts || '';
 
+      function isHistFile(name) {
+        if (name === 'last_rx.csv') return true;
+        return name.indexOf('lt_') === 0 && name.slice(-4).toLowerCase() === '.csv';
+      }
+      function isTrackCsv(name) {
+        if (name === 'mypos.csv' || name === 'last_rx.csv') return false;
+        return name.slice(-4).toLowerCase() === '.csv';
+      }
+
       if (file.dir !== 1) {
         if (!internal) {
           const viewBtn = document.createElement('button');
@@ -180,6 +189,25 @@
           viewBtn.textContent = 'View';
           viewBtn.onclick = function () { viewCsv(pdir + file.name, file.name); };
           actionCell.appendChild(viewBtn);
+        }
+
+        if (!internal && isTrackCsv(file.name)) {
+          const mapBtn = document.createElement('button');
+          mapBtn.type = 'button';
+          mapBtn.className = 'btn-sm';
+          mapBtn.textContent = 'Add to map';
+          mapBtn.onclick = function () {
+            var path = '/sd/' + pdir + file.name;
+            var list = [];
+            try {
+              list = JSON.parse(sessionStorage.getItem('rdzMapOverlay') || '[]');
+              if (!Array.isArray(list)) list = [];
+            } catch (e) { list = []; }
+            if (list.indexOf(path) < 0) list.push(path);
+            sessionStorage.setItem('rdzMapOverlay', JSON.stringify(list));
+            location.href = '/#map';
+          };
+          actionCell.appendChild(mapBtn);
         }
 
         if (internal) {
@@ -195,7 +223,7 @@
         }
       }
 
-      if (!internal) {
+      if (!internal || (file.dir !== 1 && isHistFile(file.name))) {
         const deleteBtn = document.createElement('button');
         deleteBtn.type = 'button';
         deleteBtn.className = 'btn-sm danger';

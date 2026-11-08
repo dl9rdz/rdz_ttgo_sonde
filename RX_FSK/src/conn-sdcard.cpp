@@ -238,12 +238,14 @@ void ConnSDCard::updateSonde( SondeInfo *si ) {
     LOG_E(TAG, "Error opening file %s\n", logName);
     return;
   }
+  /* Same fallback as display / last_rx: many decoders leave typestr empty (RS41/RS92/MP3H). */
+  const char *type = sd->typestr[0] ? sd->typestr : sondeTypeStr[sonde.realType(si)];
   if (ftell(datafile) == 0)
     fprintf(datafile, "validID,ser,typestr,subtype,lat,lon,alt,vs,hs,dir,sats,validPos,time,frame,vframe,validTime\n");
   fprintf(datafile, "%d,%s,%s,%d,"
           "%f,%f,%f,%f,%f,%f,%d,%d,"
           "%d,%d,%d,%d\n",
-          sd->validID, sd->ser, sd->typestr, sd->subtype,
+          sd->validID, sd->ser, type, sd->subtype,
           sd->lat, sd->lon, sd->alt, sd->vs, sd->hs, sd->dir, sd->sats, sd->validPos,
           sd->time, sd->frame, sd->vframe, sd->validTime);
 

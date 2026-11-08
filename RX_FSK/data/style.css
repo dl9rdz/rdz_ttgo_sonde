@@ -469,6 +469,45 @@ html.livemap-page .basemap-key-hint {
 	text-transform: uppercase;
 	letter-spacing: 0.03em;
 }
+html.livemap-page .leaflet-control-btnstrip #lastrx-btn.lastrx-toggle.active {
+	background: color-mix(in srgb, var(--map-accent) 22%, var(--map-btn-bg)) !important;
+}
+html.livemap-page .lastrx-popover {
+	max-height: min(50vh, 280px);
+	overflow-y: auto;
+	min-width: 12.5rem;
+}
+html.livemap-page .lastrx-popover .last-rx-item {
+	align-items: flex-start;
+	white-space: normal;
+}
+html.livemap-page .lastrx-popover .last-rx-item input {
+	margin-top: 2px;
+}
+html.livemap-page .lastrx-popover .last-rx-body {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+}
+html.livemap-page .lastrx-popover .last-rx-main {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px;
+}
+html.livemap-page .lastrx-popover .last-rx-id { font-weight: 600; }
+html.livemap-page .lastrx-popover .last-rx-time {
+	font-size: 10px;
+	line-height: 1.2;
+	color: var(--map-chrome-muted);
+	font-variant-numeric: tabular-nums;
+}
+html.livemap-page .lastrx-popover .last-rx-empty {
+	color: var(--map-chrome-muted);
+	font-size: 11px;
+	padding: 4px 2px;
+}
 .leaflet-bar {
 	border: 1px solid var(--map-chrome-border) !important;
 	box-shadow: var(--map-chrome-shadow) !important;
@@ -543,7 +582,26 @@ html.livemap-page .leaflet-popup-content a { color: var(--map-accent); }
 	background-color: red;
 	background-image: linear-gradient(top, orange, red);
 }
+.bbg {
+	background-color: #2a6fd6;
+	background-image: linear-gradient(top, #5a9fff, #2a6fd6);
+}
+.ldot.hollow {
+	background-color: transparent !important;
+	background-image: none !important;
+	border: 2px solid currentColor;
+	box-sizing: border-box;
+}
+.ldot.hollow.gbg { color: green; border-color: green; }
+.ldot.hollow.ybg { color: orange; border-color: orange; }
+.ldot.hollow.rbg { color: red; border-color: red; }
+.ldot.hollow.bbg { color: #2a6fd6; border-color: #2a6fd6; }
 #sonde_statbar .ldot { margin-right: 3px; }
+.last-rx-file-icon {
+	opacity: 0.75;
+	font-size: 0.95em;
+	margin-left: 2px;
+}
 
 /* topnav */
 .topnav { background-color: #333; overflow: hidden; }

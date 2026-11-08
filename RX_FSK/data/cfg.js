@@ -88,6 +88,7 @@ var cfgs = [
 [ "sd.sync", "SD card sync interval [s]" ],
 [ "sd.name", "SD card naming (0=flat, 1=YYMM folders)" ],
 [ "sd.speed", "SD card SPI speed (Hz, 0=default, e.g. 4000000, 8000000, 16000000)" ],
+[ "hist.mode", "LittleFS history (0=off, 1=last_rx.csv, 2=last_rx + light tracks lt_*.csv)" ],
 [ "", "Hardware configuration (requires reboot)", "https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Hardware-configuration"],
 [ "disptype", "Display type (0=OLED/SSD1306, 1=ILI9225, 2=OLED/SH1106, 3=ILI9341, 4=ILI9342, 5=ST7789, 6=ST7796)"],
 [ "oled_sda", "OLED SDA/TFT SDA"],
