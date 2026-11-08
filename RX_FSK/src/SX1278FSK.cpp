@@ -77,6 +77,11 @@ uint8_t SX1278FSK::ON()
 	}
 	// set FSK mode
 	state = setFSK();
+	if( state == 0 )
+	{
+		// 8-sample RSSI averaging (smoother readings; see PR #592 / issue #523)
+		writeRegister(REG_RSSI_CONFIG, 0x03);
+	}
 	return state;
 }
 
@@ -381,7 +386,8 @@ int SX1278FSK::getLNAGain() {
 uint8_t SX1278FSK::setLNAGain(int gain) {
 	uint8_t g=1;
 	while(gain<gaintab[g] && g<6) {g++; }
-	writeRegister(REG_LNA, g<<5);
+	uint8_t boost = sonde.config.lnaboost ? 0x03 : 0x00;
+	writeRegister(REG_LNA, (g<<5) | boost);
 	return 0;
 }
 

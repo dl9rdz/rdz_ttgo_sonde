@@ -950,6 +950,7 @@ struct st_configitems config_list[] = {
   {"noisefloor", 0, &sonde.config.noisefloor},
   /* decoder settings */
   {"freqofs", 0, &sonde.config.freqofs},
+  {"lnaboost", 0, &sonde.config.lnaboost},
   {"rs41.agcbw", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", 0, &sonde.config.rs92.rxbw},

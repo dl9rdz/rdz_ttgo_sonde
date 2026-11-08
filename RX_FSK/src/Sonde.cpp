@@ -121,6 +121,7 @@ void Sonde::defaultConfig() {
 	config.channelbw=10;
 	config.marker=0;
 	config.freqofs=0;
+	config.lnaboost=0;
 	config.rs41.agcbw=12500;
 	config.rs41.rxbw=6300;
 	config.rs92.rxbw=12500;

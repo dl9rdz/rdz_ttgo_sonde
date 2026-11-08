@@ -30,6 +30,7 @@ const CFGS = [
   ['noisefloor', 'Spectrum noisefloor'],
   ['', 'Receiver configuration', 'https://github.com/dl9rdz/rdz_ttgo_sonde/wiki/Receiver-configuration'],
   ['freqofs', 'RX frequency offset (Hz)'],
+  ['lnaboost', 'LNA boost (0=off, 1=on)'],
   ['rs41.agcbw', 'RS41 AGC bandwidth'],
   ['rs41.rxbw', 'RS41 RX bandwidth'],
   ['rs92.rxbw', 'RS92 RX (and AGC) bandwidth'],
