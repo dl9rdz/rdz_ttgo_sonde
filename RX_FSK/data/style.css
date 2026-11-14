@@ -531,6 +531,19 @@ html.livemap-page .lastrx-popover .last-rx-empty {
 }
 .sondeTooltip::before { border-right-color: var(--map-tip-bg) !important; }
 .sondeTooltip .tooltip-container { line-height: 1.3; }
+.sondeTooltip .tooltip-idrow {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 8px;
+}
+.sondeTooltip .tooltip-id { font-weight: 700; }
+.sondeTooltip .tooltip-freq {
+	font-size: 10px;
+	font-weight: 600;
+	opacity: 0.85;
+	white-space: nowrap;
+}
 .sondeTooltip .text-speed {
 	font-weight: 600;
 	color: var(--map-tip-speed);

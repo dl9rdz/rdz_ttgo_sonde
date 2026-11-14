@@ -670,7 +670,12 @@ $(document).ready(function(){
     var alt = (typeof data.alt === 'number') ? data.alt.toFixed(0) : data.alt;
     var vs = (typeof data.climb === 'number') ? data.climb.toFixed(1) : data.climb;
     var hs = mr((data.speed || 0) * 3.6 * 10) / 10;
-    return '<div class="tooltip-container">' + label +
+    var freqHtml = '';
+    if (data.freq != null && data.freq !== '' && !isNaN(Number(data.freq))) {
+      freqHtml = '<span class="tooltip-freq">' + Number(data.freq).toFixed(3) + ' MHz</span>';
+    }
+    return '<div class="tooltip-container">' +
+      '<div class="tooltip-idrow"><span class="tooltip-id">' + label + '</span>' + freqHtml + '</div>' +
       '<div class="text-speed">' + alt + 'm ' + vs + 'm/s ' + hs + 'km/h</div></div>';
   };
 
@@ -750,6 +755,71 @@ $(document).ready(function(){
     if (!lastRxTracks[ser]) loadLightTrack(ser);
   }
 
+  function liveKeyForSer(ser) {
+    if (!ser) return null;
+    var keys = Object.keys(marker);
+    for (var i = 0; i < keys.length; i++) {
+      var m = marker[keys[i]];
+      if (!m) continue;
+      var mser = m._rdzSer || keys[i];
+      if (mser === ser || keys[i] === ser || keys[i] === 'D' + ser ||
+          mser === 'D' + ser || ('D' + mser) === ser) {
+        return m._rdzKey || keys[i];
+      }
+    }
+    return null;
+  }
+
+  /* Prefer last lt_* sample; else last_rx.csv position. */
+  function bridgeStartForSer(ser) {
+    if (!ser) return null;
+    var track = lastRxTracks[ser];
+    if (track && track._rdzPts && track._rdzPts.length) {
+      var p = track._rdzPts[track._rdzPts.length - 1];
+      return { lat: p.lat, lon: p.lon, source: 'lt' };
+    }
+    for (var i = 0; i < lastRxEntries.length; i++) {
+      if (lastRxEntries[i].ser === ser) {
+        return {
+          lat: lastRxEntries[i].lat,
+          lon: lastRxEntries[i].lon,
+          source: 'last_rx'
+        };
+      }
+    }
+    return null;
+  }
+
+  function ensureLiveTrailBridge(key, ser, liveLoc) {
+    if (!key || !ser || isTempFreqKey(key) || !dots[key] || !liveLoc) return;
+    var start = bridgeStartForSer(ser);
+    var prev = dots[key]._rdzBridgeSource;
+    if (!start) {
+      if (!prev) dots[key]._rdzBridgeSource = 'none';
+      return;
+    }
+    /* Already bridged from lt — keep it. Allow upgrade from last_rx/none → lt. */
+    if (prev === 'lt') return;
+    if (prev === 'last_rx' && start.source === 'last_rx') return;
+
+    if (prev === 'last_rx' && start.source === 'lt' && dots[key].length > 0) {
+      dots[key].shift(); /* drop previous last_rx bridge point */
+    }
+
+    var anchor = (dots[key].length > 0) ? dots[key][0] : liveLoc;
+    try {
+      if (map.distance([start.lat, start.lon], anchor) < 5) {
+        dots[key]._rdzBridgeSource = start.source;
+        if (line[key]) line[key].setLatLngs(dots[key]);
+        return;
+      }
+    } catch (e) {}
+
+    dots[key].unshift([start.lat, start.lon]);
+    dots[key]._rdzBridgeSource = start.source;
+    if (line[key]) line[key].setLatLngs(dots[key]);
+  }
+
   function updateLowVsState(data) {
     if (!data || data.res !== 0) return;
     var vs = data.climb;
@@ -827,7 +897,8 @@ $(document).ready(function(){
           climb: data.climb,
           speed: data.speed,
           type: data.type,
-          time: data.time
+          time: data.time,
+          freq: data.freq
         };
         if (!marker[key]) {
           map.setView(location, 14);
@@ -862,6 +933,7 @@ $(document).ready(function(){
         } else {
           line[key].setLatLngs(dots[key]);
         }
+        ensureLiveTrailBridge(key, liveSerOf(data), location);
         ensureLiveLightTrack(data);
         syncLastRxMarkers();
       }
@@ -1500,7 +1572,8 @@ $(document).ready(function(){
       ser: e.ser,
       alt: e.alt,
       climb: e.vs,
-      speed: e.hs
+      speed: e.hs,
+      freq: e.freq
     };
   }
 
@@ -1634,6 +1707,14 @@ $(document).ready(function(){
         if (lastRxTracks[ser]) map.removeLayer(lastRxTracks[ser]);
         lastRxTracks[ser] = L.polyline(ptsToLatLngs(pts), HIST_LINE_STYLE).addTo(map);
         bindTrackInspect(lastRxTracks[ser], pts, ser);
+        /* Late lt_* load: upgrade live trail bridge from last_rx end to hist end. */
+        if (liveOwnsSer(ser)) {
+          var liveKey = liveKeyForSer(ser);
+          if (liveKey && dots[liveKey] && dots[liveKey].length) {
+            var liveLoc = dots[liveKey][dots[liveKey].length - 1];
+            ensureLiveTrailBridge(liveKey, ser, liveLoc);
+          }
+        }
       }
     });
   }

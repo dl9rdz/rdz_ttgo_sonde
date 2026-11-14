@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
   <!-- After Leaflet so map chrome overrides win; ?v= busts long-lived style.css cache. -->
-  <link rel="stylesheet" type="text/css" href="style.css?v=map10" />
+  <link rel="stylesheet" type="text/css" href="style.css?v=map11" />
   <script>
     var mapcenter=[48,13];
     // HTTPS helper that may call geolocation. Must not be the ESP32 itself.
@@ -44,7 +44,7 @@
       .catch(function () {})
       .finally(function () {
         var s = document.createElement('script');
-        s.src = 'livemap.js?v=map11';
+        s.src = 'livemap.js?v=map12';
         document.body.appendChild(s);
       });
   </script>
