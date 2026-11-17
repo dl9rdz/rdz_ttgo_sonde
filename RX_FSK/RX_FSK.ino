@@ -2175,12 +2175,15 @@ void WiFiEvent(WiFiEvent_t event)
       // TODO: URGENT::: Calling WiFi.mode here can cause a deadlock!!!!!
       // Arduino-ESP 3.3.9, released 4 June 2026, calls this callback handler with a mutex locked
       // that WiFi.mode will try lockig again (non-reentrant mutex). So this will result in a deadlock
-      WiFi.mode(WIFI_MODE_NULL);
+      //WiFi.mode(WIFI_MODE_NULL);
+      wifi_state = WIFI_DISABLED;
       break;
     case ARDUINO_EVENT_WIFI_OFF:
       Serial.println("WiFi is OFF");
       /* So let's retry? depending on mode... for now testing for mode 4*/
-      if(sonde.config.wifi == 4) { wifiConnectDirect(1); }
+      // if(sonde.config.wifi == 4) { wifiConnectDirect(1); }
+      // This will now deadlock as well. 
+      wifi_state = WIFI_DISABLED;
       break;
     case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
       Serial.println("Authentication mode of access point has changed");
