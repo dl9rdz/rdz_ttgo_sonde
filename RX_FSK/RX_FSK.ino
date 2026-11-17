@@ -952,7 +952,6 @@ struct st_configitems config_list[] = {
   {"noisefloor", 0, &sonde.config.noisefloor},
   /* decoder settings */
   {"freqofs", 0, &sonde.config.freqofs},
-  {"lnaboost", 0, &sonde.config.lnaboost},
   {"rs41.agcbw", 0, &sonde.config.rs41.agcbw},
   {"rs41.rxbw", 0, &sonde.config.rs41.rxbw},
   {"rs92.rxbw", 0, &sonde.config.rs92.rxbw},
@@ -2173,6 +2172,9 @@ void WiFiEvent(WiFiEvent_t event)
 	break;
       }
       LOG_D(TAG, "Turning off (state is %d)\n", wifi_state);
+      // TODO: URGENT::: Calling WiFi.mode here can cause a deadlock!!!!!
+      // Arduino-ESP 3.3.9, released 4 June 2026, calls this callback handler with a mutex locked
+      // that WiFi.mode will try lockig again (non-reentrant mutex). So this will result in a deadlock
       WiFi.mode(WIFI_MODE_NULL);
       break;
     case ARDUINO_EVENT_WIFI_OFF:
