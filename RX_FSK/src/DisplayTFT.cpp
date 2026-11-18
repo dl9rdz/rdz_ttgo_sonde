@@ -176,7 +176,7 @@ void TFTDisplay::drawString(uint16_t x, uint16_t y, const char *s, int16_t width
 	}
 
 	if(findex-1>=ngfx) findex=1;
-	LOG_D(TAG, "GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-1].yofs, fg, width, w);
+	//LOG_D(TAG, "GFX Text %s at %d,%d+%d in color %x, width=%d (w=%d)\n", s, x, y, gfxoffsets[findex-1].yofs, fg, width, w);
 #if 0
 	// Text by clear rectangle and refill, causes some flicker
 	tft->fillRectangle(x, y, x + width, y + gfxoffsets[findex-1].yclear, bg);
@@ -196,11 +196,11 @@ void TFTDisplay::drawString(uint16_t x, uint16_t y, const char *s, int16_t width
 	if(alignright) {
 		// fill with bg from x+w to width
 		if(width>w) tft->fillRect( x, y, width-w, height, bg);
-		LOG_D(TAG, "rtext fill %d %d %d %d -- %d %d\n", x, y, width-w, height, x1, y1);
+		//LOG_D(TAG, "rtext fill %d %d %d %d -- %d %d\n", x, y, width-w, height, x1, y1);
 	} else {
 		// fill with bg from x+w to width
 		if(width>w) tft->fillRect( x+w, y, width-w, height, bg);
-		LOG_D(TAG, "ltext fill %d %d %d %d -- %d %d\n", x+w, y, width-w, height, x1, y1);
+		//LOG_D(TAG, "ltext fill %d %d %d %d -- %d %d\n", x+w, y, width-w, height, x1, y1);
 	}
 #else
 	uint16_t height = gfxoffsets[findex-1].yclear;

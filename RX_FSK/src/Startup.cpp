@@ -92,7 +92,7 @@ static void applyBoardDefaults(BoardTypes board) {
                 hspi->transfer(buf, 4);
                 digitalWrite(15, 1);
                 hspi->endTransaction();
-		Serial.printf("Device ID4:  %x %x %x\n",  buf[1], buf[2], buf[3]);
+		LOG_D(TAG, "Device ID4:  %x %x %x\n",  buf[1], buf[2], buf[3]);
 		// ST7789 identifes as 00 00 00
 		// ILI9341 should identify as 00 93 41 but also returns 00 00 00
 		//
@@ -106,7 +106,7 @@ static void applyBoardDefaults(BoardTypes board) {
 		digitalWrite(15, 1);
                 hspi->endTransaction();
                 hspi->end();
-		Serial.printf("Device ID: %x %x %x\n", buf[1], buf[2], buf[3]);
+		LOG_D(TAG, "Device ID: %x %x %x\n", buf[1], buf[2], buf[3]);
 		// my ST7789 identifies as c0 d9 ff
 		// my ILI9341 identifies as 00 00 00
 		
@@ -242,7 +242,7 @@ void startupBoardDetect() {
 				}
 			}
 		} else {
-			Serial.println("Looks like a TTGO V2.1_1.6, could also be a M5 Core, or CYD");
+			LOG_I(TAG, "Looks like a TTGO V2.1_1.6, could also be a M5 Core, or CYD\n");
 			// M5 core has I2C devices 0x16 0x68 0x75
 			Wire.begin(21, 22);
 #define BMM150 0x10
@@ -291,32 +291,26 @@ int scanI2Cdevice(void)
     Wire.beginTransmission(addr);
     err = Wire.endTransmission();
     if (err == 0) {
-      Serial.print("I2C device found at address 0x");
-      if (addr < 16)
-        Serial.print("0");
-      Serial.print(addr, HEX);
-      Serial.println(" !");
+      const char *what = "";
       nDevices++;
 
       if (addr == SSD1306_ADDRESS) {
         ssd1306_found = true;
-        Serial.println("ssd1306 display found");
+        what = "(ssd1306 display)";
       }
       if (addr == AXP192_SLAVE_ADDRESS) {  // Same for AXP2101
         axp_found = true;
-        Serial.println("axp2101 PMU found");
+        what = "(axp2101 PMU)";
       }
+      LOG_D(TAG, "I2C device found at address 0x%02X %s!\n", addr, what);
     } else if (err == 4) {
-      Serial.print("Unknow error at address 0x");
-      if (addr < 16)
-        Serial.print("0");
-      Serial.println(addr, HEX);
+      LOG_W(TAG, "Unknown error at address 0x%02X\n", addr);
     }
   }
   if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
+    LOG_I(TAG, "No I2C devices found\n");
   else
-    Serial.println("done\n");
+    LOG_D(TAG, "I2C scan done\n");
   return nDevices;
 }
 
@@ -337,7 +331,7 @@ void startupPower() {
       if (!pmu) {
         pmu = PMU::getInstance(Wire);
         if (pmu) {
-          Serial.println("PMU found");
+          LOG_I(TAG, "PMU found\n");
           pmu->init();
           if (sonde.config.button2_axp ) {
             //axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
@@ -376,9 +370,9 @@ void startupRadio() {
     // == check the radio chip by setting default frequency =========== //
     radio.ON();
     if (radio.setFrequency(402700000) == 0) {
-      Serial.println(F("Setting freq: SUCCESS "));
+      LOG_D(TAG, "Setting freq: SUCCESS\n");
     } else {
-      Serial.println(F("Setting freq: ERROR "));
+      LOG_W(TAG, "Setting freq: ERROR\n");
     }
     float f = radio.getFrequency();
     LOG_D(TAG, "Frequency set to %d", f);
@@ -392,9 +386,8 @@ void startupRadio() {
   radio.setLNAGain(0);
 
   int gain = radio.getLNAGain();
-  Serial.print("RX LNA Gain is ");
-  Serial.println(gain);
+  LOG_D(TAG, "RX LNA Gain is %d\n", gain);
 
   // Print a success message
-  Serial.println(F("SX1278 configuration finished"));
+  LOG_I(TAG, "SX1278 configuration finished\n");
 }

@@ -34,8 +34,6 @@
 #define SX127X_CRYSTAL_FREQ 32000000
 #define SX127X_FSTEP (SX127X_CRYSTAL_FREQ*1.0/(1<<19))
 
-#define SX1278FSK_debug_mode 0
-
 //! MACROS //
 #define bitRead(value, bit) (((value) >> (bit)) & 0x01)  // read a bit
 #define bitSet(value, bit) ((value) |= (1UL << (bit)))    // set bit to '1'

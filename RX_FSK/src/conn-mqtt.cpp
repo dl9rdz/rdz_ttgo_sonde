@@ -43,11 +43,8 @@ void MQTT::init() {
 
 // Internal helper function for netsetup
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
-  LOG_D(TAG, "mqttCallback: rx on topic [%s]", topic);
-  for (int i=0;i<length;i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
+  // payload is not null-terminated, so print with explicit length
+  LOG_D(TAG, "mqttCallback: rx on topic [%s]: %.*s", topic, (int)length, (const char *)payload);
 }
 char lwt[128];
 /* Network initialization (as soon as network becomes available) */

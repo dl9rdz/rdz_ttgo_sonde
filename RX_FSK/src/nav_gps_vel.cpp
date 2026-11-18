@@ -17,6 +17,9 @@
 #include <stdio.h>
 
 #include "nav_gps_vel.h"
+#include "logger.h"
+
+#define TAG "nav_gps_vel"
 
 #ifndef PI
 #define  PI  (3.1415926535897932384626433832795)
@@ -107,7 +110,7 @@ EPHEM_t *read_RNXpephs(const char *file) {
     EPHEM_t ephem = {};
 
     File fp = LittleFS.open(file, "r");
-    if(!fp) { Serial.printf("Error opening %s\n", file); }
+    if(!fp) { LOG_W(TAG, "Error opening %s", file); }
 
     String line;
     do {  // header-Zeilen: 80 Zeichen
@@ -253,7 +256,7 @@ EPHEM_t *read_RNXpephs(const char *file) {
 #endif		
 		te[ui] = ephem;
 	} else {
-		Serial.printf("bad prn: %d\n", ui);
+		LOG_W(TAG, "bad prn: %d", ui);
 	}
         //if (pbuf == NULL) break;
 	if(!fp.available()) break;

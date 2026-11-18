@@ -29,11 +29,11 @@ SX1278FSK::SX1278FSK() {}
 void SX1278FSK::setup(SemaphoreHandle_t lock) 
 {
 	_lock = lock;
-	Serial.println("Setup sx1278");
+	LOG_D(TAG, "Setup sx1278\n");
 	if(_lock) SPI_MUTEX_LOCK();
 	digitalWrite(sonde.config.sx1278_ss, HIGH);
 	pinMode(sonde.config.sx1278_ss, OUTPUT);
-	Serial.printf("Configuing SX1278FSK SPI with miso=%d, mosi=%d, sck=%d, ss=%d\n", sonde.config.sx1278_miso,
+	LOG_D(TAG, "Configuing SX1278FSK SPI with miso=%d, mosi=%d, sck=%d, ss=%d\n", sonde.config.sx1278_miso,
 		sonde.config.sx1278_mosi, sonde.config.sx1278_sck, sonde.config.sx1278_ss);
 	SPI.begin(sonde.config.sx1278_sck, sonde.config.sx1278_miso, sonde.config.sx1278_mosi, -1); // no hardware CS
 	// was:  SPI.begin();
@@ -57,19 +57,12 @@ Returns: 0 on success, 1 otherwise
 uint8_t SX1278FSK::ON()
 {
 	uint8_t state = 2;
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'ON'"));
-#endif
 
 	// Set Maximum Over Current Protection
 	state = setMaxCurrent(0x1B);
 	if( state == 0 )
 	{
-#if (SX1278FSK_debug_mode > 1)
-		Serial.println(F("## Setting ON with maximum current supply ##"));
-		Serial.println();
-#endif
+		LOG_D(TAG, "## Setting ON with maximum current supply ##\n");
 	}
 	else
 	{
@@ -91,10 +84,6 @@ Returns: Nothing
 */
 void SX1278FSK::OFF()
 {
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'OFF'"));
-#endif
 
 	//SPI.end();
 #if 0
@@ -103,10 +92,7 @@ void SX1278FSK::OFF()
 	digitalWrite(SX1278_SS,LOW);
 #endif
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println(F("## Setting OFF ##"));
-	Serial.println();
-#endif
+	//LOG_D(TAG, "## Setting OFF ##\n");
 }
 
 /*
@@ -130,14 +116,9 @@ byte SX1278FSK::readRegister(byte address)
 	SPI.endTransaction();
 	digitalWrite(sonde.config.sx1278_ss,HIGH);
 
-#if (SX1278FSK_debug_mode > 1)
+#if 0
 	if(address!=0x3F) {
-		Serial.print(F("## Reading:  ##\t"));
-		Serial.print(F("Register "));
-		Serial.print(address, HEX);
-		Serial.print(F(":  "));
-		Serial.print(value, HEX);
-		Serial.println();
+		LOG_D(TAG, "## Reading:  ## Register %X:  %X\n", address, value);
 	}
 #endif
 	if(_lock) SPI_MUTEX_UNLOCK();
@@ -164,14 +145,9 @@ void SX1278FSK::writeRegister(byte address, byte data)
 	SPI.endTransaction();
 	digitalWrite(sonde.config.sx1278_ss,HIGH);
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("## Writing:  ##\t"));
-	Serial.print(F("Register "));
 	bitClear(address, 7);
-	Serial.print(address, HEX);
-	Serial.print(F(":  "));
-	Serial.print(data, HEX);
-	Serial.println();
+#if 0
+	LOG_D(TAG, "## Writing:  ## Register %X:  %X\n", address, data);
 #endif
 	if(_lock) SPI_MUTEX_UNLOCK();
 }
@@ -204,9 +180,7 @@ void SX1278FSK::clearIRQFlags()
 		writeRegister(REG_OP_MODE, st0);
 	}
 #endif
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println(F("## FSK flags cleared ##"));
-#endif
+	//LOG_D(TAG, "## FSK flags cleared ##\n");
 }
 
 /*
@@ -221,11 +195,6 @@ uint8_t SX1278FSK::setFSK()
 	uint8_t state = 2;
 	byte st0;
 	//byte config1;
-
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'setFSK'"));
-#endif
 
 	writeRegister(REG_OP_MODE, FSK_SLEEP_MODE);	// Sleep mode (mandatory to change mode)
 	// If we are in LORA mode, above line activate Sleep mode, but does not change mode to FSK
@@ -245,17 +214,10 @@ uint8_t SX1278FSK::setFSK()
 	if( st0 == FSK_STANDBY_MODE )
 	{ // FSK mode
 		state = 0;
-#if (SX1278FSK_debug_mode > 1)
-		Serial.println(F("## FSK set with success ##"));
-		Serial.println();
-#endif
+		//LOG_D(TAG, "## FSK set with success ##\n");
 	} else { // LoRa mode
 		state = 1;
-		Serial.println( st0 );
-#if (SX1278FSK_debug_mode > 1)
-		Serial.println(F("** There has been an error while setting FSK **"));
-		Serial.println();
-#endif
+		LOG_W(TAG, "setFSK failed: unexpected op mode register 0x%02X\n", st0);
 	}
 	return state;
 }
@@ -443,19 +405,9 @@ uint16_t SX1278FSK::getPreambleLength()
 {
 	uint16_t p_length;
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'getPreambleLength'"));
-#endif
-
 	p_length = readRegister(REG_PREAMBLE_MSB_FSK);
 	p_length = (p_length<<8) | readRegister(REG_PREAMBLE_LSB_FSK);
-#if (SX1278FSK_debug_mode > 1)
-		Serial.print(F("## Preamble length configured is "));
-		Serial.print(p_length, HEX);
-		Serial.print(F(" ##"));
-		Serial.println();
-#endif
+	LOG_D(TAG, "## Preamble length configured is %X ##\n", p_length);
 	return p_length;
 }
 
@@ -473,11 +425,6 @@ uint8_t SX1278FSK::setPreambleLength(uint16_t l)
 	byte st0;
 	int8_t state = 2;
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'setPreambleLength'"));
-#endif
-
 	st0 = readRegister(REG_OP_MODE);	// Save the previous status
 
 	writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);    // Set Standby mode to write in registers
@@ -486,12 +433,7 @@ uint8_t SX1278FSK::setPreambleLength(uint16_t l)
 	writeRegister(REG_PREAMBLE_LSB_FSK, l&0xFF);
 
 	state = 0;
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("## Preamble length "));
-	Serial.print(l, HEX);
-	Serial.println(F(" has been successfully set ##"));
-	Serial.println();
-#endif
+	LOG_D(TAG, "## Preamble length %X has been successfully set ##\n", l);
 
 	if(st0 != FSK_STANDBY_MODE) {
 		writeRegister(REG_OP_MODE, st0);	// Getting back to previous status
@@ -506,17 +448,9 @@ Returns: configured length; -1 on error
 int SX1278FSK::getPayloadLength()
 {	
 	int length;
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'getPayloadLength'"));
-#endif
 	length = readRegister(REG_PAYLOAD_LENGTH_FSK);
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("## Payload length configured is "));
-	Serial.print(length);
-	Serial.println(F(" ##"));
-#endif
+	LOG_D(TAG, "## Payload length configured is %d ##\n", length);
 	return length;
 }
 
@@ -527,10 +461,6 @@ Returns: 0 for ok, otherwise error
 */
 uint8_t SX1278FSK::setPayloadLength(int len)
 {	
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("Starting 'setPayloadLength'"));
-	Serial.println(len);
-#endif
 	uint8_t conf2 = readRegister(REG_PACKET_CONFIG2);
 	conf2 = (conf2 & 0xF8) | ( (len>>8)&0x7 );
 	writeRegister(REG_PACKET_CONFIG2, conf2);
@@ -558,11 +488,7 @@ int16_t SX1278FSK::getRSSI()
 	//rssi_mean = rssi_mean / total;	
 	//RSSI = rssi_mean;
 
-#if (SX1278FSK_debug_mode > 0)
-	Serial.print(F("## RSSI value is "));
-	Serial.print(RSSI);
-	Serial.println(F(" ##"));
-#endif
+	//LOG_D(TAG, "## RSSI value is %d ##\n", RSSI);
 	return RSSI;
 }
 
@@ -611,11 +537,6 @@ int SX1278FSK::getMaxCurrent()
 {
 	int value;
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'getMaxCurrent'"));
-#endif
-
 	value = readRegister(REG_OCP);
 
 	// extract only the OcpTrim value from the OCP register
@@ -628,12 +549,7 @@ int SX1278FSK::getMaxCurrent()
 	} else {
 		value = 240;		
 	}
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("## Maximum current supply configured is "));
-	Serial.print(value, DEC);
-	Serial.println(F(" mA ##"));
-	Serial.println();
-#endif
+	LOG_D(TAG, "## Maximum current supply configured is %d mA ##\n", value);
 	return value;
 }
 
@@ -656,20 +572,11 @@ int8_t SX1278FSK::setMaxCurrent(uint8_t rate)
 	int8_t state = 2;
 	byte st0;
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'setMaxCurrent'"));
-#endif
-
 	// Maximum rate value = 0x1B, because maximum current supply = 240 mA
 	if (rate > 0x1B)
 	{
 		state = -1;
-#if (SX1278FSK_debug_mode > 1)
-		Serial.print(F("** Maximum current supply is 240 mA, "));
-		Serial.println(F("so maximum parameter value must be 27 (DEC) or 0x1B (HEX) **"));
-		Serial.println();
-#endif
+		LOG_W(TAG, "** Maximum current supply is 240 mA, so maximum parameter value must be 27 (DEC) or 0x1B (HEX) **\n");
 	}
 	else
 	{
@@ -699,17 +606,11 @@ state = 0  --> The command has been executed with no errors
 uint8_t SX1278FSK::receive()
 {
 	uint8_t state = 1;
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'receive'"));
-#endif
 	// TODO: Is there anything else to be done?
 	//
 	writeRegister(REG_OP_MODE, FSK_RX_MODE);  
 	state = 0;
-#if (SX1278FSK_debug_mode > 1)
-		Serial.println(F("## Receiving FSK mode activated with success ##"));
-#endif
+	//LOG_D(TAG, "## Receiving FSK mode activated with success ##\n");
 	return state;
 }
 
@@ -729,17 +630,11 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, uint8_t *data)
 	uint8_t state = 2;
 	unsigned long previous;
 	byte value = 0x00;
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'receivePacketTimeout'"));
-#endif
 	// set RX mode
 	state = receive();
 	if(state != 0) { delay(500); return state; }
 
-#if (SX1278FSK_debug_mode > 0)
-	Serial.println(F("RX mode sucessfully activated"));
-#endif
+	//LOG_D(TAG, "RX mode sucessfully activated\n");
 	previous = millis();
 	/// FSK mode
 	value = readRegister(REG_IRQ_FLAGS2);
@@ -757,8 +652,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, uint8_t *data)
 				int rssi=getRSSI();
 				int afc=getAFC();
 #if 0
-				Serial.printf("Test(%d): RSSI=%d", rxtask.currentSonde, rssi/2);
-				Serial.print("Test: AFC="); Serial.println(afc);
+				LOG_D(TAG, "Test(%d): RSSI=%d AFC=%d\n", rxtask.currentSonde, rssi/2, afc);
 #endif
 				sonde.sondeList[rxtask.currentSonde].rssi = rssi;
 				sonde.sondeList[rxtask.currentSonde].afc = afc;
@@ -769,7 +663,7 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, uint8_t *data)
 			}
 			if(di>520) {
 				// TODO
-				Serial.println("TOO MUCH DATA");
+				LOG_W(TAG, "TOO MUCH DATA (frame too long)\n");
 				break;
 			}
 			previous = millis(); // reset timeout after receiving data
@@ -779,23 +673,23 @@ uint8_t SX1278FSK::receivePacketTimeout(uint32_t wait, uint8_t *data)
 		value = readRegister(REG_IRQ_FLAGS2);
 	}
 	if( !ready || bitRead(value, 6)==0) {
-#if 1&&(SX1278FSK_debug_mode > 0)
-		Serial.println(F("** The timeout has expired **"));
-		Serial.println();
-#endif
+		LOG_D(TAG, "** The timeout has expired **\n");
 		sonde.si()->rssi = getRSSI();
 		writeRegister(REG_OP_MODE, FSK_STANDBY_MODE);	// Setting standby FSK mode
 		return 1;  // TIMEOUT
 	}
 
-#if (SX1278FSK_debug_mode > 0)
-	Serial.printf("## Packet received [%d bytes]:\n", di);
-	for(unsigned int i = 0; i < di; i++)
+#if 0
+	LOG_D(TAG, "## Packet received [%d bytes]:\n", di);
+	// Print payload as hex, 16 bytes per log line (the logger emits one line per call)
+	for(int i = 0; i < di; i += 16)
 	{
-		Serial.print(data[i], HEX);		// Printing payload
-		Serial.print("|");
+		char line[16*3+1];
+		int n = 0;
+		for(int j = i; j < di && j < i+16; j++)
+			n += snprintf(line+n, sizeof(line)-n, "%02X|", data[j]);
+		LOG_D(TAG, "%s\n", line);
 	}
-	Serial.println(F(" ##"));
 #endif
 	if(di==0) { delay(1000); } 
 	state = 0;
@@ -819,11 +713,6 @@ uint8_t SX1278FSK::getTemp()
 	byte st0;
 	uint8_t state = 2;
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.println();
-	Serial.println(F("Starting 'getTemp'"));
-#endif
-
 	st0 = readRegister(REG_OP_MODE);	// Save the previous status
 
 	if( _modem == LORA )
@@ -846,12 +735,7 @@ uint8_t SX1278FSK::getTemp()
 	}
 
 
-#if (SX1278FSK_debug_mode > 1)
-	Serial.print(F("## Temperature is: "));
-	Serial.print(_temp);
-	Serial.println(F(" ##"));
-	Serial.println();
-#endif
+	LOG_D(TAG, "## Temperature is: %d ##\n", (int)_temp);
 
 	if( _modem == LORA )
 	{
@@ -871,7 +755,7 @@ state = 0  --> The command has been executed with no errors
 */
 void SX1278FSK::showRxRegisters()
 {	
-	Serial.println(F("\n--- Show RX register ---"));
+	LOG_D(TAG, "--- Show RX register ---\n");
 
 	// variable
 	byte reg;	
@@ -879,15 +763,11 @@ void SX1278FSK::showRxRegisters()
 	for(int i = 0x00; i < 0x80; i++)
 	{
 		reg = readRegister(i);	
-		Serial.print(F("Reg 0x"));
-		Serial.print(i, HEX);
-		Serial.print(F(":"));
-		Serial.print(reg, HEX);
-		Serial.println();
+		LOG_D(TAG, "Reg 0x%X:%X\n", i, reg);
 		delay(100);
 	}
 
-	Serial.println(F("------------------------"));
+	LOG_D(TAG, "------------------------\n");
 
 }
 #endif

@@ -5,55 +5,120 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
-#define USE_BAD_DEBUGGING_CODE 0
-
-#if USE_BAD_DEBUGGING_CODE
-extern WiFiUDP udp;
-#define LOGUDPDEST "192.168.1.91"
-#endif
+/* Compile-time UDP log mirror for remote debugging (no USB).
+ * Off by default. Enable and set LOG_UDP_HOST to your collector IP.
+ * Sends only while Wi-Fi is up; uses a dedicated socket (not the APRS udp).
+ */
+#define USE_UDP_LOG 0
+#define LOG_UDP_HOST "192.168.1.91"
+#define LOG_UDP_PORT 12345
 
 extern boolean connected;
 
 extern const char *version_name;
 extern const char *version_id;
 
-const char *lvlcol[]={RED, YEL, GRN, BLU};
+static const char *lvlch[] = { "E", "W", "I", "D" };
+static const char *lvlcol[] = { RED, YEL, GRN, BLU };
 
 bool inimprov = false;
 
 extern void enableNetwork(bool enable); // in RX_FSK.ino
 
+#if USE_UDP_LOG
+static WiFiUDP logUdp;
+static SemaphoreHandle_t logUdpMutex = NULL;
+static bool logUdpReady = false;
+
+static void udpLogSend(const uint8_t *data, size_t len) {
+	if (!logUdpReady || !connected) return;
+	if (WiFi.status() != WL_CONNECTED) return;
+	if (WiFi.localIP() == IPAddress((uint32_t)0)) return;
+	if (!logUdpMutex) return;
+	if (xSemaphoreTake(logUdpMutex, 0) != pdTRUE) return;
+	if (logUdp.beginPacket(LOG_UDP_HOST, LOG_UDP_PORT)) {
+		logUdp.write(data, len);
+		logUdp.endPacket();
+	}
+	xSemaphoreGive(logUdpMutex);
+}
+#endif
+
 void Logger::init() {
 	sonde.config.debug = 3; // Use as initial value until config file is read from file system
+#if USE_UDP_LOG
+	if (!logUdpMutex) {
+		logUdpMutex = xSemaphoreCreateMutex();
+	}
+#endif
+}
+
+void Logger::netUp() {
+#if USE_UDP_LOG
+	if (!logUdpMutex) {
+		logUdpMutex = xSemaphoreCreateMutex();
+	}
+	if (logUdpMutex && xSemaphoreTake(logUdpMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+		logUdp.begin(0);
+		logUdpReady = true;
+		xSemaphoreGive(logUdpMutex);
+	}
+#endif
+}
+
+void Logger::netDown() {
+#if USE_UDP_LOG
+	if (logUdpMutex && xSemaphoreTake(logUdpMutex, pdMS_TO_TICKS(50)) == pdTRUE) {
+		logUdpReady = false;
+		logUdp.stop();
+		xSemaphoreGive(logUdpMutex);
+	} else {
+		logUdpReady = false;
+	}
+#endif
 }
 
 void Logger::logf(LOGLEVEL lvl, const char *module, const char *fmt, ...) {
 	int color = sonde.config.debug >= 10 ? 1 : 0;
-	int cfglvl = sonde.config.debug - 10*color;
-	if(lvl > cfglvl) return;
-	char buf[512];
- 	va_list ptr;
+	int cfglvl = sonde.config.debug % 10;
+	if (cfglvl > 3) cfglvl = 3;
+	if (lvl > cfglvl) return;
+
+	char buf[256];
+	int n;
+	if (color) {
+		n = snprintf(buf, sizeof(buf), "%s%s%s (%6lu) %s%-14s%s: ",
+			lvlcol[lvl], lvlch[lvl], COLOR_RESET,
+			(unsigned long)millis(),
+			lvlcol[lvl], module ? module : "?", COLOR_RESET);
+	} else {
+		n = snprintf(buf, sizeof(buf), "%s (%6lu) %-14s: ",
+			lvlch[lvl], (unsigned long)millis(), module ? module : "?");
+	}
+	if (n < 0) n = 0;
+	if (n >= (int)sizeof(buf)) n = (int)sizeof(buf) - 1;
+
+	va_list ptr;
 	va_start(ptr, fmt);
-	*buf = 0;
- 	if(color) { strlcat(buf, lvlcol[lvl], 512); }
-	strlcat(buf, module, 512);
-        strcat(buf, ": ");
-        int len = strlen(buf);
-	vsnprintf(buf+len, 512-len, fmt, ptr);
-	if(color) { 
-		int x = strlen(buf);
-		if(buf[x-1]=='\n') { strlcpy(buf+x-1, COLOR_RESET, 512-x+1); strlcpy(buf+x-1+sizeof(COLOR_RESET)-1, "\n", 512-x+1-sizeof(COLOR_RESET)+1); }
-		else strlcat(buf, COLOR_RESET, 512); 
+	int m = vsnprintf(buf + n, sizeof(buf) - n, fmt, ptr);
+	va_end(ptr);
+	(void)m;
+
+	size_t len = strlen(buf);
+	while (len && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
+		buf[--len] = 0;
 	}
-	if(!inimprov) Serial.print(buf);
-#if USE_BAD_DEBUGGING_CODE
-	if(connected) {
-            udp.beginPacket(LOGUDPDEST, 12345);
-	    udp.write((const uint8_t *)"\nLog:",6);
-            udp.write((const uint8_t *)buf, strlen(buf));
-            udp.endPacket();
+	if (len + 1 < sizeof(buf)) {
+		buf[len++] = '\n';
+		buf[len] = 0;
 	}
+
+	if (!inimprov) Serial.print(buf);
+#if USE_UDP_LOG
+	udpLogSend((const uint8_t *)buf, len);
 #endif
 }
 
@@ -75,11 +140,9 @@ void Logger::sendImprov(int type, int len, const char *data) {
     buf[9+len+1] = '\n';
     buf[9+len+2] = 0;
     Serial.write(buf, 9+len+2);
-#if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket(LOGUDPDEST, 12345);
-	    udp.write((const uint8_t *)"Reply:",6);
-            udp.write((const uint8_t *)buf, 9+len+2);
-            udp.endPacket();
+#if USE_UDP_LOG
+    udpLogSend((const uint8_t *)"Reply:", 6);
+    udpLogSend((const uint8_t *)buf, 9+len+2);
 #endif
 }
 
@@ -104,17 +167,15 @@ void Logger::sendImprovResult(int replyto, const char *strings[]) {
     buf[8] = i-9;
     buf[10] = i-11;
 
-    int crc = 0; 
+    int crc = 0;
     for(int j=0; j<i; j++) crc += buf[j];
     buf[i++] = crc & 0xff;
     buf[i++] = '\n';
-    buf[i++] = 0; 
+    buf[i++] = 0;
     Serial.write(buf, i-1);
-#if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket(LOGUDPDEST, 12345);
-	    udp.write((const uint8_t *)"Reply:",6);
-            udp.write((const uint8_t *)buf, i-1);
-            udp.endPacket();
+#if USE_UDP_LOG
+    udpLogSend((const uint8_t *)"Reply:", 6);
+    udpLogSend((const uint8_t *)buf, i-1);
 #endif
 }
 
@@ -154,10 +215,8 @@ void Logger::handleImprov() {
     while(Serial.available()) {
         cmd[cmdlen] = Serial.read();
         if(cmd[cmdlen] == '\n') { // check if command
-#if USE_BAD_DEBUGGING_CODE
-            udp.beginPacket(LOGUDPDEST, 12345);
-            udp.write((const uint8_t *)cmd, cmdlen+1);
-            udp.endPacket();
+#if USE_UDP_LOG
+            udpLogSend((const uint8_t *)cmd, cmdlen+1);
 #endif
             if(strncmp(cmd, "IMPROV", 6)==0) {  // we have a command
                 inimprov = true;

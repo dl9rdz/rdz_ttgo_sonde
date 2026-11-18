@@ -1,6 +1,9 @@
 #include "../features.h"
 #if FEATURE_RS92
 
+#define TAG "geteph"
+#include "logger.h"
+
 #include "time.h"
 #include "geteph.h"
 #include <LittleFS.h>
@@ -96,14 +99,14 @@ void geteph() {
 	bool ok = getLocalTime(&tinfo, 5000);  // wait max 5 seconds to get current time via ntp
 	if(!ok) {
 		ephstate = EPH_TIMEERR;
-		Serial.println("Failed to get current date/time");
+		LOG_W(TAG, "Failed to get current date/time");
 		return;
 	}
 
 	// Check time of last update
 	int year = tinfo.tm_year + 1900;
 	int day = tinfo.tm_yday + 1;
-	Serial.printf("year %d, day %d\n", year, day);
+	LOG_D(TAG, "year %d, day %d", year, day);
 	snprintf(eph_nowstr, 12, "%04d%03d%02d", year, day, tinfo.tm_hour);
 	File status = LittleFS.open("/brdc.time", "r");
 	if(status) {
@@ -111,23 +114,23 @@ void geteph() {
 		const char *tsstr = ts.c_str();
 		if(tsstr && strlen(tsstr)>=9) {
 			if(strcmp(eph_nowstr, ts.c_str())<=0) {
-				Serial.println("local brdc is up to date\n");
+				LOG_I(TAG, "local brdc is up to date");
 				ephstate = EPH_GOOD;
 				return;
 			}
 		}
-		Serial.printf("now: %s, existing: %s => updating\n", eph_nowstr, tsstr);
+		LOG_I(TAG, "now: %s, existing: %s => updating", eph_nowstr, tsstr);
 	}
 	status.close();
 	File fh = LittleFS.open("/brdc.gz","w");
 	if(!fh) {	
-		Serial.println("cannot open file\n");
+		LOG_E(TAG, "cannot open file /brdc.gz for writing");
 		return;
 	}
         char host[100];
         char buf[200];
         char *ptr = strchr(sonde.config.ephftp, '/');
-	if(!ptr) { Serial.println("Invalid FTP host config"); return; }
+	if(!ptr) { LOG_E(TAG, "Invalid FTP host config"); return; }
         int hlen = ptr - sonde.config.ephftp;
         strncpy(host, sonde.config.ephftp, hlen);
         host[hlen] = 0;
@@ -137,32 +140,32 @@ void geteph() {
 	disp.rdis->clear();
 	disp.rdis->setFont(FONT_SMALL);
 	disp.rdis->drawString(0, 0, host);
-	Serial.println("running geteph\n");
+	LOG_I(TAG, "running geteph");
 	disp.rdis->drawString(0, 1*dispys, buf+9);
 
 	if(!client.connect(host, 21)) {
-		Serial.printf("FTP connection to %s failed\n", host);
+		LOG_W(TAG, "FTP connection to %s failed", host);
 		return;
 	}
-	if(getreply()>='4') { Serial.println("connected failed"); client.stop(); return; }
+	if(getreply()>='4') { LOG_W(TAG, "FTP connect failed"); client.stop(); return; }
 	client.print("USER anonymous\r\n");
-	if(getreply()>='4') { Serial.println("USER failed"); client.stop(); return; }
+	if(getreply()>='4') { LOG_W(TAG, "FTP USER failed"); client.stop(); return; }
 	client.print("PASS anonymous\r\n");
-	if(getreply()>='4') { Serial.println("PASS failed"); client.stop(); return; }
+	if(getreply()>='4') { LOG_W(TAG, "FTP PASS failed"); client.stop(); return; }
 	client.print("TYPE I\r\n");
-	if(getreply()>='4') { Serial.println("TYPE I failed"); client.stop(); return; }
+	if(getreply()>='4') { LOG_W(TAG, "FTP TYPE I failed"); client.stop(); return; }
 	client.print("PASV\r\n");
 	int len = 0;
 	{
 	String s = client.readStringUntil('\n');
 	Serial.println(s);
-	if(s.c_str()[0]>='4') { Serial.println("PASV failed"); client.stop(); return; }
+	if(s.c_str()[0]>='4') { LOG_W(TAG, "FTP PASV failed"); client.stop(); return; }
 	int array_pasv[6];
 	char *tStr = strtok((char *)s.c_str(), "(,");
 	for(int i=0; i<6; i++) {
 		tStr = strtok(NULL, "(,");
 		if(tStr==NULL) {
-			Serial.println("strange response to PASV");
+			LOG_W(TAG, "strange response to PASV");
 			client.stop();
 			return;
 		}
@@ -171,20 +174,20 @@ void geteph() {
 	}
 	uint16_t port = (array_pasv[4]<<8) | (array_pasv[5]&0xff);
 	WiFiClient dclient;
-	Serial.printf("connecting to %s:%d\n", host, port);
+	LOG_I(TAG, "connecting to %s:%d", host, port);
 	dclient.connect(host, port);
 	if(!dclient) {
-		Serial.println("data connection failed");
+		LOG_W(TAG, "FTP data connection failed");
 		client.stop();
 		return;
 	}
 	client.print("RETR ");
-	Serial.printf("fetching %s with FTP...\n", buf);
+	LOG_I(TAG, "fetching %s with FTP...", buf);
 	client.println(buf);
 	s = client.readStringUntil('\n');
 	Serial.println(s);
 	if(s.c_str()[0]>='4') {
-	   Serial.println("RETR failed");
+	   LOG_W(TAG, "FTP RETR failed, retrying with previous day");
            // retry with the previous day
            eph_fmt_path(buf, sizeof(buf), ptr+1, year, day-1, year-2000);
 	   client.print("RETR ");
@@ -192,7 +195,7 @@ void geteph() {
 	   s = client.readStringUntil('\n');
 	   Serial.println(s);
 	   if(s.c_str()[0]>='4') {
-             Serial.println("RETR failed (2)");
+             LOG_W(TAG, "FTP RETR failed (2)");
              client.stop();
              return;
            }
@@ -201,7 +204,7 @@ void geteph() {
 		while(dclient.available()) {
 			int c = dclient.read();
 			if(c==-1) {
-				Serial.println("dclient.read() returned -1 inspite of available() being true?!");
+				LOG_W(TAG, "dclient.read() returned -1 inspite of available() being true?!");
 			} else {
 				fh.write(c);
 				len++;
@@ -209,7 +212,7 @@ void geteph() {
 		}
 	}
 	dclient.stop();
-	Serial.printf("fetched %d bytes\n", len);
+	LOG_I(TAG, "fetched %d bytes", len);
 	}
 	client.stop();
 	fh.close();
@@ -221,21 +224,21 @@ void geteph() {
 	// decompression
 	tinfl_decompressor *decomp = (tinfl_decompressor *)malloc(sizeof(tinfl_decompressor));
 	if(!decomp) {
-		Serial.println("eph: no memory for decompressor");
+		LOG_E(TAG, "eph: no memory for decompressor");
 		ephstate = EPH_ERROR;
 		return;
 	}
 	tinfl_init(decomp);
 	File file = LittleFS.open("/brdc.gz","r");
 	if(!file) {	
-		Serial.println("cannot open file\n");
+		LOG_E(TAG, "cannot open file /brdc.gz for reading");
 		free(decomp);
 		ephstate = EPH_ERROR;
 		return;
 	}
 	File ofile = LittleFS.open("/brdc", "w");
 	if(!ofile) {
-		Serial.println("cannot open file /brdc for writing");
+		LOG_E(TAG, "cannot open file /brdc for writing");
 		free(decomp);
 		file.close();
 		ephstate = EPH_ERROR;
@@ -244,7 +247,7 @@ void geteph() {
 	file.readBytes(buf, 10);  // skip gzip header
 	char flags = buf[3];
 	if(flags&0x07) {
-		Serial.println("Unsupported flags in gzip header, may or may not cause a problem");
+		LOG_W(TAG, "Unsupported flags in gzip header, may or may not cause a problem");
 	}
 	if(flags&0x08) { // skip file name extra header
 		do {
@@ -260,12 +263,12 @@ void geteph() {
 	}
 	int opos = 0;
 	int total = 0;
-	Serial.println("Decompressing ephemeris data...\n");
+	LOG_I(TAG, "Decompressing ephemeris data...");
 	eph_heap("before malloc");
 	char *obuf =(char *)malloc(32768);
 	char *ibuf =(char *)malloc(8192);
 	if(!obuf || !ibuf) {
-		Serial.println("eph: no memory for decompress buffers");
+		LOG_E(TAG, "eph: no memory for decompress buffers");
 		free(obuf);
 		free(ibuf);
 		free(decomp);
@@ -300,7 +303,7 @@ void geteph() {
 		}
 	}
 	// maybe todo: check crc?!?
-	Serial.printf("done extracing content (total length: %d)\n", total);
+	LOG_I(TAG, "done extracting content (total length: %d)", total);
 	status = LittleFS.open("/brdc.time","w");
 	status.println(eph_nowstr);
 	status.close();

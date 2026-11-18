@@ -207,7 +207,7 @@ int RS41::setup(float frequency, int /*type*/)
 	}
 
 	if(radio.ON()!=0) {
-		LOG_E(TAG, "Setting SX1278 power on FAILED");
+		LOG_W(TAG, "Setting SX1278 power on FAILED");
 		return 1;
 	}
 	if(DecoderBase::setup(rs41SetupCfg, sonde.config.rs41.agcbw, sonde.config.rs41.rxbw)!=0 ) {
@@ -217,7 +217,7 @@ int RS41::setup(float frequency, int /*type*/)
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
 	if(radio.setPacketConfig(0x08, 0x40)!=0) {
-		LOG_E(TAG, "Setting Packet config FAILED");
+		LOG_W(TAG, "Setting Packet config FAILED");
 		return 1;
 	}
 	int retval = radio.setFrequency(frequency);
@@ -408,25 +408,12 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    x = (double)getint32(b, b_len, p)*0.01;
    y = (double)getint32(b, b_len, p+4UL)*0.01;
    z = (double)getint32(b, b_len, p+8UL)*0.01;
-#if 0
-/* new X sonde are different, handle sats outside this function */
-   uint8_t sats = getcard16(b, b_len, p+18UL)&255UL;
-   Serial.printf("x:%g, y:%g, z:%g  sats:%d\n", x, y, z, sats);
-   si->sats = sats;
-   if( sats<4 || (x==0 && y==0 && z==0) ) {
-      // RS41 sometimes sends frame with all 0
-      // or, if sats<4, data is simply garbage. do not use.
-      if(si->validPos) si->validPos |= 0x80; // flag as old
-      return;
-   }
-#else
-   LOG_D(TAG, "x:%g, y:%g, z:%g\n", x, y, z);
+
    if( x==0 && y==0 && z==0 ) {
       // RS41 sometimes sends frame with all 0
       if(si->validPos) si->validPos |= 0x80; // flag as old
       return;           
    }          
-#endif
 
    wgs84r(x, y, z, &lat, &long0, &heig);
    si->lat = (float)(X2C_DIVL(lat,1.7453292519943E-2));
@@ -452,7 +439,8 @@ static void posrs41(const byte b[], uint32_t b_len, uint32_t p)
    }
    else
       si->validPos = 0x7f;
-   LOG_D(TAG, "lat:%.5f lon:%.5f alt:%.0fm %.1fkm/h dir:%.1fdeg %.1fm/s\n",
+   LOG_D(TAG, "posrs41: x:%g,y:%g,z:%g => lat:%.5f lon:%.5f alt:%.0fm %.1fkm/h dir:%.1fdeg %.1fm/s\n",
+         x, y, z,
          si->lat, si->lon, si->alt, si->hs * 3.6f, si->dir, si->vs);
 } /* end posrs41() */
 
@@ -482,35 +470,25 @@ void ProcessSubframe( byte *subframeBytes, int subframeNumber ) {
    // Allocate on demand
    if(!s) {
       s = (struct subframeBuffer *)malloc( sizeof(struct subframeBuffer) );
-      if(!s) { Serial.println("ProcessSubframe: out of memory"); return; }
+      if(!s) { LOG_W(TAG, "ProcessSubframe: out of memory\n"); return; }
       sonde.si()->extra = s;
       s->valid = 0;
    }
    memcpy( s->rawData+16*subframeNumber, subframeBytes, 16);
    s->valid |= (1ULL << subframeNumber);
-   Serial.printf("subframe %d; valid: %x%08x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
-   for(int i=0; i<16; i++) { Serial.printf("%02x[%c]", subframeBytes[i],( subframeBytes[i]>20 && subframeBytes[i]<127)? subframeBytes[i] : '.'); }
-   Serial.println("");
+   LOG_D(TAG, "subframe %d; valid: %x%08x\n", subframeNumber, (uint32_t)(s->valid>>32), (uint32_t)s->valid);
+#if 0
+   {
+      char sfbuf[16*6+1];
+      int sfn = 0;
+      for(int i=0; i<16; i++) {
+         sfn += snprintf(sfbuf+sfn, sizeof(sfbuf)-sfn, "%02x[%c]", subframeBytes[i],( subframeBytes[i]>20 && subframeBytes[i]<127)? subframeBytes[i] : '.');
+      }
+      LOG_D(TAG, "%s\n", sfbuf);
+   }$a
+#endif
    // subframeReceived[subframeNumber] = true; // mark this row of the total subframe as complete
 
-   #if 0
-      Serial.printf("subframe number: 0x%02X\n", subframeNumber );
-      Serial.print("subframe values: ");
-      for ( int i = 0; i < 16; i++ ) {
-         Serial.printf( "%02X ", subframeBytes[i] ); 
-      }
-      Serial.println();
-
-      Serial.println("Full subframe");
-      for ( int j = 0; j<51; j++ ) {
-         Serial.printf("%03X ", j*16);
-         for ( int i = 0; i < 16; i++ ) {
-            Serial.printf( "%02X ", s.rawData[j*16+i] ); 
-         }
-         Serial.println();
-      }
-      Serial.println();
-   #endif   
 }
 
 /* Find the water vapor saturation pressure for a given temperature.
@@ -703,7 +681,7 @@ int RS41::decode41(byte *data, int maxlen)
 #endif
 		// check CRC
 		if(!crcrs(data, 560, p, p+len)) {
-			Serial.println("###CRC ERROR###");
+			LOG_D(TAG, "###CRC ERROR###\n");
 			crcok = 0;
 		} else {	
 		switch(typ) {
@@ -715,13 +693,10 @@ int RS41::decode41(byte *data, int maxlen)
 				struct subframeBuffer *sub = (struct subframeBuffer *)sonde.si()->extra;
 				if(sub) { sub->valid = 0; }
 			}
-			Serial.print("#");
 			uint16_t fnr = data[p]+(data[p+1]<<8);
-			Serial.print(fnr);
 			si->vframe = si->frame = fnr;
-			Serial.print("; RS41 ID ");
 			snprintf(buf, 10, "%.8s ", data+p+2);
-			Serial.print(buf);
+			LOG_D(TAG, "#%d; RS41 ID %s\n", fnr, buf);
 			si->batteryVoltage = data[p+10] / 10.0f;
 			// not needed, if we end up here, the type has to be RS41.... si->type=STYPE_RS41;
 			strncpy(si->id, (const char *)(data+p+2), 8);
@@ -745,7 +720,7 @@ int RS41::decode41(byte *data, int maxlen)
 			if(calnr==0x32) {
 				uint16_t cntdown = data[p+24] + (data[p+25]<<8);
 				uint16_t min = cntdown - (cntdown/3600)*3600;
-				Serial.printf("Countdown value: %d\n [%2d:%02d:%02d]", cntdown, cntdown/3600, min/60, min-(min/60)*60);
+				LOG_D(TAG, "Countdown value: %d [%2d:%02d:%02d]\n", cntdown, cntdown/3600, min/60, min-(min/60)*60);
 				si->countKT = cntdown;
 				si->crefKT = fnr;
 			}
@@ -771,7 +746,7 @@ int RS41::decode41(byte *data, int maxlen)
 		case '{': // pos
 			posrs41(data+p, len, 0);
 			si->sats = (data+p)[18];
-			Serial.printf("sats: %d\n", si->sats);
+			LOG_D(TAG, "sats: %d\n", si->sats);
 			// TODO: Maybe check elsewhere if sats < 4 => do not use position
 			break;
 		case '\202':    // pos + UTC date, new X version. Next byte after seconds is centiseconds.
@@ -832,24 +807,24 @@ int RS41::decode41(byte *data, int maxlen)
 
 	    if ( validPressure ) {
 	       si->pressure = GetRAP( pressureMain, pressureRef1, pressureRef2, ptraw );
-	       Serial.printf("Pressure sensor = %f\n", si->pressure);
+	       LOG_D(TAG, "Pressure sensor = %f\n", si->pressure);
 	    }
 
             if ( validExternalTemperature ) {
                si->temperature = GetRATemp( tempMeasMain, tempMeasRef1, tempMeasRef2,
                                  calibration->value.calT, calibration->value.taylorT, calibration->value.polyT );
-               Serial.printf("External temperature = %f\n", si->temperature );
+               LOG_D(TAG, "External temperature = %f\n", si->temperature );
             }
 
             if ( validHumidity && validExternalTemperature ) {
                si->tempRHSensor = GetRATemp( tempHumiMain, tempHumiRef1, tempHumiRef2, 
                                                     calibration->value.calTU, calibration->value.taylorTU, calibration->value.polyTrh );
-               Serial.printf("Humidity Sensor temperature = %f\n", si->tempRHSensor );
+               LOG_D(TAG, "Humidity Sensor temperature = %f\n", si->tempRHSensor );
                si->relativeHumidity = GetRAHumidity( humidityMain, humidityRef1, humidityRef2, si->tempRHSensor, si->temperature, si->pressure );
 	       // drop humidity if invalid. faulty sonde can cause a value INFINITY that breaks JSON export.
 	       // We must make sure that humitidy is either a number of NAN (INFINIT is >100 so this is handled correctly now)
 	       if(si->relativeHumidity<0 || si->relativeHumidity>100) si->relativeHumidity = NAN;
-               Serial.printf("Relative humidity = %f\n", si->relativeHumidity );
+               LOG_D(TAG, "Relative humidity = %f\n", si->relativeHumidity );
             }
          }
          break;
@@ -860,19 +835,20 @@ int RS41::decode41(byte *data, int maxlen)
 			break;
 		}}
 		p += len;
-		Serial.println();
 	}
 	return (serialok&&crcok) ? 0 : RX_ERROR;
 }
 void RS41::printRaw(uint8_t *data, int len)
 {
-	char buf[3];
-	int i;
-	for(i=0; i<len; i++) {
-		snprintf(buf, 3, "%02X", data[i]);
-		Serial.print(buf);
+	char buf[65];
+	int i = 0;
+	while(i<len) {
+		int n = 0;
+		for(; i<len && n<=62; i++) {
+			n += snprintf(buf+n, sizeof(buf)-n, "%02X", data[i]);
+		}
+		LOG_D(TAG, "%s\n", buf);
 	}
-	Serial.println();
 }
 
 void RS41::bitsToBytes(uint8_t *bits, uint8_t *bytes, int len)
@@ -940,7 +916,7 @@ int RS41::getSubtype(char *buf, int buflen, SondeInfo *si) {
 	strncpy(buf, sf->value.names.variant, buflen);
 	buf[buflen-1]=0;
 	if(*buf==0) return -1;
-	Serial.printf("subframe valid: %x%08x; subtype=%s\n", (uint32_t)(sf->valid>>32), (uint32_t)sf->valid, buf);
+	LOG_D(TAG, "subframe valid: %x%08x; subtype=%s\n", (uint32_t)(sf->valid>>32), (uint32_t)sf->valid, buf);
 	return 0;
 }
 

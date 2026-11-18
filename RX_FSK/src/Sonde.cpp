@@ -222,7 +222,6 @@ void Sonde::setConfig(const char *cfg) {
 				if(ptr) *ptr = 0;
 				config.display[idx++] = atoi(val);
 				val = ptr?ptr+1:NULL;
-				LOG_D(TAG, "appending value %d  next is %s\n", config.display[idx-1], val?val:"");
 			}
 			config.display[idx] = -1;
 			break;
@@ -398,15 +397,30 @@ void Sonde::receive() {
 			si->lastState = 1;
 			sonde.dispsavectlON();
 		}
+		if(res==RX_OK) {
+			const char *typestr = si->d.typestr[0] ? si->d.typestr : sondeTypeStr[si->type];
+			LOG_I(TAG, "%s idx=%d id=%s frame=%u lat=%.5f lon=%.5f alt=%.0f rssi=%d (~%.0fdBm) afc=%ld Hz",
+				typestr, rxtask.currentSonde,
+				si->d.id[0] ? si->d.id : "?",
+				(unsigned)si->d.frame,
+				si->d.lat, si->d.lon, si->d.alt,
+				si->rssi, -((float)si->rssi / 2),
+				(long)si->afc);
+		} else {
+			LOG_D(TAG, "receive %s idx=%d", (res<=3)?RXstr[res]:"?", rxtask.currentSonde);
+		}
 	} else { // RX Timeout
-		//LOG_I(TAG, "Sonde::receive(): result %d (%s), laststate was %d\n", res, (res<=3)?RXstr[res]:"?", si->lastState);
 		if(si->lastState != 0) {
 			si->norxStart = millis();
 			si->lastState = 0;
+			LOG_I(TAG, "timeout idx=%d @ %.3f MHz rssi=%d (~%.0fdBm)",
+				rxtask.currentSonde, si->freq,
+				si->rssi, -((float)si->rssi / 2));
+		} else {
+			LOG_D(TAG, "timeout idx=%d @ %.3f MHz rssi=%d",
+				rxtask.currentSonde, si->freq, si->rssi);
 		}
 	}
-	// LOG_I(TAG, "debug: res was %d, now lastState is %d\n", res, si->lastState);
-
 
 	// we should handle timer events here, because after returning from receive,
 	// we'll directly enter setup
@@ -418,7 +432,7 @@ void Sonde::receive() {
 	int action = (event==EVT_NONE) ? ACT_NONE : 
                      (event==EVT_RINEX) ? ACT_RINEX_UPDATE : 
 		     (event==EVT_FORMAT) ? ACT_FORMAT_SD : disp.layout->actions[event];
-	if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x\n", event, action); }
+	if(action!=ACT_NONE) { LOG_I(TAG, "event %x: action is %x", event, action); }
 	// If action is to move to a different sonde index, we do update things here, set activate
 	// to force the sx1278 task to call sonde.setup(), and pass information about sonde to
 	// main loop (display update...)
@@ -439,7 +453,7 @@ void Sonde::receive() {
 			rxtask.activate = ACT_SONDE(rxtask.currentSonde);
 		}
 	}
-	LOG_I(TAG, "Sonde:receive(): result %d (%s), event %02x => action %02x\n", res, (res<=3)?RXstr[res]:"?", event, action);
+	LOG_D(TAG, "Sonde:receive(): result %d (%s), event %02x => action %02x", res, (res<=3)?RXstr[res]:"?", event, action);
 	res = (action<<8) | (res&0xff);
 	// let waitRXcomplete resume...
 	rxtask.receiveResult = res;
@@ -457,20 +471,20 @@ rxloop:
 	}
 	if( rxtask.receiveResult == RX_UPDATERSSI ) {
 		rxtask.receiveResult = 0xFFFF;
-		LOG_I(TAG, "RSSI update: %d/2\n", sonde.si()->rssi);
+		//LOG_D(TAG, "RSSI update: %d/2", sonde.si()->rssi);
 		disp.updateDisplayRSSI();
 		goto rxloop;
 	}
 
 	if( rxtask.receiveResult==0xFFFF) {
-		LOG_I(TAG, "TIMEOUT in waitRXcomplete. Should never happen!\n");
+		LOG_I(TAG, "TIMEOUT in waitRXcomplete. Should never happen!");
 		res = RX_TIMEOUT;
 	} else {
 		res = rxtask.receiveResult;
 	}
 	rxtask.receiveResult = 0xFFFF;
 	/// TODO: THis has caused an exception when swithcing back to spectrumm...
-	LOG_I(TAG, "waitRXcomplete returning %04x (%s)\n", res, (res&0xff)<4?RXstr[res&0xff]:"");
+	LOG_D(TAG, "waitRXcomplete returning %04x (%s)", res, (res&0xff)<4?RXstr[res&0xff]:"");
 	// currently used only by RS92
 	switch(sondeList[rxtask.receiveSonde].type) {
 	case STYPE_RS41:

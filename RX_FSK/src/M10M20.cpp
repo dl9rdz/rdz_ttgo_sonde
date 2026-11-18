@@ -6,13 +6,8 @@
 #include "rsc.h"
 #include "Sonde.h"
 
-#define M10M20_DEBUG 1
-
-#if M10M20_DEBUG
-#define M10M20_DBG(x) x
-#else
-#define M10M20_DBG(x)
-#endif
+#define TAG "M10M20"
+#include "logger.h"
 
 
 static byte data1[512];
@@ -39,26 +34,25 @@ decoderSetupCfg m10m20SetupCfg = {
 
 int M10M20::setup(float frequency, int /*type*/) 
 {
-	M10M20_DBG(Serial.println("Setup sx1278 for M10/M20 sonde"));;
+	LOG_D(TAG, "Setup sx1278 for M10/M20 sonde\n");
 	if(radio.ON()!=0) {
-		M10M20_DBG(Serial.println("Setting SX1278 power on FAILED"));
+		LOG_W(TAG, "Setting SX1278 power on FAILED\n");
 		return 1;
 	}
 	// setFSK: switches to FSK standby mode
 	if(radio.setFSK()!=0) {
-		M10M20_DBG(Serial.println("Setting FSK mode FAILED"));
+		LOG_W(TAG, "Setting FSK mode FAILED\n");
 		return 1;
 	}
-        Serial.print("M10/M20: setting RX frequency to ");
-        Serial.println(frequency);
+        LOG_D(TAG, "M10/M20: setting RX frequency to %f\n", frequency);
         int res = radio.setFrequency(frequency);
 
         if(radio.setAFCBandwidth(sonde.config.m10m20.agcbw)!=0) {
-                M10M20_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.m10m20.agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.m10m20.agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.m10m20.rxbw)!=0) {
-                M10M20_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.m10m20.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.m10m20.rxbw);
                 return 1;
         }
 
@@ -75,19 +69,19 @@ int M10M20::setup(float frequency, int /*type*/)
         // Packet config 1: fixed len, no mancecer, no crc, no address filter
         // Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
         if(radio.setPacketConfig(0x08, 0x40)!=0) {
-                M10M20_DBG(Serial.println("Setting Packet config FAILED"));
+                LOG_W(TAG, "Setting Packet config FAILED\n");
                 return 1;
         }
         // enable RX
         radio.setPayloadLength(0);
         radio.startRX();
         unsigned long t0 = millis();
-        M10M20_DBG(Serial.printf("M10M20::setup() AFC preamble search start at %ld\n",t0));
+        LOG_D(TAG, "M10M20::setup() AFC preamble search start at %ld\n",t0);
         while( millis() - t0 < 1000 ) {
                if(radio.preambleDetected()) {
                        int32_t afc = radio.getAFC();
                        int16_t rssi = radio.getRSSI();
-                       Serial.printf("M10M20::setup: preamble: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
+                       LOG_D(TAG, "M10M20::setup: preamble: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
                        sonde.sondeList[rxtask.currentSonde].rssi = rssi;
                        sonde.sondeList[rxtask.currentSonde].afc = afc;
                        break;
@@ -95,7 +89,7 @@ int M10M20::setup(float frequency, int /*type*/)
                yield();
         }
         if( millis() - t0 >= 1000) {
-               Serial.println("Preamble scan for AFC: TIMEOUT\n");
+               LOG_D(TAG, "Preamble scan for AFC: TIMEOUT\n");
                return 1; // no preamble, so we may fail fast....
         }
 
@@ -108,17 +102,17 @@ int M10M20::setup(float frequency, int /*type*/)
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
 	radio.setFSK();
 	if(radio.setBitrate(9600)!=0) {
-		M10M20_DBG(Serial.println("Setting bitrate 9600bit/s FAILED"));
+		LOG_W(TAG, "Setting bitrate 9600bit/s FAILED\n");
 		return 1;
 	}
-	M10M20_DBG(Serial.printf("Exact bitrate is %f\n", radio.getBitrate()));
+	LOG_D(TAG, "Exact bitrate is %f\n", radio.getBitrate());
 	// Probably not necessary, as this was set before
         if(radio.setAFCBandwidth(sonde.config.m10m20.agcbw)!=0) {
-                M10M20_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.m10m20.agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.m10m20.agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.m10m20.rxbw)!=0) {
-                M10M20_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.m10m20.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.m10m20.rxbw);
                 return 1;
         }
 
@@ -126,18 +120,18 @@ int M10M20::setup(float frequency, int /*type*/)
 	//if(radio.setRxConf(0x1E)!=0) {
 	// Disable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(radio.setRxConf(0x00)!=0) {
-		M10M20_DBG(Serial.println("Setting RX Config FAILED"));
+		LOG_W(TAG, "Setting RX Config FAILED\n");
 		return 1;
 	}
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x66";
 	if(radio.setSyncConf(0x70, 1, (const uint8_t *)SYNC)!=0) {
-		M10M20_DBG(Serial.println("Setting SYNC Config FAILED"));
+		LOG_W(TAG, "Setting SYNC Config FAILED\n");
 		return 1;
 	}
         // Preamble detection off (+ size 1 byte, maximum tolerance; should not matter for "off"?)
         if(radio.setPreambleDetect(0x00 | 0x00 | 0x1F)!=0) {
-		M10M20_DBG(Serial.println("Setting PreambleDetect FAILED"));
+		LOG_W(TAG, "Setting PreambleDetect FAILED\n");
 		return 1;
 	}
 #endif
@@ -145,7 +139,7 @@ int M10M20::setup(float frequency, int /*type*/)
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
 	if(radio.setPacketConfig(0x08, 0x40)!=0) {
-		M10M20_DBG(Serial.println("Setting Packet config FAILED"));
+		LOG_W(TAG, "Setting Packet config FAILED\n");
 		return 1;
 	}
 
@@ -157,11 +151,9 @@ int M10M20::setup(float frequency, int /*type*/)
 	delay(50);
 	radio.setRawAFC(afc);
 	delay(50);
-        Serial.printf("after RX_MODE: AFC is %d\n", radio.getAFC());
+        LOG_D(TAG, "after RX_MODE: AFC is %d\n", radio.getAFC());
 
-#if M10M20_DEBUG
-	M10M20_DBG(Serial.println("Setting SX1278 config for M10 finished\n"); Serial.println());
-#endif
+	LOG_D(TAG, "Setting SX1278 config for M10 finished\n");
         return res;
 }
 
@@ -177,13 +169,14 @@ M10M20::M10M20() {
 
 void M10M20::printRaw(uint8_t *data, int len)
 {
-	char buf[3];
+	char buf[3*M10_FRAMELEN+1];
 	int i;
+	if(len > M10_FRAMELEN) len = M10_FRAMELEN;
 	for(i=0; i<len; i++) {
-		snprintf(buf, 3, "%02X ", data[i]);
-		Serial.print(buf);
+		snprintf(buf+3*i, 4, "%02X ", data[i]);
 	}
-	Serial.println();
+	buf[3*len] = 0;
+	LOG_D(TAG, "%s\n", buf);
 }
 
 static uint16_t update_checkM10M20(int c, uint8_t b) {
@@ -292,12 +285,11 @@ int M10M20::decodeframeM10(uint8_t *data) {
 			else { fixcnt[i]=0; fixbytes[i]=data[i]; }
 		}
 	}
-	Serial.println(crcok?"CRC OK":"CRC NOT OK");
-	Serial.printf(" repair: %d/%d\n", repl, repairstep);
+	LOG_D(TAG, "%s, repair: %d/%d\n", crcok?"CRC OK":"CRC NOT OK", repl, repairstep);
 	if(!crcok) return 2;
 
 	if(data[1]==0x9F && data[2]==0x20) {
-		Serial.println("Decoding...");
+		LOG_D(TAG, "Decoding...\n");
 		//SondeInfo *si = sonde.si();
 		SondeData *si = &(sonde.si()->d);
 		// Set type info to M10
@@ -334,7 +326,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		ids[11] = 0;
 		strncpy(si->ser, ids, 12);
 		si->validID = true;
-		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
+		LOG_D(TAG, "ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 		// position data
 		si->lat = getint32(data+14) * DEGMUL;
@@ -393,7 +385,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		if(rh>100.0) rh=100.0;
 		si->relativeHumidity = rh;
 		}
-		Serial.printf("hum: %.2f  batt: %.2f\n", si->relativeHumidity, si->batteryVoltage);
+		LOG_D(TAG, "hum: %.2f  batt: %.2f\n", si->relativeHumidity, si->batteryVoltage);
 
  		uint32_t gpstime = getint32(data+10);
                 uint16_t gpsweek = getint16(data+32);
@@ -408,7 +400,7 @@ int M10M20::decodeframeM10(uint8_t *data) {
 		si->vframe = si->time - 315964800 + 18;
                 si->validTime = true;
 	} else {
-		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
+		LOG_D(TAG, "data is %02x %02x %02x\n", data[0], data[1], data[2]);
 		return 0;
 	}
 	return 1;
@@ -446,9 +438,7 @@ void M10M20::processM10data(uint8_t dt)
                                 int rssi=radio.getRSSI();
                                 int fei=radio.getFEI();
                                 int afc=radio.getAFC();
-                                Serial.print("SYNC!!! Test: RSSI="); Serial.print(rssi);
-                                Serial.print(" FEI="); Serial.print(fei);
-                                Serial.print(" AFC="); Serial.println(afc);
+                                LOG_D(TAG, "SYNC!!! Test: RSSI=%d FEI=%d AFC=%d\n", rssi, fei, afc);
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 #endif
@@ -485,17 +475,17 @@ void M10M20::processM10data(uint8_t dt)
 
 int M10M20::receive() {
 	unsigned long t0 = millis();
-	Serial.printf("M10M20::receive() start at %ld\n",t0);
+	LOG_D(TAG, "M10M20::receive() start at %ld\n",t0);
    	while( millis() - t0 < 1100 ) {
 		uint8_t status = radio.fifoStatus();
 		if ( status & FIFO_FULL ) {
-			Serial.println("FIFO full");
+			LOG_D(TAG, "FIFO full\n");
       		}
       		if ( status & FIFO_OVERRUN ) {
-        		Serial.println("FIFO overflow");
+        		LOG_W(TAG, "FIFO overflow\n");
       		}
       		if ( status & FIFO_PAYLOAD_READY ) {
-        		Serial.println("FIFO: ready()");
+        		LOG_D(TAG, "FIFO: ready()\n");
         		radio.clearIRQFlags();
       		}
 		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
@@ -509,8 +499,8 @@ int M10M20::receive() {
 				headerDetected = 0;
 			}
     			if(haveNewFrame) {
-				Serial.printf("M10M20::receive(): new frame complete after %ldms\n", millis()-t0);
-				printRaw(dataptr, M10_FRAMELEN);
+				//printRaw(dataptr, M10_FRAMELEN);
+				LOG_D(TAG, "M10M20::receive(): new frame complete after %ldms\n", millis()-t0);
 				int retval = haveNewFrame==1 ? RX_OK: RX_ERROR;
 				haveNewFrame = 0;
 				return retval;
@@ -520,8 +510,8 @@ int M10M20::receive() {
     	}
                        int32_t afc = radio.getAFC();
                        int16_t rssi = radio.getRSSI();
-                       Serial.printf("receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
-	Serial.printf("M10M20::receive() timed out\n");
+                       LOG_D(TAG, "receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
+	LOG_D(TAG, "M10M20::receive() timed out\n");
     	return RX_TIMEOUT; // TODO RX_OK;
 }
 
@@ -571,11 +561,11 @@ int M10M20::decodeframeM20(uint8_t *data) {
 			else { fixcnt[i]=0; fixbytes[i]=data[i]; }
 		}
 	}
-	Serial.println(crcok?"CRC OK":"CRC NOT OK");
-        Serial.printf(" repair: %d/%d\n", repl, repairstep);
+	LOG_D(TAG, "%s\n", crcok?"CRC OK":"CRC NOT OK");
+        LOG_D(TAG, " repair: %d/%d\n", repl, repairstep);
         if(!crcok) return 2;
 
-	Serial.println("Decoding...");
+	LOG_D(TAG, "Decoding...\n");
 	// Its a M20
 	memcpy(si->typestr, "M20 ", 5);
 	si->subtype = 2;  // subtype 2: M20

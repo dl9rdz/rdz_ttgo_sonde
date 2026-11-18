@@ -2,6 +2,9 @@
 
 #if FEATURE_APRS
 
+#define TAG "conn-aprs"
+#include "logger.h"
+
 #include "conn-aprs.h"
 #include "aprs.h"
 #include "posinfo.h"
@@ -51,7 +54,7 @@ void ConnAPRS::init() {
     } else {
         udpport = 9002;
     }
-    Serial.printf("AXUDP: host=%s, port=%d\n", udphost, udpport);
+    LOG_I(TAG, "AXUDP: host=%s, port=%d\n", udphost, udpport);
     aprs[0].tcpclient = aprs[1].tcpclient = -1;
 }
 
@@ -76,51 +79,49 @@ void ConnAPRS::updateSonde( SondeInfo *si ) {
     // prepare data (for UDP and TCP output)
     char *str = aprs_senddata(si, sonde.config.call, sonde.config.objcall, sonde.config.tcpfeed.symbol);
 
-    Serial.printf("udpfedd active: %d  tcpfeed active: %d\n", sonde.config.udpfeed.active, sonde.config.tcpfeed.active);
+    LOG_D(TAG, "udpfeed active: %d  tcpfeed active: %d", sonde.config.udpfeed.active, sonde.config.tcpfeed.active);
     unsigned long now = millis();
     // Output via AXUDP
     if(sonde.config.udpfeed.active) {
 	static unsigned long lastudp = 0;
 	long tts = sonde.config.udpfeed.ratelimit * 1000L - (now - lastudp);
-	Serial.printf("aprs-udp: now-last = %ld\n", (now - lastudp));
 	if ( tts < 0 ) {
             char raw[201];
             int rawlen = aprsstr_mon2raw(str, raw, APRS_MAXLEN);
-            Serial.println("Sending AXUDP");
-            //Serial.println(raw);
+            LOG_I(TAG, "Sending AXUDP");
             udp.beginPacket(udphost, udpport);
             udp.write((const uint8_t *)raw, rawlen);
             udp.endPacket();
 	    lastudp = now;
 	} else {
-	    Serial.printf("Sending APRS-UDP in %d s\n", (int)(tts/1000));
+	    LOG_D(TAG, "Sending APRS-UDP in %d s", (int)(tts/1000));
 	}
     }
     // KISS via TCP (incoming connection, e.g. from APRSdroid
     if (tncclient.connected()) {
-        Serial.println("Sending position via TCP");
+        LOG_I(TAG, "Sending position via TCP");
         char raw[201];
         int rawlen = aprsstr_mon2kiss(str, raw, APRS_MAXLEN);
-        Serial.print("sending: "); Serial.println(raw);
+        LOG_D(TAG, "sending: %s", raw);
         tncclient.write(raw, rawlen);
     }
-    // APRS via TCP (outgoing connection to aprs-is, e.g. radiosonde.info or wettersonde.net
+    // APRS via TCP (outgoing connection to aprs-is, e.g. radiosondy.info or wettersonde.net
     if (sonde.config.tcpfeed.active) {
         static unsigned long lasttcp = 0;
         tcpclient_fsm();
         if(aprs[0].tcpclient_state == TCS_CONNECTED || aprs[1].tcpclient_state == TCS_CONNECTED) {
             long tts =  sonde.config.tcpfeed.highrate * 1000L - (now-lasttcp);
-            Serial.printf("aprs: now-last = %ld\n", (now - lasttcp));
+            LOG_D(TAG, "aprs: now-last = %ld", (now - lasttcp));
             if ( tts < 0 ) {
                 strcat(str, "\r\n");
-                Serial.printf("Sending APRS: %s",str);
+                LOG_I(TAG, "Sending APRS: %s", str);
         if(aprs[0].tcpclient_state == TCS_CONNECTED)
                     write(aprs[0].tcpclient, str, strlen(str));
         if(aprs[1].tcpclient_state == TCS_CONNECTED)
                     write(aprs[1].tcpclient, str, strlen(str));
                 lasttcp = now;
             } else {
-                Serial.printf("Sending APRS in %d s\n", (int)(tts/1000));
+                LOG_D(TAG, "Sending APRS in %d s", (int)(tts/1000));
             }
         }
     }
@@ -129,9 +130,9 @@ void ConnAPRS::updateSonde( SondeInfo *si ) {
 #define APRS_TIMEOUT 25000
 
 static void check_timeout(st_aprs *a) {
-    Serial.printf("Checking APRS timeout: last_in - new: %ld\n", millis() - a->last_in);
+    LOG_D(TAG, "Checking APRS timeout: last_in - now: %ld", millis() - a->last_in);
     if ( a->last_in && ( (millis() - a->last_in) > sonde.config.tcpfeed.timeout*1000 ) ) {
-        Serial.println("APRS timeout - closing connection");
+        LOG_W(TAG, "APRS timeout - closing connection");
         if(a->tcpclient>0) {
             close(a->tcpclient);
             a->tcpclient = -1;
@@ -159,22 +160,24 @@ void ConnAPRS::updateStation( PosInfo *pi ) {
     if (!tncclient.connected()) {
         tncclient = tncserver.accept();
         if (tncclient.connected()) {
-           Serial.println("new TCP KISS connection");
+           LOG_I(TAG, "new TCP KISS connection");
         }
     }
     if (tncclient.available()) {
-        Serial.print("TCP KISS socket: received ");
-        while (tncclient.available()) {
-           Serial.print(tncclient.read());  // Check if we receive anything from from APRSdroid
+        char kbuf[128];
+        int n = 0;
+        while (tncclient.available() && n < (int)sizeof(kbuf) - 1) {
+           kbuf[n++] = (char)tncclient.read();  // Check if we receive anything from APRSdroid
         }
-        Serial.println("");
+        kbuf[n] = 0;
+        LOG_D(TAG, "TCP KISS socket: received %s", kbuf);
     }
 }
 
 static void aprs_beacon(char *bcn, st_aprs *aprs) {
   if(aprs->tcpclient_state == TCS_CONNECTED) {
     strcat(bcn, "\r\n");
-    Serial.printf("APRS TCP BEACON: %s", bcn);
+    LOG_I(TAG, "APRS TCP BEACON: %s", bcn);
     write(aprs->tcpclient, bcn, strlen(bcn));
   }
 }
@@ -191,7 +194,7 @@ void ConnAPRS::aprs_station_update() {
   unsigned long time_delta = time_now - time_last_aprs_update;
   unsigned long update_time = (chase == SH_LOC_CHASE) ? APRS_MOBILE_STATION_UPDATE_TIME : APRS_STATION_UPDATE_TIME;
   long tts = update_time - time_delta;
-  Serial.printf("aprs_station_update due in %d s", (int)(tts/1000));
+  LOG_D(TAG, "aprs_station_update due in %d s", (int)(tts/1000));
   if (tts>0) return;
 
   float lat, lon;
@@ -231,7 +234,8 @@ void tcpclient_sendlogin(st_aprs *a) {
     a->conn_ts = esp_timer_get_time() / 1000000;
     snprintf(buf, 128, "user %s pass %d vers %s %s\r\n", sonde.config.call, sonde.config.passcode, version_name, version_id);
     int res = write(a->tcpclient, buf, strlen(buf));
-    Serial.printf("APRS login: %s, res=%d\n", buf, res);
+    // do not log buf: it contains the APRS-IS passcode
+    LOG_I(TAG, "APRS login as %s, res=%d\n", sonde.config.call, res);
     a->last_in = millis();
     if(res<=0) {
         if( a->tcpclient>0 ) close(a->tcpclient);
@@ -252,7 +256,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
     if(!sonde.config.tcpfeed.active)
         return;
         
-    Serial.printf("TCS[%d]: %d\n", a==aprs?0:1, a->tcpclient_state);
+    LOG_D(TAG, "TCS[%d]: %d", a==aprs?0:1, a->tcpclient_state);
 
     fd_set fdset;
     FD_ZERO(&fdset);
@@ -279,7 +283,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         } else {
 	    a->port = 14580;
         }
-        Serial.printf("aprs %d: host is '%s', port %d\n", a==aprs?0:1, host, a->port);
+        LOG_I(TAG, "aprs %d: host is '%s', port %d", a==aprs?0:1, host, a->port);
         err_t res = dns_gethostbyname( host, &a->tcpclient_ipaddr, /*(dns_found_callback)*/_tcp_dns_found, a );
 
         if(res == ERR_OK) {   // Returns immediately of host is IP or in cache
@@ -300,7 +304,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         a->tcpclient = socket(AF_INET, SOCK_STREAM, 0);
         int flags = fcntl(a->tcpclient, F_GETFL);
         if (fcntl(a->tcpclient, F_SETFL, flags | O_NONBLOCK) == -1) {
-            Serial.println("Setting O_NONBLOCK failed");
+            LOG_E(TAG, "Setting O_NONBLOCK failed");
         }
 
         struct sockaddr_in sock_info;
@@ -328,7 +332,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
         // Poll to see if we are now connected 
         res = select(a->tcpclient+1, NULL, &fdset, &fdeset, &selto);
         if(res<0) {
-            Serial.println("TCS_CONNECTING: select error");
+            LOG_E(TAG, "TCS_CONNECTING: select error");
             goto error;
         } else if (res==0) { // still pending
             break;
@@ -340,9 +344,9 @@ static void tcpclient_fsm_single(st_aprs *a) {
         if (getsockopt(a->tcpclient, SOL_SOCKET, SO_ERROR, (void*)(&sockerr), &len) < 0) {
             goto error;
         }
-        Serial.printf("select returning %d. isset:%d iseset:%d sockerr:%d\n", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
+        LOG_D(TAG, "select returning %d. isset:%d iseset:%d sockerr:%d", res, FD_ISSET(a->tcpclient, &fdset), FD_ISSET(a->tcpclient, &fdeset), sockerr);
         if(sockerr) {
-            Serial.printf("APRS connect error: %s\n", strerror(sockerr));
+            LOG_W(TAG, "APRS connect error: %s\n", strerror(sockerr));
             goto error;
         }
         a->tcpclient_state = TCS_CONNECTED;
@@ -354,7 +358,7 @@ static void tcpclient_fsm_single(st_aprs *a) {
       {
         res = select(a->tcpclient+1, &fdset, NULL, NULL, &selto);
         if(res<0) {
-            Serial.println("TCS_CONNECTED: select error");
+            LOG_E(TAG, "TCS_CONNECTED: select error");
             goto error;
         } else if (res==0) { // still pending
             break;
@@ -368,15 +372,14 @@ static void tcpclient_fsm_single(st_aprs *a) {
             a->tcpclient_state = TCS_DISCONNECTED;
         } else {
             buf[res] = 0;
-            Serial.printf("tcpclient data (len=%d):", res);
-            Serial.write( (uint8_t *)buf, res );
+            LOG_D(TAG, "tcpclient data (len=%d): %s", res, buf);
             a->last_in = millis();    
         }
       }
       break;
 
     case TCS_DNSLOOKUP:
-        Serial.println("DNS lookup in progress");
+        LOG_I(TAG, "DNS lookup in progress");
         break;   // DNS lookup in progress, do not do anything until callback is called, updating the state
     }
     return;
@@ -413,7 +416,7 @@ String ConnAPRS::getStatus() {
     else {
         snprintf( buf+strlen(buf), 1024-strlen(buf), "APRS: %s [%s]", aprsstate2str(aprs[0].tcpclient_state), sonde.config.tcpfeed.host);
         uint32_t uptime = esp_timer_get_time() / 1000000;
-        Serial.printf("up %d c1 %d c2%d\n", uptime, aprs[0].conn_ts, aprs[1].conn_ts);
+        LOG_D(TAG, "up %d c1 %d c2 %d", uptime, aprs[0].conn_ts, aprs[1].conn_ts);
         if(aprs[0].tcpclient_state == TCS_CONNECTED) {
             strlcat(buf, ", up: ", 1024);
             appendUptime(buf, 1024, uptime - aprs[0].conn_ts);

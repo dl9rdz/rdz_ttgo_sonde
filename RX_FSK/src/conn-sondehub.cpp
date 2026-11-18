@@ -209,6 +209,10 @@ void ConnSondehub::netshutdown() {
 //   each second, if good decode: sondehub_send_data
 //   each second, if no good decode: sondehub_finish_data
 void ConnSondehub::updateSonde( SondeInfo *si ) {
+    if (!sonde.config.sondehub.active && !sonde.config.sondehub.fiactive) {
+        netshutdown();
+        return;
+    }
     sondehub_client_fsm();
     if (!sonde.config.sondehub.active)
         return;
@@ -249,7 +253,7 @@ static void _sh_wait_cktimeout() {
     if(time_wait_start == 0) return; 
 
     unsigned long now = millis();
-    printf("tws=%d now=%d  diff=%d\n", time_wait_start, now, now-time_wait_start);
+    LOG_D(TAG, "tws=%d now=%d  diff=%d\n", time_wait_start, now, now-time_wait_start);
     if(now - time_wait_start > (shclient_state==SH_CONN_WAITACK?TO_WAITACK:TO_WAITIMPORT)) {
         LOG_W(TAG, "timeout waiting for %s", shclient_state==SH_CONN_WAITACK?"ACK":"IMPORTRES");
         close(shclient);
@@ -261,7 +265,7 @@ static void _sh_wait_cktimeout() {
 
 // Sondehub client asynchronous FSM...
 void ConnSondehub::sondehub_client_fsm() {
-    LOG_I(TAG, "SH_FSM in state %d (%s), next import in %d s\n", shclient_state, state2str(shclient_state), (int)(time_next_import-millis())/1000);
+    LOG_D(TAG, "SH_FSM in state %d (%s), next import in %d s", shclient_state, state2str(shclient_state), (int)(time_next_import-millis())/1000);
 
     switch(shclient_state) {
         case SH_ERROR_RETRY:
@@ -410,7 +414,7 @@ void ConnSondehub::sondehub_client_fsm() {
                     res = read(shclient, buf, 512);
                     if(res<=0) {
                         close(shclient);
-                        printf("Read failed (%d, %d)\n", res, errno);
+                        LOG_W(TAG, "Read failed (%d, %d)\n", res, errno);
                         shclient = -1;
                         shclient_state = SH_ERROR_RETRY;
                         time_wait_start = 0;
@@ -456,7 +460,7 @@ void ConnSondehub::sondehub_client_fsm() {
             LOG_I(TAG, "SH_FSM in state %d (%s)\n", shclient_state, state2str(shclient_state));
             LOG_E(TAG, "UNHANDLED CASE: SHOULD NOT HAPPEN*****");
     }
-    LOG_I(TAG, "FSM RETURNING*****");
+    LOG_D(TAG, "FSM RETURNING");
     return;
 
 error:
@@ -484,6 +488,10 @@ static bool sh_append(char **w, char *end, const char *fmt, ...)
 }
 
 void ConnSondehub::updateStation( PosInfo *pi ) {
+    if (!sonde.config.sondehub.active && !sonde.config.sondehub.fiactive) {
+        netshutdown();
+        return;
+    }
     sondehub_client_fsm();
     if (!sonde.config.sondehub.active)
         return;

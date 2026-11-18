@@ -6,18 +6,13 @@
 #include "Radio.h"
 #include "rsc.h"
 #include "Sonde.h"
+#include "logger.h"
 #include <LittleFS.h>
 
 // well...
 #include "rs92gps.h"
 
-#define RS92_DEBUG 1
-
-#if RS92_DEBUG
-#define RS92_DBG(x) x
-#else
-#define RS92_DBG(x)
-#endif
+#define TAG "RS92"
 
 uint16_t *CRCTAB = NULL;
 
@@ -81,9 +76,7 @@ decoderSetupCfg rs92SetupCfg = {
 
 int RS92::setup(float frequency, int /*type*/) 
 {
-#if RS92_DEBUG
-	Serial.println("Setup sx1278 for RS92 sonde");
-#endif
+	LOG_D(TAG, "Setup sx1278 for RS92 sonde\n");
 	if(!initialized) {
 		Gencrctab();
 		initrsc();
@@ -92,7 +85,7 @@ int RS92::setup(float frequency, int /*type*/)
 	}
 
 	if(radio.ON()!=0) {
-		RS92_DBG(Serial.println("Setting SX1278 power on FAILED"));
+		LOG_W(TAG, "Setting SX1278 power on FAILED\n");
 		return 1;
 	}
 	if(DecoderBase::setup(rs92SetupCfg, sonde.config.rs92.rxbw, sonde.config.rs92.rxbw)!=0) {
@@ -100,30 +93,27 @@ int RS92::setup(float frequency, int /*type*/)
 	}
 #if 0
 	if(radio.setFSK()!=0) {
-		RS92_DBG(Serial.println("Setting FSJ mode FAILED"));
+		LOG_W(TAG, "Setting FSJ mode FAILED\n");
 		return 1;
 	}
 	if(radio.setBitrate(4800)!=0) {
-		RS92_DBG(Serial.println("Setting bitrate 4800bit/s FAILED"));
+		LOG_W(TAG, "Setting bitrate 4800bit/s FAILED\n");
 		return 1;
 	}
-#if RS92_DEBUG
 	float br = radio.getBitrate();
-	Serial.print("Exact bitrate is ");
-	Serial.println(br);
-#endif
+	LOG_D(TAG, "Exact bitrate is %f\n", br);
         if(radio.setAFCBandwidth(sonde.config.rs92.rxbw)!=0) {
-                RS92_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.rs92.rxbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.rs92.rxbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.rs92.rxbw)!=0) {
-                RS92_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.rs92.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.rs92.rxbw);
                 return 1;
         }
 
 	// Enable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(radio.setRxConf(0x1E)!=0) {
-		RS92_DBG(Serial.println("Setting RX Config FAILED"));
+		LOG_W(TAG, "Setting RX Config FAILED\n");
 		return 1;
 	}
 	// Set autostart_RX to 01, preamble 0, SYNC detect==on, syncsize=3 (==4 byte
@@ -136,11 +126,11 @@ int RS92::setup(float frequency, int /*type*/)
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x65";
 	if(radio.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
-		RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
+		LOG_W(TAG, "Setting SYNC Config FAILED\n");
 		return 1;
 	}
 	if(radio.setPreambleDetect(0xA8)!=0) {
-		RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
+		LOG_W(TAG, "Setting PreambleDetect FAILED\n");
 		return 1;
 	}
 #endif
@@ -154,13 +144,13 @@ int RS92::setup(float frequency, int /*type*/)
 	// i.e. preamble detector on (0x80), preamble detector size 1 (0x00), preample chip errors??? (0x0A)
 	// after 2a2a2a2a2a1065
         if(radio.setPreambleDetect(0xA8)!=0) {
-                RS92_DBG(Serial.println("Setting PreambleDetect FAILED"));
+                LOG_W(TAG, "Setting PreambleDetect FAILED\n");
                 return 1;
         }
 	// sync config: ato restart (01), preamble polarity AA (0), sync on (1), resevered (0), syncsize 2+1 (010) => 0x52
 	const char *SYNC="\x6A\x66\x69";
         if(radio.setSyncConf(0x52, 3, (const uint8_t *)SYNC)!=0) {
-                RS92_DBG(Serial.println("Setting SYNC Config FAILED"));
+                LOG_W(TAG, "Setting SYNC Config FAILED\n");
                 return 1;
         }
 	// payload length is ((240 - 7)*10 +6)/8 = 292
@@ -169,12 +159,11 @@ int RS92::setup(float frequency, int /*type*/)
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
 	if(radio.setPacketConfig(0x08, 0x40)!=0) {
-		RS92_DBG(Serial.println("Setting Packet config FAILED"));
+		LOG_W(TAG, "Setting Packet config FAILED\n");
 		return 1;
 	}
 
-	Serial.print("RS92: setting RX frequency to ");
-        Serial.println(frequency);
+	LOG_D(TAG, "setting RX frequency to %f\n", frequency);
         int res = radio.setFrequency(frequency);
         radio.clearIRQFlags();
 
@@ -183,9 +172,7 @@ int RS92::setup(float frequency, int /*type*/)
 	//radio.setPayloadLength(292);
         radio.startRX();
 
-#if RS92_DEBUG
-	RS92_DBG(Serial.println("Setting SX1278 config for RS92 finished\n"); Serial.println());
-#endif
+	LOG_D(TAG, "Setting SX1278 config for RS92 finished\n");
         return res;
 }
 
@@ -322,13 +309,15 @@ static int32_t reedsolomon92(uint8_t *buf, uint32_t buf_len)
 
 void printRaw(uint8_t *data, int len)
 {
-	char buf[3];
-	int i;
-	for(i=0; i<len; i++) {
-		snprintf(buf, 3, "%02X", data[i]);
-		Serial.print(buf);
+	char buf[65];
+	int i = 0;
+	while(i<len) {
+		int n = 0;
+		for(; i<len && n<=62; i++) {
+			n += snprintf(buf+n, sizeof(buf)-n, "%02X", data[i]);
+		}
+		LOG_D(TAG, "%s\n", buf);
 	}
-	Serial.println();
 }
 
 void RS92::decodeframe92(uint8_t *data)
@@ -342,7 +331,7 @@ void RS92::decodeframe92(uint8_t *data)
 	//int mesok;
 	//uint32_t calibok;
 	lastFrame = (dataptr==data1)?1:2;
-	Serial.printf("rs corr is %d --- data:%p data1:%p data2:%p lastframe=%d\n", corr, data, data1, data2, lastFrame);
+	LOG_D(TAG, "rs corr is %d --- data:%p data1:%p data2:%p lastframe=%d\n", corr, data, data1, data2, lastFrame);
 	dataptr = (dataptr==data1)?data2:data1;
 	//print_frame(data, 240);
 #if 0
@@ -419,13 +408,15 @@ void RS92::decodeframe92(uint8_t *data)
 
 void RS92::printRaw(uint8_t *data, int len)
 {
-	char buf[3];
-	int i;
-	for(i=0; i<len; i++) {
-		snprintf(buf, 3, "%02X", data[i]);
-		Serial.print(buf);
+	char buf[65];
+	int i = 0;
+	while(i<len) {
+		int n = 0;
+		for(; i<len && n<=62; i++) {
+			n += snprintf(buf+n, sizeof(buf)-n, "%02X", data[i]);
+		}
+		LOG_D(TAG, "%s\n", buf);
 	}
-	Serial.println();
 }
 
 
@@ -467,9 +458,7 @@ void RS92::process8N1data(uint8_t dt)
                                 int rssi=radio.getRSSI();
                                 int fei=radio.getFEI();
                                 int afc=radio.getAFC();
-                                Serial.print("Test: RSSI="); Serial.print(rssi);
-                                Serial.print(" FEI="); Serial.print(fei);
-                                Serial.print(" AFC="); Serial.println(afc);
+                                LOG_D(TAG, "Test: RSSI=%d FEI=%d AFC=%d\n", rssi, fei, afc);
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 			}
@@ -479,7 +468,7 @@ void RS92::process8N1data(uint8_t dt)
 				//Serial.printf("%03x ",rxbyte);
 				dataptr[rxp++] = (rxbyte>>1)&0xff;
 				if(rxp==7 && dataptr[6] != 0x65) {
-					Serial.printf("wrong start: %02x\n",dataptr[6]);
+					LOG_D(TAG, "wrong start: %02x\n",dataptr[6]);
 					rxsearching = true;
 				}
 				if(rxp>=240) {
@@ -526,17 +515,17 @@ void process8N1dataOrig(uint8_t data)
 
 int RS92::receive() {
 	unsigned long t0 = millis();
-	Serial.printf("RS92::receive() start at %ld\n",t0);
+	LOG_D(TAG, "receive() start at %ld\n",t0);
    	while( millis() - t0 < 1000 ) {
 		uint8_t status = radio.fifoStatus();
 		if ( status & FIFO_FULL ) {
-			Serial.println("FIFO full");
+			LOG_D(TAG, "FIFO full\n");
       		}
       		if ( status & FIFO_OVERRUN ) {
-        		Serial.println("FIFO overflow");
+        		LOG_W(TAG, "FIFO overflow\n");
       		}
       		if ( status & FIFO_PAYLOAD_READY ) {
-        		Serial.println("FIFO: ready()");
+        		LOG_D(TAG, "FIFO: ready()\n");
         		radio.clearIRQFlags();
       		}
 		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
@@ -550,21 +539,21 @@ int RS92::receive() {
 				headerDetected = 0;
 			}
     			if(haveNewFrame) {
-				Serial.printf("RS92::receive(): new frame complete after %ldms\n", millis()-t0);
+				LOG_D(TAG, "receive(): new frame complete after %ldms\n", millis()-t0);
 				haveNewFrame = 0;
 				return RX_OK;
 			}
 			delay(2);
     		}
     	}
-	Serial.printf("RS92::receive() timed out\n");
+	LOG_D(TAG, "receive() timed out\n");
     	return RX_TIMEOUT; // TODO RX_OK;
 }
 
 #define RS92MAXLEN (240)
 int RS92::waitRXcomplete() {
 	// called after complete...
-	Serial.printf("decoding frame %d\n", lastFrame);
+	LOG_D(TAG, "decoding frame %d\n", lastFrame);
 	print_frame(lastFrame==1?data1:data2, 240);
 
 	SondeData *si = &( (sonde.sondeList+rxtask.receiveSonde)->d );

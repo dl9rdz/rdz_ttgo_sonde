@@ -496,11 +496,10 @@ int Display::getScreenIndex(int index) {
 void Display::initFromFile(int index) {
 	File d;
 	char file[20];
-	printf("getting index: %d\n", index);
 
 	index = getScreenIndex(index);  // auto selection for index==0
 	snprintf(file, 20, "/screens%d.txt", index);
-	LOG_I(TAG, "init: reading file %s\n", file);
+	LOG_I(TAG, "init: index %d: reading file %s\n", index, file);
 	d = LittleFS.open(file, "r");
 	if(!d || d.available()==0 ) {
 		LOG_E(TAG, "init: %s not found\n", file);

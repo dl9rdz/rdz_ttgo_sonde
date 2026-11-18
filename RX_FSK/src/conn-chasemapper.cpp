@@ -1,6 +1,9 @@
 #include "../features.h"
 #if FEATURE_CHASEMAPPER
 
+#define TAG "conn-chasemapper"
+#include "logger.h"
+
 #include "conn-chasemapper.h"
 #include <WiFiUdp.h>
 
@@ -60,7 +63,7 @@ void ConnChasemapper::updateSonde(SondeInfo *si) {
 		sprintf(buf + strlen(buf), ", \"temp\": %.1f", si->d.temperature);
 	}
 	strcat(buf, "}");
-	Serial.printf("Sending chasemapper json: %s\n", buf);
+	LOG_D(TAG, "Sending chasemapper json: %s\n", buf);
 	udp.beginPacket(sonde.config.cm.host, sonde.config.cm.port);
 	udp.write((const uint8_t *)buf, strlen(buf));
 	udp.endPacket();	

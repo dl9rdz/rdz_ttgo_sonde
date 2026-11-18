@@ -160,7 +160,7 @@ void gpsTask(void *parameter) {
             } else {
                 float d = fabs(gpsPos.lon - sonde.config.rxlon);
                 d += fabs(gpsPos.lat - sonde.config.rxlat);
-	        Serial.printf("pos diff is %f (%f %f %f %f)\n", d, gpsPos.lon , sonde.config.rxlon , gpsPos.lat, sonde.config.rxlat);
+	        LOG_D(TAG, "pos diff is %f (%f %f %f %f)\n", d, gpsPos.lon , sonde.config.rxlon , gpsPos.lat, sonde.config.rxlat);
 
 		// Logic for auto chase mode:
 		// If close to home (below half of chase threshold): switch to fixed position
@@ -266,9 +266,8 @@ static int initGPSfromFile(bool reset) {
     while(initgps.available()) {
         String l = initgps.readStringUntil('\n');
         const char *p = l.c_str();
-        Serial.printf("\nGPSINIT string '%s'\n", p);
+        LOG_D(TAG, "GPSINIT string '%s'\n", p);
         if(jumpto > 0) {
-            Serial.printf("is jumpto? %d, %d vs %d\n", p[0], p[1], jumpto);
             if(*p==':' && p[1] == jumpto) jumpto = 0;
             continue;
         }
@@ -277,14 +276,14 @@ static int initGPSfromFile(bool reset) {
         {
             if(!reset) {
                 jumpto = p[1];
-		Serial.printf("Jumping to %c\n", jumpto);
+		LOG_D(TAG, "Jumping to %c\n", jumpto);
             }
 	    break;
         }
         case 'w':  // wait
 	{
             int t = atoi(p+1);
-	    Serial.printf("Waiting %d ms\n", t);
+	    LOG_D(TAG, "Waiting %d ms\n", t);
             delay(t);
             dumpGPS();
             break;
@@ -293,13 +292,13 @@ static int initGPSfromFile(bool reset) {
         case 'b':  // set baud
 	{
             int baud = atoi(p+1);
-	    Serial.printf("Setting baud to %d\n", baud);
+	    LOG_D(TAG, "Setting baud to %d\n", baud);
             Serial2.begin(baud, SERIAL_8N1, sonde.config.gps_rxd, sonde.config.gps_txd);
             break;
 	}
         case 's':  // send string
 	{
-            Serial.printf("Sending string to GPS: ");
+            LOG_D(TAG, "Sending string to GPS: %s\n", p+1);
             sendString(p+1);
             break;
         }}
@@ -317,7 +316,7 @@ void initGPS() {
       testfile.close();
       LittleFS.remove("/GPSRESET");
     } else {
-      Serial.println("GPS reset file: not found/isdir");
+      LOG_W(TAG, "GPS reset file: not found/isdir");
       if(testfile) testfile.close();
     }
     if(initGPSfromFile(reset)<0) { // failed, just set to 9k6
@@ -380,7 +379,7 @@ void parseGpsJson(char *data, int len) {
     }
   }
   if (gpsPos.lat == 0 && gpsPos.lon == 0) gpsPos.valid = false;
-  Serial.printf("Parse result: lat=%f, lon=%f, alt=%d, valid=%d\n", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.valid);
+  LOG_D(TAG, "Parse result: lat=%f, lon=%f, alt=%d, valid=%d\n", gpsPos.lat, gpsPos.lon, gpsPos.alt, gpsPos.valid);
 }
 
 

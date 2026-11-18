@@ -2,6 +2,9 @@
 #include <Wire.h>
 #include "pmu.h"
 #include "Sonde.h"
+#include "logger.h"
+
+#define TAG "pmu"
 
 // 0: cleared; 1: set; 2: do not check, also query state of axp via i2c on each loop
 uint8_t pmu_irq = 0;
@@ -460,7 +463,7 @@ int AXP2101PMU::init() {
     // ESP32 VDD 3300mV
     // No need to set, automatically open, don't close it
     val = readRegister(AXP2101_LDO_VOL0_CTRL);
-    Serial.printf("VDD: %x\n", val);
+    LOG_D(TAG, "VDD: %x", val);
 
     if (is_core2) {
         // Core2 v1.1:

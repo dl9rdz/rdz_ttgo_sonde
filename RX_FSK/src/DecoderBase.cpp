@@ -2,54 +2,45 @@
 #include "DecoderBase.h"
 #include "Radio.h"
 #include "Sonde.h"
+#include "logger.h"
 
-#define DECODERBASE_DEBUG 0
-
-#if DECODERBASE_DEBUG
-#define DBG(x) x
-#else
-#define DBG(x)
-#endif
-
+#define TAG "DecoderBase"
 
 int DecoderBase::setup(decoderSetupCfg &setupcfg, uint16_t agcbw, uint16_t rxbw) {
         if(radio.setFSK()!=0) {
-                DBG(Serial.println("Setting FSK mode FAILED"));
+                LOG_W(TAG, "Setting FSK mode FAILED\n");
                 return 1;
         }
         if(radio.setBitrate(setupcfg.bitrate)!=0) {
-                DBG(Serial.println("Setting bitrate FAILED"));
+                LOG_W(TAG, "Setting bitrate FAILED\n");
                 return 1;
         }
-#if DECODERBASE_DEBUG
         float br = radio.getBitrate();
-        Serial.print("Exact bitrate is ");
-        Serial.println(br);
-#endif
+        LOG_D(TAG, "Exact bitrate is %f\n", br);
         if(radio.setAFCBandwidth(agcbw)!=0) {
-                DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(rxbw)!=0) {
-                DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", rxbw);
                 return 1;
         }
 
         if(radio.setRxConf(setupcfg.rx_cfg)!=0) {
-                DBG(Serial.println("Setting RX Config FAILED"));
+                LOG_W(TAG, "Setting RX Config FAILED\n");
                 return 1;
         }
         // Re-apply LNA gain (incl. optional LnaBoostHf from config.lnaboost)
         if(radio.setLNAGain(0)!=0) {
-                DBG(Serial.println("Setting LNA gain FAILED"));
+                LOG_W(TAG, "Setting LNA gain FAILED\n");
                 return 1;
         }
         if(radio.setSyncConf(setupcfg.sync_cfg, setupcfg.sync_len, setupcfg.sync_data)!=0) {
-                DBG(Serial.println("Setting SYNC Config FAILED"));
+                LOG_W(TAG, "Setting SYNC Config FAILED\n");
                 return 1;
         }
         if(radio.setPreambleDetect(setupcfg.preamble_cfg)!=0) {
-                DBG(Serial.println("Setting PreambleDetect FAILED"));
+                LOG_W(TAG, "Setting PreambleDetect FAILED\n");
                 return 1;
         }
 	return 0;

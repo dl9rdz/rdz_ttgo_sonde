@@ -156,15 +156,11 @@ int getUserPermissions(const char *user, const char *preauth, const char *auth) 
     mbedtls_md_update(&ctx, (const unsigned char *) buf, strlen(buf));
     mbedtls_md_finish(&ctx, sharesult);
     bool match = true;
-    Serial.print("Hash: ");
-    Serial.printf(" Comparing to %s\n", auth);
     for(int i= 0; i< sizeof(sharesult); i++){
       char str[3];
       sprintf(str, "%02x", (int)sharesult[i]);
-      Serial.printf(" [%c-%c-%c-%c] ",auth[0], auth[1], str[0], str[1]);
       if( (auth[0]!=str[0]) || (auth[1]!=str[1])) match = false;
       auth += 2;
-      Serial.print(str);
     } 
     int authres = match ? pass[-2]-'0' : -1;   // ugly code, TODO: beautify...
     LOG_I(TAG, "login: match: %d => auth level %d\n", match, authres);

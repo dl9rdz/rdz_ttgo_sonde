@@ -45,7 +45,7 @@ void init_gfx_fonts() {
 
 	part = esp_partition_find_first(ESP_PARTITION_TYPE_ANY, ESP_PARTITION_SUBTYPE_ANY, "fonts");
 	if(part) {
-		LOG_I(TAG, "FONT partition found, size is %d!", part->size);
+		//LOG_I(TAG, "FONT partition found, size is %d!", part->size);
 		err = esp_partition_mmap(part, 0, part->size, ESP_PARTITION_MMAP_DATA, (const void **)&data, &handle);
 		if( err != ESP_OK ) {
 			LOG_E(TAG, "mmap of font partition failed\n");
@@ -60,8 +60,8 @@ void init_gfx_fonts() {
 		}
 		fptr++;
 		int n=0; 
-		for(const GFXfont **g=fptr; *g!=NULL; g++) { LOG_I(TAG, "fptr=%p *=%p\n", g, *g); n++; }
-		LOG_I(TAG, "There a %d fonts in the font partition\n", n);
+		for(const GFXfont **g=fptr; *g!=NULL; g++) { n++; }
+		LOG_I(TAG, "FONT partition found, size is %d, containing %d fonts!", part->size, n);
 		if(n>MAXFONT) n=MAXFONT;
 		GFXfont **newgfl = (GFXfont **)malloc( n*sizeof(GFXfont) + MAXFONT*sizeof(GFXfont *)  );
 		if(!newgfl) {
@@ -76,8 +76,7 @@ void init_gfx_fonts() {
 			memcpy(newgfl[i], orig, sizeof(GFXfont));
 			newgfl[i]->bitmap = newgfl[i]->bitmap + (uint32_t)data;  // relocate bitmap pointer to mmap partition
 			newgfl[i]->glyph = (GFXglyph *)( ((char *)newgfl[i]->glyph) + (uint32_t)data );
-			LOG_D(TAG, "font %d: gfl[i] is %p,  gfl[i]->bitmap is %p, gfl[i]->glyph is %p\n", i, newgfl[i], newgfl[i]->bitmap, newgfl[i]->glyph);
-			LOG_D(TAG, "  font data: first=%d, last=%d, yAdv=%d\n", newgfl[i]->first, newgfl[i]->last, newgfl[i]->yAdvance);
+			LOG_D(TAG, "font %d: gfl[i] is %p,  gfl[i]->bitmap is %p, gfl[i]->glyph is %p charset=%d..%d, yAdv=%d", i, newgfl[i], newgfl[i]->bitmap, newgfl[i]->glyph, newgfl[i]->first, newgfl[i]->last, newgfl[i]->yAdvance);
 		}
 		gfl = (const GFXfont **)newgfl;
 		ngfx = n;
@@ -125,6 +124,6 @@ void calc_gfx_offsets() {
 ///// 	The GFX library does things differently, and if we end up with a smaller baseline then positions might be out of bounds
 /////   causing a lack of background on ILI9342.  Make sure that we use a large enough baseline!
 	        gfxoffsets[i].yofs = gfl[i]->yAdvance * 2 / 3;
-		printf("Font %d: yofs=%d, yclear=%d\n", i, gfxoffsets[i].yofs, gfxoffsets[i].yclear);
+		LOG_D(TAG, "Font %d: yofs=%d, yclear=%d\n", i, gfxoffsets[i].yofs, gfxoffsets[i].yclear);
 	}
 }

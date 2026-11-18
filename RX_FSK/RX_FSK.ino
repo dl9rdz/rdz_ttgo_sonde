@@ -259,9 +259,6 @@ void setupChannelList() {
     if (space[4] == ' ') {
       memset(launchsite, ' ', 16);
       strncpy(launchsite, space + 5, 16);
-      if (sonde.config.debug == 1) {
-        LOG_D(TAG, "Add %f - sondetype: %d (on/off: %d) - site #%d - name: %s\n ", freq, type, active, i, launchsite);
-      }
     }
     sonde.addSonde(freq, type, active, launchsite);
     i++;
@@ -1358,7 +1355,7 @@ const char *createUpdateForm(void) {
 }
 
 const char *handleUpdatePost(void) {
-  Serial.println("Handling post request");
+  LOG_D(TAG, "Handling post request");
   // Prefer formGet so action/url order in the POST body does not matter
   // (url is listed before the local submit button in upd.html).
   if (localUpdates && formGet("local")) {
@@ -1396,10 +1393,8 @@ const char *handleUpdatePost(void) {
       LOG_E(TAG, "Local update requested but url parameter missing\n");
     }
   } else if (formGet("dev2")) {
-    Serial.println("equals devel");
     updatePrefix = updatePrefixD;
   } else if (formGet("main")) {
-    Serial.println("equals main");
     updatePrefix = updatePrefixM;
   }
   LOG_I(TAG, "Updating: %s%s from %s:%d\n", updatePrefix, updateIno, updateHost, updatePort);
@@ -1454,7 +1449,7 @@ const char *createKMLDynamic() {
 
 
 const char *createGPX(int index) {
-  Serial.println("\n\n\n********GPX request\n\n");
+  LOG_D(TAG, "GPX request");
   char *ptr = message;
   if (index < 0 || index >= MAXSONDE) {
     return "ERROR";
@@ -1470,7 +1465,7 @@ const char *createGPX(int index) {
            "</metadata>\n"
            "<wpt lat=\"%f\" lon=\"%f\">\n  <ele>%f</ele>\n  <name>%s</name>\n  <sym>Radio Beacon</sym><type>Sonde</type>\n"
            "</wpt></gpx>\n", index, si->d.id, si->d.lat, si->d.lon, si->d.alt, si->d.id);
-  Serial.println(message);
+  LOG_D(TAG, "%s", message);
   return message;
 }
 
@@ -1564,7 +1559,7 @@ void sx1278Task(void *parameter) {
       continue;
     }
     sonde.receive();
-    delay(20);
+    delay(1);
   }
 }
 
@@ -1587,7 +1582,7 @@ void flashLed(int ms) {
       else t_muted = -1;
       LOG_D(TAG, "Unmuted\n");
     }
-    Serial.println("Not muted");
+    LOG_D(TAG, "Not muted");
     digitalWrite(sonde.config.led_pout, HIGH);
     ledFlasher.once_ms(ms, ledOffCallback);
   }
@@ -1622,36 +1617,44 @@ void setup()
   Serial.begin(115200);
   Log.init();
 
-  for (int i = 0; i < 39; i++) {
-    int v = gpio_get_level((gpio_num_t)i);
-    LOG_D(TAG, "%d:%d ", i, v);
+  {
+    char gbuf[256];
+    int n = 0;
+    for (int i = 0; i < 39 && n < (int)sizeof(gbuf) - 8; i++) {
+      n += snprintf(gbuf + n, sizeof(gbuf) - n, "%d:%d ", i, gpio_get_level((gpio_num_t)i));
+    }
+    LOG_D(TAG, "%s", gbuf);
   }
   LOG_I(TAG, "sizeof long is %d\n", sizeof(long));
 
 #ifndef REMOVE_ALL_FOR_TESTING
 
-  Serial.println("");
 #ifdef ESP_MEM_DEBUG
   esp_err_t error = heap_caps_register_failed_alloc_callback(heap_caps_alloc_failed_hook);
 #endif
   axpSemaphore = xSemaphoreCreateBinary();
   xSemaphoreGive(axpSemaphore);
 
-  for (int i = 0; i < 39; i++) {
-    LOG_D(TAG, "%d:%d ", i, initlevels[i]);
+  {
+    char gbuf[256];
+    int n = 0;
+    for (int i = 0; i < 39 && n < (int)sizeof(gbuf) - 8; i++) {
+      n += snprintf(gbuf + n, sizeof(gbuf) - n, "%d:%d ", i, initlevels[i]);
+    }
+    LOG_D(TAG, "%s", gbuf);
   }
-  Serial.println(" (before setup)");
+  LOG_D(TAG, "(before setup)");
   sonde.defaultConfig();  // including autoconfiguration
 
   delay(1000);
-  Serial.println("Initializing LittleFS");
+  LOG_I(TAG, "Initializing LittleFS");
   // Initialize LittleFS
   if (!LittleFS.begin(true)) {
-    Serial.println("An Error has occurred while mounting LittleFS");
+    LOG_E(TAG, "An Error has occurred while mounting LittleFS");
     return;
   }
 
-  Serial.println("Reading initial configuration");
+  LOG_I(TAG, "Reading initial configuration");
   setupConfigData();    // configuration must be read first due to OLED ports!!!
   WiFi.setHostname(sonde.config.mdnsname);
   //WiFi.enableIPv6();
@@ -1662,10 +1665,10 @@ void setup()
 
   disp.init();
   delay(100);
-  Serial.println("Showing welcome display");
+  LOG_D(TAG, "Showing welcome display");
   disp.rdis->welcome();
   delay(3000);
-  Serial.println("Clearing display");
+  LOG_D(TAG, "Clearing display");
   sonde.clearDisplay();
 
   setupWifiList();
@@ -1705,8 +1708,7 @@ void setup()
 
   startupRadio();
 
-  Serial.println("Setup finished");
-  Serial.println();
+  LOG_I(TAG, "Setup finished");
   // int returnValue = pthread_create(&wifithread, NULL, wifiloop, (void *)0);
 
   //  if (returnValue) {
@@ -1765,7 +1767,7 @@ void enterMode(int mode) {
   }
   mainState = (MainState)mode;
   if (mainState == ST_SPECTRUM) {
-    Serial.println("Entering ST_SPECTRUM mode");
+    LOG_I(TAG, "Entering ST_SPECTRUM mode");
     sonde.clearDisplay();
     disp.rdis->setFont(FONT_SMALL);
     specTimer = millis();
@@ -1779,7 +1781,7 @@ void enterMode(int mode) {
     // currentSonde should be set before enterMode()
     rxtask.activate = ACT_SONDE(sonde.currentSonde);
     //
-    Serial.println("clearing and updating display");
+    LOG_D(TAG, "clearing and updating display");
     sonde.clearDisplay();
     sonde.updateDisplay();
   }
@@ -1864,15 +1866,14 @@ void loopDecoder() {
   }
 
   if (rdzserver.hasClient()) {
-    Serial.println("TCP JSON socket: new connection");
+    LOG_I(TAG, "TCP JSON socket: new connection");
     rdzclient.stop();
     rdzclient = rdzserver.accept();
   }
   if (rdzclient.available()) {
-    Serial.print("RDZ JSON socket: received ");
+    LOG_D(TAG, "RDZ JSON socket: received data");
     while (rdzclient.available()) {
       char c = (char)rdzclient.read();
-      Serial.print(c);
       if (c == '\n' || c == '}' || rdzDataPos >= RDZ_DATA_LEN) {
         // parse GPS position from phone
         rdzData[rdzDataPos] = c;
@@ -1883,7 +1884,6 @@ void loopDecoder() {
         rdzData[rdzDataPos++] = c;
       }
     }
-    Serial.println("");
   }
 
   // wifi active and good packet received => send packet
@@ -1940,7 +1940,7 @@ void loopDecoder() {
 #endif
   // always send data, even if not valid....
   if (rdzclient.connected()) {
-    Serial.println("Sending position via TCP as rdzJSON");
+    LOG_D(TAG, "Sending position via TCP as rdzJSON");
     char raw[1024];
     char gps[128];
     const char *typestr = s->d.typestr;
@@ -1976,7 +1976,7 @@ void loopDecoder() {
     if (len > 1024) len = 1024;
     int wlen = rdzclient.write(raw, len);
     if (wlen != len) {
-      Serial.println("Writing rdzClient not OK, closing connection");
+      LOG_W(TAG, "Writing rdzClient not OK, closing connection");
       rdzclient.stop();
     }
     //Serial.println("Writing rdzclient OK");
@@ -2011,7 +2011,7 @@ void loopSpectrum() {
       return;
     case EVT_KEY1MID: /* restart, TODO */ break;
     case EVT_KEY1LONG:
-      Serial.println("loopSpectrum: KP_LONG");
+      LOG_D(TAG, "loopSpectrum: KP_LONG");
       enterMode(ST_WIFISCAN);
       return;
     case EVT_KEY1DOUBLE:
@@ -2105,6 +2105,7 @@ void enableNetwork(bool enable) {
     //}
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
     connected = true;
+    Log.netUp();
 #if FEATURE_MQTT
     connMQTT.netsetup();
 #endif
@@ -2126,10 +2127,11 @@ void enableNetwork(bool enable) {
 #if FEATURE_APRS
     connAPRS.netshutdown();
 #endif
+    Log.netDown();
     connected = false;
   }
 
-  Serial.println("enableNetwork done");
+  LOG_I(TAG, "enableNetwork done");
 }
 
 
@@ -2555,9 +2557,9 @@ void loopWifiScan() {
 #if FEATURE_RS92
 // Rinex update...
 void execRinexUpdate() {
-   Serial.println("Fetching update for RINEX data...\n");
+   LOG_I(TAG, "Fetching update for RINEX data...");
    geteph();
-   Serial.println("Reading RINEX data...\n");
+   LOG_I(TAG, "Reading RINEX data...");
    if (ephstate == EPH_PENDING) ephstate = EPH_ERROR;
    get_eph("/brdc");
    setCurrentDisplay(0);
@@ -2567,7 +2569,7 @@ void execRinexUpdate() {
 
 #if FEATURE_SDCARD
 void execFormatSD() {
-   Serial.println("format SD card\n");
+   LOG_I(TAG, "format SD card");
    if ( ISOLED(sonde.config) ) {
        disp.rdis->setFont(FONT_SMALL);
    } else {
@@ -2595,7 +2597,7 @@ void execOTA() {
   bool isValidContentType = false;
   sonde.clearDisplay();
   uint8_t dispxs, dispys;
-  Serial.printf("Updater connecting to: %s:%d%s\n", updateHost, updatePort, updatePrefix);
+  LOG_I(TAG, "Updater connecting to: %s:%d%s\n", updateHost, updatePort, updatePrefix);
 
   if ( ISOLED(sonde.config) ) {
     disp.rdis->setFont(FONT_SMALL);
@@ -2697,7 +2699,7 @@ void execOTA() {
   if (validType == 1) isValidContentType = true;
 
   // Check what is the contentLength and if content type is `application/octet-stream`
-  Serial.printf("contentLength : %d, isValidContentType : %d\n",contentLength, isValidContentType);
+  LOG_I(TAG, "contentLength : %d, isValidContentType : %d\n", contentLength, isValidContentType);
   disp.rdis->drawString(0, 4 * dispys, "Len: ");
   String cls = String(contentLength);
   disp.rdis->drawString(5 * dispxs, 4 * dispys, cls.c_str());
@@ -2710,41 +2712,41 @@ void execOTA() {
     // If yes, begin
     if (canBegin) {
       disp.rdis->drawString(0, 5 * dispys, "Starting update");
-      Serial.println("Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
+      LOG_I(TAG, "Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
       // No activity would appear on the Serial monitor
       // So be patient. This may take 2 - 5mins to complete
       size_t written = Update.writeStream(client);
 
       if (written == contentLength) {
-        Serial.println("Written : " + String(written) + " successfully");
+        LOG_I(TAG, "Written : %u successfully", (unsigned)written);
       } else {
-        Serial.println("Written only : " + String(written) + "/" + String(contentLength) + ". Retry?" );
+        LOG_W(TAG, "Written only : %u/%d. Retry?", (unsigned)written, contentLength);
         // retry??
         // execOTA();
       }
 
       if (Update.end()) {
-        Serial.println("OTA done!");
+        LOG_I(TAG, "OTA done!");
         if (Update.isFinished()) {
-          Serial.println("Update successfully completed. Rebooting.");
+          LOG_I(TAG, "Update successfully completed. Rebooting.");
           disp.rdis->drawString(0, 7 * dispys, "Rebooting....");
           delay(1000);
           ESP.restart();
         } else {
-          Serial.println("Update not finished? Something went wrong!");
+          LOG_E(TAG, "Update not finished? Something went wrong!");
         }
       } else {
-        Serial.println("Error Occurred. Error #: " + String(Update.getError()));
+        LOG_E(TAG, "Error Occurred. Error #: %d", (int)Update.getError());
       }
     } else {
       // not enough space to begin OTA
       // Understand the partitions and
       // space availability
-      Serial.println("Not enough space to begin OTA");
+      LOG_E(TAG, "Not enough space to begin OTA");
       client.clear();
     }
   } else {
-    Serial.println("There was no content in the response");
+    LOG_E(TAG, "There was no content in the response");
     client.clear();
   }
   // Back to some normal state
@@ -2756,7 +2758,7 @@ int fetchHTTPheader(int *validType) {
   unsigned long timeout = millis();
   while (client.available() == 0) {
     if (millis() - timeout > 5000) {
-      Serial.println("Client Timeout !");
+      LOG_E(TAG, "Client Timeout !");
       client.stop();
       return -1;
     }
@@ -2799,7 +2801,7 @@ int fetchHTTPheader(int *validType) {
     // else break and Exit Update
     if (line.startsWith("HTTP/1.1")) {
       if (line.indexOf("200") < 0) {
-        Serial.println("Got a non 200 status code from server. Exiting OTA Update.");
+        LOG_E(TAG, "Got a non 200 status code from server. Exiting OTA Update.");
         return -1;
       }
     }
@@ -2809,7 +2811,7 @@ int fetchHTTPheader(int *validType) {
     static const char *HEADER_CL = "Content-Length: ";
     if (strncasecmp( line.c_str(), HEADER_CL, strlen(HEADER_CL) ) == 0 ) {
       contentLength = atoi( line.c_str() + strlen(HEADER_CL) );
-      Serial.println("Got " + String(contentLength) + " bytes from server");
+      LOG_I(TAG, "Got %d bytes from server", contentLength);
     }
 
     // Next, the content type
@@ -2828,6 +2830,7 @@ int fetchHTTPheader(int *validType) {
 
 
 void loop() {
+  Serial.println("");  // empty line in the log maybe skip if logging is off?
   LOG_I(TAG, "Running loop in state %d [currentDisp:%d, lastDisp:%d]. free heap: %u (8bit), %u (total), unused stack: %d\n",
                 mainState, currentDisplay, lastDisplay,
                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_8BIT),

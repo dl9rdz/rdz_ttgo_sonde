@@ -12,9 +12,11 @@ enum LOGLEVEL { L_ERR, L_WARN, L_INFO, L_DBG };
 #define LOG_D(...) Log.logf(L_DBG, __VA_ARGS__)
 
 class Logger {
-   public: 
+   public:
    void init();
    void logf(LOGLEVEL lvl, const char *module, const char *fmt, ...);
+   void netUp();
+   void netDown();
    void sendImprov(int type, int len, const char *data);
    void sendImprovResult(int cmd, const char *data[]);
    void handleImprov();

@@ -6,13 +6,8 @@
 #include "rsc.h"
 #include "Sonde.h"
 
-#define MP3H_DEBUG 1
-
-#if MP3H_DEBUG
-#define MP3H_DBG(x) x
-#else
-#define MP3H_DBG(x)
-#endif
+#define TAG "MP3H"
+#include "logger.h"
 
 static struct st_mp3hstate {
 	uint32_t id1, id2;
@@ -45,26 +40,25 @@ decoderSetupCfg mp3hSetupCfg = {
 
 int MP3H::setup(float frequency, int /*type*/) 
 {
-	MP3H_DBG(Serial.println("Setup sx1278 for MP3H sonde"));;
+	LOG_D(TAG, "Setup sx1278 for MP3H sonde\n");
 	if(radio.ON()!=0) {
-		MP3H_DBG(Serial.println("Setting SX1278 power on FAILED"));
+		LOG_W(TAG, "Setting SX1278 power on FAILED\n");
 		return 1;
 	}
 	// setFSK: switches to FSK standby mode
 	if(radio.setFSK()!=0) {
-		MP3H_DBG(Serial.println("Setting FSK mode FAILED"));
+		LOG_W(TAG, "Setting FSK mode FAILED\n");
 		return 1;
 	}
-        Serial.print("MP3H: setting RX frequency to ");
-        Serial.println(frequency);
+        LOG_D(TAG, "MP3H: setting RX frequency to %f\n", frequency);
         int res = radio.setFrequency(frequency);
 
         if(radio.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
-                MP3H_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.mp3h.agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.mp3h.agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
-                MP3H_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.mp3h.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.mp3h.rxbw);
                 return 1;
         }
 
@@ -77,17 +71,17 @@ int MP3H::setup(float frequency, int /*type*/)
 	// FSK standby mode, seems like otherweise baudrate cannot be changed?
 	radio.setFSK();
 	if(radio.setBitrate(2400)!=0) {
-		MP3H_DBG(Serial.println("Setting bitrate 2400bit/s FAILED"));
+		LOG_W(TAG, "Setting bitrate 2400bit/s FAILED\n");
 		return 1;
 	}
-	MP3H_DBG(Serial.printf("Exact bitrate is %f\n", radio.getBitrate()));
+	LOG_D(TAG, "Exact bitrate is %f\n", radio.getBitrate());
 	// Probably not necessary, as this was set before
         if(radio.setAFCBandwidth(sonde.config.mp3h.agcbw)!=0) {
-                MP3H_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.mp3h.agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.mp3h.agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.mp3h.rxbw)!=0) {
-                MP3H_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.mp3h.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.mp3h.rxbw);
                 return 1;
         }
 
@@ -95,18 +89,18 @@ int MP3H::setup(float frequency, int /*type*/)
 	//if(radio.setRxConf(0x1E)!=0) {
 	// Disable auto-AFC, auto-AGC, RX Trigger by preamble
 	if(radio.setRxConf(0x00)!=0) {
-		MP3H_DBG(Serial.println("Setting RX Config FAILED"));
+		LOG_W(TAG, "Setting RX Config FAILED\n");
 		return 1;
 	}
 	// version 1, working with continuous RX
 	const char *SYNC="\x66\x66";
 	if(radio.setSyncConf(0x70, 1, (const uint8_t *)SYNC)!=0) {
-		MP3H_DBG(Serial.println("Setting SYNC Config FAILED"));
+		LOG_W(TAG, "Setting SYNC Config FAILED\n");
 		return 1;
 	}
         // Preamble detection off (+ size 1 byte, maximum tolerance; should not matter for "off"?)
         if(radio.setPreambleDetect(0x00 | 0x00 | 0x1F)!=0) {
-		MP3H_DBG(Serial.println("Setting PreambleDetect FAILED"));
+		LOG_W(TAG, "Setting PreambleDetect FAILED\n");
 		return 1;
 	}
 #endif
@@ -114,7 +108,7 @@ int MP3H::setup(float frequency, int /*type*/)
 	// Packet config 1: fixed len, no mancecer, no crc, no address filter
 	// Packet config 2: packet mode, no home ctrl, no beackn, msb(packetlen)=0)
 	if(radio.setPacketConfig(0x08, 0x40)!=0) {
-		MP3H_DBG(Serial.println("Setting Packet config FAILED"));
+		LOG_W(TAG, "Setting Packet config FAILED\n");
 		return 1;
 	}
 
@@ -126,12 +120,10 @@ int MP3H::setup(float frequency, int /*type*/)
 	delay(50);
 	radio.setRawAFC(afc);
 	delay(50);
-        Serial.printf("after RX_MODE: AFC is %d\n", radio.getAFC());
+        LOG_D(TAG, "after RX_MODE: AFC is %d\n", radio.getAFC());
 
 	memset((void *)&mp3hstate, 0, sizeof(mp3hstate));
-#if MP3H_DEBUG
-	MP3H_DBG(Serial.println("Setting SX1278 config for MP3H finished\n"); Serial.println());
-#endif
+	LOG_D(TAG, "Setting SX1278 config for MP3H finished\n");
         return res;
 }
 
@@ -177,13 +169,14 @@ static bool checkMP3CRC(uint8_t *data)
 
 void MP3H::printRaw(uint8_t *data, int len)
 {
-	char buf[3];
+	char buf[3*MP3H_FRAMELEN+1];
 	int i;
+	if(len > MP3H_FRAMELEN) len = MP3H_FRAMELEN;
 	for(i=0; i<len; i++) {
-		snprintf(buf, 3, "%02X ", data[i]);
-		Serial.print(buf);
+		snprintf(buf+3*i, 4, "%02X ", data[i]);
 	}
-	Serial.println();
+	buf[3*len] = 0;
+	LOG_D(TAG, "%s\n", buf);
 }
 
 #ifndef PI
@@ -242,7 +235,7 @@ void calcgps(uint8_t *buf) {
 	si->hs = sqrt(vn*vn + ve*ve);
 	si->sats = buf[pos_GPSnSats];
 
-	Serial.printf("Pos: %f %f  alt %f  dir %f vs %f hs %f sats %d\n", si->lat, si->lon, si->alt, si->dir, si->vs, si->hs, si->sats);
+	LOG_D(TAG, "Pos: %f %f  alt %f  dir %f vs %f hs %f sats %d\n", si->lat, si->lon, si->alt, si->dir, si->vs, si->hs, si->sats);
 	si->validPos = 0x7f;
 }
 static uint32_t getgpstime(uint8_t *buf) {
@@ -268,12 +261,12 @@ static void getmp3htime(uint8_t *buf) {
         	if(month<=12) { tt += MON[month]; if((year%4)==0 && month>2) tt++; }
         	tt = (tt+day-1)*(60*60*24);
 		if(gpstime < mp3hstate.gpsdatetime) tt += 60*60*24; // time wrapped since last date tx
-		Serial.printf("date: %04d-%02d-%02d t%d ", year, month, day, gpstime);
+		LOG_D(TAG, "date: %04d-%02d-%02d t%d\n", year, month, day, gpstime);
 	}
 	tt += gpstime;
 	si->time = tt;
 	si->vframe = tt - 315964800;
-	Serial.printf(" mp3h TIMESTAMP: %d\n", tt);
+	LOG_D(TAG, " mp3h TIMESTAMP: %d\n", tt);
 }
 
 static uint8_t hex(uint32_t n) {
@@ -366,11 +359,11 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 			else { fixcnt[i]=0; fixbytes[i]=data[i]; }
 		}
 	}
-	Serial.println(crcok?"CRC OK":"CRC NOT OK");
-	Serial.printf(" repair: %d/%d\n", repl, repairstep);
+	LOG_D(TAG, "%s\n", crcok?"CRC OK":"CRC NOT OK");
+	LOG_D(TAG, " repair: %d/%d\n", repl, repairstep);
 
 	if(data[1]==0x9F && data[2]==0x20) {
-		Serial.println("Decoding...");
+		LOG_D(TAG, "Decoding...\n");
 		// Its a M10
 		// getid...
 		char ids[11];
@@ -398,7 +391,7 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
 		ids[8] = dez(id%10);
 		strncpy(sonde.si()->ser, ids, 10);
 		sonde.si()->validID = true;
-		Serial.printf("ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
+		LOG_D(TAG, "ID is %s [%02x %02x %d]\n", ids, data[95], data[93], id);
 		// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 		// position data
 		sonde.si()->lat = getint32(data+14) * DEGMUL;
@@ -423,7 +416,7 @@ int MP3H::decodeframeMP3H(uint8_t *data) {
                 sonde.si()->time = (gpstime/1000) + 86382 + gpsweek*604800 + 315878400UL;
                 sonde.si()->validTime = true;
 	} else {
-		Serial.printf("data is %02x %02x %02x\n", data[0], data[1], data[2]);
+		LOG_D(TAG, "data is %02x %02x %02x\n", data[0], data[1], data[2]);
 		return 0;
 	}
 	return crcok?1:2;
@@ -456,13 +449,11 @@ void MP3H::processMP3Hdata(uint8_t dt)
 				rxbitc = 0;
 				rxp = 0;
 				headerDetected = 1;
-				Serial.print("SYNC\n");
+				LOG_D(TAG, "SYNC\n");
                                 int rssi=radio.getRSSI();
                                 int fei=radio.getFEI();
                                 int afc=radio.getAFC();
-                                Serial.print("SYNC!!! Test: RSSI="); Serial.print(rssi);
-                                Serial.print(" FEI="); Serial.print(fei);
-                                Serial.print(" AFC="); Serial.println(afc);
+                                LOG_D(TAG, "SYNC!!! Test: RSSI=%d FEI=%d AFC=%d\n", rssi, fei, afc);
                                 sonde.si()->rssi = rssi;
                                 sonde.si()->afc = afc;
 			}
@@ -488,22 +479,22 @@ int MP3H::receive() {
 	uint8_t retval = RX_TIMEOUT;
 
 	unsigned long t0 = millis();
-	Serial.printf("MP3H::receive() start at %ld\n",t0);
+	LOG_D(TAG, "MP3H::receive() start at %ld\n",t0);
    	while( millis() - t0 < 1100 + (retval!=RX_TIMEOUT)?1000:0 ) {
 		uint8_t status = radio.fifoStatus();
 		if ( status & FIFO_FULL ) {
-			Serial.println("FIFO full");
+			LOG_D(TAG, "FIFO full\n");
       		}
       		if ( status & FIFO_OVERRUN ) {
-        		Serial.println("FIFO overflow");
+        		LOG_W(TAG, "FIFO overflow\n");
       		}
       		if ( status & FIFO_PAYLOAD_READY ) {
-        		Serial.println("FIFO: ready()");
+        		LOG_D(TAG, "FIFO: ready()\n");
         		radio.clearIRQFlags();
       		}
 		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
       			byte data = radio.readFifoByte();
-			Serial.printf("%02x:",data);
+			LOG_D(TAG, "%02x:",data);
       			processMP3Hdata(data);
       			status = radio.fifoStatus();
     		} else {
@@ -512,18 +503,18 @@ int MP3H::receive() {
 				headerDetected = 0;
 			}
     			if(haveNewFrame) {
-				Serial.printf("MP3H::receive(): new frame complete after %ldms\n", millis()-t0);
+				LOG_D(TAG, "MP3H::receive(): new frame complete after %ldms\n", millis()-t0);
 				printRaw(dataptr, MP3H_FRAMELEN);
 				nFrames--;
 				// frame with CRC error: just skip and retry (unless we have waited for 6 frames alred)
 				if(haveNewFrame != 1) {
-					Serial.printf("hNF: %d (ERROR)\n", haveNewFrame);
+					LOG_D(TAG, "hNF: %d (ERROR)\n", haveNewFrame);
 					retval = RX_ERROR;
 				} else if (sonde.si()->d.time == lastFrame) { // same frame number as seen before => skip
-					Serial.printf("Skipping frame with frame# %d\n", lastFrame);
+					LOG_D(TAG, "Skipping frame with frame# %d\n", lastFrame);
 					// nothing, wait for next, "new" frame
 				} else {  // good and new frame, return it.
-					Serial.println("Good frame");
+					LOG_D(TAG, "Good frame\n");
 					haveNewFrame = 0;
 					lastFrame = sonde.si()->d.time;
 					return RX_OK;
@@ -532,7 +523,7 @@ int MP3H::receive() {
 #if 0
 				if(nFrames <= 0) {
 					// up to 6 old or erronous frames received => break out
-					Serial.printf("nFrames is %di, giving up\n", nFrames);
+					LOG_D(TAG, "nFrames is %di, giving up\n", nFrames);
 					break;
 				}
 #endif
@@ -542,8 +533,8 @@ int MP3H::receive() {
     	}
         int32_t afc = radio.getAFC();
         int16_t rssi = radio.getRSSI();
-        Serial.printf("receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
-	Serial.printf("MP3H::receive() timed out\n");
+        LOG_D(TAG, "receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
+	LOG_D(TAG, "MP3H::receive() timed out\n");
     	return retval;
 }
 

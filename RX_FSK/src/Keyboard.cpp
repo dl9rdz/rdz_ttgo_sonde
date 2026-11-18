@@ -283,14 +283,14 @@ void keyboardInit() {
   button2.pin = sonde.config.button2_pin;
   if (button1.pin != 0xff) {
     if ( (button1.pin & 0x80) == 0 && button1.pin < 34 ) {
-      Serial.println("Button 1 configured as input with pullup");
+      LOG_I(TAG, "Button 1 configured as input with pullup\n");
       pinMode(button1.pin, INPUT_PULLUP);
     } else
       pinMode(button1.pin, INPUT);  // configure as input if not disabled
   }
   if (button2.pin != 0xff) {
     if ( (button2.pin & 0x80) == 0 && button2.pin < 34 ) {
-      Serial.println("Button 2 configured as input with pullup");
+      LOG_I(TAG, "Button 2 configured as input with pullup\n");
       pinMode(button2.pin, INPUT_PULLUP);
     } else
       pinMode(button2.pin, INPUT);  // configure as input if not disabled

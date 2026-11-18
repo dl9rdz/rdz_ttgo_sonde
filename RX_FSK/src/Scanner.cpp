@@ -1,3 +1,6 @@
+#define TAG "Scanner"
+#include "logger.h"
+
 #include "Scanner.h"
 #include <inttypes.h>
 #include <U8x8lib.h>
@@ -164,7 +167,7 @@ void Scanner::scan()
 	}
 	int nchan = scanconfig.PLOT_W * scanconfig.SMPL_PIX;
 	if (nchan < 1 || nchan > MAXN) {
-		Serial.printf("scan: bad channel count %d\n", nchan);
+		LOG_W(TAG, "scan: bad channel count %d\n", nchan);
 		return;
 	}
 	/* Hop samples are only needed for this sweep. 32-bit IRAM is enough:
@@ -174,7 +177,7 @@ void Scanner::scan()
 		scanresult = (int *)heap_caps_malloc(nchan * sizeof(int), MALLOC_CAP_8BIT);
 	}
 	if (!scanresult) {
-		Serial.println("scan: no memory for scanresult");
+		LOG_E(TAG, "scan: no memory for scanresult\n");
 		return;
 	}
 	// Configure 

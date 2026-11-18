@@ -5,6 +5,9 @@
 #include <inttypes.h>
 #include <Arduino.h>
 
+#define TAG "shfreqimport"
+#include "logger.h"
+
 #include "ShFreqImport.h"
 #include "Sonde.h"
 #include "../version.h"
@@ -73,7 +76,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
     int i;
     for(i=0; i<sonde.config.maxsonde; i++) {
         if( abs(sonde.sondeList[i].freq-freq)<0.003 ) { // exists already, max error 3000 Hz
-            Serial.printf("id %s close to %d\n", id, i);
+            LOG_D(TAG, "id %s close to %d\n", id, i);
             if( sonde.sondeList[i].type == stype) {
                 char *l = sonde.sondeList[i].launchsite;
                 if( *l=='@' || *l==' ' || *l==0 ) {
@@ -94,7 +97,7 @@ void ShFreqImport::populate(char *id, float lat, float lon, float freq, const ch
         ppos++;
     }
     if(ppos >= sonde.config.maxsonde) { 
-        Serial.println("populate: out of free slots");
+        LOG_W(TAG, "populate: out of free slots");
         return;
     } // no more free slots
 
@@ -115,7 +118,7 @@ void ShFreqImport::cleanup() {
         if( (((inuse[i/8]>>(i&7))&1) == 0) && *sonde.sondeList[i].launchsite=='@' ) {
             // Don't remove the currently active entry
             if(i==sonde.currentSonde) continue;
-            Serial.printf("removing #%d\n", i);
+            LOG_D(TAG, "removing #%d\n", i);
             sonde.sondeList[i].launchsite[0] = 0;
             sonde.sondeList[i].active = 0;
             sonde.sondeList[i].freq = 400;
@@ -195,10 +198,10 @@ int ShFreqImport::handleChar(char c) {
             if(c=='}') {
                 // we have an ID and all key/value pairs, check if its good....
                 if( !isnan(lat) && !isnan(lon) && !isnan(freq) && type[0] ) {
-                    Serial.printf("SondeHub import: populate %s %f %f %f %s\n", id, lat, lon, freq, type);
+                    LOG_D(TAG, "SondeHub import: populate %s %f %f %f %s\n", id, lat, lon, freq, type);
                     populate(id, lat, lon, freq, type);
                 } else {
-                    Serial.printf("Skipping incomplete %s\n", id);
+                    LOG_D(TAG, "Skipping incomplete %s\n", id);
                 }       
                 importState = ENDORNEXT;
             }       
@@ -234,7 +237,7 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
         }
     }
 #endif
-    Serial.println("Sending SondeHub import request");
+    LOG_I(TAG, "Sending SondeHub import request");
     char req[400];
     snprintf(req, sizeof(req), "GET /sondes?lat=%f&lon=%f&distance=%d&last=%d HTTP/1.1\r\n"
             "Host: %s\r\n"
@@ -244,8 +247,11 @@ int ShFreqImport::shImportSendRequest(int client, float lat, float lon, int dist
             lat, lon, dist*1000, time*60, sonde.config.sondehub.host,
             version_name, version_id);
     int res = write(client, req, strlen(req));
-    Serial.printf("write res: %d (%d)\n", res, errno);
-    Serial.print(req);
+    if(res <= 0) {
+        LOG_W(TAG, "import request write failed: res=%d (errno %d)\n", res, errno);
+    } else {
+        LOG_D(TAG, "write res: %d (%d)\n%s", res, errno, req);
+    }
     importState = START;
     nImported = 0;
     homelat = lat;
@@ -261,6 +267,6 @@ int ShFreqImport::shImportHandleReply(const char *buf, int len) {
         int ret = handleChar(buf[i]);
         if(ret) return ret;
     }
-    Serial.printf("shImportHandleReply returning after fully processing buffer '%s'\n", buf);
+    LOG_D(TAG, "shImportHandleReply returning after fully processing buffer '%s'\n", buf);
     return 0;
 }

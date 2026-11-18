@@ -3,14 +3,9 @@
 #include "DFM.h"
 #include "Radio.h"
 #include "Sonde.h"
+#include "logger.h"
 
-#define DFM_DEBUG 0
-
-#if DFM_DEBUG
-#define DFM_DBG(x) x
-#else
-#define DFM_DBG(x)
-#endif
+#define TAG "DFM"
 
 #define DFM_FRAMELEN 33
 
@@ -73,11 +68,9 @@ decoderSetupCfg DFMSetupCfg {
 int DFM::setup(float frequency, int type) 
 {
 	stype = type;
-#if DFM_DEBUG
-	Serial.printf("Setup sx1278 for DFM sonde (type=%d)\n", stype);
-#endif
+	LOG_D(TAG, "Setup sx1278 for DFM sonde (type=%d)\n", stype);
 	if(radio.ON()!=0) {
-		DFM_DBG(Serial.println("Setting SX1278 power on FAILED"));
+		LOG_W(TAG, "Setting SX1278 power on FAILED\n");
 		return 1;
 	}
 
@@ -87,46 +80,45 @@ int DFM::setup(float frequency, int type)
 #if 0
 	// This is now all done by the generic setup method in base class
 	if(radio.setFSK()!=0) {
-		DFM_DBG(Serial.println("Setting FSM mode FAILED"));
+		LOG_W(TAG, "Setting FSM mode FAILED\n");
 		return 1;
 	}
 	if(radio.setBitrate(2500)!=0) {
-		DFM_DBG(Serial.println("Setting bitrate 2500bit/s FAILED"));
+		LOG_W(TAG, "Setting bitrate 2500bit/s FAILED\n");
 		return 1;
 	}
         if(radio.setAFCBandwidth(sonde.config.dfm.agcbw)!=0) {
-                DFM_DBG(Serial.printf("Setting AFC bandwidth %d Hz FAILED", sonde.config.dfm.agcbw));
+                LOG_W(TAG, "Setting AFC bandwidth %d Hz FAILED\n", sonde.config.dfm.agcbw);
                 return 1;
         }
         if(radio.setRxBandwidth(sonde.config.dfm.rxbw)!=0) {
-                DFM_DBG(Serial.printf("Setting RX bandwidth to %d Hz FAILED", sonde.config.dfm.rxbw));
+                LOG_W(TAG, "Setting RX bandwidth to %d Hz FAILED\n", sonde.config.dfm.rxbw);
                 return 1;
         }
 	{
                 if(radio.setRxConf(0x1E)!=0) {
-                        DFM_DBG(Serial.println("Setting RX Config FAILED"));
+                        LOG_W(TAG, "Setting RX Config FAILED\n");
                         return 1;
                 }
                 // working with continuous RX
                 const char *SYNC="\xAA\xAA";
                 if(radio.setSyncConf(0x70, 2, (const uint8_t *)SYNC)!=0) {
-                        DFM_DBG(Serial.println("Setting SYNC Config FAILED"));
+                        LOG_W(TAG, "Setting SYNC Config FAILED\n");
                         return 1;
                 }
                 if(radio.setPreambleDetect(0xA8)!=0) {
                 //if(radio.setPreambleDetect(0x9F)!=0) {
-                        DFM_DBG(Serial.println("Setting PreambleDetect FAILED"));
+                        LOG_W(TAG, "Setting PreambleDetect FAILED\n");
                         return 1;
                 }
 	}
 #endif
         if(radio.setPacketConfig(0x08, 0x40)!=0) {
-                DFM_DBG(Serial.println("Setting Packet config FAILED"));
+                LOG_W(TAG, "Setting Packet config FAILED\n");
                 return 1;
         }
         radio.setPayloadLength(0);  // infinite for now...
-        Serial.print("DFM: setting RX frequency to ");
-        Serial.println(frequency);
+        LOG_D(TAG, "setting RX frequency to %f\n", frequency);
 
 	int retval = radio.setFrequency(frequency);
         radio.clearIRQFlags();
@@ -135,7 +127,7 @@ int DFM::setup(float frequency, int type)
         radio.startRX();
 
 	memset((void *)&dfmstate, 0, sizeof(dfmstate));
-	DFM_DBG(Serial.println("Setting SX1278 config for DFM finished\n"); Serial.println());
+	LOG_D(TAG, "Setting SX1278 config for DFM finished\n");
 	return retval;
 }
 
@@ -211,19 +203,25 @@ int DFM::hamming(uint8_t *ham, int L, uint8_t *sym) {
 DFM::DFM() {
 }
 
-void DFM::printRaw(const char *label, int len, int ret, const uint8_t *data)
+static int appendRawPart(char *buf, int n, int cap, const char *label, int len, int ret, const uint8_t *data)
 {
-	Serial.print(label); Serial.print("(");
-	Serial.print(ret);
-	Serial.print("):");
+	n += snprintf(buf+n, cap-n, "%s(%d):", label, ret);
 	int i;
 	for(i=0; i<len/2; i++) {
-		char str[10];
-		snprintf(str, 10, "%02X", data[i]);
-		Serial.print(str);
+		n += snprintf(buf+n, cap-n, "%02X", data[i]);
 	}
-	Serial.print(data[i]&0x0F, HEX);
-	Serial.print(" ");
+	n += snprintf(buf+n, cap-n, "%X ", data[i]&0x0F);
+	return n;
+}
+
+void DFM::printRaw(int ret0, const uint8_t *cfg, int ret1, const uint8_t *dat1, int ret2, const uint8_t *dat2)
+{
+	char buf[128];
+	int n = 0;
+	n = appendRawPart(buf, n, (int)sizeof(buf), "CFG", 7, ret0, cfg);
+	n = appendRawPart(buf, n, (int)sizeof(buf), "DAT", 13, ret1, dat1);
+	n = appendRawPart(buf, n, (int)sizeof(buf), "DAT", 13, ret2, dat2);
+	LOG_D(TAG, "%s", buf);
 }
 
 const char* typestr[16]={
@@ -266,7 +264,6 @@ void DFM::finddfname(uint8_t *b)
 		uint32_t v = (st<<20) | (d<<4) | ix;
 		if ( st > (dfmstate.lastfrid>>20) ) {
 			dfmstate.lastfrid = v;
-			Serial.print(" MAXCH:"); Serial.print(st);
 			dfmstate.lastfrcnt = 0;
 		} else if ( st == (dfmstate.lastfrid>>20) ) {
 			/* same id found */
@@ -298,18 +295,14 @@ void DFM::finddfname(uint8_t *b)
 							sd->subtype = 0;
 							dfmstate.ptu_chan = (st>>4)&0x0F;
 							strcpy(sd->typestr, "DFM");
+							LOG_I(TAG, "serial locked id=%s (ch=0x%02X single-frame)", sd->id, st);
 							return;
 						}
 						dfmstate.lastfrcnt = 0;
-						Serial.print(" NOT NUMERIC SERIAL");
+						LOG_W(TAG, "serial reject (non-numeric)");
                      			}
                   			//anonym->idtime = osic_time();
-       			         } else {
-					Serial.print(" MAXCHCNT/SECLVL:");
-					Serial.print(dfmstate.lastfrcnt);
-					Serial.print("/");
-					Serial.print(thres);
-				}
+       			         }
 			} else {
                			dfmstate.lastfrid = v; /* not stable ser */
                			dfmstate.lastfrcnt = 0UL;
@@ -319,33 +312,23 @@ void DFM::finddfname(uint8_t *b)
 
 	i = 0;
 	while (i<dfmstate.nameregtop && dfmstate.start[i]!=st) i++;
-	Serial.printf(" %02x:i=%d,top=%d", st, i, dfmstate.nameregtop);
 	if (i<dfmstate.nameregtop) {
         	if (ix<=1UL && (dfmstate.cnt[2*i+ix]==0 || dfmstate.dat[2*i+ix]==d)) {
         		dfmstate.dat[2*i+ix] = d;
 			if(dfmstate.cnt[2*i+ix] < 255) dfmstate.cnt[2*i+ix]++;
-			Serial.print(" ID:");
-			Serial.print(st, HEX);
-			Serial.print("[");
-			Serial.print(ix);
-			Serial.print("] CNT:");
-			Serial.print(dfmstate.cnt[2*i]);
-			Serial.print(",");
-			Serial.print(dfmstate.cnt[2*i+1]);
-			Serial.print(",st=");
-			Serial.print(st);
-			Serial.print(",lastfrid=");
-			Serial.print(dfmstate.lastfrid>>20);
-			if( (dfmstate.cnt[2*i]>DFMIDTHRESHOLD && dfmstate.cnt[2*i+1]>DFMIDTHRESHOLD) ||
-			    (dfmstate.cnt[2*i]>0 && dfmstate.cnt[2*i+1]>0 &&  st == (dfmstate.lastfrid>>20) && (st>>4)>6) ) {
+			const char *half = (ix == 0) ? "lo" : "hi";
+			unsigned hits_lo = dfmstate.cnt[2*i];
+			unsigned hits_hi = dfmstate.cnt[2*i+1];
+			bool halves_ready =
+			    (hits_lo > DFMIDTHRESHOLD && hits_hi > DFMIDTHRESHOLD) ||
+			    (hits_lo > 0 && hits_hi > 0 && st == (dfmstate.lastfrid>>20) && (st>>4) > 6);
+			if (halves_ready) {
 				if(dfmstate.idcnt0 <= 1) {
-					dfmstate.idcnt0 = dfmstate.cnt[2*i];
-					dfmstate.idcnt1 = dfmstate.cnt[2*i+1];
+					dfmstate.idcnt0 = hits_lo;
+					dfmstate.idcnt1 = hits_hi;
 					dfmstate.nameregok = i;
 					// generate id.....
 					snprintf(sd->id, 10, "D%d", ((dfmstate.dat[2*i]<<16)|dfmstate.dat[2*i+1])%100000000);
-					Serial.print("\nNEW AUTOID:");
-					Serial.println(sd->id);
 					memcpy(sd->ser, sd->id+1, 9);
 					sd->validID = true;
 					//sd->subtype = (st>>4)&0x0F;
@@ -354,11 +337,15 @@ void DFM::finddfname(uint8_t *b)
 					sd->subtype = 0;
 					dfmstate.ptu_chan = (st>>4)&0x0F;
 					strcpy(sd->typestr, "DFM");
+					LOG_I(TAG, "serial locked id=%s (ch=0x%02X halves lo=%u hi=%u)",
+						sd->id, st, hits_lo, hits_hi);
+				} else if (dfmstate.nameregok == i) {
+					LOG_D(TAG, "serial confirm ch=0x%02X half=%s hits=%u/%u id=%s",
+						st, half, hits_lo, hits_hi, sd->id);
 				}
-				if(dfmstate.nameregok==i) {
-					Serial.print(" ID OK");
-					// idtime = .... /* TODO */
-				}
+			} else {
+				LOG_D(TAG, "serial wait ch=0x%02X half=%s hits=%u/%u (need both halves stable)",
+					st, half, hits_lo, hits_hi);
 			}
 		} else {
                		/* data changed so not ser */
@@ -368,6 +355,7 @@ void DFM::finddfname(uint8_t *b)
 				dfmstate.idcnt0 = 0;
 				dfmstate.idcnt1 = 0;
 			}
+			LOG_D(TAG, "serial reset ch=0x%02X (half data changed)", st);
 		}
       	} else if (ix<=1) {  /* add new entry for possible ID */
 	    dfmstate.start[dfmstate.nameregtop] = st;
@@ -392,7 +380,7 @@ static float get_Temp() {
 		f1 = dfmstate.meas[5];
 		f2 = dfmstate.meas[6];
 	}
-	Serial.printf("Meas: %f %f %f\n", f, f1, f2);
+	LOG_D(TAG, "Meas: %f %f %f\n", f, f1, f2);
     // as in autorx / dfm
     float BB0 = 3260.0;       // B/Kelvin, fit -55C..+40C
     float T0 = 25 + 273.15;  // t0=25C
@@ -406,7 +394,7 @@ static float get_Temp() {
     if (R > 0)  T = 1/(1/T0 + 1/BB0 * log(R/R0));
     T =  T - 273.15; // Celsius
     if(T<-100 || T>50) {
-	Serial.printf("Temperature invalid: %f\n", T);
+	LOG_D(TAG, "Temperature invalid: %f\n", T);
 	return NAN;
     }
     return T;
@@ -424,7 +412,7 @@ void DFM::decodeCFG(uint8_t *cfg)
 		uint8_t exp = cfg[0] & 0xF;
 		dfmstate.meas[conf_id] = val / (float)(1<<exp);
 		dfmstate.measok |= (1 << conf_id);
-		Serial.printf("meas %d is %f (%d,%d)\n", conf_id, dfmstate.meas[conf_id], val, exp);
+		LOG_D(TAG, " CFG: meas %d is %f (%d,%d)\n", conf_id, dfmstate.meas[conf_id], (int)val, exp);
 	}
 
 	// get type (if we have an ID, but no type yet, and (needed only for 0xC), meas[6])
@@ -461,7 +449,7 @@ void DFM::decodeCFG(uint8_t *cfg)
 		if(conf_id == cid) {
 			uint16_t val = cfg[1]<<8 | cfg[2];
 			si->batteryVoltage = val / 1000.0;
-			Serial.printf("battery: %f\n", si->batteryVoltage);
+			LOG_D(TAG, " CFG: battery: %f\n", si->batteryVoltage);
 		}
 	}
 }
@@ -484,7 +472,6 @@ void DFM::decodeDAT(uint8_t *dat)
 {
 	// TODO: Here we need to work on a shadow copy of SondeData in order to prevent concurrent changes while using data in main loop
 	SondeData *si = &(sonde.si()->d);
-	Serial.print(" DAT["); Serial.print(dat[6]); Serial.print("]: ");
 
 	// We handle this case already here, because we need to update dfmstate.datesec before the cycle complete handling 
 	if( dat[6]==8 ) {
@@ -493,7 +480,7 @@ void DFM::decodeDAT(uint8_t *dat)
 		int d = dat[2]>>3;
 		int h = ((dat[2]&0x07)<<2) + (dat[3]>>6);
 		int mi = (dat[3]&0x3F);
-		Serial.printf("Date: %04d-%02d-%02d %02d:%02dz ", y, m, d, h, mi);
+		LOG_D(TAG, " DAT[8]: Date: %04d-%02d-%02d %02d:%02dz \n", y, m, d, h, mi);
 		si->sats = dat[4];
 		si->validPos |= 0x40;
 		// convert to unix time
@@ -526,9 +513,9 @@ void DFM::decodeDAT(uint8_t *dat)
 			si->vframe = dfmstate.datesec + (dfmstate.msec+500)/1000 - 315964800;
 		}
 		// All fields updated? 1=OK, 2=with errors
-		Serial.printf("Cycle done: good is %x\n", dfmstate.good);
+		LOG_D(TAG, "Cycle done: good is %x\n", dfmstate.good);
 		si->temperature = get_Temp();
-		Serial.printf("Temp: %f\n", si->temperature);
+		LOG_D(TAG, "Temp: %f\n", si->temperature);
 		dfmstate.cycledone = ((dfmstate.good&0x11F)==0x11F) ? 1 : 2; 
 		dfmstate.good = 0;
 		dfmstate.lastdat = 0;
@@ -539,7 +526,6 @@ void DFM::decodeDAT(uint8_t *dat)
 
 	switch(dat[6]) {
 	case 0:
-		Serial.print("Packet counter: "); Serial.print(dat[3]);	
 		dfmstate.frame = dat[3];
 		dfmstate.posmode = dat[2];
 		if(dat[2] <= 1 || dat[2] >= 5) dfmstate.posmode = 2;
@@ -549,13 +535,15 @@ void DFM::decodeDAT(uint8_t *dat)
 			dfmstate.msec = val;
 			si->hs = vh * 0.01;
                 	if(si->hs != 0) si->validPos |= 0x10;  else si->validPos &= ~0x10;
-                        Serial.printf("UTC-msec: %d, hor-V: %f", val, si->hs);
-		}
+                        LOG_D(TAG, " DAT[0]: packet counter: %d, UTC-msec: %d, hor-V: %f", dat[3], val, si->hs);
+		} else {
+			LOG_D(TAG, " DAT[0]: packet counter: %d", dat[3]);
+                }
 		break;
 	case 1:
 		if(dfmstate.posmode <=2) {
 			int val = (((uint16_t)dat[4])<<8) + (uint16_t)dat[5];
-			Serial.print("UTC-msec: "); Serial.print(val);
+			LOG_D(TAG, " DAT[1]: UTC-msec: %d", val);
 			dfmstate.msec = val; 
 			//uint32_t tmp = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + ((uint32_t)dat[3]);
 			//si->sats = bitCount(tmp); 
@@ -569,7 +557,7 @@ void DFM::decodeDAT(uint8_t *dat)
                 	si->lat = lat;
                 	si->dir = dir*0.01;
                 	if(lat!=0 | dir!=0) si->validPos |= 0x21;  else si->validPos &= ~0x21;
-			Serial.printf("GPS-Lat: %f, dir: %f\n", si->lat, si->dir);
+			LOG_D(TAG, " DAT[1]: GPS-Lat: %f, dir: %f", si->lat, si->dir);
                	}
 		break;
 	case 2:
@@ -582,7 +570,7 @@ void DFM::decodeDAT(uint8_t *dat)
 			si->lat = lat;
 			si->hs = vh*0.01;
 			if(lat!=0 || vh!=0) si->validPos |= 0x11;  else si->validPos &= ~0x11;
-			Serial.printf("GPS-Lat: %f, hor-V: %f\n", si->lat, si->hs);
+			LOG_D(TAG, " DAT[2]: GPS-Lat: %f, hor-V: %f", si->lat, si->hs);
 		} else {  // Lon, Vert-V
 			float lon, vv;
 			lon = (int32_t)(((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + (uint32_t)dat[3]);
@@ -592,7 +580,7 @@ void DFM::decodeDAT(uint8_t *dat)
 			si->lon = lon;
 			si->vs = vv*0.01;
 			if(lon != 0 || vv != 0) si->validPos |= 0x0A; else si->validPos &= ~0x0A;
-			Serial.printf("GPS-Lon: %f, vv: %f\n", si->lon, si->vs);
+			LOG_D(TAG, " DAT[2]: GPS-Lon: %f, vv: %f", si->lon, si->vs);
 		}
 		break;
 	case 3:
@@ -605,12 +593,12 @@ void DFM::decodeDAT(uint8_t *dat)
 			si->lon = lon;
 			si->dir = dir*0.01;
 			if(lon != 0 || dir != 0) si->validPos |= 0x22; else si->validPos &= ~0x22;
-			Serial.printf("GPS-Lon: %f, dir: %f\n", si->lon, si->dir);
+			LOG_D(TAG, " DAT[3]: GPS-Lon: %f, dir: %f", si->lon, si->dir);
 		} else {  // Alt
 			float alt;
 			alt = ((uint32_t)dat[0]<<24) + ((uint32_t)dat[1]<<16) + ((uint32_t)dat[2]<<8) + dat[3];
-			Serial.print("GPS-height: "); Serial.print(alt*0.01);
 			si->alt = alt*0.01;
+			LOG_D(TAG, " DAT[3]: GPS-height: %f", si->alt);
 			if(alt!=0) si->validPos |= 0x04; else si->validPos &= ~0x04;
 		}
 		break;
@@ -622,14 +610,14 @@ void DFM::decodeDAT(uint8_t *dat)
 			si->alt = alt*0.01;
 			si->vs = vv*0.01;
 			if(alt!=0 || vv != 0) si->validPos |= 0x0C; else si->validPos &= ~0x0C;
-			Serial.printf("GPS-heiht: %f, vv: %f\n", si->alt, si->vs);
+			LOG_D(TAG, " DAT[4]: GPS-height: %f, vv: %f", si->alt, si->vs);
 		}
 		break;
 	case 8:
 		// handled above
 		break;
 	default:
-		Serial.print("(?)");
+		LOG_D(TAG, " DAT[%d]: ?\n", dat[6]);
 		break;
 	}
 }
@@ -693,9 +681,7 @@ int DFM::processDFMdata(uint8_t dt) {
                                 if(rxp>=DFM_FRAMELEN) {
                                         rxsearching = true;
 					//Serial.println("Got a DFM frame!");
-                                	Serial.print("[RSSI="); Serial.print(rssi);
-                                	Serial.print(" FEI="); Serial.print(fei);
-                                	Serial.print(" AFC="); Serial.print(afc); Serial.print("] ");
+                                	LOG_D(TAG, "[RSSI=%d FEI=%d AFC=%d]\n", rssi, fei, afc);
                                         decodeFrameDFM(data);
 					haveNewFrame = 1;
                                 }
@@ -714,15 +700,15 @@ int DFM::receive() {
 	while( ( millis() - t0 ) < 1300 ) {
 		uint8_t status = radio.fifoStatus();
                 if ( status & FIFO_FULL ) {
-                        Serial.println("FIFO full");
+                        LOG_D(TAG, "FIFO full\n");
                 }
                 if ( status & FIFO_OVERRUN ) {
-                        Serial.println("FIFO overflow");
+                        LOG_W(TAG, "FIFO overflow\n");
 			// new: (maybe clear only overflow??) TODO
                         radio.clearIRQFlags();
                 }
                 if ( status & FIFO_PAYLOAD_READY ) {
-                        Serial.println("FIFO: payload ready()");
+                        LOG_D(TAG, "FIFO: payload ready()\n");
 			// does not make much sence? (from m10): TODO
                         // ???????  radio.clearIRQFlags();
                 }
@@ -760,13 +746,10 @@ int DFM::decodeFrameDFM(uint8_t *data) {
 	bitsToBytes(block_dat1, byte_dat1, 13);
 	bitsToBytes(block_dat2, byte_dat2, 13);
 
-	printRaw("CFG", 7, ret0, byte_conf);
-	printRaw("DAT", 13, ret1, byte_dat1);
-	printRaw("DAT", 13, ret2, byte_dat2);
+	printRaw(ret0, byte_conf, ret1, byte_dat1, ret2, byte_dat2);
 	if (ret0>=0) decodeCFG(byte_conf);
 	if (ret1>=0 && ret1<=4) decodeDAT(byte_dat1);
 	if (ret2>=0 && ret2<=4) decodeDAT(byte_dat2);
-	Serial.println("");
 	// Consistent with autorx: If more than 4 corrected bit errors in DAT block, assume it is possibly corrupt and
 	// don't treat it as a correct frame (ttgo display shows data anyway, but it is not sent to external sites)
 	if(ret1>4 || ret2>4) return RX_ERROR;

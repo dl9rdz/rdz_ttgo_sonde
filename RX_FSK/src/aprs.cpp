@@ -15,6 +15,8 @@
 #include <math.h>
 #include <unistd.h>
 #include <inttypes.h>
+#define TAG "aprs"
+#include "logger.h"
 #include "aprs.h"
 #include "RS41.h"
 
@@ -150,7 +152,7 @@ extern int aprsstr_mon2raw(const char *mon, char raw[], int raw_len)
    uint32_t tmp;
    int32_t p = 7L;
    i = 0UL;
-   fprintf(stderr,"mon2raw for %s\n", mon);
+   LOG_D(TAG, "mon2raw for %s\n", mon);
    if (!mkaprscall(&p, raw, &i, mon, '>', 0, 0, 48UL)) {
       return 0;
    }
