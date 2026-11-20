@@ -259,6 +259,9 @@ $(document).ready(function(){
   var lastframe = 0;
   var HIST_LINE_STYLE = { color: '#c45c26', weight: 3, opacity: 0.85 };
   var LOW_VS_CLEAR_MS = 5 * 60 * 1000;
+  /* Show sonde id in the header only if this slot had a good frame within this window. */
+  var ID_FRESH_MS = 5 * 60 * 1000;
+  var lastGoodRxAt = {}; /* freqKey -> timestamp ms */
   var predictInflight = false;
   var predictHold = false;
   var lowVsSince = null;
@@ -403,19 +406,35 @@ $(document).ready(function(){
     $('#status').html(html);
   }
 
+  function slotFreshKey(data) {
+    if (data && data.freq != null && data.freq !== '' && !isNaN(Number(data.freq))) {
+      return Number(data.freq).toFixed(3);
+    }
+    if (data && data.ser) return 'ser:' + data.ser;
+    if (data && data.id) return 'id:' + data.id;
+    return null;
+  }
+
+  function headerLabel(data, res) {
+    var site = data.launchsite != null ? String(data.launchsite).trim() : '';
+    var key = slotFreshKey(data);
+    if (res === 0 && key) lastGoodRxAt[key] = Date.now();
+    var fresh = key && lastGoodRxAt[key] && (Date.now() - lastGoodRxAt[key]) < ID_FRESH_MS;
+    if (data.id && fresh) return data.id;
+    if (site) return site;
+    return '—';
+  }
+
   headtxt = function(data, res) {
     var hasId = !!(data && data.id);
     var dot = statusDotHtml(typeof res === 'number' ? res : 1, hasId);
     pushStatDot(dot);
     setStatusButton(dot);
 
+    $('#sonde_id').html(headerLabel(data, res));
+
     if (data.res === 0) {
-      if (data.id) {
-        lastframe = data.vframe;
-        $('#sonde_id').html(data.id);
-      } else if (data.launchsite) {
-        $('#sonde_id').html(String(data.launchsite).trim());
-      }
+      if (data.id) lastframe = data.vframe;
       if (data.alt != null) $('#sonde_alt').html(data.alt);
       if (data.climb != null) $('#sonde_climb').html(data.climb);
       if (data.speed != null) $('#sonde_speed').html(mr(data.speed * 3.6 * 10) / 10);
@@ -423,8 +442,6 @@ $(document).ready(function(){
       if (data.time != null) $('#sonde_time').html(formatSondeTime(data.time));
       if (data.rssi != null) $('#sonde_rssi').html(data.rssi / 2);
       $('#sonde_detail').show();
-    } else if (!data.id && data.launchsite) {
-      $('#sonde_id').html(String(data.launchsite).trim());
     }
     if (data.freq != null) $('#sonde_freq').html(data.freq);
     if (data.type != null) $('#sonde_type').html(data.type);

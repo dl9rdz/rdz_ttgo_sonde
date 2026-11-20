@@ -173,7 +173,7 @@ public:
 	void setup(SemaphoreHandle_t lock);
    	
 	// Turn on SX1278 module (return 0 on sucess, 1 otherwise)
-	uint8_t ON() override;
+	uint8_t ON(bool rssiSmooth = true) override;
 
 	// Turn off SX1278 module
 	void OFF() override;

@@ -2,7 +2,6 @@ import { getJson, postJson, toast } from '../api.js';
 
 const POLL_MS = 1000;
 const POLL_SLACK_MS = 80;
-const POLL_MIN_MS = 50;
 const STALE_SEC = 5;
 
 export function mountDecoder(root) {
@@ -70,6 +69,12 @@ export function mountDecoder(root) {
   function stampRxAt(d) {
     if (d.empty) {
       d._rxAt = null;
+      d._ageFrozen = null;
+      return;
+    }
+    // Frame time survives reboot. Device "age" is millis() since boot.
+    if (typeof d.time === 'number' && d.time > 1600000000) {
+      d._rxAt = d.time * 1000;
       d._ageFrozen = null;
       return;
     }
@@ -362,8 +367,9 @@ export function mountDecoder(root) {
     if (!data || data.state === 'spectrum') return POLL_MS;
     if (typeof data.now !== 'number' || typeof data.lastChange !== 'number') return POLL_MS;
     const elapsed = data.now - data.lastChange;
+    /* ~1 poll/s; phase-align only while still inside the 1s window (never accelerate) */
+    if (elapsed >= POLL_MS) return POLL_MS;
     const wait = POLL_MS - elapsed + POLL_SLACK_MS;
-    if (wait < POLL_MIN_MS) return POLL_MIN_MS;
     if (wait > POLL_MS) return POLL_MS;
     return wait;
   }

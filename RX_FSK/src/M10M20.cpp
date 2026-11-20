@@ -9,6 +9,12 @@
 #define TAG "M10M20"
 #include "logger.h"
 
+// Set to 1 to hex-dump every FIFO byte from the receive() window that follows
+// a successful 4.8 kbit/s AFC preamble detect in setup(). Host serial should
+// preferably be fast (e.g. 460800+) to avoid WDT while dumping ~1.3 kB.
+#ifndef M10M20_DUMP_RAW_AFTER_4K8
+#define M10M20_DUMP_RAW_AFTER_4K8 0
+#endif
 
 static byte data1[512];
 static byte *dataptr=data1;
@@ -19,6 +25,33 @@ static int rxp=0;
 static int haveNewFrame = 0;
 //static int lastFrame = 0;
 static int headerDetected = 0;
+
+#if M10M20_DUMP_RAW_AFTER_4K8
+// 9600 bit/s * 1.1 s ≈ 1320 bytes; keep a little headroom.
+static constexpr int M10M20_RAW_DUMP_MAX = 1400;
+static uint8_t s_rawDump[M10M20_RAW_DUMP_MAX];
+static int s_rawDumpLen = 0;
+static bool s_dumpRawPending = false;
+
+static void m10m20DumpRawFifo(const uint8_t *buf, int len, unsigned long elapsed_ms)
+{
+	LOG_I(TAG, "M10M20 4k8-AFC raw dump: %d bytes over %lu ms (bitrate=9600 after AFC)\n",
+	      len, elapsed_ms);
+	char line[3 * 32 + 8];
+	for (int i = 0; i < len; i += 32) {
+		int n = len - i;
+		if (n > 32) n = 32;
+		int p = 0;
+		p += snprintf(line + p, sizeof(line) - p, "%04X:", i);
+		for (int j = 0; j < n && p < (int)sizeof(line) - 4; j++) {
+			p += snprintf(line + p, sizeof(line) - p, " %02X", buf[i + j]);
+		}
+		LOG_I(TAG, "%s\n", line);
+		yield();
+	}
+	LOG_I(TAG, "M10M20 4k8-AFC raw dump END\n");
+}
+#endif
 
 
 decoderSetupCfg m10m20SetupCfg = {
@@ -35,7 +68,8 @@ decoderSetupCfg m10m20SetupCfg = {
 int M10M20::setup(float frequency, int /*type*/) 
 {
 	LOG_D(TAG, "Setup sx1278 for M10/M20 sonde\n");
-	if(radio.ON()!=0) {
+	// Keep chip RSSI smoothing default; longer averaging can hurt M10/M20 AFC handoff.
+	if(radio.ON(false)!=0) {
 		LOG_W(TAG, "Setting SX1278 power on FAILED\n");
 		return 1;
 	}
@@ -84,12 +118,22 @@ int M10M20::setup(float frequency, int /*type*/)
                        LOG_D(TAG, "M10M20::setup: preamble: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
                        sonde.sondeList[rxtask.currentSonde].rssi = rssi;
                        sonde.sondeList[rxtask.currentSonde].afc = afc;
+#if M10M20_DUMP_RAW_AFTER_4K8
+                       // Next receive() collects FIFO for ~1.1 s; dump that window.
+                       s_dumpRawPending = true;
+                       s_rawDumpLen = 0;
+                       LOG_I(TAG, "M10M20 4k8 AFC preamble OK — will dump next 1.1s FIFO raw\n");
+#endif
                        break;
                }
                yield();
         }
         if( millis() - t0 >= 1000) {
                LOG_D(TAG, "Preamble scan for AFC: TIMEOUT\n");
+#if M10M20_DUMP_RAW_AFTER_4K8
+               s_dumpRawPending = false;
+               s_rawDumpLen = 0;
+#endif
                return 1; // no preamble, so we may fail fast....
         }
 
@@ -148,9 +192,9 @@ int M10M20::setup(float frequency, int /*type*/)
         radio.setRxConf(0x20);
 	uint16_t afc = radio.getRawAFC();
         radio.startRX();
-	delay(50);
+	delay(5);
 	radio.setRawAFC(afc);
-	delay(50);
+	//delay(50);
         LOG_D(TAG, "after RX_MODE: AFC is %d\n", radio.getAFC());
 
 	LOG_D(TAG, "Setting SX1278 config for M10 finished\n");
@@ -476,6 +520,14 @@ void M10M20::processM10data(uint8_t dt)
 int M10M20::receive() {
 	unsigned long t0 = millis();
 	LOG_D(TAG, "M10M20::receive() start at %ld\n",t0);
+#if M10M20_DUMP_RAW_AFTER_4K8
+	const bool dumpThisRx = s_dumpRawPending;
+	const unsigned long t_dump0 = t0;
+	if (dumpThisRx) {
+		s_rawDumpLen = 0;
+	}
+#endif
+	int retval = RX_TIMEOUT;
    	while( millis() - t0 < 1100 ) {
 		uint8_t status = radio.fifoStatus();
 		if ( status & FIFO_FULL ) {
@@ -490,6 +542,11 @@ int M10M20::receive() {
       		}
 		if(!(status & FIFO_EMPTY)) { // while FIFO not empty
       			byte data = radio.readFifoByte();
+#if M10M20_DUMP_RAW_AFTER_4K8
+			if (dumpThisRx && s_rawDumpLen < M10M20_RAW_DUMP_MAX) {
+				s_rawDump[s_rawDumpLen++] = data;
+			}
+#endif
 			//Serial.printf("%02x:",data);
       			processM10data(data);
       			status = radio.fifoStatus();
@@ -501,13 +558,23 @@ int M10M20::receive() {
     			if(haveNewFrame) {
 				//printRaw(dataptr, M10_FRAMELEN);
 				LOG_D(TAG, "M10M20::receive(): new frame complete after %ldms\n", millis()-t0);
-				int retval = haveNewFrame==1 ? RX_OK: RX_ERROR;
+				retval = haveNewFrame==1 ? RX_OK: RX_ERROR;
 				haveNewFrame = 0;
-				return retval;
+				break;
 			}
 			delay(2);
     		}
     	}
+#if M10M20_DUMP_RAW_AFTER_4K8
+	if (dumpThisRx) {
+		m10m20DumpRawFifo(s_rawDump, s_rawDumpLen, millis() - t_dump0);
+		s_dumpRawPending = false;
+		s_rawDumpLen = 0;
+	}
+#endif
+	if (retval != RX_TIMEOUT) {
+		return retval;
+	}
                        int32_t afc = radio.getAFC();
                        int16_t rssi = radio.getRSSI();
                        LOG_D(TAG, "receive: AFC is %d, RSSI is %.1f\n", afc, rssi/2.0);
@@ -610,11 +677,23 @@ int M10M20::decodeframeM20(uint8_t *data) {
 	// ID printed on sonde is ...-.-abbbb, with a=id>>13, bbbb=id&0x1fff in decimal
 	// position data
 	// 0x1C  4 byte
-	si->lat = getint32(data+28) * 1e-6;
+	float lat = getint32(data+28) * 1e-6;
 	//0x20  4 byte
-	si->lon = getint32(data+32) * 1e-6;
+	float lon = getint32(data+32) * 1e-6;
 	//0x08  3 byte
-	si->alt = getint24(data+8) * VMUL_M20;
+	float alt = getint24(data+8) * VMUL_M20;
+	// Power-off / garbage frames can pass CRC with nonsense coords — reject like CRC fail.
+	// Lon uses signed degrees (-180..180 inclusive).
+	if (lat < -90.f || lat > 90.f ||
+	    lon < -180.f || lon > 180.f ||
+	    alt < 0.f || alt > 50000.f) {
+		LOG_W(TAG, "M20 pos implausible: lat=%.6f lon=%.6f alt=%.1f — ignore\n",
+		      lat, lon, alt);
+		return 2;
+	}
+	si->lat = lat;
+	si->lon = lon;
+	si->alt = alt;
 	//0x0B  2 byte
 	//VMUL_M20 specific
 	float ve = getint16(data+11)*VMUL_M20;

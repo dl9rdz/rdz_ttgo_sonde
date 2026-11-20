@@ -30,11 +30,6 @@ int DecoderBase::setup(decoderSetupCfg &setupcfg, uint16_t agcbw, uint16_t rxbw)
                 LOG_W(TAG, "Setting RX Config FAILED\n");
                 return 1;
         }
-        // Re-apply LNA gain (incl. optional LnaBoostHf from config.lnaboost)
-        if(radio.setLNAGain(0)!=0) {
-                LOG_W(TAG, "Setting LNA gain FAILED\n");
-                return 1;
-        }
         if(radio.setSyncConf(setupcfg.sync_cfg, setupcfg.sync_len, setupcfg.sync_data)!=0) {
                 LOG_W(TAG, "Setting SYNC Config FAILED\n");
                 return 1;

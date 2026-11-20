@@ -13,7 +13,9 @@ class Radio {
 public:
 	virtual ~Radio() {}
 
-	virtual uint8_t ON() = 0;
+	// rssiSmooth: write REG_RSSI_CONFIG for longer averaging (default on for most sondes).
+	// Pass false to leave chip RSSI smoothing at reset default (M10/M20).
+	virtual uint8_t ON(bool rssiSmooth = true) = 0;
 	virtual void OFF() = 0;
 
 	virtual uint8_t setFSK() = 0;
