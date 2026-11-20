@@ -4,8 +4,9 @@
 #ifndef MQTT_h
 #define MQTT_h
 
-#include <WiFi.h>
+#include <IPAddress.h>
 #include <AsyncMqttClient.h>
+#include <WiFiClient.h>
 #include "Sonde.h"
 #include "conn.h"
 
@@ -53,7 +54,6 @@ public:
         void publishDebug(char* debugmsg);
 
        private:
-        WiFiClient mqttWifiClient;
         AsyncMqttClient mqttClient;
         TimerHandle_t mqttReconnectTimer;
         IPAddress ip;

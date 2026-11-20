@@ -8,13 +8,15 @@
 
 #include <Arduino.h>
 #include "conn-mqtt.h"
-#include <WiFi.h>
 #include <AsyncMqttClient.h>
 #include <ESPmDNS.h>
 #include <time.h>
 #include "json.h"
 #include "pmu.h"
 #include "posinfo.h"
+#include "netmgr.h"
+#include <lwip/netdb.h>
+#include <arpa/inet.h>
 
 extern PMU *pmu;
 extern struct StationPos gpsPos;
@@ -34,7 +36,6 @@ extern const char *version_id;
 
 TimerHandle_t mqttReconnectTimer;
 
-extern t_wifi_state wifi_state;
 char time_str[32];
 
 /* Global initalization (on TTGO startup) */
@@ -56,7 +57,14 @@ void MQTT::netsetup() {
 
     if (sonde.config.mqtt.report_interval <1000)
         sonde.config.mqtt.report_interval = 60000;
-    WiFi.hostByName(sonde.config.mqtt.host, this->ip);
+    {
+      struct hostent *he = gethostbyname(sonde.config.mqtt.host);
+      if (he && he->h_addr_list && he->h_addr_list[0]) {
+        this->ip = IPAddress((const uint8_t *)he->h_addr_list[0]);
+      } else {
+        this->ip = IPAddress((uint32_t)0);
+      }
+    }
 
     mqttClient.setServer(ip, sonde.config.mqtt.port);
     snprintf(clientID, 20, "%s%04d", sonde.config.mqtt.id, (int)random(0, 1000));
@@ -118,7 +126,7 @@ void MQTT::publishLwt(const char *message) {
 int MQTT::connectToMqtt() {
   if(mqttClient.connected())
     return 1;
-  if(wifi_state != WIFI_CONNECTED)
+  if(netmgr.status() != NetStatus::Uplink)
     return 0;
   if(0 == sonde.config.mqtt.active)
     return 0;

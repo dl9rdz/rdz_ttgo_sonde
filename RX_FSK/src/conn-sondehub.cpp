@@ -15,6 +15,7 @@
 #include <ESPmDNS.h>
 #include <WiFiUdp.h>
 #include "ShFreqImport.h"
+#include "netmgr.h"
 
 #include <sys/socket.h>
 #include <lwip/dns.h>
@@ -184,7 +185,7 @@ void ConnSondehub::init() {
 }
 
 void ConnSondehub::netsetup() {
-    if ((sonde.config.sondehub.active||sonde.config.sondehub.fiactive) && wifi_state != WIFI_APMODE) {
+    if ((sonde.config.sondehub.active||sonde.config.sondehub.fiactive) && netmgr.status() == NetStatus::Uplink) {
         // start connecting...
         sondehub_client_fsm();
         time_last_update = 0; /* force sending update */ 

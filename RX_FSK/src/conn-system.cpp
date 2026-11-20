@@ -1,12 +1,12 @@
 #include "../features.h"
 #include "conn-system.h"
 
-#include <WiFi.h>
-#include "esp_netif.h"
+#include <WiFiClient.h>
 
 #include "geteph.h"
 #include "pmu.h"
 #include "Startup.h"
+#include "netmgr.h"
 
 extern uint32_t netup_time;
 extern char eph_nowstr[];
@@ -93,22 +93,16 @@ String ConnSystem::getStatus() {
      snprintf(buf+p, 1024-p, "[%s]", eph_nowstr);
   }
   #endif
-  // get DNS info, debug info...
-  String s = WiFi.dnsIP(0).toString();
+  char dnsbuf[24];
   strlcat(buf, "<br>DNS: ", 1024);
-  strlcat(buf, s.c_str(), 1024);
-  s = WiFi.dnsIP(1).toString();
+  if (netmgr.dns(0, dnsbuf, sizeof(dnsbuf)))
+    strlcat(buf, dnsbuf, 1024);
   strlcat(buf, ", DNS2: ", 1024);
-  strlcat(buf, s.c_str(), 1024);
-  // arduino-esp32 supports only 2 DNS servers, whereas esp-idf can have three....
-  // https://github.com/espressif/arduino-esp32/blob/19e4d0db4a5bc2f77c5222c0f12742ff9b98bf76/libraries/Network/src/NetworkInterface.cpp#L691
-  // so can't get the backup ip this way...
-  // s = WiFi.dnsIP(2).toString();
-  esp_netif_dns_info_t d;
-  esp_netif_get_dns_info(WiFi.STA.netif(), ESP_NETIF_DNS_FALLBACK, &d);
-  s = IPAddress(d.ip.u_addr.ip4.addr).toString();  // IPv4 only this way....
+  if (netmgr.dns(1, dnsbuf, sizeof(dnsbuf)))
+    strlcat(buf, dnsbuf, 1024);
   strlcat(buf, ", DNS3: ", 1024);
-  strlcat(buf, s.c_str(), 1024);
+  if (netmgr.dns(2, dnsbuf, sizeof(dnsbuf)))
+    strlcat(buf, dnsbuf, 1024);
 
   return String(buf);
 }

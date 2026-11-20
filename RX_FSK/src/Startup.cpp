@@ -370,14 +370,15 @@ void startupRadio() {
     // == check the radio chip by setting default frequency =========== //
     radio.ON();
     if (radio.setFrequency(402700000) == 0) {
-      LOG_D(TAG, "Setting freq: SUCCESS\n");
+      LOG_D(TAG, "Setting freq: returned 0\n");
     } else {
       LOG_W(TAG, "Setting freq: ERROR\n");
     }
     float f = radio.getFrequency();
-    LOG_D(TAG, "Frequency set to %d", f);
+    LOG_D(TAG, "Frequency set to %.0f", f);
     // == check the radio chip by setting default frequency =========== //
-    if( f>402700000-1000 && f<402700000+1000 ) break;
+    int tol = 1000 + abs(sonde.config.freqofs);
+    if( f>402700000-tol && f<402700000+tol ) break;
     delay(500);
   }
 #endif

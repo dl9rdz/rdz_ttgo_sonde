@@ -136,7 +136,10 @@ void TFTDisplay::drawString(uint16_t x, uint16_t y, const char *s, int16_t width
 	// Standard font
 	if(findex==0) {
 		SPI_MUTEX_LOCK();
-		LOG_D(TAG, "Simple Text %s at %d,%d [%d]\n", s, x, y, width); 
+		/* Skip WiFi-wait spinner noise ("/" "\") */
+		if (!(s[0] == '/' || s[0] == '\\') || s[1] != 0)
+			LOG_D(TAG, "Simple Text %s at %d,%d [%d]\n", s, x, y,
+			      width); 
 		// for gpx fonts and new library, cursor is at baseline!!
 		int h = 6;
 		if( alignright ) {

@@ -8,6 +8,7 @@
 #define TAG "conn-sondeseeker"
 #include "logger.h"
 #include "../core.h"
+#include "netmgr.h"
 
 extern const char *sondeTypeStrSH[];
 extern WiFiUDP udp;
@@ -26,7 +27,7 @@ void ConnSondeseeker::updateSonde(SondeInfo *si) {
     if (!sonde.config.ss.active)
         return;
 
-    if (wifi_state != WIFI_APMODE && wifi_state != WIFI_CONNECTED)
+    if (netmgr.status() != NetStatus::Ap && netmgr.status() != NetStatus::Uplink)
         return;
 
     char buf[1024];
@@ -50,7 +51,7 @@ void ConnSondeseeker::updateQRG(int sondeIndex) {
     if (!sonde.config.ss.active)
         return;
 
-    if (wifi_state != WIFI_APMODE && wifi_state != WIFI_CONNECTED)
+    if (netmgr.status() != NetStatus::Ap && netmgr.status() != NetStatus::Uplink)
         return;
 
     SondeInfo *si = &sonde.sondeList[sondeIndex];

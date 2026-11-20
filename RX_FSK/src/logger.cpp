@@ -3,10 +3,10 @@
 #include "colors.h"
 
 #include <Arduino.h>
-#include <WiFi.h>
 #include <WiFiUdp.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#include "netmgr.h"
 
 /* Compile-time UDP log mirror for remote debugging (no USB).
  * Off by default. Enable and set LOG_UDP_HOST to your collector IP.
@@ -35,8 +35,7 @@ static bool logUdpReady = false;
 
 static void udpLogSend(const uint8_t *data, size_t len) {
 	if (!logUdpReady || !connected) return;
-	if (WiFi.status() != WL_CONNECTED) return;
-	if (WiFi.localIP() == IPAddress((uint32_t)0)) return;
+	if (netmgr.status() != NetStatus::Uplink) return;
 	if (!logUdpMutex) return;
 	if (xSemaphoreTake(logUdpMutex, 0) != pdTRUE) return;
 	if (logUdp.beginPacket(LOG_UDP_HOST, LOG_UDP_PORT)) {
@@ -208,8 +207,14 @@ void Logger::handleImprovByte(char c) {
 }
 #endif
 
-extern int updateWiFi(String ssid, String pw);
-
+static void improv_scan_cb(const char *ssid, int rssi, void *arg)
+{
+	(void)arg;
+	char rssi_s[8];
+	snprintf(rssi_s, sizeof(rssi_s), "%d", rssi);
+	const char *info[4] = { ssid, rssi_s, "YES", NULL };
+	Log.sendImprovResult(0x04, info);
+}
 
 void Logger::handleImprov() {
     while(Serial.available()) {
@@ -226,55 +231,47 @@ void Logger::handleImprov() {
                     sendImprovResult(0x03, info);
                 }
 		if(cmd[7]==0x03 && cmd[9]==0x02) { // request state
-		    if(!connected) {
+		    if(netmgr.status() == NetStatus::Down ||
+		       netmgr.status() == NetStatus::Connecting) {
 		        sendImprov(0x01, 1, "\x02"); // current state: ready
 		    } else {
-			sendImprov(0x01, 1, "\x04"); // cuurent state: provisioned
-			// Send "next" url
+			sendImprov(0x01, 1, "\x04"); // provisioned
 			char url[50];
+			char ip[24];
 			const char *i[]={url, NULL};
-			String ip = WiFi.localIP().toString();
-			snprintf(url, 50, "http://%s/", ip.c_str());
+			if (netmgr.ipv4(ip, sizeof(ip)))
+				snprintf(url, 50, "http://%s/", ip);
+			else
+				url[0] = 0;
 			sendImprovResult(0x02, i);
 		    }
 		}
 		if(cmd[7]==0x03 && cmd[9]==0x04) { // wifi scan
-		    enableNetwork(false);
-		    WiFi.mode(WIFI_STA);
-                    int n = WiFi.scanNetworks();
+		    netmgr.scan(improv_scan_cb, nullptr);
 		    const char *info[4]={NULL};
-    		    for (int i = 0; i < n; i++) {
-			wifi_ap_record_t *it = reinterpret_cast<wifi_ap_record_t *>(WiFi.getScanInfoByIndex(i));
-		        if(!it) continue;
-			info[0] = (const char *)it->ssid;
-			info[1] = "-70";
-			info[2] = "YES";
-		        sendImprovResult(0x04, info);
-		    }
-		    info[0] = NULL;
 		    sendImprovResult(0x04, info);
 		}
 		if(cmd[7]==0x03 && cmd[9]==0x01) { // send Wi-Fi settings
-		    // data len, ssid len, ssid bytes, pw len, pw bytes
 		    String ssid = String(cmd+12, cmd[11]);
 		    int pwpos = 12+cmd[11];
 		    String pw = String(cmd+pwpos+1, cmd[pwpos]);
-		    updateWiFi(ssid, pw);
-		    WiFi.mode(WIFI_STA);
-		    WiFi.begin(ssid, pw);
+		    netmgr.connectSta(ssid.c_str(), pw.c_str());
 		    for(int i=0; i<20; i++) {
-                        if(WiFi.status() == WL_CONNECTED) {
- 			    enableNetwork(true);
+                        if(netmgr.status() == NetStatus::Uplink) {
+			    if (!connected)
+				enableNetwork(true);
 			    char url[50];
+			    char ip[24];
 			    const char *i[]={url, NULL};
-			    String ip = WiFi.localIP().toString();
-			    snprintf(url, 50, "http://%s/", ip.c_str());
+			    if (netmgr.ipv4(ip, sizeof(ip)))
+				snprintf(url, 50, "http://%s/", ip);
+			    else
+				url[0] = 0;
 			    sendImprovResult(0x02, i);
 			    break;
                         }
                         delay(500);
                     }
-		    // not successful....
 		    const char *i[]={NULL};
                     sendImprovResult(0x02, i);
 		}
