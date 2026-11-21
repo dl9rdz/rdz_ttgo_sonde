@@ -57,6 +57,19 @@ enum SHState { SH_DISCONNECTED, SH_DNSLOOKUP, SH_DNSRESOLVED, SH_CONNECTING, SH_
 
 SHState shclient_state = SH_DISCONNECTED;
 time_t shStart = 0;
+static int shFrames = 0;
+
+/* Hold a telemetry batch at least 15s. Keep collecting until 10 frames, but send by 60s. */
+#define SONDEHUB_MIN_AGE 15
+#define SONDEHUB_MAX_AGE 60
+#define SONDEHUB_MIN_FRAMES 10
+
+static bool sh_batch_ready(time_t now) {
+    if (shStart == 0) return false;
+    time_t age = now - shStart;
+    if (age >= SONDEHUB_MAX_AGE) return true;
+    return age >= SONDEHUB_MIN_AGE && shFrames >= SONDEHUB_MIN_FRAMES;
+}
 
 #define RS_STATUS_SIZE 512
 typedef struct { char buf[RS_STATUS_SIZE]; int len; } rs_buf_t;
@@ -654,9 +667,6 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
         return;
     }
 
-    // max age of data in JSON request (in seconds)
-#define SONDEHUB_MAXAGE 15
-
 #define MSG_SIZE 1024
     char rs_msg[MSG_SIZE];
     char *w;
@@ -829,29 +839,33 @@ void ConnSondehub::sondehub_send_data(SondeInfo * s) {
         sondehub_send_next(s, rs_msg, strlen(rs_msg), 1);
         shclient_state = SH_CONN_APPENDING;
         shStart = now;
+        shFrames = 1;
     } else {
         sondehub_send_next(s, rs_msg, strlen(rs_msg), 0);
+        shFrames++;
     }
-    if (now - shStart > SONDEHUB_MAXAGE) { // after MAXAGE seconds
-        sondehub_send_last();
-        _sh_set_next_target(&_rs_ack);
-        shclient_state = SH_CONN_WAITACK;
-        time_wait_start = millis();
-        shStart = 0;
+    if (sh_batch_ready(now)) {
+        sondehub_close_batch();
     }
 }
 
+void ConnSondehub::sondehub_close_batch() {
+    sondehub_send_last();
+    _sh_set_next_target(&_rs_ack);
+    shclient_state = SH_CONN_WAITACK;
+    time_wait_start = millis();
+    shStart = 0;
+    shFrames = 0;
+}
+
 void ConnSondehub::sondehub_finish_data() {
-    // If there is an "old" pending collection of JSON data sets, send it even if no now data is received
+    /* No new frame this second. Send a batch that already has 10 frames after 15s,
+       or whatever has been collected once the batch is 60s old. */
     if (shclient_state == SH_CONN_APPENDING) {
         time_t now;
         time(&now);
-        if (now - shStart > SONDEHUB_MAXAGE + 3) { // after MAXAGE seconds
-            sondehub_send_last();
-            _sh_set_next_target(&_rs_ack);
-            shclient_state = SH_CONN_WAITACK;
-            time_wait_start = millis();
-            shStart = 0;
+        if (sh_batch_ready(now)) {
+            sondehub_close_batch();
         }
     }
 }

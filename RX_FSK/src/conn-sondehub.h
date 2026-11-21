@@ -35,6 +35,7 @@ private:
 	void sondehub_send_fimport();
 	void sondehub_send_data(SondeInfo * s);
 	void sondehub_finish_data();
+	void sondehub_close_batch();
 	void sondehub_send_header(SondeInfo * s, struct tm * now);
 	void sondehub_send_next(SondeInfo * s, char *chunk, int chunklen, int first);
 	void sondehub_send_last();
