@@ -34,6 +34,7 @@ const PROXY_PATHS = [
   '/login.html',
   '/logout',
   '/update.html',
+  '/update.json',
   '/edit.html',
   '/cfg.js',
   '/rdz.js',

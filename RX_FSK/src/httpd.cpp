@@ -1574,6 +1574,7 @@ extern const char *httpdHandleControlJson(const char *body);
 extern const char *httpdGetControlActionsJson(void);
 extern const char *httpdHandleUpdatePost(void);
 extern const char *httpdCreateUpdateForm(void);
+extern const char *httpdCreateUpdateJson(void);
 extern const char *httpdCreateKMLLive(void);
 extern const char *httpdCreateKMLDynamic(void);
 extern const char *httpdCreateGPX(int index);
@@ -1916,6 +1917,12 @@ static esp_err_t update_html_post(httpd_req_t *req)
 	return send_cstr(req, "text/html", httpdCreateUpdateForm());
 }
 
+static esp_err_t update_json_get(httpd_req_t *req)
+{
+	httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+	return send_cstr(req, "application/json", httpdCreateUpdateJson());
+}
+
 static esp_err_t live_kml_get(httpd_req_t *req)
 {
 	return send_cstr(req, "application/vnd.google-earth.kml+xml", httpdCreateKMLLive());
@@ -2194,6 +2201,13 @@ static const httpd_uri_t uri_update_html_post = {
 	.user_ctx = nullptr,
 };
 
+static const httpd_uri_t uri_update_json = {
+	.uri = "/update.json",
+	.method = HTTP_GET,
+	.handler = update_json_get,
+	.user_ctx = nullptr,
+};
+
 static const httpd_uri_t uri_live_kml = {
 	.uri = "/live.kml",
 	.method = HTTP_GET,
@@ -2341,7 +2355,7 @@ void httpd_start_server(void)
 		&uri_qrg_html_get,
 		&uri_qrg_html_post,&uri_wifi_html_get, &uri_wifi_html_post,  &uri_config_html_get,
 		&uri_config_html_post, &uri_config_json_get, &uri_control_html_get, &uri_control_html_post,
-		&uri_update_html_post, &uri_live_kml, &uri_dynamic_kml,
+		&uri_update_html_post, &uri_update_json, &uri_live_kml, &uri_dynamic_kml,
 		&uri_edit,
 		&uri_login_get,	   &uri_login_post,    &uri_logout,
 		&uri_file_get,	     &uri_file_put,

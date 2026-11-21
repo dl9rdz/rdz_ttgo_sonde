@@ -112,6 +112,14 @@ const char *updatePrefix = updatePrefixM;
 const char *updateFs = "update.fs.bin";
 const char *updateIno = "update.ino.bin";
 
+/* /update.json snapshot — written by enterMode(ST_UPDATE) / execOTA, read by HTTP. */
+static const char *otaPhase = "idle";
+static const char *otaMsg = "";
+static unsigned otaFiles = 0;
+static unsigned otaFsBytes = 0;
+static unsigned otaBytes = 0;
+static unsigned otaTotal = 0;
+
 #define LOCALUDPPORT 9002
 //Get real UTC time from NTP server
 const char* ntpServer = "pool.ntp.org";
@@ -1296,14 +1304,51 @@ const char *httpdHandleWifiJsonPut(const char *body) { return handleWifiJsonPut(
 const char *httpdHandleControlJson(const char *body) { return handleControlJson(body); }
 const char *httpdGetControlActionsJson(void) { return getControlActionsJson(); }
 
+/* /update.json — OTA progress for the wait page. */
+const char *createUpdateJson(void) {
+  static char buf[192];
+  unsigned pct = otaTotal ? (otaBytes * 100u / otaTotal) : 0;
+  snprintf(buf, sizeof(buf),
+           "{\"phase\":\"%s\",\"files\":%u,\"fsBytes\":%u,\"bytes\":%u,\"total\":%u,\"pct\":%u,\"msg\":\"%s\"}",
+           otaPhase, otaFiles, otaFsBytes, otaBytes, otaTotal, pct, otaMsg ? otaMsg : "");
+  return buf;
+}
+
 /* Reply after POST /update.html. The form itself is /upd.html. */
 const char *createUpdateForm(void) {
-  char *ptr = message;
-  strcpy(ptr, "<!DOCTYPE html><html><head><link rel=\"stylesheet\" type=\"text/css\" href=\"style.css\"></head><body><form action=\"update.html\" method=\"post\">");
-  strcat(ptr, "<p>Doing update, wait until reboot</p>");
-  strcat(ptr, "</form></body></html>");
-  return message;
+  return
+    "<!DOCTYPE html><html><head><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\">"
+    "<link rel=stylesheet href=style.css><title>Updating…</title></head><body>"
+    "<div class=card style=\"max-width:28rem;margin:2rem auto;padding:1rem\">"
+    "<h1>Firmware update</h1><p id=st>Starting…</p><pre id=dt style=\"white-space:pre-wrap\"></pre></div>"
+    "<script>"
+    "var seen=0;"
+    "function tick(){"
+    "fetch('/update.json',{credentials:'same-origin',cache:'no-store'}).then(function(r){return r.json()}).then(function(d){"
+    "var p=d.phase||'idle',el=document.getElementById('st'),dt=document.getElementById('dt'),lines=[];"
+    "if(p==='starting'||p==='fs'||p==='flash'||p==='reboot')seen=1;"
+    "if(p==='error'){el.textContent=d.msg||'Update failed';dt.textContent='';return;}"
+    "if(p==='idle'){if(seen){location.href='/';return;}el.textContent='Starting…';}"
+    "else if(p==='reboot')el.textContent='Rebooting…';"
+    "else if(p==='starting')el.textContent='Starting…';"
+    "else if(p==='fs')el.textContent='Updating filesystem…';"
+    "else if(p==='flash')el.textContent='Flashing firmware…';"
+    "else el.textContent=p;"
+    "if(d.files||d.fsBytes)lines.push('Filesystem: '+d.files+' files, '+d.fsBytes+' bytes');"
+    "if(d.total)lines.push('Firmware: '+d.pct+'% ('+d.bytes+'/'+d.total+' bytes)');"
+    "dt.textContent=lines.join('\\n');"
+    "setTimeout(tick,1000);"
+    "}).catch(function(){"
+    "document.getElementById('st').textContent=seen?'Rebooting…':'Connection error — retrying…';"
+    "document.getElementById('dt').textContent='';"
+    "setTimeout(tick,1000);"
+    "});"
+    "}"
+    "tick();"
+    "</script></body></html>";
 }
+
+const char *httpdCreateUpdateJson(void) { return createUpdateJson(); }
 
 const char *handleUpdatePost(void) {
   LOG_D(TAG, "Handling post request");
@@ -1672,6 +1717,11 @@ void setup()
 
 void enterMode(int mode) {
   LOG_D(TAG, "enterMode(%d)\n", mode);
+  if (mode == ST_UPDATE) {
+    otaPhase = "starting";
+    otaMsg = "";
+    otaFiles = otaFsBytes = otaBytes = otaTotal = 0;
+  }
   // Backround RX task should only be active in mode ST_DECODER for now
   // (future changes might use RX background task for spectrum display as well)
   if (mode != ST_DECODER) {
@@ -2228,6 +2278,12 @@ String getHeaderValue(String header, String headerName) {
 }
 
 
+static void otaFail(const char *msg) {
+  otaPhase = "error";
+  otaMsg = msg;
+  enterMode(ST_DECODER);
+}
+
 // OTA Logic
 void execOTA() {
   int contentLength = 0;
@@ -2270,6 +2326,7 @@ void execOTA() {
   if (res < 0) {
     ; // no-op
   } else {
+    otaPhase = "fs";
     // process data...
     while (client.available()) {
       // get header...
@@ -2279,7 +2336,7 @@ void execOTA() {
       char *sz = strchr(fn, ' ');
       if (!sz) {
         client.stop();
-        enterMode(ST_DECODER);
+        otaFail("Filesystem update truncated");
         return;
       }
       *sz = 0;
@@ -2297,12 +2354,14 @@ void execOTA() {
         int r = client.read(buf, len > 1024 ? 1024 : len);
         if (r == -1) {
           client.stop();
-          enterMode(ST_DECODER);
+          otaFail("Filesystem download failed");
           return;
         }
-        f.write(buf, r);
+        size_t w = f.write(buf, r);
+        otaFsBytes += (unsigned)w;
         len -= r;
       }
+      otaFiles++;
     }
     client.stop();
   }
@@ -2310,7 +2369,7 @@ void execOTA() {
   // Connect to Update host
   if (!client.connect(updateHost, updatePort)) {
     LOG_E(TAG, "Connection to %s:%d for app update failed\n", updateHost, updatePort);
-    enterMode(ST_DECODER);
+    otaFail("Firmware host unreachable");
     return;
   }
 
@@ -2324,12 +2383,6 @@ void execOTA() {
                 "Cache-Control: no-cache\r\n"
                 "Connection: close\r\n\r\n",
                 updatePrefix, updateIno, updateHost, updatePort);
-
-  // Check what is being sent
-  //    Serial.print(String("GET ") + bin + " HTTP/1.1\r\n" +
-  //                 "Host: " + host + "\r\n" +
-  //                 "Cache-Control: no-cache\r\n" +
-  //                 "Connection: close\r\n\r\n");
 
   int validType = 0;
   contentLength = fetchHTTPheader( &validType );
@@ -2350,16 +2403,19 @@ void execOTA() {
     if (canBegin) {
       disp.rdis->drawString(0, 5 * dispys, "Starting update");
       LOG_I(TAG, "Begin OTA. This may take 2 - 5 mins to complete. Things might be quite for a while.. Patience!");
-      // No activity would appear on the Serial monitor
-      // So be patient. This may take 2 - 5mins to complete
+      otaPhase = "flash";
+      otaTotal = (unsigned)contentLength;
+      otaBytes = 0;
+      Update.onProgress([](size_t done, size_t total) {
+        otaBytes = (unsigned)done;
+        otaTotal = (unsigned)total;
+      });
       size_t written = Update.writeStream(client);
 
       if (written == contentLength) {
         LOG_I(TAG, "Written : %u successfully", (unsigned)written);
       } else {
         LOG_W(TAG, "Written only : %u/%d. Retry?", (unsigned)written, contentLength);
-        // retry??
-        // execOTA();
       }
 
       if (Update.end()) {
@@ -2367,27 +2423,33 @@ void execOTA() {
         if (Update.isFinished()) {
           LOG_I(TAG, "Update successfully completed. Rebooting.");
           disp.rdis->drawString(0, 7 * dispys, "Rebooting....");
+          otaPhase = "reboot";
           delay(1000);
           ESP.restart();
         } else {
           LOG_E(TAG, "Update not finished? Something went wrong!");
+          otaFail("Firmware update incomplete");
+          return;
         }
       } else {
         LOG_E(TAG, "Error Occurred. Error #: %d", (int)Update.getError());
+        otaFail("Firmware write failed");
+        return;
       }
     } else {
-      // not enough space to begin OTA
-      // Understand the partitions and
-      // space availability
       LOG_E(TAG, "Not enough space to begin OTA");
       client.clear();
+      otaFail("Not enough space for OTA");
+      return;
     }
   } else {
     LOG_E(TAG, "There was no content in the response");
     client.clear();
+    otaFail("No firmware content");
+    return;
   }
   // Back to some normal state
-  enterMode(ST_DECODER);
+  otaFail("Update aborted");
 }
 
 int fetchHTTPheader(int *validType) {

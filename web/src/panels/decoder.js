@@ -170,7 +170,7 @@ export function mountDecoder(root) {
         }
       }
       if (d.rssi != null) stats.push('RSSI ' + d.rssi);
-      if (typeof d.afc === 'number' && !isNaN(d.afc)) {
+      if (typeof d.afc === 'number' && !isNaN(d.afc) && d.afc !== 0) {
         const khz = d.afc / 1000;
         stats.push('AFC ' + (khz >= 0 ? '+' : '') + khz.toFixed(2) + ' kHz');
       }
