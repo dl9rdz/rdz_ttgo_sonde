@@ -17959,6 +17959,12 @@ class EwtInstallDialog extends s$1 {
       }
       const data = await response.json();
       this.builds = data.builds || [];
+      const mainBuilds = this.builds.filter(build => String(build.fwversion).startsWith("main"));
+      const preferred = mainBuilds.length ? mainBuilds[mainBuilds.length - 1] : this.builds[this.builds.length - 1];
+      if (preferred) {
+        this.fwversion = preferred.fwversion;
+      }
+      this.requestUpdate();
     } catch (error) {
       console.error(error);
       this.builds = [];
@@ -17971,7 +17977,7 @@ class EwtInstallDialog extends s$1 {
       <div slot="headline">Select firmware version:</div>
       <div slot="headline">
       ${this.builds.map(build => x`
-          <input type="radio" id="fw${build.fwversion}" name="fwversion" value="${build.fwversion}">
+          <input type="radio" id="fw${build.fwversion}" name="fwversion" value="${build.fwversion}" .checked=${build.fwversion === this.fwversion}>
           <label for="fw${build.fwversion}">${build.fwversion}</label><br/>
       `)}
       </div>

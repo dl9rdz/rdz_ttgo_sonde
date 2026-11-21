@@ -504,12 +504,12 @@ import{e,_ as t,o as i,s as r,x as o,i as s,n as a,t as n,r as l,a as d,T as c,b
       <div slot="actions">
         <ew-text-button @click=${this._closeDialog}>Close</ew-text-button>
       </div>
-    `]}async fetchFirmwareVersions(){try{const e=await fetch("https://rdzsonde.org/manifest.json");if(!e.ok)throw new Error("Failed to fetch firmware versions");const t=await e.json();this.builds=t.builds||[]}catch(e){console.error(e),this.builds=[]}}generateFirmwareRadioButtons(){return o`
+    `]}async fetchFirmwareVersions(){try{const e=await fetch("https://rdzsonde.org/manifest.json");if(!e.ok)throw new Error("Failed to fetch firmware versions");const t=await e.json();this.builds=t.builds||[];const i=this.builds.filter((e=>String(e.fwversion).startsWith("main"))),n=i.length?i[i.length-1]:this.builds[this.builds.length-1];n&&(this.fwversion=n.fwversion),this.requestUpdate()}catch(e){console.error(e),this.builds=[]}}generateFirmwareRadioButtons(){return o`
       <ew-list-item>
       <div slot="headline">Select firmware version:</div>
       <div slot="headline">
       ${this.builds.map((e=>o`
-          <input type="radio" id="fw${e.fwversion}" name="fwversion" value="${e.fwversion}">
+          <input type="radio" id="fw${e.fwversion}" name="fwversion" value="${e.fwversion}" .checked=${e.fwversion===this.fwversion}>
           <label for="fw${e.fwversion}">${e.fwversion}</label><br/>
       `))}
       </div>
