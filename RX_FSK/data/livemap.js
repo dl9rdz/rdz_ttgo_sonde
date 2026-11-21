@@ -1223,7 +1223,9 @@ $(document).ready(function(){
 
     dots_predict[data.id] = [];
 
-    if (data.climb > 0) {
+    /* A stored Tawhiri result includes every stage. Replay it whole; the
+       sonde's later vertical speed must not drop the ascent. */
+    if (fromCache || data.climb > 0) {
       ascending.forEach(function(p) { dots_predict[data.id].push([p.latitude, sanitize_lon(p.longitude)]); });
 
       if (!marker_burst[data.id]) {
@@ -1576,11 +1578,17 @@ $(document).ready(function(){
   function showLastRxPredict(e) {
     if (liveOwnsSer(e.ser)) return;
     var cached = predCacheLoad(e.ser);
-    if (cached) {
-      draw_predict(cached.prediction, {
-        id: e.ser, lat: e.lat, lon: e.lon, alt: e.alt, climb: e.vs, time: e.time
-      }, true);
-    }
+    if (!cached) return;
+    /* Pair the stored trajectory with the fix it was computed from. */
+    var src = cached.data || {};
+    draw_predict(cached.prediction, {
+      id: e.ser,
+      lat: src.lat != null ? src.lat : e.lat,
+      lon: src.lon != null ? src.lon : e.lon,
+      alt: src.alt != null ? src.alt : e.alt,
+      climb: (typeof src.climb === 'number') ? src.climb : e.vs,
+      time: src.time || e.time
+    }, true);
   }
 
   function lastRxTipData(e) {
