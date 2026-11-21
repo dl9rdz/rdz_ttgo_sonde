@@ -224,6 +224,8 @@ fonts=0,1
 5,5=bImA
 6,0=xTemp:
 6,5=bT C
+7,0=xLevel:
+7,6=bL %
 
 #############
 @Meteo
