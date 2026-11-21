@@ -977,7 +977,7 @@ domReady(function () {
         if (!line[key]) {
           line[key] = L.polyline(dots[key]).addTo(map);
         } else {
-          line[key].setLatLngs(dots[key]);
+          line[key].setLatLngs(dots[key]).bringToFront();
         }
         ensureLiveTrailBridge(key, liveSerOf(data), location);
         ensureLiveLightTrack(data);
