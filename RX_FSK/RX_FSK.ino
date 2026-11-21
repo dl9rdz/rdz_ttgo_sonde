@@ -681,6 +681,9 @@ static void appendDecoderEntry(char *ptr, int i, bool empty) {
           (unsigned)age, (int)s->rxStat[0], s->rssi, (int)s->d.validPos, s->d.validID ? 1 : 0);
   if (empty) {
     strcat(ptr, ",\"empty\":true");
+  } else {
+    /* Hz, same units as sonde2json / OLED (displayed as kHz). */
+    sprintf(ptr + strlen(ptr), ",\"afc\":%ld", (long)s->afc);
   }
   if (s->d.id[0]) {
     strcat(ptr, ",\"id\":\"");
