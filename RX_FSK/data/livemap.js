@@ -1219,15 +1219,21 @@ domReady(function () {
     url += '&ascent_rate=' + ascent + '&burst_altitude=' + burst + '&descent_rate=' + descent;
 
     predictInflight = true;
-    $.getJSON(url, function(prediction) {
-      predictInflight = false;
-      predCacheSave(data.id, prediction, data);
-      draw_predict(prediction, data, false);
-    }).fail(function() {
-      predictInflight = false;
-      var cached = predCacheLoad(data.id);
-      if (cached) draw_predict(cached.prediction, data, true);
-    });
+    fetch(url)
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status);
+        return response.json();
+      })
+      .then(function (prediction) {
+        predictInflight = false;
+        predCacheSave(data.id, prediction, data);
+        draw_predict(prediction, data, false);
+      })
+      .catch(function () {
+        predictInflight = false;
+        var cached = predCacheLoad(data.id);
+        if (cached) draw_predict(cached.prediction, data, true);
+      });
   };
 
   draw_predict = function(prediction, data, fromCache) {
