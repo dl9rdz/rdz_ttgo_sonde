@@ -69,6 +69,16 @@ function domReady(fn) {
   }
 }
 
+function fetchTimeout(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  if (typeof AbortController === 'undefined') return undefined;
+  var controller = new AbortController();
+  setTimeout(function () { controller.abort(); }, ms);
+  return controller.signal;
+}
+
 domReady(function () {
   if (typeof L === 'undefined') {
     livemapCdnFallback();
@@ -239,7 +249,7 @@ domReady(function () {
 
   function fetchBasemapsConfig(done) {
     function tryUrl(url, next) {
-      fetch(url, { signal: AbortSignal.timeout(4000) })
+      fetch(url, { signal: fetchTimeout(4000) })
         .then(function (response) {
           if (!response.ok) throw new Error(response.status);
           return response.json();
@@ -1066,7 +1076,7 @@ domReady(function () {
   };
 
   get_data = function () {
-    fetch('live.json', { signal: AbortSignal.timeout(1000) })
+    fetch('live.json', { signal: fetchTimeout(1000) })
       .then(function (response) {
         if (!response.ok) throw new Error(response.status);
         return response.json();
