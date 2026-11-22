@@ -1036,7 +1036,7 @@ domReady(function () {
 
     if (last_data && last_data.lat != '0.000000') {
       var footer = document.querySelector('.leaflet-footer');
-      if (footer.style.display === 'none') footer.style.display = 'block';
+      footer.style.display = 'block';
       var distance = Math.round(map.distance(gps_location, [last_data.lat, last_data.lon]));
       distance = (distance > 1000) ? (distance / 1000) + 'k' : distance;
       document.querySelector('.leaflet-footer .gps_dist').textContent = distance;
