@@ -61,14 +61,30 @@ function livemapCdnFallback() {
   }
 }
 
-try {
-  var check = $(document);
-} catch (e) {
-  document.addEventListener('DOMContentLoaded', livemapCdnFallback);
+function domReady(fn) {
+  if (document.readyState !== 'loading') {
+    fn();
+  } else {
+    document.addEventListener('DOMContentLoaded', fn);
+  }
 }
 
-$(document).ready(function(){
+function fetchTimeout(ms) {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(ms);
+  }
+  if (typeof AbortController === 'undefined') return undefined;
+  var controller = new AbortController();
+  setTimeout(function () { controller.abort(); }, ms);
+  return controller.signal;
+}
 
+domReady(function () {
+  if (typeof L === 'undefined') {
+    livemapCdnFallback();
+    return;
+  }
+  
   livemapMarkEmbedded();
   livemapSyncTheme();
   setInterval(livemapSyncTheme, 2000);
@@ -233,17 +249,17 @@ $(document).ready(function(){
 
   function fetchBasemapsConfig(done) {
     function tryUrl(url, next) {
-      $.ajax({
-        url: url,
-        dataType: 'json',
-        timeout: 4000,
-        success: function(data) {
+      fetch(url, { signal: fetchTimeout(4000) })
+        .then(function (response) {
+          if (!response.ok) throw new Error(response.status);
+          return response.json();
+        })
+        .then(function (data) {
           var cfg = parseBasemapsConfig(data);
           if (cfg) done(cfg);
           else next();
-        },
-        error: function() { next(); }
-      });
+        })
+        .catch(next);
     }
     tryUrl('usermaps.json', function() {
       tryUrl('basemaps.json', function() {
@@ -274,7 +290,7 @@ $(document).ready(function(){
   /* SD / file-list overlays: key -> { path, label, pts, data, layer, marker, shown } */
   var sdOverlays = {};
 
-  $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
+  document.querySelector('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-top leaflet-center leaflet-header'));
   var header = '';
   header += '<div id="sonde_main"><span class="map-title">LiveMap</span>';
   header += '<div class="sonde-idline"><span id="sonde_id"></span> · <span id="sonde_freq"></span> MHz · <span id="sonde_type"></span></div></div>';
@@ -288,10 +304,10 @@ $(document).ready(function(){
   header += '<small>Below that, observed fall speed is converted to sea-level.</small>';
   header += '<div id="submit"><input type="button" value="save" onclick="settings_save();"/> <input type="button" value="reset" onclick="settings_reset();"/></div>';
   header += '</div>';
-  $('.leaflet-header').append(header);
+  document.querySelector('.leaflet-header').insertAdjacentHTML('beforeend', header);
 
-  $('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-bottom leaflet-center leaflet-footer'));
-  $('.leaflet-footer').append('<div id="gps_main"><span class="gps-label">Dir</span> <span class="gps_dir">...</span>° · <span class="gps-label">Dist</span> <span class="gps_dist">...</span>m</div>');
+  document.querySelector('#map .leaflet-control-container').append(L.DomUtil.create('div', 'leaflet-bottom leaflet-center leaflet-footer'));
+  document.querySelector('.leaflet-footer').insertAdjacentHTML('beforeend','<div id="gps_main"><span class="gps-label">Dir</span> <span class="gps_dir">...</span>° · <span class="gps-label">Dist</span> <span class="gps_dist">...</span>m</div>');
 
   function statusDotClass(res) {
     if (res === 0) return 'gbg';
@@ -403,7 +419,7 @@ $(document).ready(function(){
   }
 
   function setStatusButton(html) {
-    $('#status').html(html);
+    document.getElementById('status').innerHTML = html;
   }
 
   function slotFreshKey(data) {
@@ -430,25 +446,48 @@ $(document).ready(function(){
     var dot = statusDotHtml(typeof res === 'number' ? res : 1, hasId);
     pushStatDot(dot);
     setStatusButton(dot);
-
-    $('#sonde_id').html(headerLabel(data, res));
-
+    document.getElementById('sonde_id').innerHTML = headerLabel(data, res);
     if (data.res === 0) {
       if (data.id) lastframe = data.vframe;
-      if (data.alt != null) $('#sonde_alt').html(data.alt);
-      if (data.climb != null) $('#sonde_climb').html(data.climb);
-      if (data.speed != null) $('#sonde_speed').html(mr(data.speed * 3.6 * 10) / 10);
-      if (data.dir != null) $('#sonde_dir').html(data.dir);
-      if (data.time != null) $('#sonde_time').html(formatSondeTime(data.time));
-      if (data.rssi != null) $('#sonde_rssi').html(data.rssi / 2);
-      $('#sonde_detail').show();
+      if (data.alt != null) document.getElementById('sonde_alt').textContent = data.alt;
+      if (data.climb != null) document.getElementById('sonde_climb').textContent = data.climb;
+      if (data.speed != null) document.getElementById('sonde_speed').textContent = mr(data.speed * 3.6 * 10) / 10;
+      if (data.dir != null) document.getElementById('sonde_dir').textContent = data.dir;
+      if (data.time != null) document.getElementById('sonde_time').textContent = formatSondeTime(data.time);
+      if (data.rssi != null) document.getElementById('sonde_rssi').textContent = (data.rssi / 2);
+      document.getElementById('sonde_detail').style.display = 'block';
     }
-    if (data.freq != null) $('#sonde_freq').html(data.freq);
-    if (data.type != null) $('#sonde_type').html(data.type);
+    if (data.freq != null) document.getElementById('sonde_freq').textContent = data.freq;
+    if (data.type != null) document.getElementById('sonde_type').textContent = data.type;
   };
 
   // Control strip: zoom + GPS left; basemap/status/follow/settings right (fixed size — no expanding layers control)
   L.control.zoom({ position: 'topleft' }).addTo(map);
+  
+  /* button extension */
+  L.Control.Button = L.Control.extend({
+    onAdd: function() {
+      var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-btnstrip');
+      var options = this.options;
+      Object.keys(options).forEach(function(key) {
+        if (key === 'position') return;
+        var opt = options[key];
+        if (!opt || typeof opt !== 'object') return;
+        var link = L.DomUtil.create('a', opt.className || '', container);
+        if (opt.html != null && opt.html !== '') link.innerHTML = opt.html;
+        else if (opt.text) link.textContent = opt.text;
+        link.href = opt.href || '#';
+        if (opt.id) link.id = opt.id;
+        if (opt.title) link.title = opt.title;
+        link.setAttribute('role', 'button');
+      });
+      if (this.options[0] && this.options[0].position) {
+        this.options.position = this.options[0].position;
+      }
+      return container;
+    }
+  });
+  
   map.addControl(new L.Control.Button([{
     position: 'topleft',
     title: 'Phone GPS',
@@ -617,7 +656,7 @@ $(document).ready(function(){
   };
 
   show_line = function() {
-    $('.i_position, .i_landing').remove();
+    document.querySelectorAll('.i_position, .i_landing').forEach(el => el.remove());
     map.closePopup();
     if (line[last_id]._latlngs.length != 0 && line_predict[last_id]._latlngs.length != 0) {
       map.fitBounds(getTwoBounds(line[last_id].getBounds(), line_predict[last_id].getBounds()));
@@ -948,7 +987,7 @@ $(document).ready(function(){
         if (!line[key]) {
           line[key] = L.polyline(dots[key]).addTo(map);
         } else {
-          line[key].setLatLngs(dots[key]);
+          line[key].setLatLngs(dots[key]).bringToFront();
         }
         ensureLiveTrailBridge(key, liveSerOf(data), location);
         ensureLiveLightTrack(data);
@@ -1006,12 +1045,12 @@ $(document).ready(function(){
     gps_accuracy = e.hdop * 2;
 
     if (last_data && last_data.lat != '0.000000') {
-      if ($('.leaflet-footer').css('display') == 'none') { $('.leaflet-footer').show(); }
-
+      var footer = document.querySelector('.leaflet-footer');
+      footer.style.display = 'block';
       var distance = Math.round(map.distance(gps_location, [last_data.lat, last_data.lon]));
       distance = (distance > 1000) ? (distance / 1000) + 'k' : distance;
-      $('.leaflet-footer .gps_dist').html(distance);
-      $('.leaflet-footer .gps_dir').html(bearing(gps_location, [last_data.lat, last_data.lon]));
+      document.querySelector('.leaflet-footer .gps_dist').textContent = distance;
+      document.querySelector('.leaflet-footer .gps_dir').textContent =  bearing(gps_location, [last_data.lat, last_data.lon]);
     }
 
     if (!marker_gps) {
@@ -1036,11 +1075,13 @@ $(document).ready(function(){
     }
   };
 
-  get_data = function() {
-    $.ajax({
-      url: 'live.json',
-      success: (function(data) {
-        if (typeof data != 'object') { data = $.parseJSON(data); }
+  get_data = function () {
+    fetch('live.json', { signal: fetchTimeout(1000) })
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status);
+        return response.json();
+      })
+      .then(function (data) {
         if (data.sonde) {
           draw(data.sonde);
         } else {
@@ -1049,12 +1090,10 @@ $(document).ready(function(){
         if (data.gps && !phone_gps_active) {
           gps(data.gps);
         }
-      }),
-      error: function() {
+      })
+      .catch(function () {
         setStatusButton(reddot);
-      },
-      timeout: 1000
-    });
+      });
   };
 
   storage = (typeof (Storage) !== 'undefined') ? true : false;
@@ -1089,12 +1128,12 @@ $(document).ready(function(){
   settings = settings_read();
 
   settings_save = function() {
-    settings.burst = parseInt($('#settings #burst').val());
-    settings.overwrite_descend = parseInt($('#settings #overwrite_descend').val());
-    settings.overwrite_descend_till = parseInt($('#settings #overwrite_descend_till').val());
+    settings.burst = parseInt(document.getElementById('burst').value);
+    settings.overwrite_descend = parseInt(document.getElementById('overwrite_descend').value);
+    settings.overwrite_descend_till = parseInt(document.getElementById('overwrite_descend_till').value);
     if (Number.isInteger(settings.burst) && Number.isInteger(settings.overwrite_descend) && Number.isInteger(settings.overwrite_descend_till)) {
       settings_write(settings);
-      $('#settings').slideUp();
+      document.getElementById('settings').style.display = 'none';
       get_predict(last_data, true);
     } else {
       alert('Error: only numeric values allowed!');
@@ -1109,10 +1148,11 @@ $(document).ready(function(){
   };
 
   show_settings = function() {
-    $('#settings #burst').val(settings.burst);
-    $('#settings #overwrite_descend').val(settings.overwrite_descend);
-    $('#settings #overwrite_descend_till').val(settings.overwrite_descend_till);
-    $('#settings').slideToggle();
+    document.getElementById('burst').value = settings.burst;
+    document.getElementById('overwrite_descend').value = settings.overwrite_descend;
+    document.getElementById('overwrite_descend_till').value = settings.overwrite_descend_till;
+    var settings_style = document.getElementById('settings').style;
+    settings_style.display = settings_style.display === 'block' ? 'none' : 'block';
   };
 
   // Same NASA density Tawhiri uses. descent_rate is sea-level: v(h) = 1.1045 * v_sea / sqrt(rho).
@@ -1189,15 +1229,21 @@ $(document).ready(function(){
     url += '&ascent_rate=' + ascent + '&burst_altitude=' + burst + '&descent_rate=' + descent;
 
     predictInflight = true;
-    $.getJSON(url, function(prediction) {
-      predictInflight = false;
-      predCacheSave(data.id, prediction, data);
-      draw_predict(prediction, data, false);
-    }).fail(function() {
-      predictInflight = false;
-      var cached = predCacheLoad(data.id);
-      if (cached) draw_predict(cached.prediction, data, true);
-    });
+    fetch(url)
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status);
+        return response.json();
+      })
+      .then(function (prediction) {
+        predictInflight = false;
+        predCacheSave(data.id, prediction, data);
+        draw_predict(prediction, data, false);
+      })
+      .catch(function () {
+        predictInflight = false;
+        var cached = predCacheLoad(data.id);
+        if (cached) draw_predict(cached.prediction, data, true);
+      });
   };
 
   draw_predict = function(prediction, data, fromCache) {
@@ -1721,34 +1767,38 @@ $(document).ready(function(){
   }
 
   function loadLightTrack(ser) {
-    if (lastRxShown[ser] === false) return;
-    $.ajax({
-      url: '/file/lt_' + encodeURIComponent(ser) + '.csv',
-      dataType: 'text',
-      success: function(txt) {
-        if (lastRxShown[ser] === false) return;
-        var pts = parseTrackCsv(txt);
-        if (pts.length < 2) return;
-        if (lastRxTracks[ser]) map.removeLayer(lastRxTracks[ser]);
-        lastRxTracks[ser] = L.polyline(ptsToLatLngs(pts), HIST_LINE_STYLE).addTo(map);
-        bindTrackInspect(lastRxTracks[ser], pts, ser);
-        /* Late lt_* load: upgrade live trail bridge from last_rx end to hist end. */
-        if (liveOwnsSer(ser)) {
-          var liveKey = liveKeyForSer(ser);
-          if (liveKey && dots[liveKey] && dots[liveKey].length) {
-            var liveLoc = dots[liveKey][dots[liveKey].length - 1];
-            ensureLiveTrailBridge(liveKey, ser, liveLoc);
-          }
+  if (lastRxShown[ser] === false) return;
+  fetch('/file/lt_' + encodeURIComponent(ser) + '.csv')
+    .then(function (response) {
+      if (!response.ok) throw new Error(response.status);
+      return response.text();
+    })
+    .then(function (txt) {
+      if (lastRxShown[ser] === false) return;
+      var pts = parseTrackCsv(txt);
+      if (pts.length < 2) return;
+      if (lastRxTracks[ser]) map.removeLayer(lastRxTracks[ser]);
+      lastRxTracks[ser] = L.polyline(ptsToLatLngs(pts), HIST_LINE_STYLE).addTo(map);
+      bindTrackInspect(lastRxTracks[ser], pts, ser);
+      /* Late lt_* load: upgrade live trail bridge from last_rx end to hist end. */
+      if (liveOwnsSer(ser)) {
+        var liveKey = liveKeyForSer(ser);
+        if (liveKey && dots[liveKey] && dots[liveKey].length) {
+        var liveLoc = dots[liveKey][dots[liveKey].length - 1];
+        ensureLiveTrailBridge(liveKey, ser, liveLoc);
         }
       }
-    });
+    })
+    .catch(function () { /* ... */ });
   }
 
-  function loadLastRx() {
-    $.ajax({
-      url: '/file/last_rx.csv',
-      dataType: 'text',
-      success: function(txt) {
+function loadLastRx() {
+    fetch('/file/last_rx.csv')
+      .then(function (response) {
+        if (!response.ok) throw new Error(response.status);
+        return response.text();
+      })
+      .then(function (txt) {
         lastRxEntries = [];
         parseCsvLines(txt).forEach(function(p) {
           if (p.length < 7) return;
@@ -1766,12 +1816,11 @@ $(document).ready(function(){
         });
         renderLastRxList();
         syncLastRxMarkers();
-      },
-      error: function() {
+      })
+      .catch(function () {
         lastRxEntries = [];
         renderLastRxList();
         syncLastRxMarkers();
-      }
     });
   }
 
@@ -1784,10 +1833,12 @@ $(document).ready(function(){
     if (!list.length) return;
     sessionStorage.removeItem('rdzMapOverlay');
     list.forEach(function(path) {
-      $.ajax({
-        url: path,
-        dataType: 'text',
-        success: function(txt) {
+      fetch(path)
+        .then(function (response) {
+          if (!response.ok) throw new Error(response.status);
+          return response.text();
+        })
+        .then(function (txt) {
           var parsed = parseSdTrackCsv(txt);
           if (!parsed.pts || parsed.pts.length < 2) return;
           var key = sdOverlayKey(path);
@@ -1821,38 +1872,14 @@ $(document).ready(function(){
               map.fitBounds(sdOverlays[key].layer.getBounds(), { padding: [20, 20] });
             }
           } catch (e2) {}
-        }
-      });
+        })
+        .catch(function () { /* ... */ });
     });
   }
 
   loadLastRx();
   setInterval(loadLastRx, 60000);
   loadSdOverlays();
-
-});
-
-L.Control.Button = L.Control.extend({
-  onAdd: function() {
-    var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-btnstrip');
-    var options = this.options;
-    Object.keys(options).forEach(function(key) {
-      if (key === 'position') return;
-      var opt = options[key];
-      if (!opt || typeof opt !== 'object') return;
-      var link = L.DomUtil.create('a', opt.className || '', container);
-      if (opt.html != null && opt.html !== '') link.innerHTML = opt.html;
-      else if (opt.text) link.textContent = opt.text;
-      link.href = opt.href || '#';
-      if (opt.id) link.id = opt.id;
-      if (opt.title) link.title = opt.title;
-      link.setAttribute('role', 'button');
-    });
-    if (this.options[0] && this.options[0].position) {
-      this.options.position = this.options[0].position;
-    }
-    return container;
-  }
 });
 
 // https://github.com/makinacorpus/Leaflet.GeometryUtil/blob/master/src/leaflet.geometryutil.js#L682

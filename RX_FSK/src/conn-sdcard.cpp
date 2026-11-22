@@ -8,9 +8,9 @@
 #include "logger.h"
 
 #include "posinfo.h"
+#include "Sonde.h"
 
 #include <errno.h>
-#include <ff.h>
 #include <dirent.h>
 #include <time.h>
 #include <sys/stat.h>
@@ -19,6 +19,12 @@
 #include <utime.h>
 #include <unistd.h>
 
+#include "esp_vfs_fat.h"
+#include "sdmmc_cmd.h"
+#include "driver/sdspi_host.h"
+#include "driver/spi_common.h"
+#include "sd_protocol_defs.h"
+
 extern SemaphoreHandle_t globalLock;
 #define SPI_MUTEX_LOCK() \
         do                     \
@@ -26,17 +32,98 @@ extern SemaphoreHandle_t globalLock;
 } while (xSemaphoreTake(globalLock, portMAX_DELAY) != pdPASS)
 #define SPI_MUTEX_UNLOCK() xSemaphoreGive(globalLock)
 
+static sdmmc_card_t *s_card = nullptr;
 
-static SPIClass sdspi(HSPI);
+enum {
+  CARD_KIND_NONE = 0,
+  CARD_KIND_MMC,
+  CARD_KIND_SDSC,
+  CARD_KIND_SDHC,
+};
 
-const char *cardTypeStr(uint8_t cardtype) {
-  switch(cardtype) {
-     case CARD_NONE: return "No SD card attached";
-     case CARD_MMC: return "MMC";
-     case CARD_SD: return "SDSC";
-     case CARD_SDHC: return "SDHC";
+static const char *cardTypeStr(int kind) {
+  switch (kind) {
+     case CARD_KIND_NONE: return "No SD card attached";
+     case CARD_KIND_MMC: return "MMC";
+     case CARD_KIND_SDSC: return "SDSC";
+     case CARD_KIND_SDHC: return "SDHC";
      default: return "unknown";
   }
+}
+
+static int cardKind(const sdmmc_card_t *card) {
+  if (!card) return CARD_KIND_NONE;
+  if (card->is_mmc) return CARD_KIND_MMC;
+  if (card->ocr & SD_OCR_SDHC_CAP) return CARD_KIND_SDHC;
+  return CARD_KIND_SDSC;
+}
+
+static uint32_t speed_hz(void) {
+  return (sonde.config.sd.speed > 0) ? (uint32_t)sonde.config.sd.speed : 4000000u;
+}
+
+/* Dedicated SPI2 bus for SD when TFT did not already initialize it. */
+static esp_err_t ensure_sd_spi_bus(void) {
+  spi_bus_config_t buscfg = {};
+  buscfg.mosi_io_num = sonde.config.sd.mosi;
+  buscfg.miso_io_num = sonde.config.sd.miso;
+  buscfg.sclk_io_num = sonde.config.sd.clk;
+  buscfg.quadwp_io_num = -1;
+  buscfg.quadhd_io_num = -1;
+  buscfg.max_transfer_sz = 16 * 1024;
+
+  esp_err_t err = spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO);
+  if (err == ESP_OK || err == ESP_ERR_INVALID_STATE) {
+    /* ESP_ERR_INVALID_STATE: shared TFT (Arduino_ESP32SPIDMA) already initialized SPI2. */
+    return ESP_OK;
+  }
+  return err;
+}
+
+static bool mount_sd(bool format_if_empty) {
+  if (s_card) {
+    return true;
+  }
+
+  /* TFT on HSPI with different pins remuxes SPI2; refuse that combo. */
+  if (!ISOLED(sonde.config) &&
+      sonde.config.oled_scl >= 0 &&
+      sonde.config.sd.clk >= 0 &&
+      sonde.config.oled_scl != sonde.config.sd.clk) {
+    LOG_E(TAG, "SD and TFT both use SPI2 with different clocks (sd.clk=%d oled_scl=%d); refusing SD mount\n",
+          sonde.config.sd.clk, sonde.config.oled_scl);
+    return false;
+  }
+
+  esp_err_t err = ensure_sd_spi_bus();
+  if (err != ESP_OK) {
+    LOG_E(TAG, "spi_bus_initialize(SPI2) failed: %s\n", esp_err_to_name(err));
+    return false;
+  }
+
+  sdmmc_host_t host = SDSPI_HOST_DEFAULT();
+  host.slot = SPI2_HOST;
+  host.max_freq_khz = speed_hz() / 1000;
+
+  sdspi_device_config_t slot = SDSPI_DEVICE_CONFIG_DEFAULT();
+  slot.host_id = SPI2_HOST;
+  slot.gpio_cs = (gpio_num_t)sonde.config.sd.cs;
+
+  esp_vfs_fat_sdmmc_mount_config_t mnt = {
+      .format_if_mount_failed = format_if_empty,
+      .max_files = 5,
+      .allocation_unit_size = 16 * 1024,
+      .disk_status_check_enable = false,
+      .use_one_fat = false,
+  };
+
+  err = esp_vfs_fat_sdspi_mount("/sd", &host, &slot, &mnt, &s_card);
+  if (err != ESP_OK) {
+    LOG_E(TAG, "esp_vfs_fat_sdspi_mount failed: %s\n", esp_err_to_name(err));
+    s_card = nullptr;
+    return false;
+  }
+  return true;
 }
 
 /* Return true if d_name is a CSV file and not mypos.csv */
@@ -81,7 +168,9 @@ static void reorganizeCsvRoot(void) {
     struct tm *tm = gmtime(&st.st_mtime);
     if (!tm) continue;
     snprintf(yymm, sizeof(yymm), "/%02d%02d", tm->tm_year % 100, tm->tm_mon + 1);
-    if (!SD.exists(yymm) && !SD.mkdir(yymm)) continue;
+    char dirVfs[32];
+    snprintf(dirVfs, sizeof(dirVfs), "/sd%s", yymm);
+    if (mkdir(dirVfs, 0755) != 0 && errno != EEXIST) continue;
 
     addDirTouched(dirsTouched, &ndirs, maxdirs, yymm+1);
 
@@ -123,27 +212,25 @@ void ConnSDCard::init() {
     return;
 
   SPI_MUTEX_LOCK();
-  /* Initialize SD card */
-  // SPI (==VSPI) is used by SX127x. 
-  // On LoRa32, SD-Card is on different pins, so cannot share VSPI
-  // Use HSPI (if using a TFT with SPI, you have to make sure that the same pins are used for both (MISO/MOSI/CLK) 
-  sdspi.begin(sonde.config.sd.clk, sonde.config.sd.miso, sonde.config.sd.mosi, sonde.config.sd.cs);
-  if (sonde.config.sd.speed > 0) {
-    initok = SD.begin(sonde.config.sd.cs, sdspi, (uint32_t)sonde.config.sd.speed);
-    LOG_I(TAG, "SD card init: %s (SPI %d Hz)\n", initok ? "OK" : "Failed", sonde.config.sd.speed);
-  } else {
-    initok = SD.begin(sonde.config.sd.cs, sdspi);
-    LOG_I(TAG, "SD card init: %s\n", initok ? "OK" : "Failed");
-  }
-  uint8_t cardType = SD.cardType();
-  LOG_I(TAG, "SD Card Type: %s\n", cardTypeStr(cardType));
-  if (cardType == CARD_NONE) { SPI_MUTEX_UNLOCK(); return; }
+  /* SPI2 / HSPI: SX127x uses VSPI. SD uses SPI2 (same host as shared TFT when pins match). */
+  initok = mount_sd(false) ? 1 : 0;
+  LOG_I(TAG, "SD card init: %s (SPI %lu Hz)\n", initok ? "OK" : "Failed", (unsigned long)speed_hz());
 
-  uint32_t cardSize = SD.cardSize() / (1024 * 1024);
-  LOG_I(TAG, "SD Card Size: %luMB\n", cardSize);
-  uint32_t usedSize = SD.usedBytes() / (1024 * 1024);
-  uint32_t totalSize = SD.totalBytes() / (1024 * 1024);
-  LOG_I(TAG, "SD Card used/total: %lu/%lu MB\n", usedSize, totalSize);
+  int kind = cardKind(s_card);
+  LOG_I(TAG, "SD Card Type: %s\n", cardTypeStr(kind));
+  if (kind == CARD_KIND_NONE) {
+    SPI_MUTEX_UNLOCK();
+    return;
+  }
+
+  uint64_t cardBytes = (uint64_t)s_card->csd.capacity * s_card->csd.sector_size;
+  LOG_I(TAG, "SD Card Size: %luMB\n", (unsigned long)(cardBytes / (1024 * 1024)));
+  uint64_t total = 0, freeb = 0;
+  if (esp_vfs_fat_info("/sd", &total, &freeb) == ESP_OK) {
+    LOG_I(TAG, "SD Card used/total: %lu/%lu MB\n",
+          (unsigned long)((total - freeb) / (1024 * 1024)),
+          (unsigned long)(total / (1024 * 1024)));
+  }
   SPI_MUTEX_UNLOCK();
 
   if (initok && sonde.config.sd.name == 1)
@@ -156,28 +243,20 @@ int ConnSDCard::format() {
 
     SPI_MUTEX_LOCK();
     int retval = 0;
-    if(!initok) {
-        // In case init() was not successfull on startup, re-run with format_if_empty set to yes
-        {
-          uint32_t freq = (sonde.config.sd.speed > 0) ? (uint32_t)sonde.config.sd.speed : 4000000u;
-          initok = SD.begin(sonde.config.sd.cs, sdspi, freq, "/sd", 5, true);
-        }
-        if(!initok) retval = -1;
+    if (datafile) {
+      fclose(datafile);
+      datafile = nullptr;
+    }
+
+    if (!initok || !s_card) {
+        /* Mount failed earlier: remount and format empty/unreadable media. */
+        initok = mount_sd(true) ? 1 : 0;
+        if (!initok) retval = -1;
     } else {
-        // Force format...
-        // f_mkfs assumes that the SD card is registered already (i.e. SD.begin was called successfully before)
-        // if not f_mkfs will cause a crash as device 0 is not defined.
-        const MKFS_PARM opt = {(BYTE)FM_ANY, 0, 0, 0, 0};
-        BYTE *work = (BYTE *)malloc(FF_MAX_SS);
-        int res = f_mkfs("0:", &opt, work, FF_MAX_SS);
-        free(work);
-        if(res != FR_OK) retval = -1;
-        else {
-            SD.end();
-            if (sonde.config.sd.speed > 0)
-              initok = SD.begin(sonde.config.sd.cs, sdspi, (uint32_t)sonde.config.sd.speed);
-            else
-              initok = SD.begin(sonde.config.sd.cs, sdspi);
+        esp_err_t err = esp_vfs_fat_sdcard_format("/sd", s_card);
+        if (err != ESP_OK) {
+          LOG_E(TAG, "esp_vfs_fat_sdcard_format failed: %s\n", esp_err_to_name(err));
+          retval = -1;
         }
     }
     LOG_I(TAG, retval==0 ? "Successfully formatted the SD card\n" : "Formatting SD card failed\n");
@@ -293,21 +372,24 @@ void ConnSDCard::updateStation( PosInfo *pi ) {
 String ConnSDCard::getStatus() {
   char buf[256];
   if(sonde.config.sd.cs == -1) { strncpy(buf, "SD card disabled", 256); }
-  else if(!initok) { strncpy(buf, "SD card init failed", 256); }
+  else if(!initok || !s_card) { strncpy(buf, "SD card init failed", 256); }
   else {
 	  SPI_MUTEX_LOCK();
-	  uint8_t cardType = SD.cardType();
-	  if (cardType == CARD_NONE) {
+	  int kind = cardKind(s_card);
+	  if (kind == CARD_KIND_NONE) {
 	    SPI_MUTEX_UNLOCK();
-	    return String(cardTypeStr(cardType));
+	    return String(cardTypeStr(kind));
 	  }
 
-	  uint32_t cardSize = SD.cardSize() / (1024 * 1024);
-	  uint32_t usedSize = SD.usedBytes() / (1024 * 1024);
-	  uint32_t totalSize = SD.totalBytes() / (1024 * 1024);
+	  uint64_t cardBytes = (uint64_t)s_card->csd.capacity * s_card->csd.sector_size;
+	  uint64_t total = 0, freeb = 0;
+	  esp_vfs_fat_info("/sd", &total, &freeb);
 	  SPI_MUTEX_UNLOCK();
-	  snprintf(buf, 256, "SD card type: %s [size: %lu MB]. File system: %lu / %lu MB used", cardTypeStr(cardType),
-	    cardSize, usedSize, totalSize);
+	  uint32_t cardSize = (uint32_t)(cardBytes / (1024 * 1024));
+	  uint32_t usedSize = (uint32_t)((total - freeb) / (1024 * 1024));
+	  uint32_t totalSize = (uint32_t)(total / (1024 * 1024));
+	  snprintf(buf, 256, "SD card type: %s [size: %lu MB]. File system: %lu / %lu MB used", cardTypeStr(kind),
+	    (unsigned long)cardSize, (unsigned long)usedSize, (unsigned long)totalSize);
 	  strlcat(buf, "<br><a href=\\\"/sdfiles.html\\\">SD-Card content</a>", 256);
   }
   strlcat(buf, "<br><a href=\\\"/sdfiles.html?dir=.int\\\">LittleFS content</a>", 256);

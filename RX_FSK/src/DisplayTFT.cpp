@@ -35,11 +35,11 @@ void TFTDisplay::begin() {
 		LOG_D(TAG, "Type is M5 core/core2, using VSPI\n");
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
 				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sx1278_miso, VSPI);
-	} else if( sonde.config.oled_scl == sonde.config.sd.clk) {
-		LOG_D(TAG, "Sharing with SDcard and TFT on HSPI\n");
-		// if we share the bus between SDcard and TFT then we must configure MISO even if the display's MISO is not configured/used
-		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,
-				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sd.miso, HSPI);
+	} else if( sonde.config.sd.clk != -1 && sonde.config.oled_scl == sonde.config.sd.clk) {
+		LOG_D(TAG, "Sharing with SDcard and TFT on HSPI (IDF spi_master)\n");
+		/* Arduino_ESP32SPIDMA uses spi_master so SDSPI can share SPI2 between draws. */
+		bus = new Arduino_ESP32SPIDMA( sonde.config.tft_rs, sonde.config.tft_cs,
+				sonde.config.oled_scl, sonde.config.oled_sda, sonde.config.sd.miso, HSPI, true);
         } else {
 		LOG_D(TAG, "TFT on HSPI\n");
 		bus = new Arduino_ESP32SPI( sonde.config.tft_rs, sonde.config.tft_cs,

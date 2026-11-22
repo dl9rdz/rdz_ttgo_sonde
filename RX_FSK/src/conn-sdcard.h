@@ -12,8 +12,6 @@
 #include "conn.h"
 
 #include <stdio.h>
-//#include "FS.h"
-#include "SD.h"
 
 class ConnSDCard : public Conn
 {

@@ -4,7 +4,7 @@
   <title>rdzTTGOSonde Server LiveMap</title>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.8.0/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- After Leaflet so map chrome overrides win; ?v= busts long-lived style.css cache. -->
   <link rel="stylesheet" type="text/css" href="style.css?v=map11" />
   <script>
@@ -27,9 +27,8 @@
       if (theme && theme !== 'auto') document.documentElement.setAttribute('data-theme', theme);
     } catch (e2) {}
   </script>
-  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="https://unpkg.com/leaflet@1.8.0/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/leaflet.marker.slideto@0.2.0/Leaflet.Marker.SlideTo.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.marker.slideto@0.3.0/Leaflet.Marker.SlideTo.js"></script>
 </head>
 <body class="livemap-page">
   <div id="map"></div>
@@ -44,7 +43,7 @@
       .catch(function () {})
       .finally(function () {
         var s = document.createElement('script');
-        s.src = 'livemap.js?v=map17';
+        s.src = 'livemap.js?v=map18';
         document.body.appendChild(s);
       });
   </script>
