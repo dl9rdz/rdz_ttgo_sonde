@@ -58,7 +58,15 @@ html, body {
 }
 
 body {
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  /* Bottom inset belongs to .statusbar, and only in edge-to-edge modes.
+     A normal mobile browser already ends above the system bar, but Firefox
+     for Android still reports a bottom inset. Applying it here paints a
+     blank page-colored strip under the footer. */
+  padding:
+    env(safe-area-inset-top, 0px)
+    env(safe-area-inset-right, 0px)
+    0
+    env(safe-area-inset-left, 0px);
 }
 
 .app {
@@ -129,7 +137,6 @@ body {
   justify-content: space-between;
   gap: 0.75rem;
   padding: 0.45rem 0.75rem;
-  padding-bottom: calc(0.45rem + env(safe-area-inset-bottom));
   background: #222;
   color: #eee;
   font-size: 0.9rem;
@@ -660,7 +667,7 @@ button.linkish:hover { text-decoration: underline; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+  bottom: 0.75rem;
   transform: translateX(-50%);
   background: #111;
   color: #fff;
@@ -668,6 +675,17 @@ button.linkish:hover { text-decoration: underline; }
   border-radius: 999px;
   z-index: 50;
   max-width: 90vw;
+}
+
+/* Installed / fullscreen: the page draws under the home indicator.
+   Extend the dark bar into that area and keep its contents above it. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .statusbar {
+    padding-bottom: calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  }
+  .toast {
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* Phones: hamburger. Tablets/desktops keep the full bar. */
