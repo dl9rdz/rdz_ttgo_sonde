@@ -250,7 +250,7 @@ Display::Display() {
 #define DISP_TIMEOUTS_N 3
 
 void Display::replaceLayouts(DispInfo *newlayouts, int nnew) {
-	if(nnew<1) return;  // no new layouts => ignore
+	if(nnew<1) { free(newlayouts); return; }  // no valid screen => keep the old layouts
 
 	// remember old layouts
 	DispInfo *old = layouts;
@@ -456,18 +456,29 @@ static uint8_t ACTION(char c) {
 }
 
 
+/* Screen settings lines ("key=value") inside a screen block. Every other line with '='
+ * is a display entry. countEntries() and initFromFile() must agree on this, otherwise
+ * initFromFile() writes more entries than were allocated. */
+static bool isScreenSetting(const char *s) {
+	static const char *const keys[] = { "timer=", "key1action=", "key2action=", "timeaction=",
+		"fonts=", "scale=", "color=" };
+	for (const char *k : keys) {
+		if (strncmp(s, k, strlen(k)) == 0) return true;
+	}
+	return false;
+}
+
 int Display::countEntries(File f) {
 	int pos = f.position();
 	int n = 0;
 	while(1) {
-		//String line = readLine(f);  //f.readStringUntil('\n');
-		//line.trim();
-		//const char *c=line.c_str();
 		readLine(f, lineBuf, LINEBUFLEN);
 		const char *c = trim(lineBuf);
 		if(*c=='#') continue;
-		if(*c>='0'&&*c<='9') n++;
-		if(strchr(c,'=')) continue;
+		if(strchr(c,'=')) {
+			if(!isScreenSetting(c)) n++;
+			continue;
+		}
 		break;
 	}	
 	f.seek(pos, SeekSet);
@@ -539,21 +550,25 @@ void Display::initFromFile(int index) {
 						LOG_I(TAG, "initFromFile: Illegal start of screen: %s\n", s);
 						continue;
 					}
-					char *label = strdup(s+1);
+					if(idx + 1 >= MAXSCREENS) {
+						LOG_E(TAG, "initFromFile: more than %d screens, ignoring the rest\n", MAXSCREENS);
+						goto done;
+					}
 					entrysize = countEntries(d);
 					LOG_D(TAG, "Reading entry with %d elements\n", entrysize);
-					idx++;
-					int res = allocDispInfo(entrysize, &newlayouts[idx], label);
-					if(res<0) {
+					char *label = strdup(s+1);
+					if(!label || allocDispInfo(entrysize, &newlayouts[idx + 1], label) < 0) {
 						LOG_E(TAG, "Error allocating memory for disp info");
-						continue;
+						free(label);
+						continue;  // skip this screen (its lines are ignored until the next '@')
 					}
+					idx++;
 					what = 0;
 				}
 				break;
 			default:	// parse content... (additional data or line `what`)
 				if(strncmp(s,"timer=",6)==0) {  // timer values
-					char t1[10],t2[10],t3[10];
+					char t1[10]="",t2[10]="",t3[10]="";
 					sscanf(s+6, "%5[-0-9a-zA-Z] , %5[-0-9a-zA-Z] , %5[-0-9a-zA-Z]", t1, t2, t3);
 					LOG_D(TAG, "timers are %s, %s, %s\n", t1, t2, t3);
 					newlayouts[idx].timeouts[0] = (*t1=='n'||*t1=='N')?sonde.config.norx_timeout:atoi(t1);
@@ -599,6 +614,10 @@ void Display::initFromFile(int index) {
 						colbg = (bg>>19) << 11 | ((bg>>10)&0x3F) << 5 | ((bg>>3)&0x1F);
 					}
 				} else if( (ptr=strchr(s, '=')) ) {  // one line with some data...
+					if(what >= entrysize) {  // defensive: never write past the allocated entries
+						LOG_E(TAG, "initFromFile: too many entries in screen, ignoring: %s\n", s);
+						break;
+					}
 					float x,y,w;
 					int n;
 					char text[61];
@@ -624,6 +643,7 @@ void Display::initFromFile(int index) {
 				break;
 		}
 	}
+done:
 	replaceLayouts(newlayouts, idx+1);
 }
 

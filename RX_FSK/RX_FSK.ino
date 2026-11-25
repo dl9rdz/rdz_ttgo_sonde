@@ -6,6 +6,7 @@
 #include "src/logger.h"
 
 #include <dirent.h>
+#include <atomic>
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -112,13 +113,23 @@ const char *updatePrefix = updatePrefixM;
 const char *updateFs = "update.fs.bin";
 const char *updateIno = "update.ino.bin";
 
-/* /update.json snapshot — written by enterMode(ST_UPDATE) / execOTA, read by HTTP. */
+/* /update.json snapshot — written by handleUpdatePost / enterMode(ST_UPDATE) / execOTA, read by HTTP. */
 static const char *otaPhase = "idle";
 static const char *otaMsg = "";
 static unsigned otaFiles = 0;
 static unsigned otaFsBytes = 0;
 static unsigned otaBytes = 0;
 static unsigned otaTotal = 0;
+
+/* Set by the httpd task (handleUpdatePost), consumed by loop(): the update itself
+ * (enterMode, RX task handshake, display) must run in the main task. */
+static std::atomic<bool> otaRequested{false};
+
+static void otaResetProgress() {
+  otaPhase = "starting";
+  otaMsg = "";
+  otaFiles = otaFsBytes = otaBytes = otaTotal = 0;
+}
 
 #define LOCALUDPPORT 9002
 //Get real UTC time from NTP server
@@ -128,7 +139,7 @@ const int   daylightOffset_sec = 0; //UTC
 
 // Authentication management
 // defaultUserLevel is read from user.txt
-uint8_t defaultUserLevel = 2;
+uint8_t defaultUserLevel = PERM_ADMIN;
 
 boolean connected = false;
 WiFiUDP udp;
@@ -152,11 +163,12 @@ const char *sondeTypeStrSH[NSondeTypes] = { "DFM", "RS41", "RS92", "Mxx"/*never 
 WiFiServer rdzserver(14570);
 WiFiClient rdzclient;
 
-// If a file "localupd.txt" exists, firmware can be updated from a custom IP address read from this file, stored in localUpdates.
+// Local (custom server) updates: enabled by LOCAL_UPDATE_URL (features.h) or a non-empty first
+// line in "localupd.txt"; localUpdates then holds the URL that pre-fills the update form.
 // By default (localUpdates==NULL) this is disabled to prevent abuse
 // Note: by enabling this, someone with access to the web interface can replace the firmware arbitrarily!
 // Make sure that only trustworthy persons have access to the web interface...
-char *localUpdates = NULL;
+const char *localUpdates = NULL;
 
 boolean forceReloadScreenConfig = false;
 
@@ -438,7 +450,9 @@ const char *runControlCmd(const char *param)
   } else if (strcmp(param, "format") == 0) {
     keyboardInject(EVT_FORMAT);
   } else if (strcmp(param, "reboot") == 0) {
-    ESP.restart();
+    // Restart only after the HTTP response is out (httpdRebootIfPending): a request that
+    // gets no answer may be resent by the browser after the reboot -> boot loop.
+    otaPhase = "reboot";
   } else {
     return "unknown cmd";
   }
@@ -1303,6 +1317,15 @@ const char *httpdGetWifiAsJson(void) { return getWifiAsJson(); }
 const char *httpdHandleWifiJsonPut(const char *body) { return handleWifiJsonPut(body); }
 const char *httpdHandleControlJson(const char *body) { return handleControlJson(body); }
 const char *httpdGetControlActionsJson(void) { return getControlActionsJson(); }
+/* Called by the httpd task after a control response was sent. Restarts from the httpd task,
+ * so it works even if the main loop is stuck. The delay lets lwIP deliver the response. */
+void httpdRebootIfPending(void) {
+  if (strcmp(otaPhase, "reboot") == 0) {
+    LOG_W(TAG, "Rebooting (requested via web)\n");
+    delay(1000);
+    ESP.restart();
+  }
+}
 
 /* /update.json — OTA progress for the wait page. */
 const char *createUpdateJson(void) {
@@ -1350,55 +1373,72 @@ const char *createUpdateForm(void) {
 
 const char *httpdCreateUpdateJson(void) { return createUpdateJson(); }
 
-const char *handleUpdatePost(void) {
+// Reject an update request: no update starts; the progress page shows msg (phase "error").
+static int updateReject(int status, const char *msg) {
+  LOG_E(TAG, "Update request rejected: %s\n", msg);
+  otaPhase = "error";
+  otaMsg = msg;
+  return status;
+}
+
+// Returns 0 if the update was started, otherwise an HTTP status (403/400).
+int handleUpdatePost(void) {
   LOG_D(TAG, "Handling post request");
+  // A second request must not change host/prefix while execOTA() uses them.
+  if (otaRequested.load() || strcmp(otaPhase, "starting") == 0 || strcmp(otaPhase, "fs") == 0 ||
+      strcmp(otaPhase, "flash") == 0) {
+    LOG_E(TAG, "Update request rejected: update already running\n");
+    return 409;  // keep otaPhase/otaMsg of the running update
+  }
   // Prefer formGet so action/url order in the POST body does not matter
   // (url is listed before the local submit button in upd.html).
-  if (localUpdates && formGet("local")) {
+  if (formGet("local")) {
+    // Never fall back to a main update if a local one was requested.
+    if (!localUpdates) return updateReject(403, "Local updates are disabled");
     const char *raw = formGet("url");
-    if (raw && raw[0]) {
-      // Note: strdup allocates memory that is never free'd.
-      // Let's not care about this as we are going to reboot after the update anyway...
-      char localsrc[160];
-      strncpy(localsrc, raw, sizeof(localsrc) - 1);
-      localsrc[sizeof(localsrc) - 1] = '\0';
-      char *pos;
+    if (!raw || !raw[0]) return updateReject(400, "Update URL missing");
+    // Note: strdup allocates memory that is never free'd.
+    // Let's not care about this as we are going to reboot after the update anyway...
+    char localsrc[160];
+    strncpy(localsrc, raw, sizeof(localsrc) - 1);
+    localsrc[sizeof(localsrc) - 1] = '\0';
+    char *pos;
 
-      if ((pos = strstr(localsrc, "://")) != nullptr) {
-        // strip off http://
-        memmove(localsrc, pos + 3, strlen(pos + 3) + 1);
-      }
+    if ((pos = strstr(localsrc, "://")) != nullptr) {
+      // strip off http://
+      memmove(localsrc, pos + 3, strlen(pos + 3) + 1);
+    }
 
-      if ((pos = strchr(localsrc, '/')) != nullptr) {
-        // see if there's a directory or updates are in the root
-        updatePrefix = strdup(pos);
-        *pos = '\0';
-      } else {
-        updatePrefix = strdup("/");
-      }
-
-      if ((pos = strchr(localsrc, ':')) != nullptr) {
-        // extract port
-        *pos = '\0';
-        updatePort = atoi(pos + 1);
-        updateHost = strdup(localsrc);
-      } else {
-        updateHost = strdup(localsrc);
-      }
+    if ((pos = strchr(localsrc, '/')) != nullptr) {
+      // see if there's a directory or updates are in the root
+      updatePrefix = strdup(pos);
+      *pos = '\0';
     } else {
-      LOG_E(TAG, "Local update requested but url parameter missing\n");
+      updatePrefix = strdup("/");
+    }
+
+    if ((pos = strchr(localsrc, ':')) != nullptr) {
+      // extract port
+      *pos = '\0';
+      updatePort = atoi(pos + 1);
+      updateHost = strdup(localsrc);
+    } else {
+      updateHost = strdup(localsrc);
     }
   } else if (formGet("dev2")) {
     updatePrefix = updatePrefixD;
   } else if (formGet("main")) {
     updatePrefix = updatePrefixM;
+  } else {
+    return updateReject(400, "Unknown update request");
   }
   LOG_I(TAG, "Updating: %s%s from %s:%d\n", updatePrefix, updateIno, updateHost, updatePort);
-  enterMode(ST_UPDATE);
-  return "";
+  otaResetProgress();  // progress page shows "Starting..." until loop() picks up the request
+  otaRequested.store(true, std::memory_order_release);  // publishes updateHost/Prefix/Port
+  return 0;
 }
 
-const char *httpdHandleUpdatePost(void) { return handleUpdatePost(); }
+int httpdHandleUpdatePost(void) { return handleUpdatePost(); }
 const char *httpdCreateUpdateForm(void) { return createUpdateForm(); }
 
 const char *createKMLLive(const char *myIP) {
@@ -1563,12 +1603,23 @@ void heap_caps_alloc_failed_hook(size_t requested_size, uint32_t caps, const cha
 }
 #endif
 
+#ifdef LOCAL_UPDATE_URL
+#warning "LOCAL_UPDATE_URL is set - do not use for release builds"
+static_assert(sizeof(LOCAL_UPDATE_URL) > 1, "LOCAL_UPDATE_URL must not be empty");
+#endif
+
 static void enableLocalUpdates() {
+#ifdef LOCAL_UPDATE_URL
+  localUpdates = LOCAL_UPDATE_URL;
+#else
   localUpdates = NULL;
+#endif
   File local = LittleFS.open("/localupd.txt", "r");
-  if(local && local.available()) {
-    localUpdates = strdup(readLine(local).c_str());
-  } 
+  if (local && local.available()) {
+    String url = readLine(local);
+    url.trim();
+    if (url.length() > 0) localUpdates = strdup(url.c_str());  // file overrides the define
+  }
   LOG_I(TAG, "Local update server for development: %s\n", localUpdates?localUpdates:"<disabled>");
 }
 
@@ -1718,9 +1769,7 @@ void setup()
 void enterMode(int mode) {
   LOG_D(TAG, "enterMode(%d)\n", mode);
   if (mode == ST_UPDATE) {
-    otaPhase = "starting";
-    otaMsg = "";
-    otaFiles = otaFsBytes = otaBytes = otaTotal = 0;
+    otaResetProgress();
   }
   // Backround RX task should only be active in mode ST_DECODER for now
   // (future changes might use RX background task for spectrum display as well)
@@ -1772,7 +1821,7 @@ static const char *action2text(uint8_t action) {
 }
 
 #define RDZ_DATA_LEN 128
-static char rdzData[RDZ_DATA_LEN];
+static char rdzData[RDZ_DATA_LEN + 1];  // + NUL; rdzDataPos == RDZ_DATA_LEN marks an overlong line
 static int rdzDataPos = 0;
 
 void loopDecoder() {
@@ -1839,13 +1888,15 @@ void loopDecoder() {
     LOG_D(TAG, "RDZ JSON socket: received data");
     while (rdzclient.available()) {
       char c = (char)rdzclient.read();
-      if (c == '\n' || c == '}' || rdzDataPos >= RDZ_DATA_LEN) {
-        // parse GPS position from phone
-        rdzData[rdzDataPos] = c;
-        if (rdzDataPos > 2) parseGpsJson(rdzData, rdzDataPos + 1);
+      if (c == '\n' || c == '}') {
+        // parse GPS position from phone; an overlong (truncated) line is dropped, not parsed
+        if (rdzDataPos > 2 && rdzDataPos < RDZ_DATA_LEN) {
+          rdzData[rdzDataPos++] = c;
+          rdzData[rdzDataPos] = '\0';
+          parseGpsJson(rdzData, rdzDataPos);
+        }
         rdzDataPos = 0;
-      }
-      else {
+      } else if (rdzDataPos < RDZ_DATA_LEN) {
         rdzData[rdzDataPos++] = c;
       }
     }
@@ -2309,62 +2360,84 @@ void execOTA() {
   // Connect to Update host
   if (!client.connect(updateHost, updatePort)) {
     LOG_E(TAG, "Connection to %s:%d for fs update failed\n", updateHost, updatePort);
-    enterMode(ST_DECODER);
+    otaFail("Update host unreachable");
+    return;
   }
 
   // First, try update file system
   LOG_I(TAG, "Fetching fs update from '%s:%d' '%s' '%s'\n", updateHost, updatePort, updatePrefix, updateFs);
   disp.rdis->drawString(0, 1 * dispys, "Fetching fs...");
-  client.printf("GET %s%s HTTP/1.1\r\n"
+  // HTTP/1.0: the server must not use chunked transfer encoding (the parser below cannot handle it)
+  client.printf("GET %s%s HTTP/1.0\r\n"
                 "Host: %s:%d\r\n"
                 "Cache-Control: no-cache\r\n"
                 "Connection: close\r\n\r\n", updatePrefix, updateFs, updateHost, updatePort);
-  // see if we get some data....
 
+  // Body: repeated "<name> <size>\n" + <size> bytes. Its end is given by Content-Length,
+  // not by client.available() (which is 0 whenever the network pauses briefly).
+  // Any failure aborts the whole update, so the firmware is never updated without the
+  // matching web UI. A file system aborted part-way is fixed by running the update again.
   int type = 0;
-  int res = fetchHTTPheader(&type);
-  if (res < 0) {
-    ; // no-op
-  } else {
-    otaPhase = "fs";
-    // process data...
-    while (client.available()) {
-      // get header...
-      char fn[128];
-      fn[0] = '/';
-      client.readBytesUntil('\n', fn + 1, 128);
-      char *sz = strchr(fn, ' ');
-      if (!sz) {
+  int total = fetchHTTPheader(&type);  // Content-Length; -1 on error or if missing
+  if (total < 0) {
+    client.stop();
+    otaFail("Filesystem download failed");
+    return;
+  }
+  otaPhase = "fs";
+  while (total > 0) {
+    // header line "name size": leave room for the leading '/' and the NUL
+    char fn[128];
+    fn[0] = '/';
+    size_t n = client.readBytesUntil('\n', fn + 1, sizeof(fn) - 2);
+    fn[1 + n] = '\0';
+    total -= n + 1;
+    char *sz = strchr(fn, ' ');
+    if (!sz) {
+      client.stop();
+      otaFail("Filesystem update truncated");
+      return;
+    }
+    *sz = 0;
+    int len = atoi(sz + 1);
+    total -= len;
+    if (len < 0 || total < 0) {
+      client.stop();
+      otaFail("Filesystem update corrupt");
+      return;
+    }
+    LOG_I(TAG, "Updating file %s (%d bytes)\n", fn, len);
+    char fnstr[17];
+    memset(fnstr, ' ', 16);
+    strncpy(fnstr, fn, 16);
+    fnstr[16] = 0;
+    disp.rdis->drawString(0, 2 * dispys, fnstr);
+    File f = LittleFS.open(fn, FILE_WRITE);  // closed by its destructor, also on return
+    if (!f) {
+      client.stop();
+      otaFail("Cannot write file");
+      return;
+    }
+    while (len > 0) {
+      unsigned char buf[1024];
+      size_t want = len > 1024 ? 1024 : len;
+      // readBytes() waits (with delay) until 'want' bytes arrived, error, or timeout
+      if (client.readBytes((char *)buf, want) != want) {
         client.stop();
-        otaFail("Filesystem update truncated");
+        otaFail("Filesystem download failed");
         return;
       }
-      *sz = 0;
-      int len = atoi(sz + 1);
-      LOG_I(TAG, "Updating file %s (%d bytes)\n", fn, len);
-      char fnstr[17];
-      memset(fnstr, ' ', 16);
-      strncpy(fnstr, fn, 16);
-      fnstr[16] = 0;
-      disp.rdis->drawString(0, 2 * dispys, fnstr);
-      File f = LittleFS.open(fn, FILE_WRITE);
-      // read sz bytes........
-      while (len > 0) {
-        unsigned char buf[1024];
-        int r = client.read(buf, len > 1024 ? 1024 : len);
-        if (r == -1) {
-          client.stop();
-          otaFail("Filesystem download failed");
-          return;
-        }
-        size_t w = f.write(buf, r);
-        otaFsBytes += (unsigned)w;
-        len -= r;
+      if (f.write(buf, want) != want) {
+        client.stop();
+        otaFail("Filesystem full or write error");
+        return;
       }
-      otaFiles++;
+      otaFsBytes += (unsigned)want;
+      len -= want;
     }
-    client.stop();
+    otaFiles++;
   }
+  client.stop();
 
   // Connect to Update host
   if (!client.connect(updateHost, updatePort)) {
@@ -2454,6 +2527,8 @@ void execOTA() {
 
 int fetchHTTPheader(int *validType) {
   int contentLength = -1;
+  // ms without data before readStringUntil()/readBytes*() give up; also used for the body
+  client.setTimeout(5000);
   unsigned long timeout = millis();
   while (client.available() == 0) {
     if (millis() - timeout > 5000) {
@@ -2461,6 +2536,7 @@ int fetchHTTPheader(int *validType) {
       client.stop();
       return -1;
     }
+    delay(10);  // let other tasks (and the WDT idle task) run while waiting
   }
   // Once the response is available, check stuff
 
@@ -2480,7 +2556,8 @@ int fetchHTTPheader(int *validType) {
       {{BIN FILE CONTENTS}}
 
   */
-  while (client.available()) {
+  // not available(): a header split across TCP segments must not end the loop early
+  while (client.connected() || client.available()) {
     // read line till \n
     String line = client.readStringUntil('\n');
     // remove space, to check if the line is end of headers
@@ -2498,7 +2575,7 @@ int fetchHTTPheader(int *validType) {
 
     // Check if the HTTP Response is 200
     // else break and Exit Update
-    if (line.startsWith("HTTP/1.1")) {
+    if (line.startsWith("HTTP/1.")) {  // server may answer 1.0 or 1.1
       if (line.indexOf("200") < 0) {
         LOG_E(TAG, "Got a non 200 status code from server. Exiting OTA Update.");
         return -1;
@@ -2539,6 +2616,8 @@ void loop() {
   Log.handleImprov();
 
 #ifndef REMOVE_ALL_FOR_TESTING
+  // Update requested via web: switch modes here, in the main task (works from any mode)
+  if (otaRequested.exchange(false, std::memory_order_acquire)) enterMode(ST_UPDATE);
   switch (mainState) {
     case ST_DECODER:
 #ifndef DISABLE_MAINRX

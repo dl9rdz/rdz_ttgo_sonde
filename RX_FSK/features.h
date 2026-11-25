@@ -29,6 +29,10 @@
  */
 #define LEGACY_FONTS_IN_CODEBIN 0
 
+/* Development only: enables firmware updates from a custom server. Anyone with access
+ * to the web interface can then flash any firmware! The URL pre-fills the update form.
+ * A file localupd.txt (first line = URL) on LittleFS enables this at runtime as well. */
+#define LOCAL_UPDATE_URL "http://192.168.2.234:8000/"
 
 #else
    // Safeboot image is a minimalistic version that only includes WiFi / OTA functionality

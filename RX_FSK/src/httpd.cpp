@@ -38,7 +38,7 @@ static httpd_after_write_cb s_after_write_cb = nullptr;
 
 /* Sketch-owned (RX_FSK.ino). */
 extern uint8_t defaultUserLevel;
-extern char *localUpdates;
+extern const char *localUpdates;
 
 #if FEATURE_SDCARD
 extern SemaphoreHandle_t globalLock;
@@ -106,11 +106,6 @@ static size_t httpd_template_resolve(const char *var, char *out, size_t out_cap)
 		if (localUpdates) {
 			snprintf(out, out_cap, "%s", localUpdates);
 		}
-	} else if (strcmp(var, "PREAUTH") == 0) {
-		char preauth[COOKIE_SIZE];
-		generateRandomCookie("preauth", preauth);
-		storeCookie(preauth, -1); /* preauth value */
-		snprintf(out, out_cap, "%s", preauth);
 	}
 	return strlen(out);
 }
@@ -193,7 +188,7 @@ static const char *content_type_for_basename(const char *name)
 	return "text/plain; charset=utf-8";
 }
 
-/* Password-bearing LittleFS files: GET /file/* requires auth for these only. */
+/* Password-bearing LittleFS files: GET /file/* and GET /sd/.int/* require auth for these only. */
 static bool file_get_requires_auth(const char *basename)
 {
 	return strcasecmp(basename, "config.txt") == 0 ||
@@ -867,7 +862,7 @@ static esp_err_t file_get(httpd_req_t *req)
 	if (!basename_from_file_uri(req, name, sizeof(name))) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid path");
 	}
-	if (file_get_requires_auth(name) && !require_auth(req, 2)) {
+	if (file_get_requires_auth(name) && !require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	char path[80];
@@ -877,7 +872,7 @@ static esp_err_t file_get(httpd_req_t *req)
 
 static esp_err_t file_put(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	char name[72];
@@ -892,7 +887,7 @@ static esp_err_t file_put(httpd_req_t *req)
 
 static esp_err_t file_post(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	char name[72];
@@ -922,7 +917,7 @@ static esp_err_t file_post(httpd_req_t *req)
 /* Legacy POST /file (no path) -- multipart upload with filename= in part headers. */
 static esp_err_t file_post_root(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	char name[72];
@@ -932,7 +927,7 @@ static esp_err_t file_post_root(httpd_req_t *req)
 
 static esp_err_t edit_html_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	/* IDF: static shell; JS fetches/saves via GET/PUT /file/* (no POST /edit.html). */
@@ -1094,10 +1089,10 @@ static esp_err_t login_html_post(httpd_req_t *req)
 	}
 
 	int ulvl = getUserPermissions(username, preauth, auth);
-	if (ulvl > 0) {
+	if (ulvl > PERM_NONE) {
 		char cookie[COOKIE_SIZE];
 		generateRandomCookie(username, cookie);
-		if (upgradeCookie(preauth, cookie, (char)ulvl) == 0) {
+		if (upgradeCookie(preauth, cookie, (int8_t)ulvl) == 0) {
 			char set_cookie[80];
 			snprintf(set_cookie, sizeof(set_cookie),
 				 "SESSION=%s; Path=/; SameSite=Strict", cookie);
@@ -1238,12 +1233,6 @@ static bool delete_sd_dir_recursive(const char *vfs_path)
 	return rc == 0;
 }
 
-/* .int is the virtual LittleFS root used by the SD file browser. */
-static bool path_is_int(const char *rel)
-{
-	return rel != nullptr && (strcmp(rel, ".int") == 0 || strncmp(rel, ".int/", 5) == 0);
-}
-
 static esp_err_t files_json_flush(httpd_req_t *req, char *chunk, size_t *chunk_len)
 {
 	if (*chunk_len == 0) {
@@ -1275,9 +1264,7 @@ static esp_err_t files_json_get(httpd_req_t *req)
 			httpd_resp_set_type(req, "application/json");
 			return httpd_resp_send(req, "[]", 2);
 		}
-		if (path_is_int(decoded) && !require_auth(req, 2)) {
-			return ESP_OK;
-		}
+		/* .int listing is public: names are not secret, reading the secret files needs admin. */
 		if (strcmp(decoded, ".int") == 0) {
 			strncpy(subdir, "/littlefs/", sizeof(subdir) - 1);
 			subdir[sizeof(subdir) - 1] = '\0';
@@ -1400,8 +1387,10 @@ static esp_err_t sd_file_get(httpd_req_t *req)
 	if (!vfs_from_sd_uri(req, vfs, sizeof(vfs))) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "invalid path");
 	}
-	/* vfs is "/sd/<rel>". .int is LittleFS in the file browser. */
-	if (path_is_int(vfs + 4) && !require_auth(req, 2)) {
+	/* .int/<name> maps to LittleFS: same rule as GET /file/* (only the secret files need admin).
+	 * vfs never ends in '/', so the basename is non-empty. */
+	if (strncmp(vfs, "/littlefs/", 10) == 0 &&
+	    file_get_requires_auth(strrchr(vfs, '/') + 1) && !require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 
@@ -1436,9 +1425,10 @@ static esp_err_t sd_file_get(httpd_req_t *req)
 	return httpd_resp_send_chunk(req, nullptr, 0);
 }
 
-static esp_err_t sdrm_html_get(httpd_req_t *req)
+/* POST /sdrm.html?file=<path>: POST (not GET) so that a link or <img> cannot delete files. */
+static esp_err_t sdrm_html_post(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	char raw[96];
@@ -1548,7 +1538,7 @@ static esp_err_t livemap_html_get(httpd_req_t *req)
 
 static esp_err_t upd_html_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_lfs(req, "/upd.html", "text/html", "no-cache", false);
@@ -1572,7 +1562,8 @@ extern const char *httpdGetWifiAsJson(void);
 extern const char *httpdHandleWifiJsonPut(const char *body);
 extern const char *httpdHandleControlJson(const char *body);
 extern const char *httpdGetControlActionsJson(void);
-extern const char *httpdHandleUpdatePost(void);
+extern void httpdRebootIfPending(void);
+extern int httpdHandleUpdatePost(void);  /* 0 = started, else HTTP status */
 extern const char *httpdCreateUpdateForm(void);
 extern const char *httpdCreateUpdateJson(void);
 extern const char *httpdCreateKMLLive(void);
@@ -1755,7 +1746,19 @@ static esp_err_t preauth_get(httpd_req_t *req)
 {
 	char preauth[COOKIE_SIZE];
 	generateRandomCookie("preauth", preauth);
-	storeCookie(preauth, -1);
+	int wait = storePreauth(preauth);
+	if (wait > 0) {
+		/* All login slots hold live sessions; they expire by themselves. */
+		char retry[12];
+		char body[128];
+		snprintf(retry, sizeof(retry), "%d", wait);
+		snprintf(body, sizeof(body),
+			 "{\"error\":\"Too many active logins, try again in %d min.\",\"retry\":%d}",
+			 (wait + 59) / 60, wait);
+		httpd_resp_set_status(req, "503 Service Unavailable");
+		httpd_resp_set_hdr(req, "Retry-After", retry);
+		return send_cstr(req, "application/json", body);
+	}
 	char body[COOKIE_SIZE + 32];
 	snprintf(body, sizeof(body), "{\"preauth\":\"%s\"}", preauth);
 	return send_cstr(req, "application/json", body);
@@ -1763,7 +1766,7 @@ static esp_err_t preauth_get(httpd_req_t *req)
 
 static esp_err_t wifi_json_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_cstr(req, "application/json", httpdGetWifiAsJson());
@@ -1771,7 +1774,7 @@ static esp_err_t wifi_json_get(httpd_req_t *req)
 
 static esp_err_t wifi_json_put(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	static char body[3072];
@@ -1788,7 +1791,7 @@ static esp_err_t wifi_json_put(httpd_req_t *req)
 
 static esp_err_t control_json_post(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	static char body[256];
@@ -1800,7 +1803,9 @@ static esp_err_t control_json_post(httpd_req_t *req)
 	if (res && res[0]) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, res);
 	}
-	return send_cstr(req, "application/json", "{\"ok\":true}");
+	err = send_cstr(req, "application/json", "{\"ok\":true}");
+	httpdRebootIfPending();  /* reboot only after the answer is sent */
+	return err;
 }
 
 static esp_err_t recv_post_body(httpd_req_t *req, char *buf, size_t cap)
@@ -1829,7 +1834,7 @@ extern char message[]; /* sketch HTML/POST scratch (RX_FSK.ino) */
 static esp_err_t editor_post(httpd_req_t *req, const char *(*apply)(void),
 			     const char *(*form)(void), bool need_auth)
 {
-	if (need_auth && !require_auth(req, 2)) {
+	if (need_auth && !require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	/* Reuse sketch `message[]` for URL-encoded body; create*Form() overwrites after apply. */
@@ -1856,7 +1861,7 @@ static esp_err_t qrg_html_post(httpd_req_t *req)
 
 static esp_err_t wifi_html_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_cstr(req, "text/html", createWIFIForm());
@@ -1869,7 +1874,7 @@ static esp_err_t wifi_html_post(httpd_req_t *req)
 
 static esp_err_t config_html_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_cstr(req, "text/html", createConfigForm());
@@ -1877,7 +1882,7 @@ static esp_err_t config_html_get(httpd_req_t *req)
 
 static esp_err_t config_json_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_cstr(req, "application/json", createConfigJson());
@@ -1890,7 +1895,7 @@ static esp_err_t config_html_post(httpd_req_t *req)
 
 static esp_err_t control_html_get(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
 	return send_cstr(req, "text/html", createControlForm());
@@ -1898,22 +1903,32 @@ static esp_err_t control_html_get(httpd_req_t *req)
 
 static esp_err_t control_html_post(httpd_req_t *req)
 {
-	return editor_post(req, httpdHandleControlPost, createControlForm, true);
+	esp_err_t err = editor_post(req, httpdHandleControlPost, createControlForm, true);
+	httpdRebootIfPending();  /* reboot only after the answer is sent */
+	return err;
 }
 
 static esp_err_t update_html_post(httpd_req_t *req)
 {
-	if (!require_auth(req, 2)) {
+	if (!require_auth(req, PERM_ADMIN)) {
 		return ESP_OK;
 	}
-	/* Sets updatePrefix / host and enterMode(ST_UPDATE); reply while OTA starts. */
+	/* Sets updatePrefix / host and requests the update; loop() starts it in the main task. */
 	static char body[1024];
 	esp_err_t err = recv_post_body(req, body, sizeof(body));
 	if (err != ESP_OK) {
 		return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "bad body");
 	}
 	formParseUrlencodedMutable(body);
-	(void)httpdHandleUpdatePost();
+	int status = httpdHandleUpdatePost();
+	if (status == 403) {
+		httpd_resp_set_status(req, "403 Forbidden");
+	} else if (status == 409) {
+		httpd_resp_set_status(req, "409 Conflict");  /* progress page shows the running update */
+	} else if (status != 0) {
+		httpd_resp_set_status(req, "400 Bad Request");
+	}
+	/* Same progress page either way: on rejection it shows the error from /update.json. */
 	return send_cstr(req, "text/html", httpdCreateUpdateForm());
 }
 
@@ -2295,8 +2310,8 @@ static const httpd_uri_t uri_sd_file = {
 
 static const httpd_uri_t uri_sdrm = {
 	.uri = "/sdrm.html",
-	.method = HTTP_GET,
-	.handler = sdrm_html_get,
+	.method = HTTP_POST,
+	.handler = sdrm_html_post,
 	.user_ctx = nullptr,
 };
 #endif

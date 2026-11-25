@@ -66,6 +66,45 @@ export function mountControl(root, ctx) {
     host.appendChild(wrap);
   });
 
+  let stopped = false;
+  let pollTimer = null;
+
+  /* After Reboot: poll /update.json (no auth, tiny) until a new boot answers.
+   * The firmware reports phase "reboot" until it restarts; a fresh boot reports "idle". */
+  function waitForReboot() {
+    const start = Date.now();
+    status.textContent = 'Rebooting…';
+    status.className = 'muted';
+    async function poll() {
+      if (stopped) return;
+      let phase = null;
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 2000);
+      try {
+        const r = await fetch('/update.json', { credentials: 'same-origin', cache: 'no-store', signal: ac.signal });
+        phase = (await r.json()).phase || null;
+      } catch (e) {
+        /* device down or still booting */
+      } finally {
+        clearTimeout(t);
+      }
+      if (stopped) return;
+      if (phase && phase !== 'reboot') {
+        status.textContent = 'Back online';
+        status.className = 'ok';
+        pollTimer = setTimeout(() => { if (!stopped) location.href = '/'; }, 1000);
+        return;
+      }
+      if (Date.now() - start > 90000) {
+        status.textContent = 'Device did not come back. Check power and Wi-Fi.';
+        status.className = 'err';
+        return;
+      }
+      pollTimer = setTimeout(poll, 1000);
+    }
+    pollTimer = setTimeout(poll, 1500);
+  }
+
   async function run(cmd, btn) {
     if (cmd === 'reboot' && !confirm('Reboot the device now?')) return;
     if (cmd === 'format' && !confirm('Format the SD card? This erases all SD data.')) return;
@@ -74,17 +113,31 @@ export function mountControl(root, ctx) {
     status.className = 'muted';
     try {
       await postJson('/control', { cmd });
-      status.textContent = cmd === 'reboot' ? 'Rebooting…' : 'OK';
+      if (cmd === 'reboot') {
+        toast('Reboot sent');
+        waitForReboot();
+        return;
+      }
+      status.textContent = 'OK';
       status.className = 'ok';
-      toast(cmd === 'reboot' ? 'Reboot sent' : 'Command sent');
+      toast('Command sent');
     } catch (e) {
       if (e.message === 'auth') return;
+      /* Network error on reboot (e.g. older firmware restarting before it answers): wait anyway. */
+      if (cmd === 'reboot' && e instanceof TypeError) {
+        waitForReboot();
+        return;
+      }
       status.textContent = e.message;
       status.className = 'err';
+      btn.disabled = false;
     } finally {
       if (cmd !== 'reboot') btn.disabled = false;
     }
   }
 
-  return () => {};
+  return () => {
+    stopped = true;
+    clearTimeout(pollTimer);
+  };
 }

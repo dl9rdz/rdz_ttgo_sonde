@@ -10,7 +10,7 @@ Usage:
 # - OTA: POST /update.html (do not POST firmware from this harness)
 # - control/button: POST /control.html (rx, scan, reboot, …)
 # - config.html form POST (distinct from PUT /file/config.txt)
-# - /sdrm.html delete (opt-in only)
+# - /sdrm.html: POST only (non-existent file; no real delete)
 # - legacy leftovers: /live.kml, /dynamic.kml, *.gpx
 # - --load 1..3 extra parallel/idle sessions (device max_open_sockets=7)
 """
@@ -525,9 +525,197 @@ def test_login(ctx: Ctx):
         return _fail(rtt, f"HTTP {st}")
     if "index.html" not in (hdr.get("location") or ""):
         return _fail(rtt, f"Location={hdr.get('location')!r}")
-    if "SESSION=" not in hdr.get("set-cookie", ""):
+    m = re.search(r"SESSION=([^;\s]+)", hdr.get("set-cookie", ""))
+    if not m:
         return _fail(rtt, "no SESSION cookie")
+    # Free the slot again: the device keeps only 4 logins, and --loop would fill them.
+    ctx.request("GET", "/logout", headers={"Cookie": f"SESSION={m.group(1)}"}, timed=False)
     return _ok(rtt)
+
+
+# --- auth / session table (meaningful only when user.txt requires login, e.g. ",1,") ---
+
+AUTH_PROBE = "/config.json"  # requires PERM_ADMIN
+MAX_SESSIONS = 4  # user.cpp
+
+
+def _auth_open(ctx: Ctx) -> bool:
+    """True if the device grants admin without login (user.txt default ",2,")."""
+    st, _, _, _ = ctx.get(AUTH_PROBE, timed=False)
+    return st == 200
+
+
+def _get_preauth(ctx: Ctx):
+    """Return (status, preauth|None, json|None)."""
+    st, _, body, _ = ctx.get("/preauth", timed=False)
+    try:
+        js = json.loads(body.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        js = None
+    pre = js.get("preauth") if isinstance(js, dict) else None
+    return st, pre, js
+
+
+def _login(ctx: Ctx, user: str = "admin", password: str = "admin") -> str | None:
+    """Log in; return the SESSION cookie value, or None."""
+    st, pre, _ = _get_preauth(ctx)
+    if st != 200 or not pre:
+        return None
+    auth = hashlib.sha256(f"{user}:{pre}:{password}".encode("utf-8")).hexdigest()
+    st, hdr, _, _ = ctx.post_form("/login.html", {"user": user, "preauth": pre, "auth": auth}, timed=False)
+    m = re.search(r"SESSION=([^;\s]+)", hdr.get("set-cookie", ""))
+    return m.group(1) if st == 302 and m else None
+
+
+def _with_session(ctx: Ctx, session: str, path: str):
+    return ctx.request("GET", path, headers={"Cookie": f"SESSION={session}"}, timed=False)
+
+
+def _logout(ctx: Ctx, session: str) -> None:
+    _with_session(ctx, session, "/logout")
+
+
+def test_auth_preauth_not_session(ctx: Ctx):
+    """A preauth token used as SESSION cookie must not authenticate."""
+    if _auth_open(ctx):
+        return _skip("auth open (user.txt ',2,')")
+    st, pre, _ = _get_preauth(ctx)
+    if st != 200 or not pre:
+        return _skip(f"/preauth HTTP {st}")
+    st, _, _, _ = _with_session(ctx, pre, AUTH_PROBE)
+    if st != 401:
+        return _fail(None, f"preauth accepted as session: HTTP {st}")
+    return _ok(None)
+
+
+def test_auth_preauth_flood(ctx: Ctx):
+    """Many /preauth requests must not evict a live session."""
+    if _auth_open(ctx):
+        return _skip("auth open (user.txt ',2,')")
+    session = _login(ctx)
+    if not session:
+        return _skip("login failed (table full or wrong admin password)")
+    try:
+        for _ in range(3 * MAX_SESSIONS):
+            _get_preauth(ctx)
+        st, _, _, _ = _with_session(ctx, session, AUTH_PROBE)
+        if st != 200:
+            return _fail(None, f"session evicted by /preauth flood: HTTP {st}")
+        return _ok(None)
+    finally:
+        _logout(ctx, session)
+
+
+def test_auth_table_full(ctx: Ctx):
+    """With all slots holding live sessions, /preauth answers 503 + retry; logout frees a slot."""
+    if _auth_open(ctx):
+        return _skip("auth open (user.txt ',2,')")
+    sessions: list[str] = []
+    try:
+        for _ in range(MAX_SESSIONS + 1):
+            s = _login(ctx)
+            if not s:
+                break
+            sessions.append(s)
+        if not sessions:
+            return _skip("login failed (table full or wrong admin password)")
+        st, _, js = _get_preauth(ctx)
+        if st != 503:
+            return _fail(None, f"expected 503 with full table, got HTTP {st}")
+        if not isinstance(js, dict) or not js.get("error") or int(js.get("retry", 0)) <= 0:
+            return _fail(None, f"503 body lacks error/retry: {js!r}")
+        _logout(ctx, sessions.pop())
+        st, pre, _ = _get_preauth(ctx)
+        if st != 200 or not pre:
+            return _fail(None, f"logout did not free a slot: HTTP {st}")
+        return _ok(None, f"{len(sessions) + 1} sessions filled the table")
+    finally:
+        for s in sessions:
+            _logout(ctx, s)
+
+
+def test_sd_int_access(ctx: Ctx):
+    """Without login: .int listing and non-secret files are public, the 3 secret files are 401."""
+    if _auth_open(ctx):
+        return _skip("auth open (user.txt ',2,')")
+    st, _, _, _ = ctx.get("/files.json?dir=.int", timed=False)
+    if st != 200:
+        return _fail(None, f".int listing HTTP {st}, expected 200")
+    for name in ("config.txt", "networks.txt", "user.txt", "USER.TXT"):
+        st, _, _, _ = ctx.get(f"/sd/.int/{name}", timed=False)
+        if st != 401:
+            return _fail(None, f"/sd/.int/{name} HTTP {st}, expected 401")
+    st, _, _, _ = ctx.get("/sd/.int//config.txt", timed=False)
+    if st in (200, 206):
+        return _fail(None, f"/sd/.int//config.txt HTTP {st}, expected no access")
+    st, _, _, _ = ctx.get("/sd/.int/last_rx.csv", timed=False)
+    if st not in (200, 404):
+        return _fail(None, f"/sd/.int/last_rx.csv HTTP {st}, expected 200/404")
+    return _ok(None)
+
+
+def test_sdrm_post_only(ctx: Ctx):
+    """/sdrm.html deletes only via POST; GET must not reach the handler. Uses a non-existent file."""
+    path = "/sdrm.html?file=" + urllib.parse.quote("no-such-file-xyz.csv")
+    st, _, body, _ = ctx.request("POST", path, timed=False)
+    if st == 401:
+        return _skip("needs login (user.txt ',1,')")
+    if st == 404 and b"not found" not in body:
+        return _skip("no SD support")
+    if b"not found" not in body:
+        return _fail(None, f"POST HTTP {st}: {body[:60]!r}")
+    st, _, body, _ = ctx.get(path, timed=False)
+    if b"not found</body>" in body or b"ok</body>" in body:
+        return _fail(None, f"GET reached the delete handler: HTTP {st}")
+    return _ok(None)
+
+
+def _local_updates_enabled(ctx: Ctx):
+    """True/False from meta.localUpdates, None if unknown."""
+    st, _, body, _ = ctx.get("/meta.json", timed=False)
+    if st != 200:
+        return None
+    try:
+        return bool(json.loads(body.decode("utf-8", errors="replace")).get("localUpdates", "").strip())
+    except (json.JSONDecodeError, AttributeError):
+        return None
+
+
+def test_local_update_rejected(ctx: Ctx):
+    """Local updates disabled: a local update request is refused, never turned into a main update."""
+    en = _local_updates_enabled(ctx)
+    if en is None:
+        return _skip("meta.json unavailable")
+    if en:
+        return _skip("local updates enabled (would start a real update)")
+    st, _, _, _ = ctx.post_form("/update.html", {"url": "http://192.0.2.1/", "local": "Local-Update"}, timed=False)
+    if st == 401:
+        return _skip("needs login")
+    if st != 403:
+        return _fail(None, f"POST local update HTTP {st}, expected 403")
+    st, _, body, _ = ctx.get("/update.json", timed=False)
+    try:
+        js = json.loads(body.decode("utf-8", errors="replace"))
+    except json.JSONDecodeError:
+        return _fail(None, "update.json not JSON")
+    if js.get("phase") != "error":
+        return _fail(None, f"phase {js.get('phase')!r}, expected 'error' (update started?)")
+    return _ok(None)
+
+
+def test_localupd_upload_refused(ctx: Ctx):
+    """Local updates disabled: uploading localupd.txt (which would enable them) is refused."""
+    en = _local_updates_enabled(ctx)
+    if en is None:
+        return _skip("meta.json unavailable")
+    if en:
+        return _skip("local updates enabled (upload allowed)")
+    st, _, _, _ = ctx.put("/file/localupd.txt", b"http://192.0.2.1/\n", timed=False)
+    if st == 401:
+        return _skip("needs login")
+    if st != 403:
+        return _fail(None, f"PUT localupd.txt HTTP {st}, expected 403")
+    return _ok(None)
 
 
 def test_config_put(ctx: Ctx):
@@ -732,6 +920,13 @@ CASES += [
     ("get /sd smallest.csv", test_sd_csv_smallest),
     ("get /sd largest.csv", test_sd_csv_largest),
     ("login admin/admin", test_login),
+    ("auth: preauth != session", test_auth_preauth_not_session),
+    ("auth: preauth flood", test_auth_preauth_flood),
+    ("auth: table full -> 503", test_auth_table_full),
+    ("auth: /sd/.int secrets", test_sd_int_access),
+    ("sdrm POST only", test_sdrm_post_only),
+    ("local update rejected", test_local_update_rejected),
+    ("localupd.txt upload refused", test_localupd_upload_refused),
     ("PUT /file/config.txt", test_config_put),
     ("POST /qrg.html", test_qrg_post),
     ("POST /wifi.html", test_wifi_post),

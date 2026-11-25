@@ -42,3 +42,10 @@ __pycache__
 .pio-home
 .pio
 
+simulator
+rdz_ttgo_sonde.wiki
+.c*
+.d*
+RX_FSK/data/localupd.txt
+notes
+.removed

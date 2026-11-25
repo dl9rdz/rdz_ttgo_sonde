@@ -36,7 +36,6 @@
               <label for="pass">Password</label>
               <input type="password" id="pass" name="pass" required autocomplete="current-password">
             </div>
-            <input type="hidden" id="preauth" name="preauth" value="">
             <button type="submit" class="primary btn-block">Login</button>
             <p id="login-status" class="err" hidden></p>
           </form>
@@ -59,16 +58,22 @@
       setLoginStatus('');
       var username = document.getElementById('user').value;
       var password = document.getElementById('pass').value;
-      var preauth = document.getElementById('preauth').value;
-      if (!preauth) {
-        setLoginStatus('The device was not reached.');
-        return;
-      }
-      document.getElementById('pass').value = '';
-      var auth = sha256(username + ':' + preauth + ':' + password);
       var btn = event.target.querySelector('button[type="submit"]');
       btn.disabled = true;
       try {
+        /* Fetch the one-time preauth token only now: it expires 60 s after issue. */
+        var preRes = await fetch('/preauth', { credentials: 'same-origin', cache: 'no-store' });
+        if (!preRes.ok) {
+          /* 503: all login slots hold live sessions (message includes the wait time). */
+          var err = await preRes.json().catch(function () { return {}; });
+          setLoginStatus(err.error || ('HTTP ' + preRes.status));
+          return;
+        }
+        var pre = await preRes.json();
+        if (!pre.preauth) throw new Error('preauth');
+        var preauth = pre.preauth;
+        document.getElementById('pass').value = '';
+        var auth = sha256(username + ':' + preauth + ':' + password);
         var r = await fetch('/login.html', {
           method: 'POST',
           credentials: 'same-origin',
@@ -88,15 +93,6 @@
       }
     }
     async function initLogin() {
-      try {
-        var preRes = await fetch('/preauth', { credentials: 'same-origin' });
-        if (!preRes.ok) throw new Error('preauth');
-        var pre = await preRes.json();
-        if (!pre.preauth) throw new Error('preauth');
-        document.getElementById('preauth').value = pre.preauth;
-      } catch (e) {
-        setLoginStatus('The device was not reached.');
-      }
       try {
         var metaRes = await fetch('/meta.json', { credentials: 'same-origin' });
         if (!metaRes.ok) return;

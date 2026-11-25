@@ -230,7 +230,7 @@
         deleteBtn.textContent = 'Delete';
         deleteBtn.onclick = function () {
           if (!confirm('Delete "' + file.name + '"?')) return;
-          fetch('sdrm.html?file=' + encodeURIComponent(pdir + file.name))
+          fetch('sdrm.html?file=' + encodeURIComponent(pdir + file.name), { method: 'POST', credentials: 'same-origin' })
             .then(function (resp) {
               if (resp.ok) row.remove();
               else alert('Delete failed.');

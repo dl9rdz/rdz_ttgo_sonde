@@ -32,7 +32,8 @@ extern struct StationPos gpsPos, posInfo;
 void initGPS();
 
 // Update position from app (if not local GPS chip)
-void parseGpsJson(char *data, int len); 
+/* data[len] must be '\0' (strtod/strncmp may read up to it). */
+void parseGpsJson(char *data, int len);
 
 // Update position from static config
 void fixedToPosInfo();
