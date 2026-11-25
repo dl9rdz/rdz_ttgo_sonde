@@ -23,19 +23,4 @@ void Conn::appendUptime(char *str, int maxlen, uint32_t uptime) {
   snprintf(str, maxlen, "%0dd %02d:%02d:%02d", up_d, up_h, up_m, up_s);
 }
 
-void Conn::escapeJson(char *dst, const char *src, int maxlen) {
-    while (*src && maxlen>1) {
-        if (*src == '"' || *src == '\\' || ('\x00' <= *src && *src <= '\x1f')) {
-            snprintf(dst, maxlen, "\\u%04x", (unsigned char)*src);
-            int n = strlen(dst);
-            maxlen -= n;
-            dst += n;
-            src++;
-        } else {
-            *dst++ = *src++;
-            maxlen--;
-        }
-    }
-    *dst = 0;
-}
 

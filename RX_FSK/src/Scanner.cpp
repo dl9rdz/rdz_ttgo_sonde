@@ -183,15 +183,13 @@ void Scanner::scan()
 	// Configure 
  	STARTF = (sonde.config.startfreq * 1000000);
 	radio.setFrequency(STARTF);
-	Serial.print("Start freq = "); Serial.println(STARTF);
 	radio.scanBegin((float)(scanconfig.CHANSTEP*1000), scanconfig.SMOOTH&0x07);
 	double bw = radio.getRxBandwidth();
-	Serial.print("RX Bandwith for scan: "); Serial.println(bw);
 
 	unsigned long start = millis();
 	float freq = STARTF;
 	int wait = scanconfig.ADDWAIT + 20 + 1000*(1<<(scanconfig.SMOOTH+1))/4/(0.001*CHANBW);
-	Serial.print("wait time (us) is: "); Serial.println(wait);
+	LOG_I(TAG, "Start freq=%d, rx bandwith=%f, wait time is %d us", STARTF, bw, wait);
 	for(int iter=0; iter<3; iter++) {   // three interations, to catch all RS41 transmissions
 	    delayMicroseconds(20000); yield();
 	    for(int i=0; i<nchan; i++) {
@@ -209,12 +207,7 @@ void Scanner::scan()
 	radio.scanEnd();
 	yield();
 	unsigned long duration = millis()-start;
-	Serial.print("wait: ");
-	Serial.println(wait);
-	Serial.print("Scan time: ");
-	Serial.println(duration);
-	Serial.print("Final freq: ");
-	Serial.println(freq);
+	LOG_D(TAG, "wait: %d, scan time:%d, final freq: %d", wait, duration, freq);
 	int peakidx=-1;
 	int peakres=-9999;
 	for(int i=0; i<scanconfig.PLOT_W; i+=1) {
@@ -236,7 +229,7 @@ void Scanner::scan()
 	else if (newpeakf < peakf) peakf = 0.75*newpeakf + 0.25*peakf;		// averaging on frequency, some bias towards lower...
 	else peakf = 0.25*newpeakf + 0.75*peakf;
 	Serial.println("\n");
-	Serial.printf("Peak: %f rssi %d\n", peakf, peakres);
+	LOG_D(TAG, "Peak: %f rssi %d", peakf, peakres);
 	spectrumLen = scanconfig.PLOT_W;
 	spectrumStartMHz = (float)(STARTF * 1e-6);
 	spectrumStepMHz = (float)(scanconfig.CHANSTEP * scanconfig.SMPL_PIX / 1000.0);

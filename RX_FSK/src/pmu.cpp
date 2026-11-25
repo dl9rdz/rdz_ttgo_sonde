@@ -157,14 +157,14 @@ enum KeyPress { KP_NONE = 0, KP_SHORT, KP_DOUBLE, KP_MID, KP_LONG };
 
 int PMU::handleIRQ() { 
    if (pmu_irq) {
-      Serial.println("PMU_IRQ is set\n");
+      //Serial.println("PMU_IRQ is set\n");
    } else {
       return -1;
    }
    int keypress = -1;
    xSemaphoreTake( axpSemaphore, portMAX_DELAY );
    keypress = getIrqKeyStatus();
-   if(keypress) { Serial.printf("Keypress: %d (%s)", keypress, keypress==KP_SHORT?"short":"mid"); }
+   //if(keypress) { Serial.printf("Keypress: %d (%s)", keypress, keypress==KP_SHORT?"short":"mid"); }
    if (pmu_irq != 2) {
        pmu_irq = 0;
    }
@@ -346,7 +346,7 @@ float AXP192PMU::getBattChargeCurrent() {
 #define AXP192_ACIN_VOLTAGE_STEP                (1.7F)
 float AXP192PMU::getAcinVoltage() {
     float f = readRegisters_8_4(AXP192_ACIN_VOL_H8, AXP192_ACIN_VOL_L4) * AXP192_ACIN_VOLTAGE_STEP;
-    Serial.printf("Acin: %f\n", f);
+    //Serial.printf("Acin: %f\n", f);
     return f;
 }
 
@@ -358,7 +358,7 @@ float AXP192PMU::getAcinCurrent() {
 #define AXP192_VBUS_VOLTAGE_STEP                (1.7F)
 float AXP192PMU::getVbusVoltage() {
     float f= readRegisters_8_4(AXP192_VBUS_VOL_H8, AXP192_VBUS_VOL_L4) * AXP192_VBUS_VOLTAGE_STEP;
-    Serial.printf("Vbus: %f\n", f);
+    //Serial.printf("Vbus: %f\n", f);
     return f;
 }
 
@@ -592,7 +592,7 @@ float AXP2101PMU::getAcinCurrent() { return -1; }
 float AXP2101PMU::getVbusVoltage() { 
 	int hi = readRegister(AXP2101_PMU_ADC2) & 0x3F;
 	int lo = readRegister(AXP2101_PMU_ADC2+1);
-	Serial.printf("vbus: %d %d\n", hi, lo);
+	//Serial.printf("vbus: %d %d\n", hi, lo);
 	float vbus = (float)((hi<<8) | lo );
 	if(vbus>7000) return -1;
 	return vbus;

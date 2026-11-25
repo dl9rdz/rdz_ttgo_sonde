@@ -8,6 +8,7 @@
 #define conn_h
 
 #include "Sonde.h"
+#include "json.h"
 
 
 // to be moved elsewhere
@@ -49,7 +50,7 @@ public:
 	virtual String getName() = 0;
 
 	static void appendUptime(char *str, int maxlen, uint32_t uptime);
-	static void escapeJson(char *dst, const char *src, int maxlen);
+	static void escapeJson(char *dst, const char *src, int maxlen) { json_escape(dst, maxlen > 0 ? (size_t)maxlen : 0, src); }
 
 };
 #endif

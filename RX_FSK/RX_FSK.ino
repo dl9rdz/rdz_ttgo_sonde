@@ -324,92 +324,6 @@ const char *getQRGAsJson() {
   return message;
 }
 
-/* Escape for JSON string values into dst (NUL-terminated). */
-static void jsonEscapeInto(char *dst, size_t dst_cap, const char *src)
-{
-  if (dst_cap == 0) {
-    return;
-  }
-  size_t o = 0;
-  if (!src) {
-    dst[0] = '\0';
-    return;
-  }
-  while (*src && o + 1 < dst_cap) {
-    unsigned char c = (unsigned char)*src++;
-    if (c == '"' || c == '\\') {
-      if (o + 2 >= dst_cap) {
-        break;
-      }
-      dst[o++] = '\\';
-      dst[o++] = (char)c;
-    } else if (c < 0x20) {
-      if (o + 6 >= dst_cap) {
-        break;
-      }
-      snprintf(dst + o, dst_cap - o, "\\u%04x", c);
-      o = strlen(dst);
-    } else {
-      dst[o++] = (char)c;
-    }
-  }
-  dst[o] = '\0';
-}
-
-/* Read JSON string value for key "name" starting search at *pp; advance *pp past value. */
-static bool jsonNextStringField(const char **pp, const char *name, char *out, size_t out_cap)
-{
-  if (!pp || !*pp || !name || out_cap == 0) {
-    return false;
-  }
-  char keypat[48];
-  snprintf(keypat, sizeof(keypat), "\"%s\"", name);
-  const char *p = strstr(*pp, keypat);
-  if (!p) {
-    return false;
-  }
-  p += strlen(keypat);
-  while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
-    p++;
-  }
-  if (*p != ':') {
-    return false;
-  }
-  p++;
-  while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r') {
-    p++;
-  }
-  if (*p != '"') {
-    return false;
-  }
-  p++;
-  size_t o = 0;
-  while (*p && *p != '"') {
-    char c = *p++;
-    if (c == '\\' && *p) {
-      char e = *p++;
-      if (e == 'n') {
-        c = '\n';
-      } else if (e == 'r') {
-        c = '\r';
-      } else if (e == 't') {
-        c = '\t';
-      } else {
-        c = e;
-      }
-    }
-    if (o + 1 < out_cap) {
-      out[o++] = c;
-    }
-  }
-  out[o] = '\0';
-  if (*p == '"') {
-    p++;
-  }
-  *pp = p;
-  return true;
-}
-
 const char *getControlActionsJson(void)
 {
   static char buf[160];
@@ -463,7 +377,7 @@ const char *handleControlJson(const char *body)
 {
   char cmd[24];
   const char *p = body ? body : "";
-  if (!jsonNextStringField(&p, "cmd", cmd, sizeof(cmd))) {
+  if (!json_get_str(&p, "cmd", cmd, sizeof(cmd))) {
     return "bad cmd";
   }
   return runControlCmd(cmd);
@@ -602,8 +516,8 @@ const char *getWifiAsJson(void)
     char pw[96];
     const char *id = (i < n) ? netmgr.ssid(i) : "";
     const char *pass = (i < n) ? netmgr.password(i) : "";
-    jsonEscapeInto(ssid, sizeof(ssid), id);
-    jsonEscapeInto(pw, sizeof(pw), pass);
+    json_escape(ssid, sizeof(ssid), id);
+    json_escape(pw, sizeof(pw), pass);
     if (i > 0) {
       strcat(ptr, ",");
     }
@@ -620,51 +534,49 @@ const char *handleWifiJsonPut(const char *body)
   if (!body) {
     return "bad body";
   }
-  File f = LittleFS.open("/networks.txt", "w");
-  if (!f) {
-    return "Error while opening '/networks.txt' for writing";
-  }
   const char *p = strstr(body, "\"slots\"");
-  if (!p) {
-    f.close();
+  if (!p || !(p = strchr(p, '['))) {
     return "missing slots";
   }
-  p = strchr(p, '[');
-  if (!p) {
-    f.close();
-    return "bad slots";
-  }
   p++;
+  /* Parse everything before touching networks.txt, so a bad request cannot wipe it. */
+  char ssids[MAX_WIFI][64];
+  char pws[MAX_WIFI][64];
+  int nslots = 0;
   for (int i = 0; i < MAX_WIFI; i++) {
     const char *obj = strchr(p, '{');
     if (!obj) {
       break;
     }
-    const char *end = strchr(obj, '}');
+    const char *end = json_object_end(obj);
     if (!end) {
-      break;
+      return "bad slots";
     }
     char objbuf[256];
     size_t n = (size_t)(end - obj + 1);
     if (n >= sizeof(objbuf)) {
-      n = sizeof(objbuf) - 1;
+      return "slot too long";
     }
     memcpy(objbuf, obj, n);
     objbuf[n] = '\0';
+    p = end + 1;
     const char *scan = objbuf;
-    char ssid[64];
-    char pw[64];
-    ssid[0] = pw[0] = '\0';
-    if (!jsonNextStringField(&scan, "ssid", ssid, sizeof(ssid))) {
-      p = end + 1;
+    if (!json_get_str(&scan, "ssid", ssids[nslots], sizeof(ssids[0]))) {
       continue;
     }
     scan = objbuf;
-    (void)jsonNextStringField(&scan, "password", pw, sizeof(pw));
-    if (ssid[0]) {
-      f.printf("%s\n%s\n", ssid, pw);
+    pws[nslots][0] = '\0';
+    (void)json_get_str(&scan, "password", pws[nslots], sizeof(pws[0]));
+    nslots++;
+  }
+  File f = LittleFS.open("/networks.txt", "w");
+  if (!f) {
+    return "Error while opening '/networks.txt' for writing";
+  }
+  for (int i = 0; i < nslots; i++) {
+    if (ssids[i][0]) {
+      f.printf("%s\n%s\n", ssids[i], pws[i]);
     }
-    p = end + 1;
   }
   f.close();
   netmgr.reload();
@@ -676,18 +588,10 @@ static bool ms_after(uint32_t t, uint32_t since) {
   return (int32_t)(t - since) > 0;
 }
 
+/* Append escaped src to the string in message[] that ends at dst (bounded by message[]). */
 static void json_append_escaped(char *dst, const char *src) {
   char *p = dst + strlen(dst);
-  for (; *src; src++) {
-    unsigned char c = (unsigned char)*src;
-    if (c == '"' || c == '\\') {
-      *p++ = '\\';
-      *p++ = (char)c;
-    } else if (c >= 0x20) {
-      *p++ = (char)c;
-    }
-  }
-  *p = 0;
+  json_escape(p, sizeof(message) - (size_t)(p - message), src);
 }
 
 static void appendDecoderEntry(char *ptr, int i, bool empty) {
@@ -1033,8 +937,9 @@ struct st_configitems config_list[] = {
 
 const int N_CONFIG = (sizeof(config_list) / sizeof(struct st_configitems));
 
-/* Keep a config value inside the cf.set("...", "...") script on /config.html. */
-static void appendJsString(char *dst, const char *src) {
+/* JS string literal embedded in an HTML <script> (cf.set("...") on /config.html).
+ * Intentionally NOT json_escape(): it must also escape '<' so a value cannot close the script tag. */
+static void js_string_in_html(char *dst, const char *src) {
   char *p = dst + strlen(dst);
   if (!src) src = "";
   for (; *src; src++) {
@@ -1097,7 +1002,7 @@ const char *createConfigForm() {
           sprintf(ptr + strlen(ptr), "%.8g", *(double *)config_list[i].data);
         break;
       default: // string
-        appendJsString(ptr, (char *)config_list[i].data);
+        js_string_in_html(ptr, (char *)config_list[i].data);
     }
     strcat(ptr, "\");\n");
   }
@@ -1141,32 +1046,6 @@ static int configRawValue(int i, char *dst, int cap)
   }
 }
 
-static bool jsonQuote(char **p, char *end, const char *src)
-{
-  char *w = *p;
-  if (w >= end) return false;
-  *w++ = '"';
-  if (!src) src = "";
-  for (; *src; src++) {
-    unsigned char c = (unsigned char)*src;
-    if (c == '"' || c == '\\') {
-      if (w + 2 >= end) return false;
-      *w++ = '\\';
-      *w++ = (char)c;
-    } else if (c < 0x20) {
-      continue;
-    } else {
-      if (w + 1 >= end) return false;
-      *w++ = (char)c;
-    }
-  }
-  if (w + 1 >= end) return false;
-  *w++ = '"';
-  *w = '\0';
-  *p = w;
-  return true;
-}
-
 const char *createConfigJson(void)
 {
   char *p = message;
@@ -1179,7 +1058,7 @@ const char *createConfigJson(void)
   int nLay = disp.layouts ? disp.nLayouts : 0;
   for (int i = 0; i < nLay; i++) {
     if (i && p < end) *p++ = ',';
-    if (!jsonQuote(&p, end, disp.layouts[i].label)) return "{\"error\":\"truncated\"}";
+    if (!json_put_str(&p, end, disp.layouts[i].label)) return "{\"error\":\"truncated\"}";
   }
   if (p + 12 >= end) return "{\"error\":\"truncated\"}";
   memcpy(p, "],\"values\":{", 12);
@@ -1188,11 +1067,11 @@ const char *createConfigJson(void)
   for (int i = 0; i < N_CONFIG; i++) {
     if (p + 1 >= end) return "{\"error\":\"truncated\"}";
     if (i) *p++ = ',';
-    if (!jsonQuote(&p, end, config_list[i].name)) return "{\"error\":\"truncated\"}";
+    if (!json_put_str(&p, end, config_list[i].name)) return "{\"error\":\"truncated\"}";
     if (p >= end) return "{\"error\":\"truncated\"}";
     *p++ = ':';
     if (configRawValue(i, value, sizeof(value)) < 0) return "{\"error\":\"truncated\"}";
-    if (!jsonQuote(&p, end, value)) return "{\"error\":\"truncated\"}";
+    if (!json_put_str(&p, end, value)) return "{\"error\":\"truncated\"}";
   }
   if (p + 2 >= end) return "{\"error\":\"truncated\"}";
   *p++ = '}';

@@ -26,6 +26,7 @@
 #include "Startup.h"
 #include "sonde_hist.h"
 #include "../version.h"
+#include "json.h"
 #if FEATURE_RS92
 #include "geteph.h"
 #endif
@@ -1111,7 +1112,7 @@ static esp_err_t login_html_post(httpd_req_t *req)
 #if FEATURE_SDCARD
 
 #define FILES_JSON_MAX_SIZE 4096
-#define FILES_JSON_MAX_ENTRY 128
+#define FILES_JSON_MAX_ENTRY 192  /* escaped name (<=127) + fields */
 
 static const char *sd_content_type(const char *path)
 {
@@ -1339,15 +1340,17 @@ static esp_err_t files_json_get(httpd_req_t *req)
 
 		char ftim[50];
 		strftime(ftim, sizeof(ftim), "%Y-%m-%dT%H:%M:%SZ", gmtime(&mtime));
+		char name_esc[sizeof(d_name_copy) * 2];
+		json_escape(name_esc, sizeof(name_esc), d_name_copy);
 		int n;
 		if (is_dir) {
 			n = snprintf(entry, sizeof(entry),
 				     "%s{\"name\":\"%s\",\"dir\":1,\"ts\":\"%s\"}",
-				     first ? "" : ",", d_name_copy, ftim);
+				     first ? "" : ",", name_esc, ftim);
 		} else {
 			n = snprintf(entry, sizeof(entry),
 				     "%s{\"name\":\"%s\",\"size\":%ld,\"ts\":\"%s\"}",
-				     first ? "" : ",", d_name_copy, fsize, ftim);
+				     first ? "" : ",", name_esc, fsize, ftim);
 		}
 		if (n < 0 || (size_t)n >= sizeof(entry)) {
 			continue;
@@ -1609,34 +1612,6 @@ static esp_err_t qrg_json_get(httpd_req_t *req)
 	return send_cstr(req, "application/json", getQRGAsJson());
 }
 
-/* Escape a short string into a JSON string body (no surrounding quotes). */
-static void json_escape_short(char *dst, size_t dst_cap, const char *src)
-{
-	size_t o = 0;
-	if (dst_cap == 0) {
-		return;
-	}
-	if (src == nullptr) {
-		dst[0] = '\0';
-		return;
-	}
-	while (*src && o + 1 < dst_cap) {
-		unsigned char c = (unsigned char)*src++;
-		if (c == '"' || c == '\\') {
-			if (o + 2 >= dst_cap) {
-				break;
-			}
-			dst[o++] = '\\';
-			dst[o++] = (char)c;
-		} else if (c < 0x20) {
-			continue;
-		} else {
-			dst[o++] = (char)c;
-		}
-	}
-	dst[o] = '\0';
-}
-
 /* Fill buf with meta object fields (no surrounding braces). Returns bytes written or -1. */
 static int format_meta_fields(char *buf, size_t cap)
 {
@@ -1651,7 +1626,7 @@ static int format_meta_fields(char *buf, size_t cap)
 	char board[96];
 	snprintf(board, sizeof(board), "Fingerprint %d (%s)", sonde.fingerprint, fpstr);
 	char board_esc[128];
-	json_escape_short(board_esc, sizeof(board_esc), board);
+	json_escape(board_esc, sizeof(board_esc), board);
 
 	double lat = 48, lon = 13;
 	if (posInfo.valid) {
@@ -1665,10 +1640,10 @@ static int format_meta_fields(char *buf, size_t cap)
 	const char *eph = "Not supported";
 #endif
 	char eph_esc[64];
-	json_escape_short(eph_esc, sizeof(eph_esc), eph);
+	json_escape(eph_esc, sizeof(eph_esc), eph);
 
 	char local_esc[160];
-	json_escape_short(local_esc, sizeof(local_esc), localUpdates ? localUpdates : "");
+	json_escape(local_esc, sizeof(local_esc), localUpdates ? localUpdates : "");
 
 	return snprintf(buf, cap,
 			"\"versionName\":\"%s\","

@@ -287,6 +287,8 @@ domReady(function () {
   var lastRxShown = {}; /* ser -> true/false, default true */
   var lastRxMarkers = {};
   var lastRxTracks = {};
+  /* lt_<ser>.csv is fetched at most once per ser (whatever the result); cleared on untick. */
+  var ltRequested = {};
   /* SD / file-list overlays: key -> { path, label, pts, data, layer, marker, shown } */
   var sdOverlays = {};
 
@@ -804,13 +806,6 @@ domReady(function () {
     }
   }
 
-  function ensureLiveLightTrack(data) {
-    var ser = liveSerOf(data);
-    if (!ser) return;
-    if (lastRxShown[ser] === false) return;
-    if (!lastRxTracks[ser]) loadLightTrack(ser);
-  }
-
   function liveKeyForSer(ser) {
     if (!ser) return null;
     var keys = Object.keys(marker);
@@ -990,7 +985,6 @@ domReady(function () {
           line[key].setLatLngs(dots[key]).bringToFront();
         }
         ensureLiveTrailBridge(key, liveSerOf(data), location);
-        ensureLiveLightTrack(data);
         syncLastRxMarkers();
       }
 
@@ -1693,8 +1687,10 @@ domReady(function () {
       inp.addEventListener('change', function() {
         var ser = inp.getAttribute('data-ser');
         lastRxShown[ser] = inp.checked;
-        if (!inp.checked) hideLastRxSer(ser);
-        else syncLastRxMarkers();
+        if (!inp.checked) {
+          hideLastRxSer(ser);
+          delete ltRequested[ser]; /* re-ticking loads lt_<ser>.csv once more */
+        } else syncLastRxMarkers();
       });
     });
     box.querySelectorAll('input[data-sd-key]').forEach(function(inp) {
@@ -1755,7 +1751,7 @@ domReady(function () {
     Object.keys(lastRxMarkers).forEach(function(ser) {
       if (!keepCircle[ser]) removeLastRxCircle(ser);
     });
-    /* Keep tracks for checked last_rx rows and for the live sonde (even before last_rx lists it). */
+    /* Keep tracks for checked last_rx rows and for the live sonde. */
     Object.keys(lastRxTracks).forEach(function(ser) {
       if (lastRxShown[ser] === false) {
         removeLastRxTrack(ser);
@@ -1766,9 +1762,15 @@ domReady(function () {
     });
   }
 
+  /* Same character filter as ltPath() in sonde_hist.cpp. */
+  function ltFileName(ser) {
+    return 'lt_' + String(ser).replace(/[^A-Za-z0-9_-]/g, '') + '.csv';
+  }
+
   function loadLightTrack(ser) {
-  if (lastRxShown[ser] === false) return;
-  fetch('/file/lt_' + encodeURIComponent(ser) + '.csv')
+  if (lastRxShown[ser] === false || ltRequested[ser]) return;
+  ltRequested[ser] = true;
+  fetch('/file/' + ltFileName(ser))
     .then(function (response) {
       if (!response.ok) throw new Error(response.status);
       return response.text();
@@ -1877,8 +1879,8 @@ function loadLastRx() {
     });
   }
 
+  /* One-time history load on map open: last_rx.csv, then lt_*.csv for its rows. No polling. */
   loadLastRx();
-  setInterval(loadLastRx, 60000);
   loadSdOverlays();
 });
 
