@@ -554,9 +554,10 @@ void Display::initFromFile(int index) {
 						LOG_E(TAG, "initFromFile: more than %d screens, ignoring the rest\n", MAXSCREENS);
 						goto done;
 					}
+					/* Copy the label first: s points into lineBuf, which countEntries() overwrites */
+					char *label = strdup(s+1);
 					entrysize = countEntries(d);
 					LOG_D(TAG, "Reading entry with %d elements\n", entrysize);
-					char *label = strdup(s+1);
 					if(!label || allocDispInfo(entrysize, &newlayouts[idx + 1], label) < 0) {
 						LOG_E(TAG, "Error allocating memory for disp info");
 						free(label);
