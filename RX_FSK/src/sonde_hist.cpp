@@ -325,13 +325,29 @@ static void setLastRxFromHist(SondeInfo *si, uint32_t histTime)
 	}
 }
 
+/* Stored type (typestr, or sondeTypeStr[realType]) belongs to the channel's sonde type?
+ * Channels on the same frequency with different types must not get each other's entries. */
+static bool histTypeMatches(SondeType t, const char *s)
+{
+	switch (t) {
+	case STYPE_RS41: return strncmp(s, "RS41", 4) == 0;
+	case STYPE_RS92: return strncmp(s, "RS92", 4) == 0;
+	case STYPE_DFM:  return s[0] == 'D' || strncmp(s, "PS15", 4) == 0;  /* DFM, DFx?, DF9P, D17P, ... */
+	case STYPE_M10M20:
+	case STYPE_M10:
+	case STYPE_M20:  return strncmp(s, "M10", 3) == 0 || strncmp(s, "M20", 3) == 0 || strncmp(s, "Mxx", 3) == 0;
+	case STYPE_MP3H: return strncmp(s, "MP3", 3) == 0;
+	}
+	return false;
+}
+
 static void seedDecoder()
 {
 	for (int s = 0; s < sonde.nSonde; s++) {
 		SondeInfo *si = &sonde.sondeList[s];
 		int best = -1;
 		for (int i = 0; i < nStore; i++) {
-			if (!freqMatch(si->freq, store[i].freq))
+			if (!freqMatch(si->freq, store[i].freq) || !histTypeMatches(si->type, store[i].type))
 				continue;
 			if (best < 0 || store[i].time > store[best].time)
 				best = i;
