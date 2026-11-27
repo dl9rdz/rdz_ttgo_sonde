@@ -1,5 +1,7 @@
 #include <inttypes.h>
-#include <Wire.h>
+#include <driver/i2c_master.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
 
 #define AXP192_SLAVE_ADDRESS 0x34
 
@@ -11,16 +13,23 @@ float getBattNoPMU();
 
 class PMU {
 protected:
-    PMU(TwoWire &wire) : _wire(wire) { };
+    PMU(i2c_master_dev_handle_t dev) : _dev(dev) { };
+
+    // I2C device handle for the PMU (on the bus created by Arduino's Wire.begin())
+    i2c_master_dev_handle_t _dev;
+    // Recursive mutex: serializes register access and keeps read-modify-write
+    // and multi-register reads atomic across tasks
+    static SemaphoreHandle_t _lock;
+    friend class PMULock;
 
 public:
     virtual ~PMU();
 
-    TwoWire &_wire;
-    static PMU *getInstance(TwoWire &wire);
+    // Requires that the I2C bus on port 0 has already been created by Wire.begin()
+    static PMU *getInstance();
     int type;
 
-    static int readRegisterWire(TwoWire &wire, uint8_t reg);
+    static int readRegisterDev(i2c_master_dev_handle_t dev, uint8_t reg);
     int readRegister(uint8_t reg);
     uint16_t readRegisters_8_4(uint8_t reghi, uint8_t reglo);
     uint16_t readRegisters_8_5(uint8_t reghi, uint8_t reglo);
@@ -53,7 +62,7 @@ public:
 /* Interface */
 class AXP192PMU : public PMU {
 public:
-    AXP192PMU(TwoWire &wire) : PMU(wire) { type = TYPE_AXP192; };
+    AXP192PMU(i2c_master_dev_handle_t dev) : PMU(dev) { type = TYPE_AXP192; };
     int init();
     void disableAllIRQ();
     void enableIRQ();
@@ -93,7 +102,7 @@ protected:
 
 class AXP2101PMU : public PMU {
 public:
-    AXP2101PMU(TwoWire &wire) : PMU(wire) { };
+    AXP2101PMU(i2c_master_dev_handle_t dev) : PMU(dev) { };
     int init();
     void disableAllIRQ();
     void enableIRQ();

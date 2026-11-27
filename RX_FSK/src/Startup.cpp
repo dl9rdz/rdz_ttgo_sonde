@@ -320,6 +320,8 @@ void startupPower() {
   if ( ( (sonde.fingerprint & (64 + 31)) != 31) && ((sonde.fingerprint & 16) == 16) ) {
     // FOr T-Beam 1.0
     for (int i = 0; i < 2; i++) { // try multiple times
+      // Note: the PMU code (PMU::getInstance) joins the I2C bus created here by Wire.begin(),
+      // so Wire.begin() must stay before PMU::getInstance()
       Wire.begin(21, 22);
       // Make sure the whole thing powers up!?!?!?!?!?
       U8X8 *u8x8 = new U8X8_SSD1306_128X64_NONAME_HW_I2C(0, 22, 21);
@@ -329,7 +331,7 @@ void startupPower() {
       scanI2Cdevice();
 
       if (!pmu) {
-        pmu = PMU::getInstance(Wire);
+        pmu = PMU::getInstance();
         if (pmu) {
           LOG_I(TAG, "PMU found\n");
           pmu->init();

@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <Wire.h>
+#include <Arduino.h>
 #include "pmu.h"
 #include "Sonde.h"
 #include "logger.h"
@@ -88,36 +88,82 @@ extern SemaphoreHandle_t axpSemaphore;
 
 PMU::~PMU() = default;
 
+// I2C transaction timeout. Never wait forever on a stuck bus.
+#define PMU_I2C_TIMEOUT_MS 50
+#define PMU_I2C_PORT 0
+#define PMU_I2C_SPEED_HZ 400000
+
+SemaphoreHandle_t PMU::_lock = NULL;
+
+class PMULock {
+public:
+    PMULock() { if (PMU::_lock) xSemaphoreTakeRecursive(PMU::_lock, portMAX_DELAY); }
+    ~PMULock() { if (PMU::_lock) xSemaphoreGiveRecursive(PMU::_lock); }
+};
+
 /// High-level functions 
-PMU *PMU::getInstance(TwoWire &wire) {
+PMU *PMU::getInstance() {
+    // Phase 1 of the Wire -> esp-idf migration: the bus is still owned by Arduino's Wire
+    // (the display uses it). We must only join that bus, never create it ourselves:
+    // creating it here would make the later Wire.begin() fail (port already acquired),
+    // and calling i2cInit() directly would leave Wire without TX buffer.
+    if (!i2cIsInit(PMU_I2C_PORT)) {
+        LOG_E(TAG, "I2C bus %d not initialized (Wire.begin() missing?), no PMU\n", PMU_I2C_PORT);
+        return NULL;
+    }
+    i2c_master_bus_handle_t bus = (i2c_master_bus_handle_t)i2cBusHandle(PMU_I2C_PORT);
+    if (!bus) {
+        LOG_E(TAG, "No I2C bus handle for port %d, no PMU\n", PMU_I2C_PORT);
+        return NULL;
+    }
+    if (!_lock) {
+        _lock = xSemaphoreCreateRecursiveMutex();
+    }
+
+    i2c_device_config_t cfg = {};
+    cfg.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    cfg.device_address = AXP192_SLAVE_ADDRESS;
+    cfg.scl_speed_hz = PMU_I2C_SPEED_HZ;
+    i2c_master_dev_handle_t dev = NULL;
+    esp_err_t err = i2c_master_bus_add_device(bus, &cfg, &dev);
+    if (err != ESP_OK) {
+        LOG_E(TAG, "i2c_master_bus_add_device failed: %s\n", esp_err_to_name(err));
+        return NULL;
+    }
+
     PMU *pmu = NULL;
     // Check if there is some AXP192 or AXP2101 present
-    uint8_t chipid = readRegisterWire(wire, AXP192_IC_TYPE);
+    int chipid = readRegisterDev(dev, AXP192_IC_TYPE);
     // AXP192: 0x03  AXP2101:  0x4A
     if(chipid==0x03) {
-        pmu = new AXP192PMU(wire);
+        pmu = new AXP192PMU(dev);
     }
     else if (chipid==0x4A) { 
-        pmu = new AXP2101PMU(wire);
+        pmu = new AXP2101PMU(dev);
+    }
+    if (!pmu) {
+        LOG_D(TAG, "No AXP PMU found (chip id %d)\n", chipid);
+        i2c_master_bus_rm_device(dev);
     }
     return pmu;
 }
 
-
-int PMU::readRegisterWire(TwoWire &wire, uint8_t reg) {
-    wire.beginTransmission(AXP192_SLAVE_ADDRESS);
-    wire.write(reg);
-    if (wire.endTransmission() != 0) {
+// Returns register value (0..255) or -1 on error
+int PMU::readRegisterDev(i2c_master_dev_handle_t dev, uint8_t reg) {
+    uint8_t val = 0;
+    PMULock lock;
+    esp_err_t err = i2c_master_transmit_receive(dev, &reg, 1, &val, 1, PMU_I2C_TIMEOUT_MS);
+    if (err != ESP_OK) {
         return -1;
     }
-    wire.requestFrom(AXP192_SLAVE_ADDRESS, 1U);
-    return wire.read();
+    return val;
 }
 int PMU::readRegister(uint8_t reg) {
-    return readRegisterWire(_wire, reg);
+    return readRegisterDev(_dev, reg);
 }
 uint16_t PMU::readRegisters_8_4(uint8_t regh, uint8_t regl)
 {
+    PMULock lock;
     uint8_t hi = readRegister(regh);
     uint8_t lo = readRegister(regl);
     return (hi << 4) | (lo & 0x0F);
@@ -125,16 +171,17 @@ uint16_t PMU::readRegisters_8_4(uint8_t regh, uint8_t regl)
 
 uint16_t PMU::readRegisters_8_5(uint8_t regh, uint8_t regl)
 {
+    PMULock lock;
     uint8_t hi = readRegister(regh);
     uint8_t lo = readRegister(regl);
     return (hi << 5) | (lo & 0x1F);
 }
 
 int PMU::writeRegister(uint8_t reg, uint8_t val) {
-    _wire.beginTransmission(AXP192_SLAVE_ADDRESS);
-    _wire.write(reg);
-    _wire.write(val);
-    return (_wire.endTransmission() == 0) ? 0 : -1;
+    uint8_t buf[2] = { reg, val };
+    PMULock lock;
+    esp_err_t err = i2c_master_transmit(_dev, buf, 2, PMU_I2C_TIMEOUT_MS);
+    return (err == ESP_OK) ? 0 : -1;
 }
 int PMU::getRegisterBit(uint8_t reg, uint8_t bit) {
     int val = readRegister(reg);
@@ -142,11 +189,13 @@ int PMU::getRegisterBit(uint8_t reg, uint8_t bit) {
     return (val >> bit) & 0x01;
 }
 int PMU::setRegisterBit(uint8_t reg, uint8_t bit) {
+    PMULock lock;
     int val = readRegister(reg);
     if (val == -1) { return -1; }
     return writeRegister(reg, (val | (1<<bit)));
 }
 int PMU::clearRegisterBit(uint8_t reg, uint8_t bit) {
+    PMULock lock;
     int val = readRegister(reg);
     if (val == -1) { return -1; }
     return writeRegister(reg, (val & ( ~(1<<bit))));
