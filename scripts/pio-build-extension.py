@@ -22,8 +22,17 @@ def tst(source, target, env):
    print("tst")
 
 # We generate all parts, using post actions or dependencies. Now merge all to a firmware bin file....
+# The bootloader is $BUILD_DIR/bootloader.bin, unless a custom one is configured
+# (board_build.arduino.custom_bootloader, e.g. for 26 MHz boards): take whatever
+# the framework uses for uploading at 0x1000.
+def bootloader_image(env):
+  for offset, path in env.get("FLASH_EXTRA_IMAGES", []):
+    if int(offset, 16) == 0x1000:
+      return env.subst(path)
+  return env.subst("$BUILD_DIR/bootloader.bin")
+
 def generate_image(source, target, env):
-  env.Execute('"$PYTHONEXE" -m esptool --chip esp32 merge-bin -o $BUILD_DIR/firmware-image.bin --flash-mode dio --flash-size 4MB 0x1000 $BUILD_DIR/bootloader.bin 0x8000 $BUILD_DIR/partitions.bin 0x10000 $BUILD_DIR/firmware.bin 0x310000 $BUILD_DIR/fonts.bin 0x320000 $BUILD_DIR/littlefs.bin --target-offset 0x1000')
+  env.Execute('"$PYTHONEXE" -m esptool --chip esp32 merge-bin -o $BUILD_DIR/firmware-image.bin --flash-mode dio --flash-size 4MB 0x1000 "' + bootloader_image(env) + '" 0x8000 $BUILD_DIR/partitions.bin 0x10000 $BUILD_DIR/firmware.bin 0x310000 $BUILD_DIR/fonts.bin 0x320000 $BUILD_DIR/littlefs.bin --target-offset 0x1000')
 
 
 # default target is elf file (if not target buildfs or uploadfs on command line)
